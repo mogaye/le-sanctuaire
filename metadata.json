@@ -1,0 +1,8 @@
+{
+  "name": "Le Sanctuaire",
+  "description": "Votre guide quotidien pour apprendre, prier et réciter : Saint Coran, horaires de prière, boussole Qibla et invocations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

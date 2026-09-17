@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Le Sanctuaire</title>
+    <meta name="description" content="Le Sanctuaire - Votre sanctuaire spirituel quotidien pour apprendre, prier et réciter : Saint Coran, horaires de prière, boussole Qibla, invocations et livres islamiques." />
+    <meta property="og:title" content="Le Sanctuaire" />
+    <meta property="og:description" content="Le Sanctuaire - Votre sanctuaire spirituel quotidien pour apprendre, prier et réciter : Saint Coran, horaires de prière, boussole Qibla, invocations et livres islamiques." />
+    <link rel="icon" type="image/jpeg" href="/images/sanctuaire_logo.jpg" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var mode = localStorage.getItem('sanctuaire_dark_mode');
+          if (mode === 'false') {
+            document.documentElement.classList.remove('dark');
+          } else {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 antialiased selection:bg-emerald-600 selection:text-white transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* Gentle, smooth global theme transition for all colors, backgrounds, borders and shadows */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke, text-decoration-color, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 350ms;
+  }
+
+  /* Prevent sluggish transitions on continuous user inputs or animations */
+  input[type="range"],
+  .no-theme-transition,
+  .no-theme-transition * {
+    transition: none !important;
+  }
+}
+
+.font-arabic {
+  font-family: 'Amiri', 'Traditional Arabic', serif;
+}
+
+/* Subtle glow effects for cards and ambient lighting */
+.ambient-glow {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.9) 0%, rgba(250, 250, 250, 0.4) 60%, transparent 100%);
+}
+
+.card-glow {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+}
+
+/* Hide scrollbars across Chrome, Safari, Firefox, Edge */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
