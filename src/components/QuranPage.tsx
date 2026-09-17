@@ -531,10 +531,16 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
     setActiveAyahNum(ayahNumber);
     saveLastRead(selectedSurahNumber, ayahNumber);
-    const element = document.getElementById(`ayah-${ayahNumber}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    
+    const scrollToTarget = () => {
+      const element = document.getElementById(`ayah-${ayahNumber}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    };
+
+    scrollToTarget();
+    setTimeout(scrollToTarget, 60);
   };
 
   // Count of bookmarks in the currently selected Surah
@@ -639,6 +645,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       } else {
         audioRef.current.play();
         setIsPlayingAudio(true);
+        jumpToAyah(ayahNum);
       }
       return;
     }
@@ -655,6 +662,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     setPlayingAyahNum(ayahNum);
     setActiveAyahNum(ayahNum);
     saveLastRead(selectedSurahNumber, ayahNum);
+    jumpToAyah(ayahNum);
 
     audio.ontimeupdate = () => {
       setAudioProgress(audio.currentTime);
@@ -684,7 +692,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       // Auto play next verse
       if (isAutoPlayNext && ayahNum < currentSurahMeta.numberOfAyahs) {
         const nextAyah = ayahNum + 1;
-        jumpToAyah(nextAyah);
         playAyahAudio(nextAyah);
       } else {
         setIsPlayingAudio(false);
@@ -702,47 +709,33 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       });
   };
 
-  // Full Surah Audio Recitation
+  // Full Surah Audio Recitation (synchronisé en continu avec le texte, défilement et halo glow)
   const toggleSurahAudio = () => {
-    if (audioSource === 'surah' && audioRef.current) {
-      if (isPlayingAudio) {
-        audioRef.current.pause();
-        setIsPlayingAudio(false);
-      } else {
-        audioRef.current.play();
-        setIsPlayingAudio(true);
-      }
+    // 1. Si la lecture est en cours, mettre en pause
+    if (isPlayingAudio && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlayingAudio(false);
       return;
     }
 
-    // Start fresh full surah
-    if (audioRef.current) {
-      audioRef.current.pause();
+    // 2. Si la lecture était en pause sur un verset précis, reprendre
+    if (!isPlayingAudio && audioRef.current && playingAyahNum) {
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlayingAudio(true);
+          jumpToAyah(playingAyahNum);
+        })
+        .catch(() => {
+          playAyahAudio(playingAyahNum);
+        });
+      return;
     }
 
-    const audioUrl = getSurahAudioUrl(selectedSurahNumber, selectedReciter.id);
-    const audio = new Audio(audioUrl);
-    audioRef.current = audio;
-    setAudioSource('surah');
-    setPlayingAyahNum(null);
-
-    audio.ontimeupdate = () => {
-      setAudioProgress(audio.currentTime);
-      setAudioDuration(audio.duration || 0);
-    };
-    audio.onended = () => {
-      setIsPlayingAudio(false);
-      setAudioSource(null);
-      setAudioProgress(0);
-    };
-
-    audio
-      .play()
-      .then(() => setIsPlayingAudio(true))
-      .catch((err) => {
-        console.warn('Full surah audio error:', err);
-        setIsPlayingAudio(false);
-      });
+    // 3. Démarrer la récitation continue depuis le verset actif (ou verset 1)
+    const targetAyah = playingAyahNum || activeAyahNum || 1;
+    setIsAutoPlayNext(true);
+    playAyahAudio(targetAyah);
   };
 
   // Previous Ayah in Audio Bar
@@ -1152,7 +1145,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             {/* Sidebar Controls: Reciter switcher & Surah Play */}
             <SidebarAudioControl
               surah={currentSurahMeta}
-              isPlayingAudio={isPlayingAudio && audioSource === 'surah'}
+              isPlayingAudio={isPlayingAudio}
               onToggleAudio={toggleSurahAudio}
               selectedReciter={selectedReciter}
               onSelectReciter={onSelectReciter}
@@ -1398,7 +1391,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             {/* Surah Illuminated Cartouche Header */}
             <SurahHeaderBanner
               surah={currentSurahMeta}
-              isPlayingAudio={isPlayingAudio && audioSource === 'surah'}
+              isPlayingAudio={isPlayingAudio}
               onToggleAudio={toggleSurahAudio}
               reciterName={selectedReciter.name}
               isDark={isDark}
@@ -1437,11 +1430,11 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                         setActiveAyahNum(ayah.num);
                         saveLastRead(selectedSurahNumber, ayah.num);
                       }}
-                      className={`group transition-all duration-200 pt-3 pb-6 border-b ${themeClasses.border} relative rounded-2xl cursor-pointer ${
+                      className={`group transition-all duration-300 pt-3 pb-6 border-b ${themeClasses.border} relative rounded-2xl cursor-pointer ${
                         isPlayingThis
                           ? isDark
-                            ? 'bg-emerald-900/40 ring-2 ring-emerald-400/50 -mx-4 px-4 shadow-sm'
-                            : 'bg-teal-50/70 ring-2 ring-teal-500/40 -mx-4 px-4 shadow-sm'
+                            ? 'bg-emerald-900/40 ring-2 ring-emerald-400 border-emerald-400/40 -mx-4 px-4 shadow-[0_0_30px_rgba(16,185,129,0.25)]'
+                            : 'bg-emerald-50/90 ring-2 ring-emerald-500 border-emerald-300 -mx-4 px-4 shadow-[0_0_25px_rgba(16,185,129,0.2)]'
                           : isActive
                           ? isDark
                             ? 'bg-emerald-950/60 ring-1 ring-emerald-500/30 -mx-4 px-4 shadow-xs'
@@ -1711,11 +1704,11 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                             setActiveAyahNum(ayah.num);
                             playAyahAudio(ayah.num);
                           }}
-                          className={`inline rounded-lg cursor-pointer transition-colors px-1 py-0.5 mx-0.5 ${
+                          className={`inline rounded-lg cursor-pointer transition-all duration-300 px-1 py-0.5 mx-0.5 ${
                             isPlayingThis
                               ? isDark
-                                ? 'bg-emerald-800/70 text-white font-semibold ring-2 ring-emerald-400'
-                                : 'bg-teal-100 text-teal-950 font-semibold ring-2 ring-teal-400'
+                                ? 'bg-emerald-800/80 text-white font-semibold ring-2 ring-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.35)]'
+                                : 'bg-emerald-200 text-emerald-950 font-semibold ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
                               : isActive
                               ? isDark
                                 ? 'bg-[#193226] text-amber-200'
@@ -1815,7 +1808,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 </div>
                 <div className="truncate min-w-0">
                   <p className={`text-xs font-bold truncate ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                    {audioSource === 'ayah' && playingAyahNum
+                    {playingAyahNum
                       ? `S.${currentSurahMeta.number} • V.${playingAyahNum}/${currentSurahMeta.numberOfAyahs}`
                       : `Sourate ${currentSurahMeta.name}`}
                   </p>
@@ -1836,14 +1829,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 </button>
 
                 <button
-                  onClick={() => {
-                    if (audioSource === 'ayah' && playingAyahNum) {
-                      playAyahAudio(playingAyahNum);
-                    } else {
-                      toggleSurahAudio();
-                    }
-                  }}
+                  onClick={toggleSurahAudio}
                   className="w-10 h-10 rounded-full bg-[#007A65] hover:bg-teal-700 text-white flex items-center justify-center shadow-md transition cursor-pointer"
+                  title={isPlayingAudio ? 'Mettre en pause' : 'Reprendre la lecture'}
                 >
                   {isPlayingAudio ? (
                     <Pause className="w-4 h-4 fill-current" />
