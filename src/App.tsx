@@ -31,6 +31,12 @@ import { GuestAccountReminderToast } from './components/GuestAccountReminderToas
 import { supabase } from './lib/supabase';
 import { CITIES, METHODS, RECITERS } from './data/islamicData';
 import { CityData, Method, Reciter, UserProfile } from './types';
+import {
+  GREEN_HERO_BACKGROUNDS,
+  WHITE_HERO_BACKGROUNDS,
+  ALL_HERO_BACKGROUNDS,
+  DEFAULT_GIRL_HERO_BG,
+} from './utils/heroBackgrounds';
 
 export default function App() {
   const [selectedCity, setSelectedCity] = useState<CityData>(() => {
@@ -68,6 +74,27 @@ export default function App() {
       return true;
     }
   });
+  const [heroBgIndex, setHeroBgIndex] = useState<number>(0);
+  const [prevHeroBgId, setPrevHeroBgId] = useState<string | null>(null);
+
+  const activeHeroList = isDarkMode ? GREEN_HERO_BACKGROUNDS : WHITE_HERO_BACKGROUNDS;
+  const currentHeroBg =
+    activeHeroList[heroBgIndex % activeHeroList.length] || DEFAULT_GIRL_HERO_BG;
+
+  // Rotate landing hero background every 10 seconds smoothly and naturally
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHeroBgIndex((prev) => {
+        const list = isDarkMode ? GREEN_HERO_BACKGROUNDS : WHITE_HERO_BACKGROUNDS;
+        const currItem = list[prev % list.length];
+        if (currItem) {
+          setPrevHeroBgId(currItem.id);
+        }
+        return prev + 1;
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [isDarkMode]);
 
   // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', or 'calendar'
   const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
@@ -448,20 +475,37 @@ export default function App() {
         );
 
       case 'landing':
-      default:
+      default: {
         return (
           <div className="min-h-screen relative font-sans text-neutral-900 dark:text-neutral-100 bg-[#F4F7F5] dark:bg-[#14261C] overflow-x-hidden selection:bg-emerald-600 selection:text-white transition-colors duration-200">
-            {/* 1. TOP HERO ZONE (FULL-BLEED 100% WIDTH COVERED BY BACKGROUND IMAGE) */}
-            <div className="relative w-full overflow-hidden bg-[#0D2016] transition-colors duration-200">
-              {/* Full-width background image - 100% natural, crisp, no white veil */}
-              <div className="absolute inset-0 z-0 pointer-events-none">
-                <img
-                  src="/images/backgrounds/user_uploaded_bg.png"
-                  alt="Arrière-plan Sanctuaire Islamique"
-                  className="w-full h-full object-cover object-right sm:object-center"
-                />
-                {/* Subtle dark vignette on the left text area only so typography is crystal clear without obscuring the sister or Quran on the right */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/90 via-[#091D13]/55 to-transparent" />
+            {/* 1. TOP HERO ZONE (FULL-BLEED 100% WIDTH & HEIGHT COVERED BY USER BACKGROUND IMAGES) */}
+            <div
+              className={`relative w-full overflow-hidden transition-colors duration-700 ${
+                isDarkMode ? 'bg-[#034223]' : 'bg-[#FEFEFE]'
+              }`}
+            >
+              {/* Full-bleed background covering 100% of the Hero section with seamless 2.4s natural cross-dissolve */}
+              <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                {ALL_HERO_BACKGROUNDS.map((bgItem) => {
+                  const isCurrent = bgItem.id === currentHeroBg.id;
+                  const isPrev = bgItem.id === prevHeroBgId && !isCurrent;
+                  return (
+                    <img
+                      key={bgItem.id}
+                      src={bgItem.src}
+                      alt="Arrière-plan Sanctuaire Islamique"
+                      loading="eager"
+                      decoding="async"
+                      className={`absolute inset-0 w-full h-full object-cover object-center will-change-[opacity,transform] transition-[opacity,transform] ease-in-out ${
+                        isCurrent
+                          ? 'z-20 opacity-100 scale-100 duration-[2200ms] delay-0'
+                          : isPrev
+                            ? 'z-10 opacity-0 scale-100 duration-[800ms] delay-[1600ms]'
+                            : 'z-0 opacity-0 scale-[1.015] duration-300 delay-0'
+                      }`}
+                    />
+                  );
+                })}
               </div>
 
               {/* Hero Content (Header + Hero Section) */}
@@ -486,7 +530,10 @@ export default function App() {
                   onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
                   isLanding={true}
                   isDarkMode={isDarkMode}
-                  onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
+                  onToggleDarkMode={() => {
+                    setPrevHeroBgId(currentHeroBg.id);
+                    setIsDarkMode((prev) => !prev);
+                  }}
                 />
 
                 <HeroSection
@@ -494,6 +541,7 @@ export default function App() {
                   activePrayerKey={activePrayerKey}
                   onSelectPrayerKey={setActivePrayerKey}
                   onAccederSite={handleAccederAuSite}
+                  isLightHeroBg={currentHeroBg.mode === 'white'}
                 />
               </div>
             </div>
@@ -528,6 +576,7 @@ export default function App() {
             </main>
           </div>
         );
+      }
     }
   };
 

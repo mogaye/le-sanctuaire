@@ -258,8 +258,24 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right button group: Connexion & Profil */}
+      {/* Right button group: Mode Blanc/Vert & Connexion & Profil */}
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0" ref={userMenuRef}>
+        {onToggleDarkMode && (
+          <button
+            id="btn-header-theme-toggle"
+            type="button"
+            onClick={onToggleDarkMode}
+            title={isDarkMode ? 'Passer en Mode Blanc (Clair)' : 'Passer en Mode Vert (Sombre)'}
+            aria-label={isDarkMode ? 'Passer en Mode Blanc (Clair)' : 'Passer en Mode Vert (Sombre)'}
+            className="inline-flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 dark:bg-[#183022] backdrop-blur-md hover:bg-white dark:hover:bg-[#20402E] text-neutral-900 dark:text-amber-300 border border-neutral-200/80 dark:border-emerald-700/50 shadow-[0_4px_16px_rgba(0,0,0,0.1)] hover:border-emerald-500/40 transition-all cursor-pointer active:scale-95 shrink-0"
+          >
+            {isDarkMode ? (
+              <Sun className="w-4 h-4 text-amber-400" />
+            ) : (
+              <Moon className="w-4 h-4 text-emerald-800" />
+            )}
+          </button>
+        )}
         {currentUser ? (
           <div className="relative shrink-0">
             <button

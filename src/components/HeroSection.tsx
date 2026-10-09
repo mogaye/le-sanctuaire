@@ -10,6 +10,7 @@ interface HeroSectionProps {
   activePrayerKey: 'F' | 'D' | 'A' | 'M' | 'I';
   onSelectPrayerKey: (key: 'F' | 'D' | 'A' | 'M' | 'I') => void;
   onAccederSite?: () => void;
+  isLightHeroBg?: boolean;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
@@ -17,6 +18,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   activePrayerKey,
   onSelectPrayerKey,
   onAccederSite,
+  isLightHeroBg = false,
 }) => {
   const { currentVerse } = useSpiritualVerseTimer(60000, 3);
 
@@ -29,22 +31,44 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         
         {/* Top Badge: Subtle Golden Aura */}
         <div className="flex items-center">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/40 border border-amber-400/40 text-xs font-semibold text-amber-200 backdrop-blur-md shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+          <div
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md shadow-sm ${
+              isLightHeroBg
+                ? 'bg-white/90 border border-emerald-700/25 text-emerald-900'
+                : 'bg-black/40 border border-amber-400/40 text-amber-200'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 animate-pulse ${isLightHeroBg ? 'text-amber-600' : 'text-amber-400'}`} />
             <span className="tracking-wide">Guide Spirituel Quotidien · 100% Gratuit</span>
           </div>
         </div>
 
         {/* Center Content: Main Display Heading */}
         <div className="max-w-3xl mt-5 sm:mt-10 space-y-3.5 sm:space-y-5">
-          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-[84px] font-black text-white tracking-tight leading-[1.08] select-none drop-shadow-md">
-            <span className="block text-white">La Voie De La</span>
-            <span className="block mt-1 sm:mt-2 text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-100 drop-shadow-md font-serif italic font-black">
+          <h1
+            className={`text-3xl sm:text-5xl md:text-6xl lg:text-[84px] font-black tracking-tight leading-[1.08] select-none ${
+              isLightHeroBg ? 'text-emerald-950 drop-shadow-xs' : 'text-white drop-shadow-md'
+            }`}
+          >
+            <span className={`block ${isLightHeroBg ? 'text-emerald-950' : 'text-white'}`}>La Voie De La</span>
+            <span
+              className={`block mt-1 sm:mt-2 text-transparent bg-clip-text bg-gradient-to-r font-serif italic font-black ${
+                isLightHeroBg
+                  ? 'from-emerald-800 via-teal-700 to-amber-600 drop-shadow-xs'
+                  : 'from-amber-300 via-amber-200 to-amber-100 drop-shadow-md'
+              }`}
+            >
               Sérénité
             </span>
           </h1>
 
-          <p className="text-emerald-50/95 text-xs sm:text-base lg:text-lg leading-relaxed max-w-2xl font-normal drop-shadow-sm">
+          <p
+            className={`text-xs sm:text-base lg:text-lg leading-relaxed max-w-2xl ${
+              isLightHeroBg
+                ? 'text-neutral-800 font-medium drop-shadow-2xs'
+                : 'text-emerald-50/95 font-normal drop-shadow-sm'
+            }`}
+          >
             Votre sanctuaire spirituel quotidien pour apprendre la prière pas à pas, méditer le Saint Coran, retrouver la Qibla et cultiver votre foi avec paix et dévotion.
           </p>
 
@@ -65,7 +89,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <button
               id="btn-hero-guide-prieres"
               onClick={() => onOpenPrayerGuide(activePrayerKey)}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 sm:py-4 rounded-full bg-white/20 hover:bg-white/30 text-white font-bold text-xs sm:text-sm border border-white/35 backdrop-blur-md shadow-xs transition-all cursor-pointer active:scale-[0.98]"
+              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3.5 sm:py-4 rounded-full text-white font-bold text-xs sm:text-sm backdrop-blur-md shadow-xs transition-all cursor-pointer active:scale-[0.98] ${
+                isLightHeroBg
+                  ? 'bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-900/20'
+                  : 'bg-white/20 hover:bg-white/30 border border-white/35'
+              }`}
             >
               <BookOpen className="w-4 h-4 text-emerald-300 shrink-0" />
               <span>Guide des 5 Prières</span>
@@ -73,17 +101,39 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           </div>
 
           {/* Trust Highlights Micro Pills */}
-          <div className="pt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-emerald-100">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/20 backdrop-blur-md">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+          <div
+            className={`pt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] font-medium ${
+              isLightHeroBg ? 'text-emerald-950' : 'text-emerald-100'
+            }`}
+          >
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md ${
+                isLightHeroBg
+                  ? 'bg-white/90 border border-emerald-800/15 shadow-2xs'
+                  : 'bg-black/40 border border-white/20'
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${isLightHeroBg ? 'text-emerald-600' : 'text-amber-400'}`} />
               <span>5 Prières Illustrées</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/20 backdrop-blur-md">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md ${
+                isLightHeroBg
+                  ? 'bg-white/90 border border-emerald-800/15 shadow-2xs'
+                  : 'bg-black/40 border border-white/20'
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${isLightHeroBg ? 'text-emerald-600' : 'text-amber-400'}`} />
               <span>114 Sourates Audio</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 border border-white/20 backdrop-blur-md">
-              <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+            <span
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full backdrop-blur-md ${
+                isLightHeroBg
+                  ? 'bg-white/90 border border-emerald-800/15 shadow-2xs'
+                  : 'bg-black/40 border border-white/20'
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${isLightHeroBg ? 'text-emerald-600' : 'text-amber-400'}`} />
               <span>Boussole Qibla Précise</span>
             </span>
           </div>
