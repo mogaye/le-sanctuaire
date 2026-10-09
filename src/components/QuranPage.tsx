@@ -634,7 +634,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   }, [isResizing]);
 
   // Audio Playback: Play single Ayah or continuous
-  const playAyahAudio = (ayahNum: number) => {
+  const playAyahAudio = (ayahNum: number, skipBismillah: boolean = false) => {
     if (!currentSurahData) return;
 
     // If already playing this verse, pause/resume
@@ -653,6 +653,35 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     // Stop current audio if playing
     if (audioRef.current) {
       audioRef.current.pause();
+    }
+
+    // Bismillah logic for the first Ayah
+    if (ayahNum === 1 && !skipBismillah && selectedSurahNumber !== 1 && selectedSurahNumber !== 9) {
+      const bismillahUrl = getAyahAudioUrl(1, 1, selectedReciter.id);
+      const audio = new Audio(bismillahUrl);
+      audioRef.current = audio;
+      setAudioSource('ayah');
+      setPlayingAyahNum(1);
+      setActiveAyahNum(1);
+
+      audio.ontimeupdate = () => {
+        setAudioProgress(audio.currentTime);
+        setAudioDuration(audio.duration || 0);
+      };
+
+      audio.onended = () => {
+        playAyahAudio(1, true);
+      };
+
+      audio
+        .play()
+        .then(() => setIsPlayingAudio(true))
+        .catch((err) => {
+          console.warn('Bismillah audio play error:', err);
+          setIsPlayingAudio(false);
+          playAyahAudio(1, true);
+        });
+      return;
     }
 
     const url = getAyahAudioUrl(selectedSurahNumber, ayahNum, selectedReciter.id);
