@@ -279,6 +279,14 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   const [repeatCountCurrent, setRepeatCountCurrent] = useState<number>(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll reading canvas to top when selecting a new Surah
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [selectedSurahNumber]);
 
   // Feedback states
   const [copiedAyahNum, setCopiedAyahNum] = useState<number | null>(null);
@@ -934,7 +942,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   return (
     <div
       id="quran-main-card"
-      className={`min-h-screen w-full ${themeClasses.bg} ${themeClasses.text} flex flex-col font-sans antialiased selection:bg-teal-100 selection:text-teal-900 transition-colors duration-200`}
+      className={`h-screen max-h-screen w-full ${themeClasses.bg} ${themeClasses.text} flex flex-col font-sans antialiased selection:bg-teal-100 selection:text-teal-900 transition-colors duration-200 overflow-hidden`}
     >
       {/* Toast Notice */}
       {copiedNotice && (
@@ -948,7 +956,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           TOP NAVIGATION BAR
          ======================================================== */}
       <header
-        className={`sticky top-0 z-30 w-full px-2.5 sm:px-6 md:px-8 py-2 sm:py-3 border-b ${themeClasses.border} flex items-center justify-between gap-1.5 sm:gap-4 ${themeClasses.headerBg} backdrop-blur-md select-none shadow-2xs transition-colors`}
+        className={`shrink-0 z-30 w-full px-2.5 sm:px-6 md:px-8 py-2 sm:py-3 border-b ${themeClasses.border} flex items-center justify-between gap-1.5 sm:gap-4 ${themeClasses.headerBg} backdrop-blur-md select-none shadow-2xs transition-colors`}
       >
           {/* Left: Brand Name, Arabic Calligraphy, Sidebar Toggle & Reading Mode */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1137,7 +1145,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         {/* ========================================================
             MAIN BODY (2-COLUMN RESIZABLE SPLIT VIEW)
            ======================================================== */}
-        <div className="flex-1 w-full flex flex-col lg:flex-row relative">
+        <div className="flex-1 w-full flex flex-col lg:flex-row relative overflow-hidden min-h-0">
           
           {/* ========================================================
               LEFT SIDEBAR: Surahs Catalog, Search, Tabs & Juz Index
@@ -1148,13 +1156,13 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               minWidth: isSidebarCollapsed ? '0px' : '220px',
               maxWidth: isSidebarCollapsed ? '0px' : '520px',
             }}
-            className={`shrink-0 border-r ${themeClasses.border} p-4 sm:p-5 flex flex-col gap-3.5 bg-inherit transition-all lg:sticky lg:top-[57px] lg:h-[calc(100vh-57px)] lg:overflow-y-auto ${
+            className={`shrink-0 border-r ${themeClasses.border} p-4 sm:p-5 flex flex-col gap-3.5 bg-inherit transition-all lg:h-full lg:overflow-hidden ${
               isResizing ? 'select-none transition-none' : 'duration-200 ease-in-out'
             } ${
               isSidebarCollapsed
                 ? 'hidden overflow-hidden p-0 border-r-0'
                 : isMobileSidebarOpen
-                ? `fixed inset-0 z-40 p-5 flex flex-col overflow-y-auto ${isDark ? 'bg-[#193226] text-white' : 'bg-white'}`
+                ? `fixed inset-0 z-50 p-5 flex flex-col overflow-y-auto ${isDark ? 'bg-[#193226] text-white' : 'bg-white text-neutral-900'}`
                 : 'hidden lg:flex'
             }`}
           >
@@ -1172,18 +1180,20 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             )}
 
             {/* Sidebar Controls: Reciter switcher & Surah Play */}
-            <SidebarAudioControl
-              surah={currentSurahMeta}
-              isPlayingAudio={isPlayingAudio}
-              onToggleAudio={toggleSurahAudio}
-              selectedReciter={selectedReciter}
-              onSelectReciter={onSelectReciter}
-              bookmarkedCount={currentSurahBookmarkedCount}
-              isDark={isDark}
-            />
+            <div className="shrink-0">
+              <SidebarAudioControl
+                surah={currentSurahMeta}
+                isPlayingAudio={isPlayingAudio}
+                onToggleAudio={toggleSurahAudio}
+                selectedReciter={selectedReciter}
+                onSelectReciter={onSelectReciter}
+                bookmarkedCount={currentSurahBookmarkedCount}
+                isDark={isDark}
+              />
+            </div>
 
             {/* Search Surah & Ayah no. Jump Bar */}
-            <div className={`flex items-center gap-2 border rounded-xl px-3 py-2 ${themeClasses.searchBg}`}>
+            <div className={`shrink-0 flex items-center gap-2 border rounded-xl px-3 py-2 ${themeClasses.searchBg}`}>
               <div className="flex-1 flex items-center gap-1.5 min-w-0">
                 <Search className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-neutral-400'}`} />
                 <input
@@ -1226,7 +1236,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             </div>
 
             {/* Segmented 4-Tab Control: Surah | Verse | Juz | Page */}
-            <div className={`flex items-center p-1 rounded-xl text-xs font-semibold select-none ${themeClasses.tabContainer}`}>
+            <div className={`shrink-0 flex items-center p-1 rounded-xl text-xs font-semibold select-none ${themeClasses.tabContainer}`}>
               {(['Surah', 'Verse', 'Juz', 'Page'] as const).map((tab) => (
                 <button
                   key={tab}
@@ -1244,7 +1254,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 1: Surah List (114 Surahs) */}
             {sidebarTab === 'Surah' && (
-              <div className="flex-1 overflow-y-auto max-h-[480px] pr-1 space-y-0.5">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-0.5">
                 {filteredSurahsList.map((s) => {
                   const isCurrent = s.number === selectedSurahNumber;
 
@@ -1293,7 +1303,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 2: Verse List for current Surah */}
             {sidebarTab === 'Verse' && (
-              <div className="flex-1 overflow-y-auto max-h-[480px] pr-1 space-y-1">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1">
                 {currentSurahData?.ayahs.map((a) => (
                   <button
                     key={a.num}
@@ -1323,7 +1333,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 3: Juz List (1 to 30) */}
             {sidebarTab === 'Juz' && (
-              <div className="flex-1 overflow-y-auto max-h-[480px] pr-1 space-y-1">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1">
                 {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => {
                   const surahOfJuz = ALL_114_SURAHS.find((s) => s.juz === juzNum);
                   return (
@@ -1351,7 +1361,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 4: Madinah Mushaf Pages */}
             {sidebarTab === 'Page' && (
-              <div className="flex-1 overflow-y-auto max-h-[480px] pr-1 p-2 grid grid-cols-4 gap-2 text-center text-xs">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 p-2 grid grid-cols-4 gap-2 text-center text-xs">
                 {Array.from({ length: 60 }, (_, i) => (i + 1) * 10).map((pageNum) => (
                   <button
                     key={pageNum}
@@ -1378,7 +1388,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
              ======================================================== */}
           <div
             onMouseDown={startResizing}
-            className={`hidden lg:flex relative group cursor-col-resize select-none shrink-0 items-center justify-center transition-colors z-20 ${
+            className={`hidden lg:flex relative group cursor-col-resize select-none shrink-0 h-full items-center justify-center transition-colors z-20 ${
               isSidebarCollapsed
                 ? isDark ? 'w-2 bg-[#14281E] hover:bg-emerald-500/20' : 'w-2 bg-neutral-100 hover:bg-[#007A65]/20'
                 : 'w-1.5 hover:bg-[#007A65]/30'
@@ -1415,7 +1425,10 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           {/* ========================================================
               RIGHT READING CANVAS
              ======================================================== */}
-          <main className="flex-1 min-w-0 p-4 sm:p-7 md:p-10 relative bg-inherit pb-32">
+          <main
+            ref={mainScrollRef}
+            className="flex-1 h-full min-h-0 overflow-y-auto p-4 sm:p-7 md:p-10 relative bg-inherit pb-32 sm:pb-36 scroll-smooth"
+          >
             
             {/* Surah Illuminated Cartouche Header */}
             <SurahHeaderBanner

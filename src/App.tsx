@@ -532,7 +532,13 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen relative font-sans bg-[#F4F7F5] dark:bg-[#14261C] overflow-x-hidden ${isDarkMode ? 'dark' : ''}`}>
+    <div
+      className={`${
+        currentView === 'quran'
+          ? 'h-screen max-h-screen overflow-hidden'
+          : 'min-h-screen overflow-x-hidden'
+      } relative font-sans bg-[#F4F7F5] dark:bg-[#14261C] ${isDarkMode ? 'dark' : ''}`}
+    >
       {/* Rapid, silky and snappy page appearance transition (instant response without sluggish delay) */}
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
@@ -541,7 +547,7 @@ export default function App() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.16, ease: 'easeOut' }}
-          className="w-full min-h-screen"
+          className={currentView === 'quran' ? 'w-full h-full overflow-hidden' : 'w-full min-h-screen'}
         >
           {renderCurrentView()}
         </motion.div>

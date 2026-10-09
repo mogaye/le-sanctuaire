@@ -15,6 +15,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
       (function() {
+        // Compatibility shim for browser extensions attempting to wrap or assign window.fetch
+        try {
+          var origFetch = window.fetch;
+          var activeFetch = origFetch;
+          Object.defineProperty(window, 'fetch', {
+            get: function() {
+              return activeFetch;
+            },
+            set: function(fn) {
+              activeFetch = fn;
+            },
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {}
+
+        // Prevent browser extension content script errors from polluting the app
+        window.addEventListener('error', function(event) {
+          if (event && event.filename && event.filename.indexOf('chrome-extension://') !== -1) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      })();
+
+      (function() {
         try {
           var mode = localStorage.getItem('sanctuaire_dark_mode');
           if (mode === 'false') {
