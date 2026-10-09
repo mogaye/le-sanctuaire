@@ -36,7 +36,28 @@ export interface BookLocation {
   description: string;
 }
 
-export const PUITS_DE_NOUR_HERO_IMAGE = '/images/puits-de-nour/hero.jpg';
+import heroImg from '../assets/images/puits_de_nour_hero_1791576280881.jpg';
+import portraitYassine from '../assets/images/portrait_yassine_1791576293393.jpg';
+import portraitSettiAicha from '../assets/images/portrait_setti_aicha_1791576304698.jpg';
+import portraitImamAbdelkarim from '../assets/images/portrait_imam_abdelkarim_1791579363460.jpg';
+import portraitBilal from '../assets/images/portrait_bilal_1791576327188.jpg';
+import portraitMaryam from '../assets/images/portrait_maryam_1791576316240.jpg';
+import portraitIbrahim from '../assets/images/portrait_ibrahim_1791579374736.jpg';
+import portraitHadjMansour from '../assets/images/portrait_hadj_mansour_1791579385098.jpg';
+import portraitKarim from '../assets/images/portrait_karim_1791579395834.jpg';
+import portraitOumar from '../assets/images/portrait_oumar_1791579416598.jpg';
+import portraitKhadija from '../assets/images/portrait_khadija_1791579444606.jpg';
+import portraitSouleymane from '../assets/images/portrait_souleymane_1791579405672.jpg';
+import portraitFatou from '../assets/images/portrait_fatou_1791579454264.jpg';
+import portraitCheikhIdriss from '../assets/images/portrait_cheikh_idriss_1791579466636.jpg';
+import portraitMoussa from '../assets/images/portrait_moussa_1791579484514.jpg';
+import portraitVieuxSidi from '../assets/images/portrait_vieux_sidi_1791579522914.jpg';
+import portraitAichaVeuve from '../assets/images/portrait_aicha_veuve_1791579512994.jpg';
+import portraitNoura from '../assets/images/portrait_noura_1791579475458.jpg';
+import portraitAmadou from '../assets/images/portrait_amadou_1791579533358.jpg';
+import portraitPereYassine from '../assets/images/portrait_pere_yassine_1791579544088.jpg';
+
+export const PUITS_DE_NOUR_HERO_IMAGE = heroImg;
 
 export const PUITS_DE_NOUR_LOCATIONS: BookLocation[] = [
   {
@@ -92,7 +113,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le garçon qui veut comprendre la vérité',
     group: 'principal',
     shortBio: "Orphelin de père, courageux et sensible. Il apprend à faire confiance à Allah, à défendre l'honnêteté et à ne pas tout porter seul.",
-    imageUrl: '/images/puits-de-nour/portrait_yassine_1791576293393.jpg',
+    imageUrl: portraitYassine,
     avatarColor: '#B45309',
     parentsAndFamily: "Orphelin de père (son père est parti il y a douze ans après avoir découvert le détournement des réserves de grain et d'eau). Élevé avec amour par sa grand-mère paternelle Setti Aïcha dans une maison modeste de Dar-Salam. La situation de sa mère n'est pas établie dans le manuscrit. A un lien de parenté mentionné avec Amadou (son neveu/cousin jaloux).",
     appearance: "Garçon de douze ans à la silhouette fine, aux épaules encore étroites et aux gestes parfois hésitants. Visage expressif avec des yeux attentifs qui observent davantage que ce qu'il dit. Porte une tunique simple en tissu naturel, un bonnet kufi brodé, des sandales usées et le carré de tissu de son père au poignet ou dans sa poche.",
@@ -124,7 +145,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'La grand-mère qui garde un secret',
     group: 'principal',
     shortBio: "Grand-mère de Yassine, sage, bienveillante et conteuse. Elle a longtemps gardé le coffre et les lettres du père de Yassine par peur de le voir souffrir.",
-    imageUrl: '/images/puits-de-nour/portrait_setti_aicha_1791576304698.jpg',
+    imageUrl: portraitSettiAicha,
     avatarColor: '#7C2D12',
     parentsAndFamily: "Grand-mère de Yassine et mère du père disparu de Yassine. Elle est le pilier du foyer familial à Dar-Salam et la gardienne du vieux coffre en bois contenant l'écharpe brodée, la pièce gravée et les lettres de son fils.",
     appearance: "Femme âgée (entre 65 et 75 ans) au visage marqué par le temps et les épreuves, aux mains fines et ridées habituées au travail quotidien. Démarche lente mais présence digne, vêtue de tissus sobres et d'un foulard noué avec soin.",
@@ -152,7 +173,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "Le guide érudit qui associe la foi à l'action",
     group: 'principal',
     shortBio: "Calme, bienveillant et juste, il enseigne par l'exemple. Il rappelle que le Tawakkul (confiance en Allah) exige l'effort, la consultation et la preuve.",
-    imageUrl: '/images/puits-de-nour/portrait_imam_abdelkarim_1791579363460.jpg',
+    imageUrl: portraitImamAbdelkarim,
     avatarColor: '#065F46',
     parentsAndFamily: "Guide spirituel de la communauté de Dar-Salam. Sa famille personnelle n'est pas détaillée dans le manuscrit ; il agit comme figure morale et médiateur pour toutes les familles du village.",
     appearance: "Homme calme et digne au visage serein qui contraste avec l'agitation des villageois. Porte une tunique claire et une coiffe blanche sobre.",
@@ -178,7 +199,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "Le meilleur ami qui utilise l'humour comme bouclier",
     group: 'principal',
     shortBio: "Joyeux, blagueur et impulsif. Son humour masque sa propre peur et son inquiétude pour son petit frère Ibrahim, mais sa loyauté envers Yassine est sans faille.",
-    imageUrl: '/images/puits-de-nour/portrait_bilal_1791576327188.jpg',
+    imageUrl: portraitBilal,
     avatarColor: '#1D4ED8',
     parentsAndFamily: "Grand frère protecteur d'Ibrahim (7 ans). Leur père s'inquiète de la pénurie et leur mère compte chaque réserve d'eau avec angoisse. (Dans certaines illustrations secondaires, la famille d'Aïcha et des jeunes enfants du village lui est associée).",
     appearance: "Garçon de douze ans vif, énergique et toujours en mouvement, au sourire lumineux. Porte une tunique indigo simple souvent poussiéreuse et un bonnet tressé.",
@@ -205,7 +226,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'La jeune fille qui ose poser les questions',
     group: 'principal',
     shortBio: "Brillante, courageuse et méthodique. Armée de son carnet, elle observe les fissures du puits, vérifie les registres et refuse les rumeurs sans preuves.",
-    imageUrl: '/images/puits-de-nour/portrait_maryam_1791576316240.jpg',
+    imageUrl: portraitMaryam,
     avatarColor: '#9D174D',
     parentsAndFamily: "Fille d'un père qui lui a appris à lire les comptes du foyer et à noter les dépenses, et d'une mère tisserande qui lui a enseigné que chaque fil a besoin des autres pour que toute la trame tienne.",
     appearance: "Jeune fille de onze ans au regard vif, attentif et déterminé, à la posture droite. Porte un foulard traditionnel bordeaux et ocre, et garde toujours contre elle son carnet de notes.",
@@ -232,7 +253,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le petit frère qui regarde le monde sans filtre',
     group: 'principal',
     shortBio: "Petit frère de Bilal, naïf, tendre et curieux. Ses questions simples et directes désarment les adultes et rappellent l'essentiel.",
-    imageUrl: '/images/puits-de-nour/portrait_ibrahim_1791579374736.jpg',
+    imageUrl: portraitIbrahim,
     avatarColor: '#D97706',
     parentsAndFamily: "Petit frère cadet de Bilal (12 ans). Vit avec Bilal et leurs parents à Dar-Salam ; souffre en silence de voir sa mère compter les dernières gouttes d'eau.",
     appearance: "Petit garçon de sept ans au visage juvénile et curieux, nettement plus petit que Bilal et Yassine, vêtu d'une tunique simple et d'un petit bonnet clair.",
@@ -255,7 +276,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le marchand qui a peur de perdre le contrôle',
     group: 'conflit',
     shortBio: "Le marchand le plus riche de Dar-Salam. Orgueilleux et méfiant par peur de manquer, il finit par reconnaître ses erreurs de gestion et contribuer au bien commun.",
-    imageUrl: '/images/puits-de-nour/portrait_hadj_mansour_1791579385098.jpg',
+    imageUrl: portraitHadjMansour,
     avatarColor: '#92400E',
     parentsAndFamily: "Père de Karim (14 ans) et fils d'un marchand qui possédait l'ancien entrepôt à l'extrémité du village. Veut préserver l'honneur et la sécurité matérielle de sa lignée.",
     appearance: "Homme mûr à la posture droite, vêtu d'un boubou impeccable malgré la poussière, d'un turban soigné et d'une bague d'argent au doigt.",
@@ -282,7 +303,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "Le fils qui cache sa fragilité derrière l'arrogance",
     group: 'conflit',
     shortBio: "Fils de Hadj Mansour. D'abord arrogant et blessant envers Yassine, il suit l'expédition avec les copies des registres, survit au ravin grâce à Yassine et choisit la vérité.",
-    imageUrl: '/images/puits-de-nour/portrait_karim_1791579395834.jpg',
+    imageUrl: portraitKarim,
     avatarColor: '#4338CA',
     parentsAndFamily: "Fils de Hadj Mansour et de son épouse (mentionnée par Yassine lorsqu'il lui conseille de parler à sa mère et à l'imam). Porte le poids écrasant du nom et des attentes de son père.",
     appearance: "Garçon de quatorze ans, plus grand que Yassine, vêtu d'une tunique propre et de sandales neuves au début, puis les mains bandées et appuyé sur une branche après sa chute au bord du ravin pendant la tempête.",
@@ -308,7 +329,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le forgeron qui doit apprendre à maîtriser sa colère',
     group: 'conflit',
     shortBio: "Travailleur acharné aux épaules larges et au grand cœur. Prompt à s'emporter par peur de l'inaction, il dirige avec maîtrise les travaux de maçonnerie du canal et du puits.",
-    imageUrl: '/images/puits-de-nour/portrait_oumar_1791579416598.jpg',
+    imageUrl: portraitOumar,
     avatarColor: '#374151',
     parentsAndFamily: "Artisan forgeron de Dar-Salam. Il garde le regret ancien d'un jeune apprenti qu'il avait blessé par une remarque trop brutale et qui avait quitté son atelier.",
     appearance: "Homme robuste aux épaules larges, aux mains marquées par les brûlures et la suie, portant une barbe rarement taillée et des vêtements de travail solides.",
@@ -333,7 +354,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'La tisserande qui donne sans savoir demander',
     group: 'conflit',
     shortBio: "Généreuse, discrète et humble. Elle coud des bandes de protection pour le voyage, organise l'entraide et rappelle que chaque fil a besoin des autres pour tenir.",
-    imageUrl: '/images/puits-de-nour/portrait_khadija_1791579444606.jpg',
+    imageUrl: portraitKhadija,
     avatarColor: '#7E22CE',
     parentsAndFamily: "Tisserande respectée de Dar-Salam. Dans le récit, la mère de Maryam est également décrite comme tisserande lui ayant appris la leçon des fils et de la trame communautaire.",
     appearance: "Femme au regard doux et attentif, aux gestes précis et patients, vêtue de tissus soignés et d'un foulard coloré.",
@@ -356,7 +377,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le berger qui sait lire les signes de la terre',
     group: 'conflit',
     shortBio: "Observateur silencieux et endurant. Il guide l'expédition à travers la tempête de sable et repère l'humidité de l'ancien canal souterrain.",
-    imageUrl: '/images/puits-de-nour/portrait_souleymane_1791579405672.jpg',
+    imageUrl: portraitSouleymane,
     avatarColor: '#4D7C0F',
     parentsAndFamily: "Fils d'un berger qui lui a appris à lire les signes du désert (les herbes dans les fissures, la fraîcheur des pierres, le comportement des insectes et des oiseaux).",
     appearance: "Homme élancé et endurant, le visage entouré d'un chèche protecteur, tenant toujours son bâton de marche et un ancien compas dans sa poche.",
@@ -379,7 +400,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'La femme qui doit apprendre à mesurer ses paroles',
     group: 'conflit',
     shortBio: "Expressive et bavarde, elle colporte au début des rumeurs sans preuve au marché, avant de reconnaître publiquement ses torts et de choisir la sincérité.",
-    imageUrl: '/images/puits-de-nour/portrait_fatou_1791579454264.jpg',
+    imageUrl: portraitFatou,
     avatarColor: '#BE185D',
     parentsAndFamily: "Habitante de Dar-Salam, voisine présente au marché et aux assemblées du village.",
     appearance: "Femme expressive portant un foulard aux motifs vifs, souvent vue près des étals de dattes au marché.",
@@ -402,7 +423,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le voyageur qui connaît une partie du passé',
     group: 'conflit',
     shortBio: "Voyageur mystérieux et ancien compagnon du père de Yassine. Il arrive à Dar-Salam pour aider à faire éclater la vérité avec prudence et exactitude.",
-    imageUrl: '/images/puits-de-nour/portrait_cheikh_idriss_1791579466636.jpg',
+    imageUrl: portraitCheikhIdriss,
     avatarColor: '#57534E',
     parentsAndFamily: "Ami et compagnon de jeunesse du père de Yassine, proche de Setti Aïcha et connu du vieux gardien Sidi et de l'imam Abdelkarim.",
     appearance: "Homme âgé au manteau couvert de poussière, aux sandales usées par la route et au visage marqué par le soleil, s'appuyant sur un bâton poli par des années de marche.",
@@ -425,7 +446,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Le petit fraudeur qui se justifie par la survie',
     group: 'conflit',
     shortBio: "Petit commerçant rusé et ancien porteur de messages au dépôt. Il tente d'inciter Yassine à garder la bourse d'or, puis finit par révéler ce qu'il a vu douze ans plus tôt.",
-    imageUrl: '/images/puits-de-nour/portrait_moussa_1791579484514.jpg',
+    imageUrl: portraitMoussa,
     avatarColor: '#0F766E',
     parentsAndFamily: "Commerçant modeste de Dar-Salam, sans famille riche pour le protéger.",
     appearance: "Jeune homme au sourire en coin, aux gestes mobiles et au regard nerveux, cachant parfois ses affaires sous son manteau.",
@@ -448,7 +469,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "Le sage oublié et gardien de l'ancien dépôt",
     group: 'secondaire',
     shortBio: "Gardien de l'ancien dépôt des registres derrière les étals des tisserands. Il a conservé le cahier de livraison et la page pliée portant le sceau du cercle à trois lignes.",
-    imageUrl: '/images/puits-de-nour/portrait_vieux_sidi_1791579522914.jpg',
+    imageUrl: portraitVieuxSidi,
     avatarColor: '#6D28D9',
     parentsAndFamily: "Ancien employé et gardien de la mémoire administrative des caravanes de Dar-Salam.",
     appearance: "Vieil homme à la barbe blanche et au bonnet traditionnel, au regard calme et attentif.",
@@ -470,7 +491,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'Veuve qui élève seule ses enfants',
     group: 'secondaire',
     shortBio: "Femme digne et courageuse de Dar-Salam qui élève ses enfants au milieu de la pénurie. Forte mais souvent épuisée, elle incarne les familles vulnérables que le puits doit protéger.",
-    imageUrl: '/images/puits-de-nour/portrait_aicha_veuve_1791579512994.jpg',
+    imageUrl: portraitAichaVeuve,
     avatarColor: '#B91C1C',
     parentsAndFamily: "Mère de famille élevant ses enfants avec courage dans le quartier modeste de Dar-Salam.",
     appearance: "Femme au visage digne et fatigué, portant un voile traditionnel aux tons chauds.",
@@ -492,7 +513,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: 'La jeune guérisseuse',
     group: 'secondaire',
     shortBio: "Jeune fille attentive de Dar-Salam qui rêve d'aider les autres et de devenir une grande guérisseuse, partageant avec Maryam l'amour du savoir utile.",
-    imageUrl: '/images/puits-de-nour/portrait_noura_1791579475458.jpg',
+    imageUrl: portraitNoura,
     avatarColor: '#047857',
     parentsAndFamily: "Jeune habitante de Dar-Salam engagée dans le soin et l'entraide auprès des anciens et des enfants.",
     appearance: "Jeune fille au regard doux et posé, coiffée d'un foulard vert émeraude.",
@@ -513,7 +534,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "L'enfant jaloux en quête d'affection",
     group: 'secondaire',
     shortBio: "Jeune garçon du village (parent/camarade de Yassine) qui manifeste parfois de la jalousie ou suivait Karim, mais cache un grand besoin d'amour et de reconnaissance.",
-    imageUrl: '/images/puits-de-nour/portrait_amadou_1791579533358.jpg',
+    imageUrl: portraitAmadou,
     avatarColor: '#CA8A04',
     parentsAndFamily: "Mentionné sur la planche des personnages comme jeune parent (« neveu / cousin ») de Yassine à Dar-Salam.",
     appearance: "Jeune garçon au regard sérieux et un peu sur la défensive, portant une tunique beige et un bonnet tressé.",
@@ -534,7 +555,7 @@ export const PUITS_DE_NOUR_CHARACTERS: BookCharacter[] = [
     role: "La mémoire qui traverse l'histoire",
     group: 'secondaire',
     shortBio: "Homme courageux, honnête mais impatient. Il a découvert les irrégularités dans les réserves d'eau et de grain douze ans plus tôt et est parti chercher des témoins et des preuves.",
-    imageUrl: '/images/puits-de-nour/portrait_pere_yassine_1791579544088.jpg',
+    imageUrl: portraitPereYassine,
     avatarColor: '#9A3412',
     parentsAndFamily: "Fils de Setti Aïcha et père de Yassine. Parti lorsque Yassine était tout petit en laissant une écharpe brodée, une pièce gravée, une lettre d'amour paternel et une lettre adressée aux habitants de Dar-Salam.",
     appearance: "Présent dans les souvenirs, le coffre de bois et les lettres : il partage avec Yassine la même manière de froncer les sourcils lorsqu'il cherche à comprendre une injustice.",

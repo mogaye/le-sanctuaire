@@ -167,33 +167,44 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
         ) : (
           <>
             {/* BANNIÈRE HÉRO & ANNONCE PRINCIPALE AVEC CHRONOMÈTRE */}
-            <section className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-white via-emerald-50/50 to-teal-50/40 dark:from-[#173324] dark:via-[#132A1D] dark:to-[#0E2016] border border-emerald-200/90 dark:border-emerald-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.06)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.35)] p-6 sm:p-10 text-center">
-              
-              {/* Badge officiel de parution hebdomadaire */}
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-100/80 dark:bg-emerald-950/90 border border-emerald-300 dark:border-emerald-500/40 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm font-bold shadow-2xs mb-4">
-                <Calendar className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
-                <span>Rendez-vous hebdomadaire</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-amber-800 dark:text-amber-300 font-extrabold">Vendredi 21h00</span>
+            <section className="relative rounded-3xl overflow-hidden bg-[#132A1D] border border-emerald-600/35 dark:border-emerald-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.35)] p-6 sm:p-10 text-center">
+              {/* Image de fond (la femme lisant le Coran) */}
+              <div className="absolute inset-0 z-0 pointer-events-none">
+                <img
+                  src="/images/backgrounds/user_uploaded_bg.png"
+                  alt="Bibliothèque du Sanctuaire"
+                  className="w-full h-full object-cover object-right sm:object-center opacity-55"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/90 via-[#0D261A]/80 to-[#091D13]/75" />
               </div>
 
-              {/* Titre & Message clé */}
-              <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-neutral-900 dark:text-white tracking-tight leading-tight max-w-3xl mx-auto">
-                Un nouveau livre sort{' '}
-                <span className="bg-gradient-to-r from-emerald-700 via-teal-600 to-emerald-800 dark:from-emerald-300 dark:via-teal-200 dark:to-amber-200 bg-clip-text text-transparent">
-                  chaque vendredi à 21h
-                </span>
-              </h2>
+              <div className="relative z-10">
+                {/* Badge officiel de parution hebdomadaire */}
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 text-xs sm:text-sm font-bold shadow-2xs mb-4">
+                  <Calendar className="w-4 h-4 text-emerald-400" />
+                  <span>Rendez-vous hebdomadaire</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-amber-300 font-extrabold">Vendredi 21h00</span>
+                </div>
 
-              <p className="mt-4 text-xs sm:text-base text-neutral-600 dark:text-emerald-200/85 max-w-2xl mx-auto leading-relaxed">
-                Chaque semaine, Le Sanctuaire met à votre disposition un ouvrage islamique sélectionné pour enrichir votre savoir, nourrir votre spiritualité et vous accompagner dans votre cheminement.
-              </p>
+                {/* Titre & Message clé */}
+                <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto">
+                  Un nouveau livre sort{' '}
+                  <span className="bg-gradient-to-r from-emerald-300 via-teal-200 to-amber-200 bg-clip-text text-transparent">
+                    chaque vendredi à 21h
+                  </span>
+                </h2>
+
+                <p className="mt-4 text-xs sm:text-base text-emerald-100/90 max-w-2xl mx-auto leading-relaxed">
+                  Chaque semaine, Le Sanctuaire met à votre disposition un ouvrage islamique sélectionné pour enrichir votre savoir, nourrir votre spiritualité et vous accompagner dans votre cheminement.
+                </p>
+              </div>
 
               {/* ========================================================
                   CHRONO EN DIRECT (COMPTE À REBOURS)
                  ======================================================== */}
-              <div className="mt-8 pt-8 border-t border-emerald-200/60 dark:border-emerald-800/50">
-                <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-emerald-800 dark:text-amber-300 mb-4 uppercase tracking-wider">
+              <div className="relative z-10 mt-8 pt-8 border-t border-emerald-500/30">
+                <div className="flex items-center justify-center gap-2 text-xs sm:text-sm font-bold text-amber-300 mb-4 uppercase tracking-wider">
                   <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                   <span>
                     {countdown.isToday
@@ -244,8 +255,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
                 </div>
 
                 {/* État / Information */}
-                <p className="mt-4 text-xs sm:text-sm text-neutral-600 dark:text-emerald-200/80 font-medium">
-                  Rendez-vous chaque vendredi à <strong className="text-emerald-800 dark:text-white font-bold">21h00</strong> pour découvrir le nouvel ouvrage hebdomadaire.
+                <p className="mt-4 text-xs sm:text-sm text-emerald-100/90 font-medium">
+                  Rendez-vous chaque vendredi à <strong className="text-amber-300 font-bold">21h00</strong> pour découvrir le nouvel ouvrage hebdomadaire.
                 </p>
               </div>
             </section>

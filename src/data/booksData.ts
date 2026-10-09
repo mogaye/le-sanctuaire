@@ -1,3 +1,5 @@
+import { PUITS_DE_NOUR_HERO_IMAGE } from './puitsDeNourCharacters';
+
 export interface IslamicBook {
   id: string;
   title: string;
@@ -36,7 +38,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     pages: '4 Chapitres & Épilogue (Texte intégral)',
     chaptersCount: 4,
     charactersCount: 19,
-    coverImage: '/images/puits-de-nour/hero.jpg',
+    coverImage: PUITS_DE_NOUR_HERO_IMAGE,
     coverGradient: 'from-amber-700 via-amber-900 to-stone-950',
     accentColor: 'amber',
     featured: true,

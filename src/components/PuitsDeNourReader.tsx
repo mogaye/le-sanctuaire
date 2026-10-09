@@ -287,32 +287,32 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
       {/* ==============================================================
           EN-TÊTE ÉDITORIAL DU LIVRE "LE PUITS DE NOUR" (FORMAT CLAIR DOUX & SOMBRE)
          ============================================================== */}
-      <div className="relative rounded-3xl overflow-hidden bg-[#E6DEC8] dark:bg-stone-900 border border-amber-700/25 dark:border-amber-500/30 shadow-lg dark:shadow-2xl mb-6">
+      <div className="relative rounded-3xl overflow-hidden bg-[#0D2016] border border-emerald-600/35 dark:border-amber-500/30 shadow-lg dark:shadow-2xl mb-6">
         <div className="absolute inset-0">
           <img
-            src={PUITS_DE_NOUR_HERO_IMAGE}
-            alt="Le Puits de Nour - Village de Dar-Salam"
-            className="w-full h-full object-cover opacity-55 dark:opacity-40"
+            src="/images/backgrounds/user_uploaded_bg.png"
+            alt="Le Puits de Nour - Bibliothèque du Sanctuaire"
+            className="w-full h-full object-cover object-right sm:object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#EAE2CE]/90 via-[#EFE9DA]/75 to-[#E6DEC8]/45 dark:from-stone-950 dark:via-stone-950/80 dark:to-stone-900/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/90 via-[#091D13]/65 to-transparent" />
         </div>
 
         <div className="relative z-10 p-6 sm:p-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-900/15 dark:bg-amber-500/20 border border-amber-800/30 dark:border-amber-400/40 text-amber-950 dark:text-amber-300 text-xs font-bold tracking-wide uppercase mb-4 backdrop-blur-xs">
-            <Sparkles className="w-3.5 h-3.5 text-amber-800 dark:text-amber-300" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold tracking-wide uppercase mb-4 backdrop-blur-xs">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>Livre d'Aujourd'hui • Édition Intégrale Interactive</span>
           </div>
 
           <div className="max-w-3xl space-y-3">
-            <div className="font-serif text-amber-900 dark:text-amber-300/90 text-sm sm:text-base tracking-widest font-bold">
+            <div className="font-serif text-amber-300/90 text-sm sm:text-base tracking-widest font-bold">
               بِئْرُ نُور — دَارُ السَّلَام
             </div>
-            <h1 className="text-3xl sm:text-5xl font-black text-stone-900 dark:text-white tracking-tight font-serif">
+            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight font-serif">
               Le Puits de Nour
             </h1>
-            <p className="text-sm sm:text-base text-stone-800 dark:text-stone-200/90 leading-relaxed font-medium">
+            <p className="text-sm sm:text-base text-stone-200/95 leading-relaxed font-medium">
               Texte intégral original en 4 chapitres et épilogue. Cliquez sur le nom d'un personnage dans le texte pour ouvrir sa{' '}
-              <strong className="text-emerald-900 dark:text-amber-300 font-bold">
+              <strong className="text-amber-300 font-bold">
                 fenêtre latérale de présentation complète
               </strong>{' '}
               avec sa photo et son histoire complète.
