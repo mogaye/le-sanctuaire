@@ -209,11 +209,11 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
       }
 
       if (
-        trimmed.startsWith('Chapitre 1 ---') ||
-        trimmed.startsWith('Chapitre 2 ---') ||
-        trimmed.startsWith('Chapitre 3 ---') ||
-        trimmed.startsWith('Chapitre 4 ---') ||
-        trimmed.startsWith('Épilogue ---') ||
+        trimmed.startsWith('Chapitre 1 :') ||
+        trimmed.startsWith('Chapitre 2 :') ||
+        trimmed.startsWith('Chapitre 3 :') ||
+        trimmed.startsWith('Chapitre 4 :') ||
+        trimmed.startsWith('Épilogue :') ||
         trimmed === 'Le Puits de Nour'
       ) {
         flushParagraph();
@@ -221,15 +221,8 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
         continue;
       }
 
-      if (trimmed === '---') {
-        flushParagraph();
-        blocks.push({ type: 'divider', text: line });
-        continue;
-      }
-
       const isNumberedSection = /^\d+\.\s+[A-ZÉÈÊÀÂÎÏÔÙÛÇŒ]/.test(trimmed);
       const isNamedSubheader =
-        !trimmed.startsWith('---') &&
         !trimmed.startsWith('«') &&
         trimmed.length < 48 &&
         !/[.!?:,;»]$/.test(trimmed) &&
@@ -245,15 +238,9 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
         continue;
       }
 
-      if (trimmed.startsWith('--- ')) {
-        flushParagraph();
-        currentParagraphLines.push(line);
-        continue;
-      }
-
       if (currentParagraphLines.length > 0) {
         const prevTrimmed = currentParagraphLines[currentParagraphLines.length - 1].trim();
-        const prevEndsSentence = /[.!?»"]$/.test(prevTrimmed);
+        const prevEndsSentence = /[.!?:»"]$/.test(prevTrimmed);
         const currentStartsSentence = /^[A-ZÉÈÊÀÂÎÏÔÙÛÇŒ«]/.test(trimmed);
         if (prevEndsSentence && currentStartsSentence) {
           flushParagraph();

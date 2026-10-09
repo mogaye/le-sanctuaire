@@ -10,8 +10,8 @@ export const PUITS_DE_NOUR_CHAPTERS: BookChapter[] = [
   {
     id: 'chapitre-1',
     number: 'Chapitre 1',
-    title: 'Chapitre 1 --- Le Puits tari',
-    rawText: `Chapitre 1 --- Le Puits tari
+    title: 'Chapitre 1 : Le Puits tari',
+    rawText: `Chapitre 1 : Le Puits tari
 L'aube sur Dar-Salam
 Il existe des sécheresses qui dessèchent la terre, et d'autres qui
 commencent par dessécher les cœurs.
@@ -94,7 +94,7 @@ tandis que d'autres se contentaient de regarder le fond, comme si le
 fait de le fixer assez longtemps pouvait y faire apparaître de l'eau. Au
 milieu du cercle, Oumar le forgeron parlait avec tant de force que sa
 voix couvrait presque toutes les autres.
---- Nous devons creuser plus profondément ! cria-t-il. Le fond peut
+Nous devons creuser plus profondément ! cria-t-il. Le fond peut
 encore donner. Il faut élargir la galerie, dégager les pierres et
 chercher la veine qui alimentait le puits.
 Oumar avait des épaules larges, des mains marquées par les brûlures et
@@ -110,17 +110,17 @@ des sacs de mil, des étoffes et des marchandises venues de loin. On
 disait qu'il savait compter une pièce d'or au toucher et qu'aucune
 affaire ne lui échappait. Pourtant, devant le puits vide, son visage
 était fermé.
---- Creuser coûte des outils, du bois et du temps, répondit-il. Qui
+Creuser coûte des outils, du bois et du temps, répondit-il. Qui
 paiera ? Qui répondra si la galerie s'effondre ? Ceux qui ont économisé
 toute leur vie devraient-ils donner leurs biens chaque fois que le
 village rencontre un problème ?
---- L'eau n'appartient pas à ta bourse ! lança Oumar.
+L'eau n'appartient pas à ta bourse ! lança Oumar.
 Un murmure approbateur parcourut une partie de la foule. Mansour pinça
 les lèvres.
---- Et ton marteau, Oumar, va-t-il fabriquer de l'eau ? Tu peux frapper
+Et ton marteau, Oumar, va-t-il fabriquer de l'eau ? Tu peux frapper
 le métal jusqu'à la nuit, cela ne fera pas tomber la pluie.
---- Au moins, moi, je propose de travailler !
---- Tu proposes de dépenser ce que tu ne possèdes pas.
+Au moins, moi, je propose de travailler !
+Tu proposes de dépenser ce que tu ne possèdes pas.
 Les paroles se transformèrent en accusations. Une femme affirma que le
 marchand avait sûrement des réserves cachées. Un homme lui répondit
 qu'elle aurait dû mieux gérer ses propres provisions. Quelqu'un évoqua
@@ -135,20 +135,20 @@ dans le silence de sa grand-mère lorsqu'elle pensait qu'il ne la
 regardait pas. Mais il voyait aussi la manière dont cette peur poussait
 les gens à se soupçonner.
 Bilal arriva en courant, puis ralentit en découvrant la foule.
---- J'espérais trouver de l'eau, dit-il, pas une assemblée de coqs en
+J'espérais trouver de l'eau, dit-il, pas une assemblée de coqs en
 colère.
 Yassine lui adressa un regard de reproche, mais Bilal haussa les
 épaules.
---- Si je ne plaisante pas, je vais finir par avoir peur moi aussi.
+Si je ne plaisante pas, je vais finir par avoir peur moi aussi.
 Bilal avait douze ans comme lui. Il était rapide, impulsif, toujours
 prêt à inventer une histoire pour faire rire les autres. Ses
 plaisanteries lui servaient souvent de bouclier. Quand une situation
 devenait trop sérieuse, il parlait encore plus, comme si le rire pouvait
 éloigner ce qu'il redoutait.
---- Viens, dit Yassine. Nous pouvons aider les personnes âgées à porter
+Viens, dit Yassine. Nous pouvons aider les personnes âgées à porter
 leurs jarres. Cela ne résoudra pas le problème, mais au moins elles
 n'auront pas à se battre pour passer.
---- Une mission sans pelle ni discours ? J'accepte.
+Une mission sans pelle ni discours ? J'accepte.
 Ils aidèrent une vieille femme dont la jarre semblait trop lourde pour
 ses bras. Elle les remercia avec un sourire fatigué. Sur le chemin, elle
 leur confia qu'elle n'avait pas assez d'eau pour préparer le repas du
@@ -182,19 +182,19 @@ quand une explication lui paraissait bancale, elle posait une autre
 question. Certains adultes la trouvaient insolente. D'autres, en secret,
 espéraient qu'elle ne perde jamais cette audace.
 Elle passa la main sur une fissure, puis se releva.
---- Regardez ici. Les pierres ont bougé. Et si un ancien conduit était
+Regardez ici. Les pierres ont bougé. Et si un ancien conduit était
 bouché ?
 Oumar s'approcha, d'abord agacé qu'une enfant interrompe la dispute.
 Mais il se pencha vers le mur et observa les joints entre les pierres.
---- C'est possible, admit-il. Il faudrait dégager cette partie et
+C'est possible, admit-il. Il faudrait dégager cette partie et
 vérifier.
---- Alors vérifions, répondit Maryam. Se disputer ne fera pas revenir
+Alors vérifions, répondit Maryam. Se disputer ne fera pas revenir
 l'eau.
 Un homme ricana.
---- Les enfants pensent qu'ils peuvent résoudre tous les problèmes en
+Les enfants pensent qu'ils peuvent résoudre tous les problèmes en
 regardant trois pierres.
 Maryam rougit, mais ne baissa pas les yeux.
---- Je ne dis pas que je sais tout. Je dis qu'il y a quelque chose à
+Je ne dis pas que je sais tout. Je dis qu'il y a quelque chose à
 examiner. Si mon idée est mauvaise, nous le saurons. Mais si elle est
 bonne et que personne ne vérifie, nous aurons perdu du temps.
 Cette fois, quelques personnes hochèrent la tête. Oumar passa un doigt
@@ -202,12 +202,12 @@ sur la fissure et demanda qu'on lui apporte un outil. Mansour, lui,
 détourna le regard, comme si reconnaître l'utilité d'une enfant aurait
 diminué son autorité.
 Yassine s'approcha de Maryam.
---- Tu as raison de demander qu'on vérifie.
---- Je sais, répondit-elle. Mais j'aimerais qu'ils le comprennent sans
+Tu as raison de demander qu'on vérifie.
+Je sais, répondit-elle. Mais j'aimerais qu'ils le comprennent sans
 que je doive le répéter dix fois.
---- Si tu trouves une façon de faire ça, enseigne-la-moi.
+Si tu trouves une façon de faire ça, enseigne-la-moi.
 Elle eut un sourire bref. Puis elle regarda le fond du puits.
---- Ce n'est pas seulement une question de pierre. Si les gens
+Ce n'est pas seulement une question de pierre. Si les gens
 continuent à se soupçonner, même si nous trouvons de l'eau, ils finiront
 par se battre pour les seaux.
 Yassine suivit son regard. Il comprit qu'elle avait raison. Le village
@@ -249,24 +249,24 @@ mauvaise ; elle pouvait se montrer généreuse lorsqu'une voisine tombait
 malade. Mais elle supportait mal de ne pas être au centre d'une
 conversation, et la sécheresse lui avait offert mille occasions de
 parler.
---- J'ai entendu dire que la famille de l'autre ruelle avait rempli
+J'ai entendu dire que la famille de l'autre ruelle avait rempli
 trois jarres avant tout le monde, annonça-t-elle.
---- Qui te l'a dit ? demanda Maryam.
+Qui te l'a dit ? demanda Maryam.
 Fatou hésita.
---- Quelqu'un qui le sait.
---- Qui ?
---- Pourquoi veux-tu toujours connaître chaque détail ?
---- Parce qu'une accusation sans preuve peut faire du mal à une famille
+Quelqu'un qui le sait.
+Qui ?
+Pourquoi veux-tu toujours connaître chaque détail ?
+Parce qu'une accusation sans preuve peut faire du mal à une famille
 innocente.
 Fatou pinça les lèvres et se détourna. Elle prétendit s'intéresser à ses
 dattes, mais la question de Maryam l'avait touchée. Elle n'avait rien vu
 elle-même. Elle avait seulement entendu une phrase, puis l'avait répétée
 en y ajoutant des détails.
 Bilal, qui avait tout suivi, se pencha vers Yassine.
---- Les paroles voyagent plus vite que les preuves.
---- Et elles n'ont même pas besoin de sandales, ajouta Maryam.
+Les paroles voyagent plus vite que les preuves.
+Et elles n'ont même pas besoin de sandales, ajouta Maryam.
 Bilal posa une main sur son cœur.
---- Je demande officiellement que cette phrase soit gravée au-dessus du
+Je demande officiellement que cette phrase soit gravée au-dessus du
 marché.
 Yassine rit, mais son sourire s'effaça lorsqu'il aperçut Karim. Le fils
 de Mansour se promenait entre les étals, suivi de deux garçons plus
@@ -278,7 +278,7 @@ réserves.
 Karim aimait humilier ceux qu'il jugeait plus faibles que lui. Peut-être
 pensait-il que personne ne remarquerait ses propres inquiétudes s'il
 attirait l'attention sur les défauts des autres.
---- Alors, Yassine, lança-t-il, tu comptes sauver le village avec tes
+Alors, Yassine, lança-t-il, tu comptes sauver le village avec tes
 prières ? Peut-être que ton père aurait dû t'apprendre à faire quelque
 chose d'utile avant de disparaître.
 Le marché sembla se figer autour d'eux. Yassine sentit la phrase
@@ -288,34 +288,34 @@ souvenait à peine du visage de son père. Il avait quelques images floues
 silhouette qui s'éloignait. À chaque fois qu'il posait des questions,
 Setti Aïcha devenait silencieuse ou changeait de sujet.
 Maryam fit un pas en avant.
---- Tu pourrais essayer de parler sans rabaisser les autres, Karim.
---- Je ne te parle pas, répondit-il.
---- C'est dommage. Tu aurais peut-être appris quelque chose.
+Tu pourrais essayer de parler sans rabaisser les autres, Karim.
+Je ne te parle pas, répondit-il.
+C'est dommage. Tu aurais peut-être appris quelque chose.
 Bilal ouvrit la bouche pour ajouter une plaisanterie, mais Yassine leva
 doucement la main. Il ne voulait pas que la scène devienne une bataille
 de mots. Il avait envie de répondre, de faire honte à Karim devant tout
 le monde, de lui rappeler que la richesse de son père ne lui donnait pas
 le droit d'écraser les autres. Pourtant, il se rappela les paroles de sa
 grand-mère : la peur ne devait pas décider à sa place.
---- Je ne sais pas tout faire, dit-il enfin. Mais je peux choisir de ne
+Je ne sais pas tout faire, dit-il enfin. Mais je peux choisir de ne
 pas ajouter du mal à ce qui va déjà mal.
 Karim ricana, mais son rire manquait de force. Il s'éloigna avec ses
 compagnons.
 Maryam se tourna vers Yassine.
---- Ne crois pas que te défendre ferait de toi quelqu'un comme lui.
---- Je sais.
---- Alors pourquoi tu ne lui réponds jamais vraiment ?
+Ne crois pas que te défendre ferait de toi quelqu'un comme lui.
+Je sais.
+Alors pourquoi tu ne lui réponds jamais vraiment ?
 Yassine prit le temps de réfléchir.
---- Parce que parfois, si je réponds avec colère, je continue la dispute
+Parce que parfois, si je réponds avec colère, je continue la dispute
 même après qu'il est parti. Je veux pouvoir penser à autre chose.
---- Et parfois, se taire laisse croire à celui qui blesse qu'il peut
+Et parfois, se taire laisse croire à celui qui blesse qu'il peut
 recommencer.
 Il la regarda. Elle n'avait pas tort non plus.
---- Alors je dois apprendre à me défendre sans devenir cruel, dit-il.
---- Exactement, répondit Maryam. Ce serait déjà un progrès pour beaucoup
+Alors je dois apprendre à me défendre sans devenir cruel, dit-il.
+Exactement, répondit Maryam. Ce serait déjà un progrès pour beaucoup
 d'adultes.
 Bilal hocha la tête avec gravité.
---- Je propose qu'on commence par leur apprendre à attendre leur tour
+Je propose qu'on commence par leur apprendre à attendre leur tour
 pour parler.
 Tous trois rirent un instant. Puis une femme appela Maryam pour l'aider
 à porter un panier. Yassine observa les étals, les visages fermés, les
@@ -353,23 +353,23 @@ de passer de la tendresse à la sévérité en un instant, et un humour qui
 surprenait toujours Yassine. Quand elle remarqua son air préoccupé, elle
 ne posa pas immédiatement de question. Elle lui tendit d'abord une tasse
 d'eau, en veillant à ce qu'il en boive seulement quelques gorgées.
---- Tu as l'air d'avoir porté le village sur tes épaules, dit-elle.
---- Je n'ai pas réussi à l'aider.
---- Tu es allé au puits, tu as aidé une voisine, tu as essayé de calmer
+Tu as l'air d'avoir porté le village sur tes épaules, dit-elle.
+Je n'ai pas réussi à l'aider.
+Tu es allé au puits, tu as aidé une voisine, tu as essayé de calmer
 une dispute. Ce n'est pas rien.
---- Mais le puits est toujours vide.
+Mais le puits est toujours vide.
 Setti Aïcha retourna la galette.
---- Si tu juges toutes tes actions à la taille du résultat immédiat, tu
+Si tu juges toutes tes actions à la taille du résultat immédiat, tu
 finiras par croire que rien ne sert à rien. Il y a des efforts dont on
 ne voit les fruits que plus tard.
 Elle partagea la galette et plaça le plus gros morceau devant lui.
 Yassine le repoussa vers elle.
---- Tu en as besoin aussi.
---- Je suis une vieille femme. J'ai déjà mangé des galettes bien plus
+Tu en as besoin aussi.
+Je suis une vieille femme. J'ai déjà mangé des galettes bien plus
 dures que celle-ci.
---- Ce n'est pas une réponse.
+Ce n'est pas une réponse.
 Elle éclata d'un rire léger.
---- Tu as raison. Mais je suis ta grand-mère, et j'ai le droit d'essayer
+Tu as raison. Mais je suis ta grand-mère, et j'ai le droit d'essayer
 de gagner au partage de temps en temps.
 Ils mangèrent en silence. Yassine savait que les réserves diminuaient.
 Il avait remarqué la façon dont elle grattait le fond du sac de farine,
@@ -380,51 +380,51 @@ Après le repas, il lui raconta la dispute au puits, l'idée de Maryam et
 les paroles de Karim. Setti Aïcha l'écouta sans l'interrompre. Quand il
 répéta l'insulte concernant son père, ses doigts se figèrent sur le bord
 de la tasse.
---- Qu'as-tu ressenti ? demanda-t-elle.
---- De la colère. Et de la honte, même si je sais que je n'ai rien fait.
---- La honte n'appartient pas toujours à celui qui la ressent, mon
+Qu'as-tu ressenti ? demanda-t-elle.
+De la colère. Et de la honte, même si je sais que je n'ai rien fait.
+La honte n'appartient pas toujours à celui qui la ressent, mon
 enfant. Parfois, elle devrait revenir à celui qui cherche à blesser.
 Yassine regarda le sol.
---- Pourquoi Karim parle-t-il de mon père comme s'il le connaissait ?
+Pourquoi Karim parle-t-il de mon père comme s'il le connaissait ?
 Setti Aïcha ne répondit pas tout de suite. Son visage avait changé.
 Pendant un instant, elle sembla écouter un bruit venu de très loin.
---- Les enfants répètent parfois les paroles des adultes sans comprendre
+Les enfants répètent parfois les paroles des adultes sans comprendre
 leur poids, dit-elle finalement.
---- Mais les adultes, eux, comprennent-ils ce qu'ils disent ?
+Mais les adultes, eux, comprennent-ils ce qu'ils disent ?
 Elle eut un petit sourire triste.
---- Pas toujours.
+Pas toujours.
 Yassine hésita, puis posa la question qu'il gardait depuis des années.
---- Grand-mère, comment était mon père ?
+Grand-mère, comment était mon père ?
 Setti Aïcha posa la tasse. Elle avait raconté de petites choses
 autrefois : qu'il aimait les oiseaux, qu'il savait réparer un panier,
 qu'il ne supportait pas de voir quelqu'un humilié. Mais dès que Yassine
 demandait pourquoi il était parti, son regard se fermait.
---- Il était courageux, dit-elle. Mais le courage ne rend pas les gens
+Il était courageux, dit-elle. Mais le courage ne rend pas les gens
 parfaits. Il avait aussi ses défauts. Il voulait souvent régler les
 problèmes de tout le monde et oubliait qu'il avait lui-même besoin
 d'aide.
---- Est-ce pour cela qu'il est parti ?
+Est-ce pour cela qu'il est parti ?
 La question resta suspendue entre eux. Setti Aïcha se leva pour ranger
 les bols, bien qu'ils fussent déjà propres. Yassine reconnut ce geste :
 elle cherchait du temps.
---- Il y a des histoires qu'on ne peut pas raconter avant que le moment
+Il y a des histoires qu'on ne peut pas raconter avant que le moment
 soit venu.
---- Qui décide du moment ?
+Qui décide du moment ?
 Elle ne trouva pas de réponse. Au fond de la pièce, le vieux coffre en
 bois demeurait fermé. Sa serrure était sombre et usée, mais elle n'était
 pas rouillée. Yassine avait vu sa grand-mère le nettoyer de temps en
 temps, sans jamais l'ouvrir devant lui.
---- Est-ce que la réponse est dans ce coffre ? demanda-t-il.
+Est-ce que la réponse est dans ce coffre ? demanda-t-il.
 Setti Aïcha se retourna si brusquement qu'il regretta presque sa
 question.
---- Certaines choses doivent rester à leur place jusqu'à ce que nous
+Certaines choses doivent rester à leur place jusqu'à ce que nous
 soyons prêts à les regarder.
---- Mais comment savoir si je suis prêt si personne ne me dit ce que je
+Mais comment savoir si je suis prêt si personne ne me dit ce que je
 dois regarder ?
 Sa grand-mère s'approcha et posa ses mains sur ses épaules.
---- Je ne te cache pas la vérité pour te faire souffrir. Je cherche à
+Je ne te cache pas la vérité pour te faire souffrir. Je cherche à
 t'éviter une peine que tu ne pourrais pas encore comprendre.
---- Et si le silence me fait déjà souffrir ?
+Et si le silence me fait déjà souffrir ?
 Cette fois, elle ne répondit pas. Elle l'embrassa sur le front et lui
 demanda de se préparer pour la prière du soir. Yassine obéit, mais la
 question du coffre le suivit jusque sur sa natte.
@@ -478,11 +478,11 @@ laisser transformer par la colère.
 Au petit matin, il se leva pour aider sa grand-mère. Il balaya la cour,
 rangea les bols et alla chercher le peu d'eau qu'ils pouvaient se
 permettre. Setti Aïcha remarqua qu'il était silencieux.
---- Tu as mal dormi ?
---- Un peu.
---- Tu as beaucoup pensé.
---- Est-ce qu'on peut trop penser ?
---- On peut tourner si longtemps autour d'une question qu'on finit par
+Tu as mal dormi ?
+Un peu.
+Tu as beaucoup pensé.
+Est-ce qu'on peut trop penser ?
+On peut tourner si longtemps autour d'une question qu'on finit par
 ne plus voir le chemin. Mais réfléchir n'est pas une faute. Il faut
 seulement apprendre quand continuer et quand avancer avec ce que l'on
 sait.
@@ -514,15 +514,15 @@ mais pour décider de ce qu'ils feraient. Son visage calme contrastait
 avec la fatigue des villageois. Il connaissait leurs querelles, leurs
 inquiétudes et les blessures anciennes qui rendaient chaque désaccord
 plus profond.
---- Nous devons commencer par ce que nous savons, dit-il. Le puits est
+Nous devons commencer par ce que nous savons, dit-il. Le puits est
 presque sec. Nous ne savons pas encore pourquoi. Nous devons vérifier
 les pierres, rechercher les anciens conduits et examiner les collines où
 Souleymane a observé des signes d'humidité. Nous devons aussi organiser
 le partage de l'eau qui reste, afin que les familles les plus
 vulnérables ne soient pas abandonnées.
 Un homme leva la main.
---- Et si les autres prennent plus que leur part ?
---- Nous établirons une règle claire et nous la respecterons tous,
+Et si les autres prennent plus que leur part ?
+Nous établirons une règle claire et nous la respecterons tous,
 répondit l'imam. Si quelqu'un triche, nous chercherons des preuves. La
 peur ne doit pas nous pousser à accuser avant de savoir.
 Souleymane, le berger, expliqua qu'il avait remarqué de l'herbe plus
@@ -534,39 +534,39 @@ Maryam présenta son idée concernant la partie sud du puits. Elle
 décrivit les pierres déplacées, la fissure et la possibilité d'un
 conduit obstrué. Cette fois, Oumar confirma qu'il voulait vérifier. Il
 demanda des volontaires pour apporter des outils.
---- Je peux prêter une pelle et une corde, dit un vieux cultivateur.
---- Je peux venir aider après le marché, ajouta une femme.
+Je peux prêter une pelle et une corde, dit un vieux cultivateur.
+Je peux venir aider après le marché, ajouta une femme.
 Peu à peu, les propositions s'accumulèrent. Pour la première fois depuis
 plusieurs jours, les habitants semblaient regarder dans la même
 direction.
 Hadj Mansour, cependant, gardait les bras croisés.
---- Nous aurons besoin de matériaux et de bras, lui dit l'imam. Tu
+Nous aurons besoin de matériaux et de bras, lui dit l'imam. Tu
 possèdes des outils et des réserves. Le village te demande de contribuer
 selon tes moyens.
---- Mes réserves ne sont pas infinies. Si je distribue tout maintenant,
+Mes réserves ne sont pas infinies. Si je distribue tout maintenant,
 que restera-t-il lorsque la situation empirera ?
---- Personne ne te demande de tout donner, répondit l'imam. Mais celui
+Personne ne te demande de tout donner, répondit l'imam. Mais celui
 qui possède davantage peut souvent aider davantage.
 Mansour observa les visages tournés vers lui. Il détestait sentir que
 les autres attendaient quelque chose de lui. Il avait bâti sa fortune en
 se méfiant des promesses et en calculant chaque risque. À ses yeux,
 donner sans garantie revenait à ouvrir une porte qu'il ne pourrait plus
 refermer.
---- Je réfléchirai, dit-il.
+Je réfléchirai, dit-il.
 Yassine, qui se tenait près de Bilal, sentit les mots lui échapper avant
 qu'il ait pu les retenir.
---- Nous réfléchissons tous, mais le puits ne peut pas attendre que
+Nous réfléchissons tous, mais le puits ne peut pas attendre que
 chacun décide si son voisin mérite de boire.
 Le silence tomba. Mansour se tourna vers lui, le visage dur.
---- Tu es encore un enfant. Tu ne sais pas ce qu'il faut pour protéger
+Tu es encore un enfant. Tu ne sais pas ce qu'il faut pour protéger
 une famille.
 Yassine baissa les yeux. Une partie de lui voulait répondre que lui
 aussi protégeait sa famille, avec presque rien. Mais il ne voulait pas
 humilier Mansour devant tout le monde. Il se contenta de dire :
---- C'est vrai, je ne sais pas tout. Mais je sais que nous avons besoin
+C'est vrai, je ne sais pas tout. Mais je sais que nous avons besoin
 les uns des autres.
 L'imam posa une main sur son épaule.
---- C'est une vérité que nous devons tous garder en mémoire.
+C'est une vérité que nous devons tous garder en mémoire.
 La réunion se termina par des tâches précises. Oumar devait examiner le
 mur sud. Maryam devait l'accompagner pour noter ce qu'ils
 découvriraient. Souleymane guiderait une petite équipe vers les
@@ -604,54 +604,54 @@ reconnaissait des détails que les autres ne voyaient plus.
 Quelques habitants se turent à son approche. Les voyageurs étaient rares
 depuis que la sécheresse avait rendu les pistes difficiles. L'étranger
 s'arrêta près du puits et observa la corde suspendue au-dessus du vide.
---- Vous arrivez au mauvais moment, lui dit un homme. Nous n'avons
+Vous arrivez au mauvais moment, lui dit un homme. Nous n'avons
 presque plus d'eau.
---- Il n'existe pas toujours de bon moment pour arriver quelque part,
+Il n'existe pas toujours de bon moment pour arriver quelque part,
 répondit l'étranger.
 Sa voix était rauque, mais douce. Yassine s'approcha le premier. Il
 avait remarqué que les lèvres de l'homme étaient sèches et que sa
 démarche manquait de force.
---- Vous avez besoin d'eau ?
+Vous avez besoin d'eau ?
 Le voyageur tourna les yeux vers lui.
---- Oui, mon garçon. Mais je vois que votre village en manque plus que
+Oui, mon garçon. Mais je vois que votre village en manque plus que
 moi.
 Yassine sortit sa petite gourde. Il n'y restait qu'une gorgée ou deux,
 tout ce qu'il avait réussi à économiser depuis le matin. Il hésita une
 seconde, puis la tendit à l'homme.
---- Prenez.
+Prenez.
 Le voyageur but lentement, sans vider la gourde. Il la rendit avec un
 signe de gratitude.
---- Comment t'appelles-tu ?
---- Yassine.
+Comment t'appelles-tu ?
+Yassine.
 L'homme sembla retenir son souffle. Son regard descendit vers le morceau
 de tissu noué au poignet du garçon, puis remonta vers son visage.
---- Yassine... le fils de celui qui est parti il y a douze ans ?
+Yassine... le fils de celui qui est parti il y a douze ans ?
 Le garçon sentit son cœur battre plus fort. Autour d'eux, les
 conversations reprirent à voix basse, mais lui n'entendit presque rien.
---- Vous connaissiez mon père ?
+Vous connaissiez mon père ?
 L'étranger ne répondit pas immédiatement. Il regarda l'imam Abdelkarim,
 puis la ruelle qui menait à la maison de Setti Aïcha.
---- Je l'ai connu, oui.
---- Comment s'appelait-il ? demanda Yassine, bien qu'il connût déjà son
+Je l'ai connu, oui.
+Comment s'appelait-il ? demanda Yassine, bien qu'il connût déjà son
 nom. Il voulait entendre l'étranger prononcer ce nom, comme s'il pouvait
 ainsi rendre son père plus réel.
 Le voyageur inclina la tête.
---- Je ne suis pas venu pour te troubler. Mais il y a une chose que tu
+Je ne suis pas venu pour te troubler. Mais il y a une chose que tu
 dois comprendre : son départ n'est pas l'histoire que l'on t'a laissée
 croire.
 Yassine sentit la gorge se serrer.
---- Quelle histoire m'a-t-on laissée croire ? On ne m'a presque rien
+Quelle histoire m'a-t-on laissée croire ? On ne m'a presque rien
 raconté !
 L'étranger sembla regretter ses paroles. Il posa une main sur son bâton.
---- Tu as raison. Et je ne veux pas ajouter un nouveau mensonge au
+Tu as raison. Et je ne veux pas ajouter un nouveau mensonge au
 silence qui t'a entouré. Je m'appelle Cheikh Idriss. Je suis fatigué par
 la route. Si ta grand-mère m'autorise à entrer, je lui parlerai d'abord.
---- Vous connaissez aussi ma grand-mère ?
---- Oui.
+Vous connaissez aussi ma grand-mère ?
+Oui.
 Le visage de l'imam Abdelkarim était devenu grave. Il s'approcha, salua
 le voyageur et échangea avec lui quelques paroles discrètes. Puis il
 regarda Yassine.
---- Conduis-le chez toi. Nous parlerons de la situation du village
+Conduis-le chez toi. Nous parlerons de la situation du village
 demain. Ce soir, il faut qu'il se repose.
 Yassine ne savait pas s'il devait se réjouir ou se méfier. Pour la
 première fois, quelqu'un avait prononcé clairement le lien entre cet
@@ -685,68 +685,68 @@ ranger quelques bols. Elle leva les yeux au bruit des pas. Dès qu'elle
 aperçut l'étranger, ses mains s'immobilisèrent. Le bol qu'elle tenait
 heurta doucement la table.
 Pendant un instant, personne ne parla.
---- Idriss, murmura-t-elle enfin.
+Idriss, murmura-t-elle enfin.
 Le voyageur inclina la tête.
---- Aïcha.
+Aïcha.
 Yassine regarda l'un puis l'autre. Il n'avait jamais vu sa grand-mère
 ainsi. Elle paraissait à la fois en colère, soulagée et effrayée. Son
 visage, d'habitude si expressif, était devenu presque immobile.
---- Tu aurais pu prévenir de ton arrivée, dit-elle.
---- J'aurais pu. Mais je ne savais pas si j'aurais le courage de venir
+Tu aurais pu prévenir de ton arrivée, dit-elle.
+J'aurais pu. Mais je ne savais pas si j'aurais le courage de venir
 jusqu'ici si je m'accordais davantage de temps.
 Setti Aïcha détourna les yeux vers Yassine.
---- Entre, Idriss. Tu as fait une longue route.
+Entre, Idriss. Tu as fait une longue route.
 Elle posa devant lui une tasse contenant le peu d'eau qu'elle pouvait
 offrir. Cheikh Idriss la remercia et ne but qu'une petite gorgée.
 Yassine s'assit en face de lui, incapable de détourner son regard.
---- Vous connaissiez mon père, dit-il. Vous venez de le confirmer. Alors
+Vous connaissiez mon père, dit-il. Vous venez de le confirmer. Alors
 racontez-moi.
 Setti Aïcha ferma les yeux.
---- Yassine, pas ce soir.
---- Pourquoi ? Tout le monde me dit d'attendre. Depuis que je suis
+Yassine, pas ce soir.
+Pourquoi ? Tout le monde me dit d'attendre. Depuis que je suis
 petit, j'attends. Je ne demande pas qu'on me raconte une histoire
 parfaite. Je veux seulement savoir qui il était et pourquoi il est
 parti.
 Cheikh Idriss posa sa tasse.
---- Il a raison de poser la question.
+Il a raison de poser la question.
 Setti Aïcha le fixa.
---- Ne rends pas les choses plus difficiles.
---- Elles le sont déjà, Aïcha. Le silence ne les rendra pas plus
+Ne rends pas les choses plus difficiles.
+Elles le sont déjà, Aïcha. Le silence ne les rendra pas plus
 légères.
 La vieille femme se leva et alla jusqu'au coffre. Elle passa la main sur
 le bois, mais ne sortit pas la clé. Yassine vit ses doigts trembler.
---- J'ai promis de protéger mon petit-fils, dit-elle. Je ne savais pas
+J'ai promis de protéger mon petit-fils, dit-elle. Je ne savais pas
 comment lui expliquer ce qui s'était passé sans lui transmettre toute la
 peur qui m'a accompagnée.
---- Tu l'as protégé, répondit Idriss. Mais il a grandi. Il ne peut pas
+Tu l'as protégé, répondit Idriss. Mais il a grandi. Il ne peut pas
 rester éternellement devant une porte fermée.
 Setti Aïcha resta immobile. Puis elle revint s'asseoir.
---- Il y a des choses que je peux dire, et d'autres que je dois encore
+Il y a des choses que je peux dire, et d'autres que je dois encore
 vérifier. Je ne veux pas que tu entendes une version de l'histoire et
 que tu la prennes pour toute la vérité.
 Yassine sentit sa colère se mêler à une tristesse plus profonde.
---- Je préfère une vérité difficile à un silence qui me fait imaginer
+Je préfère une vérité difficile à un silence qui me fait imaginer
 mille choses.
 Sa grand-mère le regarda longtemps. Dans ses yeux, il vit de l'amour,
 mais aussi une fatigue ancienne.
---- Ton père n'était pas un homme sans défauts. Il pouvait être obstiné.
+Ton père n'était pas un homme sans défauts. Il pouvait être obstiné.
 Il supportait mal l'injustice et parfois il se lançait dans des affaires
 dangereuses sans demander conseil. Mais il t'aimait. Il t'aimait avant
 même que tu sois capable de comprendre ce que ce mot signifie.
---- Alors pourquoi est-il parti ?
+Alors pourquoi est-il parti ?
 Setti Aïcha entrouvrit les lèvres, puis les referma. Cheikh Idriss se
 redressa, comme s'il allait répondre. Mais au même instant, un bruit de
 pas retentit dans la ruelle. Quelqu'un s'arrêta devant la porte.
 Trois coups furent frappés, lents et distincts.
 Setti Aïcha pâlit. Cheikh Idriss se leva. Yassine regarda la porte, puis
 le coffre.
---- Qui est-ce ? demanda-t-il.
+Qui est-ce ? demanda-t-il.
 Personne ne répondit.
 Les coups retentirent une seconde fois.
 Setti Aïcha glissa enfin la main dans le pli de son vêtement et en
 sortit une petite clé. Elle la serra si fort que ses jointures
 blanchirent.
---- Quoi qu'il arrive, dit-elle à Yassine, souviens-toi que connaître la
+Quoi qu'il arrive, dit-elle à Yassine, souviens-toi que connaître la
 vérité ne t'oblige pas à haïr qui que ce soit. Tu auras le droit d'être
 blessé, de poser des questions et de demander des comptes. Mais ne
 laisse personne choisir ton cœur à ta place.
@@ -758,7 +758,7 @@ de son père se tenait maintenant dans leur petite maison, à quelques pas
 de lui.
 La clé entra dans la serrure.
 Au-dehors, la personne frappa une troisième fois.
-À suivre : Chapitre 2 --- La Pièce d'or.
+À suivre : Chapitre 2 : La Pièce d'or.
 Plus tard, Yassine repensa à la manière dont les habitants s'étaient
 tenus autour du puits. Chacun avait occupé une place précise, comme si
 la distance entre les corps révélait la distance entre les cœurs. Oumar
@@ -1053,8 +1053,8 @@ adultes.`
   {
     id: 'chapitre-2',
     number: 'Chapitre 2',
-    title: "Chapitre 2 --- La Pièce d'or",
-    rawText: `Chapitre 2 --- La Pièce d'or
+    title: "Chapitre 2 : La Pièce d'or",
+    rawText: `Chapitre 2 : La Pièce d'or
 La clé dans la serrure
 Les trois coups frappés à la porte semblaient résonner dans toute la
 maison.
@@ -1062,43 +1062,43 @@ Yassine resta immobile. Sa grand-mère tenait la petite clé dans une
 main, tandis que Cheikh Idriss se tenait près de la porte, le visage
 fermé. Dehors, la personne n'insistait pas. Ce silence, après les coups,
 était plus inquiétant encore.
---- Qui est là ? demanda Idriss.
---- Quelqu'un qui vient chercher ce qui lui appartient, répondit une
+Qui est là ? demanda Idriss.
+Quelqu'un qui vient chercher ce qui lui appartient, répondit une
 voix d'homme.
 Setti Aïcha blêmit. Yassine le remarqua et sentit aussitôt sa peur se
 transformer en colère. Il avait passé des années à attendre des
 réponses. À présent que le passé se tenait dans leur maison, quelqu'un
 venait encore interrompre les explications.
---- Ouvrez, dit-il. Nous n'avons rien à cacher.
+Ouvrez, dit-il. Nous n'avons rien à cacher.
 Sa grand-mère le regarda, surprise par la fermeté de sa voix. Puis elle
 posa la clé sur la table.
---- Pas avant de savoir qui frappe.
+Pas avant de savoir qui frappe.
 Idriss entrouvrit la porte, juste assez pour voir le visiteur. C'était
 un homme maigre, vêtu d'un manteau poussiéreux, avec un foulard noué bas
 sur le front. Il portait une sacoche de cuir contre sa poitrine.
---- Je cherche Cheikh Idriss, dit-il.
---- Tu l'as trouvé.
+Je cherche Cheikh Idriss, dit-il.
+Tu l'as trouvé.
 L'homme observa la pièce par-dessus l'épaule du voyageur. Ses yeux
 s'arrêtèrent sur le coffre.
---- Alors vous avez enfin décidé de l'ouvrir.
---- Qui êtes-vous ? demanda Yassine.
+Alors vous avez enfin décidé de l'ouvrir.
+Qui êtes-vous ? demanda Yassine.
 L'inconnu ne répondit pas. Il tendit une enveloppe à Idriss.
---- Je ne suis que le messager. On m'a demandé de remettre ceci avant
+Je ne suis que le messager. On m'a demandé de remettre ceci avant
 que quelqu'un d'autre ne le fasse.
 Idriss prit l'enveloppe sans l'ouvrir. Il examina le sceau, puis regarda
 Setti Aïcha. Elle avait reconnu l'écriture sur le papier. Ses lèvres se
 mirent à trembler.
---- D'où vient cette lettre ? demanda-t-elle.
---- D'un homme qui ne souhaite pas être nommé, répondit le messager. Il
+D'où vient cette lettre ? demanda-t-elle.
+D'un homme qui ne souhaite pas être nommé, répondit le messager. Il
 dit que les choses ont assez duré.
 Puis il recula dans la ruelle, sans attendre d'autre question.
 Yassine voulut le suivre, mais Idriss referma doucement la porte.
---- Ne cours pas après une silhouette dans la nuit. Nous avons déjà
+Ne cours pas après une silhouette dans la nuit. Nous avons déjà
 assez de choses à comprendre ici.
---- Vous dites toujours cela ! s'emporta Yassine. Attendre, réfléchir,
+Vous dites toujours cela ! s'emporta Yassine. Attendre, réfléchir,
 ne pas courir après les réponses. Mais personne ne me dit rien.
 Setti Aïcha posa une main sur son bras.
---- Tu as raison de vouloir savoir. Mais laisse-moi ouvrir le coffre.
+Tu as raison de vouloir savoir. Mais laisse-moi ouvrir le coffre.
 Cette fois, je ne te demanderai pas d'attendre.
 Elle inséra la clé. La serrure résista d'abord, puis céda avec un petit
 claquement. Le couvercle grinça en se soulevant. À l'intérieur
@@ -1109,10 +1109,10 @@ Yassine regarda ces objets comme s'ils venaient d'apparaître d'un autre
 monde. Sa grand-mère prit la lettre avec des doigts hésitants. Elle la
 déplia, mais ne commença pas à lire. Ses yeux parcoururent les premières
 lignes, puis elle s'assit brusquement.
---- C'est bien son écriture, murmura-t-elle.
---- Celle de mon père ? demanda Yassine.
+C'est bien son écriture, murmura-t-elle.
+Celle de mon père ? demanda Yassine.
 Elle hocha la tête.
---- Oui.
+Oui.
 Pour la première fois, le garçon sentit que le passé ne se trouvait pas
 seulement dans les souvenirs des adultes. Il avait laissé des traces,
 des mots et des objets. Pourtant, cette découverte ne lui apporta pas
@@ -1120,7 +1120,7 @@ immédiatement le soulagement qu'il avait imaginé. La lettre semblait
 contenir une peine si lourde que sa grand-mère avait dû la porter seule
 pendant des années.
 Idriss s'assit en face d'eux.
---- Nous devons lire ce que nous savons, et distinguer ce que nous
+Nous devons lire ce que nous savons, et distinguer ce que nous
 supposons. Cette lettre peut nous apprendre beaucoup, mais elle ne
 répondra peut-être pas à toutes les questions.
 Yassine acquiesça. Il voulait tout savoir, mais il ne voulait plus être
@@ -1146,26 +1146,26 @@ mon fils croire que je l'ai oublié. »
 Yassine sentit les mots se brouiller devant ses yeux. Il n'avait jamais
 entendu son père lui parler directement, et pourtant cette phrase
 semblait s'adresser à lui à travers douze années de silence.
---- Il comptait revenir ? demanda-t-il.
+Il comptait revenir ? demanda-t-il.
 Setti Aïcha essuya ses joues.
---- C'est ce que je croyais. Il est parti pour rencontrer des personnes
+C'est ce que je croyais. Il est parti pour rencontrer des personnes
 qui pouvaient confirmer ce qu'il avait découvert. Il m'avait promis
 qu'il reviendrait avant la prochaine lune.
---- Et il n'est jamais revenu.
---- Non.
+Et il n'est jamais revenu.
+Non.
 Le silence s'installa. Yassine avait imaginé de nombreuses raisons au
 départ de son père : l'abandon, la honte, une dispute, un accident. La
 lettre ne lui donnait pas toutes les réponses, mais elle écartait au
 moins une partie de ses peurs. Son père avait pensé à lui. Il avait
 voulu revenir.
---- Pourquoi ne m'as-tu jamais montré cette lettre ? demanda-t-il.
+Pourquoi ne m'as-tu jamais montré cette lettre ? demanda-t-il.
 Setti Aïcha baissa la tête.
---- Parce que je ne savais pas ce qui lui était arrivé. J'avais peur que
+Parce que je ne savais pas ce qui lui était arrivé. J'avais peur que
 tu grandisses en attendant quelqu'un qui ne reviendrait peut-être
 jamais. Et je craignais que ceux qui avaient intérêt à cacher cette
 affaire s'en prennent à toi.
---- Mais le silence m'a fait croire qu'il m'avait abandonné.
---- Je le sais, mon enfant. J'ai voulu te protéger et j'ai peut-être
+Mais le silence m'a fait croire qu'il m'avait abandonné.
+Je le sais, mon enfant. J'ai voulu te protéger et j'ai peut-être
 ajouté une autre blessure à celle que tu portais déjà.
 Yassine ne savait pas quoi répondre. Il aimait sa grand-mère. Il savait
 combien elle s'était sacrifiée pour lui. Pourtant, son amour ne faisait
@@ -1174,17 +1174,17 @@ histoire.
 Idriss prit le petit objet enveloppé de cuir. Il le déplia avec
 précaution. À l'intérieur se trouvait une petite pièce de métal gravée
 d'un signe : un cercle traversé par trois lignes.
---- Je reconnais cette marque, dit-il. Elle était utilisée sur les
+Je reconnais cette marque, dit-il. Elle était utilisée sur les
 registres de transport de l'époque. Elle ne prouve pas à elle seule
 qu'un document est authentique, mais elle peut nous aider à retrouver
 les archives.
---- Où ? demanda Yassine.
---- Il existait un ancien dépôt près du marché, avant que les
+Où ? demanda Yassine.
+Il existait un ancien dépôt près du marché, avant que les
 marchandises soient transférées dans les entrepôts de Mansour. Certains
 registres ont été conservés. D'autres ont disparu.
 À l'évocation du nom de Mansour, Setti Aïcha se raidit.
---- Tu crois que Hadj Mansour était impliqué ?
---- Je ne crois rien sans preuve, répondit Idriss. Le nom de sa famille
+Tu crois que Hadj Mansour était impliqué ?
+Je ne crois rien sans preuve, répondit Idriss. Le nom de sa famille
 apparaissait dans les échanges commerciaux de cette période. Cela ne
 signifie pas qu'il ait commis une faute. Nous devons comprendre ce qui
 s'est réellement passé.
@@ -1192,13 +1192,13 @@ Yassine regarda la lettre. Une partie de lui voulait courir jusqu'à la
 maison du marchand et exiger des réponses. Une autre se souvenait des
 paroles de Maryam : une accusation sans preuve pouvait détruire une
 personne innocente.
---- Alors, nous allons chercher les registres, dit-il.
---- Demain, répondit Idriss. Ce soir, nous devons dormir et réfléchir.
---- Je n'arriverai pas à dormir.
---- Peut-être pas. Mais la fatigue ne rend pas toujours le jugement plus
+Alors, nous allons chercher les registres, dit-il.
+Demain, répondit Idriss. Ce soir, nous devons dormir et réfléchir.
+Je n'arriverai pas à dormir.
+Peut-être pas. Mais la fatigue ne rend pas toujours le jugement plus
 juste.
 Setti Aïcha replia la lettre et la posa devant Yassine.
---- Tu peux la lire toi-même. Elle est à toi, désormais.
+Tu peux la lire toi-même. Elle est à toi, désormais.
 Le garçon passa les doigts sur le papier jauni. Il ne savait pas si son
 père avait été victime d'une injustice, s'il avait commis des erreurs ou
 si l'histoire serait plus compliquée que ce qu'il espérait. Mais une
@@ -1214,7 +1214,7 @@ voulait aider à gagner de quoi acheter de la farine et, surtout, il
 avait besoin de marcher pour remettre ses pensées en ordre. Idriss lui
 conseilla de ne parler de la lettre à personne avant d'avoir vérifié les
 faits.
---- La vérité n'a pas besoin d'être criée pour être vraie, lui dit-il.
+La vérité n'a pas besoin d'être criée pour être vraie, lui dit-il.
 Et une parole lancée trop tôt peut devenir une rumeur qu'on ne maîtrise
 plus.
 Yassine promit d'être prudent. Il rejoignit le marché avec un petit
@@ -1226,36 +1226,36 @@ en échange de quelques dattes ou d'une poignée de mil.
 Près de l'étal des fruits, Bilal apparut avec son petit frère Ibrahim.
 Ibrahim avait sept ans et posait tant de questions qu'il semblait
 parfois en avoir plusieurs à la fois.
---- Aujourd'hui, annonça Bilal, nous avons une stratégie commerciale.
---- Laquelle ? demanda Yassine.
---- Ibrahim va proposer notre chèvre en échange de dattes. Si le
+Aujourd'hui, annonça Bilal, nous avons une stratégie commerciale.
+Laquelle ? demanda Yassine.
+Ibrahim va proposer notre chèvre en échange de dattes. Si le
 marchand refuse, nous lui proposerons la corde de la chèvre. Si cela
 échoue encore, nous lui proposerons de lui apprendre à bêler.
---- Je peux vraiment apprendre à bêler, assura Ibrahim.
+Je peux vraiment apprendre à bêler, assura Ibrahim.
 Yassine éclata de rire. Le rire lui fit du bien, même si la tristesse
 restait là, sous sa poitrine.
 Bilal remarqua son air fatigué.
---- Tu as passé la nuit à penser ?
---- Oui.
---- À quoi ?
+Tu as passé la nuit à penser ?
+Oui.
+À quoi ?
 Yassine hésita. Il ne voulait pas mentir à son ami, mais il avait promis
 de ne pas parler de la lettre avant de vérifier certains éléments.
---- À mon père. J'ai appris quelque chose sur lui.
+À mon père. J'ai appris quelque chose sur lui.
 Bilal cessa de plaisanter.
---- Quelque chose de bon ?
---- Je ne sais pas encore. Mais il ne m'a peut-être pas abandonné comme
+Quelque chose de bon ?
+Je ne sais pas encore. Mais il ne m'a peut-être pas abandonné comme
 je l'ai cru.
 Bilal posa une main sur son épaule.
---- Alors, on va découvrir le reste. Et si quelqu'un essaie de
+Alors, on va découvrir le reste. Et si quelqu'un essaie de
 t'empêcher de chercher, il devra d'abord expliquer pourquoi.
---- Nous ne devons accuser personne sans preuve, rappela Yassine.
---- D'accord. Nous poserons des questions très insistantes, mais polies.
+Nous ne devons accuser personne sans preuve, rappela Yassine.
+D'accord. Nous poserons des questions très insistantes, mais polies.
 Ibrahim leva la main.
---- Moi aussi, je peux poser une question ?
---- Bien sûr, dit Yassine.
---- Est-ce qu'on peut acheter des dattes avec une chèvre ?
+Moi aussi, je peux poser une question ?
+Bien sûr, dit Yassine.
+Est-ce qu'on peut acheter des dattes avec une chèvre ?
 Bilal soupira.
---- Nous allons commencer par les bases.
+Nous allons commencer par les bases.
 Ils se dirigèrent vers un marchand qui avait besoin d'aide pour déplacer
 des paniers. Yassine travailla jusqu'à ce que ses bras lui fassent mal.
 Il ne gagna pas beaucoup, mais il reçut une petite mesure de farine et
@@ -1268,11 +1268,11 @@ histoires changeantes et ses affaires douteuses. Il n'était pas toujours
 malhonnête, mais il avait l'habitude de justifier ses mensonges par la
 nécessité.
 Moussa salua Yassine avec une cordialité inhabituelle.
---- Tu travailles dur, garçon. C'est bien. Dans la vie, il faut savoir
+Tu travailles dur, garçon. C'est bien. Dans la vie, il faut savoir
 saisir les occasions.
---- Quelles occasions ?
+Quelles occasions ?
 Moussa sourit.
---- Celles que les autres ne voient pas.
+Celles que les autres ne voient pas.
 Yassine n'aimait pas la façon dont il avait dit cela. Il poursuivit son
 chemin, sans savoir qu'avant la fin de la journée, cette phrase
 reviendrait le tourmenter.
@@ -1295,14 +1295,14 @@ Ils pourraient même acheter de l'eau à une famille qui possédait encore
 une réserve.
 Il serra la bourse dans sa main, puis la relâcha aussitôt, comme si le
 cuir l'avait brûlé.
---- Tu as trouvé un trésor ? demanda une voix derrière lui.
+Tu as trouvé un trésor ? demanda une voix derrière lui.
 Moussa se tenait à quelques pas, son sourire en coin. Il avait vu la
 bourse.
---- Je l'ai trouvée par terre, répondit Yassine.
---- Alors, elle appartient à celui qui la trouve.
---- Ce n'est pas vrai.
+Je l'ai trouvée par terre, répondit Yassine.
+Alors, elle appartient à celui qui la trouve.
+Ce n'est pas vrai.
 Moussa haussa les épaules.
---- Tu connais le propriétaire ? Non. Tu sais qui l'a perdue ? Non. Si
+Tu connais le propriétaire ? Non. Tu sais qui l'a perdue ? Non. Si
 tu la laisses ici, quelqu'un d'autre la prendra. Si tu la gardes, tu
 peux nourrir ta grand-mère. Tu ne voles personne que tu connais.
 Yassine regarda de nouveau la bourse. La tentation n'était pas un
@@ -1311,8 +1311,8 @@ douce. Elle lui disait qu'il avait déjà souffert, qu'il avait besoin
 d'aide, que personne ne saurait jamais ce qu'il avait fait. Elle lui
 rappelait qu'il était un enfant et que les adultes, eux aussi,
 trouvaient des excuses quand ils avaient faim.
---- Je pourrais chercher le propriétaire, dit-il.
---- Bien sûr. Et si tu ne le trouves pas, tu auras perdu toute la
+Je pourrais chercher le propriétaire, dit-il.
+Bien sûr. Et si tu ne le trouves pas, tu auras perdu toute la
 journée. La faim ne patiente pas.
 Moussa s'éloigna en lui adressant un dernier regard entendu. Yassine
 resta immobile, la bourse dans la main. Il savait ce qu'il devait faire.
@@ -1332,29 +1332,29 @@ Le choix difficile
 Maryam le retrouva près du puits, où il cherchait à savoir si un
 marchand avait perdu une bourse. Elle remarqua aussitôt qu'il était
 préoccupé.
---- Qu'est-ce qui se passe ?
+Qu'est-ce qui se passe ?
 Yassine hésita, puis lui montra le cuir.
---- Je l'ai trouvée au marché. Elle contient de l'argent. Je ne sais pas
+Je l'ai trouvée au marché. Elle contient de l'argent. Je ne sais pas
 à qui elle appartient.
 Maryam ne tendit pas la main vers la bourse. Elle demanda d'abord :
---- Est-ce que tu l'as ouverte ?
---- Juste assez pour voir qu'il y avait des pièces.
---- Et qu'as-tu l'intention de faire ?
---- La rendre. Mais je n'ai pas encore trouvé son propriétaire.
+Est-ce que tu l'as ouverte ?
+Juste assez pour voir qu'il y avait des pièces.
+Et qu'as-tu l'intention de faire ?
+La rendre. Mais je n'ai pas encore trouvé son propriétaire.
 Il lui raconta ce que Moussa lui avait dit. Maryam écouta sans
 l'interrompre, puis regarda le marché.
---- Moussa a raison sur un point : la faim ne patiente pas. Mais il se
+Moussa a raison sur un point : la faim ne patiente pas. Mais il se
 trompe sur ce que cela permet de faire. La faim explique la tentation ;
 elle ne transforme pas le bien d'autrui en notre bien.
 Yassine baissa les yeux.
---- Avec cet argent, ma grand-mère aurait de quoi manger plusieurs
+Avec cet argent, ma grand-mère aurait de quoi manger plusieurs
 jours.
---- Je le sais. C'est pour cela que ton choix est difficile. Si c'était
+Je le sais. C'est pour cela que ton choix est difficile. Si c'était
 facile, tu n'aurais rien à apprendre. Mais imagine que quelqu'un ait
 perdu cet argent pour acheter des médicaments ou nourrir ses enfants. Tu
 ne sais pas quelle peine se cache derrière cette bourse.
---- Et si le propriétaire est riche ?
---- Alors il sera riche et tu auras quand même choisi l'honnêteté. La
+Et si le propriétaire est riche ?
+Alors il sera riche et tu auras quand même choisi l'honnêteté. La
 justice ne dépend pas de la fortune de celui qui a perdu quelque chose.
 Yassine respira profondément. Il n'avait pas besoin qu'on lui dise que
 l'honnêteté était une bonne chose. Il avait besoin qu'on l'aide à tenir
@@ -1370,7 +1370,7 @@ marchand leur dit qu'il avait perdu quelques pièces la veille, mais il
 ne pouvait pas décrire la bourse. Maryam lui demanda de vérifier ses
 comptes avant de l'accuser. Il grogna, puis finit par reconnaître qu'il
 avait simplement mal calculé ses ventes.
---- Voilà pourquoi il faut vérifier, murmura-t-elle en s'éloignant. Une
+Voilà pourquoi il faut vérifier, murmura-t-elle en s'éloignant. Une
 erreur peut vite devenir une accusation.
 Yassine acquiesça. Il se sentait moins seul, mais la bourse pesait
 toujours dans son sac. Chaque fois qu'il entendait le tintement des
@@ -1378,7 +1378,7 @@ pièces, il pensait à la nourriture qu'elles auraient pu acheter.
 Ils n'avaient pas encore trouvé le propriétaire lorsqu'une agitation
 éclata de l'autre côté du marché. Un homme richement vêtu avançait entre
 les étals, le visage rouge de colère. C'était Hadj Mansour.
---- On m'a volé une bourse ! cria-t-il. Elle contenait de l'or et des
+On m'a volé une bourse ! cria-t-il. Elle contenait de l'or et des
 pièces que je devais remettre aujourd'hui. Que personne ne quitte le
 marché avant qu'on ait retrouvé le voleur !
 Les conversations s'arrêtèrent. Plusieurs personnes protestèrent.
@@ -1390,15 +1390,15 @@ jugement. Deux employés l'accompagnaient. Il expliqua qu'il avait
 traversé la place pour vérifier une livraison et qu'il avait découvert
 la disparition de sa bourse en arrivant à son entrepôt. Il exigeait
 qu'on fouille les paniers et les sacs.
---- Vous ne pouvez pas traiter tout le monde comme des voleurs, protesta
+Vous ne pouvez pas traiter tout le monde comme des voleurs, protesta
 une marchande.
---- Si chacun est honnête, personne n'aura rien à craindre, répliqua
+Si chacun est honnête, personne n'aura rien à craindre, répliqua
 Mansour.
 Maryam fronça les sourcils. Cette phrase semblait raisonnable, mais elle
 ignorait le fait que les innocents pouvaient aussi être humiliés par une
 fouille injuste. Elle demanda à Mansour de décrire la bourse et son
 contenu avant d'accuser qui que ce soit.
---- Elle est en cuir brun, avec une boucle de cuivre, répondit-il. Il y
+Elle est en cuir brun, avec une boucle de cuivre, répondit-il. Il y
 avait des pièces d'or et plusieurs pièces d'argent.
 Yassine sentit son cœur battre plus vite. La description correspondait.
 Il pouvait remettre la bourse immédiatement et mettre fin à l'agitation.
@@ -1407,49 +1407,49 @@ aussi que les gens pensent qu'il ne l'avait rendue que parce qu'il avait
 été découvert.
 Karim arriva derrière son père. Il aperçut Yassine et Maryam, puis
 remarqua le sac que le garçon tenait près de lui.
---- Regardez qui se trouve ici, lança-t-il. Yassine, toujours au milieu
+Regardez qui se trouve ici, lança-t-il. Yassine, toujours au milieu
 des problèmes. Qu'as-tu donc dans ton sac ?
---- Fais attention à ce que tu dis, répondit Maryam.
---- Je pose seulement une question.
+Fais attention à ce que tu dis, répondit Maryam.
+Je pose seulement une question.
 Mansour tendit la main.
---- Si tu as trouvé quelque chose, donne-le-moi.
+Si tu as trouvé quelque chose, donne-le-moi.
 Yassine sortit la bourse. Le tintement des pièces fit tourner plusieurs
 têtes. Un murmure traversa la foule.
---- Je l'ai trouvée près du mur, dit-il. Je cherchais son propriétaire.
+Je l'ai trouvée près du mur, dit-il. Je cherchais son propriétaire.
 Karim éclata d'un rire bref.
---- Quelle belle histoire ! Il trouve une bourse pleine d'or et, par un
+Quelle belle histoire ! Il trouve une bourse pleine d'or et, par un
 hasard extraordinaire, elle appartient à mon père.
 Yassine sentit son visage chauffer. Il aurait pu se défendre en criant,
 mais il tendit la bourse à Mansour.
---- Vérifiez ce qu'elle contient. Je ne vous demande pas de me croire
+Vérifiez ce qu'elle contient. Je ne vous demande pas de me croire
 sur parole.
 Mansour arracha presque la bourse de sa main. Il l'ouvrit et compta
 rapidement les pièces. Puis il regarda Yassine, non avec gratitude, mais
 avec suspicion.
---- Qui t'a vu la trouver ?
---- Personne, répondit Yassine. C'est justement pour cela que je vous la
+Qui t'a vu la trouver ?
+Personne, répondit Yassine. C'est justement pour cela que je vous la
 rends. Je pouvais la garder sans que vous le sachiez.
---- Ou tu as été obligé de la rendre parce que je l'ai réclamée.
+Ou tu as été obligé de la rendre parce que je l'ai réclamée.
 La phrase blessa Yassine plus qu'il ne l'aurait cru. Il avait lutté
 contre la tentation, puis passé une partie de la journée à chercher le
 propriétaire. Maintenant, son honnêteté était traitée comme une preuve
 de culpabilité.
 Maryam s'avança.
---- Il aurait pu ne rien dire et repartir. Il a cherché le propriétaire
+Il aurait pu ne rien dire et repartir. Il a cherché le propriétaire
 avant que vous arriviez.
---- Tu n'as pas à défendre tout le monde, lui dit Mansour.
---- Et vous n'avez pas le droit de soupçonner tout le monde sans preuve,
+Tu n'as pas à défendre tout le monde, lui dit Mansour.
+Et vous n'avez pas le droit de soupçonner tout le monde sans preuve,
 répondit-elle.
 L'imam Abdelkarim, qui venait d'arriver, leva la main pour calmer la
 foule. Il demanda à Mansour de vérifier la somme et de décrire les
 marques qui se trouvaient à l'intérieur de la bourse. Mansour compta de
 nouveau les pièces. Il trouva le nombre qu'il attendait, puis se tut.
---- Alors, l'affaire est réglée, dit l'imam. Yassine a rendu ce qu'il a
+Alors, l'affaire est réglée, dit l'imam. Yassine a rendu ce qu'il a
 trouvé. Si tu as une autre preuve, expose-la. Sinon, ne transforme pas
 un acte honnête en accusation.
 Mansour rangea la bourse sous son vêtement.
---- Je n'accuse personne. Je veux seulement être prudent.
---- La prudence est utile, répondit l'imam. Elle ne doit pas devenir une
+Je n'accuse personne. Je veux seulement être prudent.
+La prudence est utile, répondit l'imam. Elle ne doit pas devenir une
 injustice.
 Mansour ne remercia pas Yassine. Il s'éloigna avec son fils, tandis que
 les murmures reprenaient autour d'eux. Certains habitants félicitèrent
@@ -1460,25 +1460,25 @@ juste ne garantit pas que les autres vous traiteront justement.
 Une question demeure
 Alors que la foule se dispersait, Moussa réapparut près d'un étal. Il
 regarda la direction où Mansour était parti, puis s'approcha de Yassine.
---- Tu as rendu la bourse. C'est ton choix, dit-il. Mais as-tu vérifié
+Tu as rendu la bourse. C'est ton choix, dit-il. Mais as-tu vérifié
 qu'elle lui appartenait vraiment ?
 Yassine se raidit.
---- Il a décrit la bourse et son contenu.
---- C'est ce qu'il a dit. Je ne prétends pas qu'il mente. Je dis
+Il a décrit la bourse et son contenu.
+C'est ce qu'il a dit. Je ne prétends pas qu'il mente. Je dis
 seulement qu'un homme qui crie le plus fort n'a pas toujours raison.
 Maryam croisa les bras.
---- Si tu as une information, dis-la clairement. Sinon, ne sème pas le
+Si tu as une information, dis-la clairement. Sinon, ne sème pas le
 doute pour le plaisir.
 Moussa leva les mains.
---- Je n'ai rien à cacher. J'ai simplement vu des choses, autrefois,
+Je n'ai rien à cacher. J'ai simplement vu des choses, autrefois,
 concernant les marchandises et les registres. Certains hommes savent
 faire disparaître une ligne d'un compte aussi facilement qu'une pièce
 dans leur manche.
---- Tu parles de Mansour ? demanda Yassine.
+Tu parles de Mansour ? demanda Yassine.
 Moussa regarda autour de lui.
---- Je parle de la manière dont les affaires se font ici. Il vaut mieux
+Je parle de la manière dont les affaires se font ici. Il vaut mieux
 ne pas accuser avant de savoir.
---- C'est exactement ce que nous faisons, répondit Maryam.
+C'est exactement ce que nous faisons, répondit Maryam.
 Moussa s'éloigna, laissant derrière lui davantage de questions que de
 réponses. Yassine se sentit pris dans un labyrinthe. D'un côté, il avait
 rendu la bourse à l'homme qui l'avait réclamée. De l'autre, il venait
@@ -1488,11 +1488,11 @@ histoire.
 Il rejoignit Cheikh Idriss, qui l'attendait près de l'ombre d'un mur.
 Yassine lui raconta toute l'affaire, y compris les paroles de Moussa.
 Idriss l'écouta attentivement.
---- Tu as bien fait de rendre la bourse. Mais l'honnêteté de ton geste
+Tu as bien fait de rendre la bourse. Mais l'honnêteté de ton geste
 ne nous dit pas tout sur l'histoire de cette bourse, ni sur les affaires
 de Mansour. Il faut distinguer les deux questions.
---- Est-ce que vous pensez qu'il ment ?
---- Je n'en sais rien. Et je ne veux pas inventer une certitude pour
+Est-ce que vous pensez qu'il ment ?
+Je n'en sais rien. Et je ne veux pas inventer une certitude pour
 apaiser ta colère. Nous vérifierons les registres. Si les faits montrent
 une faute, nous chercherons une manière juste de la faire reconnaître.
 Si les soupçons sont faux, nous devrons aussi être prêts à le
@@ -1502,8 +1502,8 @@ des innocents. Il sentit le poids de cette phrase. Chercher la vérité ne
 signifiait pas trouver un coupable à tout prix. Cela signifiait accepter
 ce que les preuves montreraient, même si le résultat était différent de
 ce qu'on avait espéré.
---- Et si personne ne veut parler ? demanda-t-il.
---- Alors nous chercherons d'autres moyens. Les portes fermées ne
+Et si personne ne veut parler ? demanda-t-il.
+Alors nous chercherons d'autres moyens. Les portes fermées ne
 prouvent pas qu'il n'y a rien derrière. Mais elles ne prouvent pas non
 plus ce que nous imaginons y trouver.
 Le retour à la maison
@@ -1514,51 +1514,51 @@ regard méfiant du marchand, le rire de Karim et les visages des gens qui
 avaient attendu de voir s'il serait traité comme un voleur.
 Setti Aïcha préparait un repas simple. Lorsqu'elle vit la farine, son
 visage s'éclaira.
---- Tu as trouvé du travail.
---- Un peu. J'ai aussi trouvé autre chose.
+Tu as trouvé du travail.
+Un peu. J'ai aussi trouvé autre chose.
 Il lui raconta la bourse, la tentation et les paroles de Moussa. Il ne
 chercha pas à cacher le moment où il avait envisagé de garder l'argent.
 Il voulait que sa grand-mère sache qu'il n'avait pas été héroïque sans
 effort.
 Setti Aïcha l'écouta jusqu'au bout.
---- Tu as été tenté, dit-elle, mais tu as choisi de rendre ce qui ne
+Tu as été tenté, dit-elle, mais tu as choisi de rendre ce qui ne
 t'appartenait pas. La tentation ne fait pas de toi un mauvais garçon. Ce
 qui compte, c'est ce que tu décides d'en faire.
---- Pourtant, Mansour ne m'a même pas remercié. Il m'a regardé comme si
+Pourtant, Mansour ne m'a même pas remercié. Il m'a regardé comme si
 j'avais volé sa bourse.
---- Tu ne peux pas contrôler la réaction des autres. Tu peux seulement
+Tu ne peux pas contrôler la réaction des autres. Tu peux seulement
 répondre de tes actes. Ne fais pas le bien uniquement pour recevoir des
 remerciements, mais ne laisse personne te convaincre que tu dois
 accepter l'humiliation en silence.
 Yassine s'assit près du coffre ouvert. La lettre de son père était
 restée sur la table. Il la prit avec précaution.
---- Il a essayé d'empêcher une injustice, lui aussi, n'est-ce pas ?
---- Oui, répondit Setti Aïcha. Mais nous devons encore comprendre
+Il a essayé d'empêcher une injustice, lui aussi, n'est-ce pas ?
+Oui, répondit Setti Aïcha. Mais nous devons encore comprendre
 exactement ce qu'il a découvert.
---- Je veux aller au dépôt des anciens registres.
---- Tu iras avec Idriss et l'imam, dit-elle. Pas seul, et pas en
+Je veux aller au dépôt des anciens registres.
+Tu iras avec Idriss et l'imam, dit-elle. Pas seul, et pas en
 cherchant la confrontation. Tu as le droit de connaître ton histoire,
 mais tu dois aussi rester prudent.
 Yassine hocha la tête. Puis il posa la question qui le brûlait depuis la
 veille.
---- Est-ce que tu savais que mon père risquait de ne jamais revenir ?
+Est-ce que tu savais que mon père risquait de ne jamais revenir ?
 Setti Aïcha ferma les yeux. Quand elle les rouvrit, ils brillaient.
---- Non. Je savais qu'il se mettait en danger, mais je croyais qu'il
+Non. Je savais qu'il se mettait en danger, mais je croyais qu'il
 rentrerait. La dernière fois que je l'ai vu, il m'a dit qu'il avait
 trouvé une preuve importante. Il voulait la remettre à des personnes
 capables d'agir. Il m'a demandé de ne pas laisser les rumeurs décider de
 ce que je penserais de lui.
---- Pourquoi ne m'as-tu pas dit cela ?
---- Parce que les jours sont devenus des semaines, puis des mois. Au
+Pourquoi ne m'as-tu pas dit cela ?
+Parce que les jours sont devenus des semaines, puis des mois. Au
 début, j'attendais chaque soir. Ensuite, j'ai eu peur de ce que son
 absence pouvait signifier. J'ai cru qu'en te donnant une vie stable, je
 pourrais t'épargner la question. Mais les questions grandissent avec les
 enfants.
 Yassine sentit sa colère s'adoucir sans disparaître.
---- Je ne veux pas que tu portes tout toute seule, grand-mère.
+Je ne veux pas que tu portes tout toute seule, grand-mère.
 Elle le regarda avec étonnement. Ces mots ressemblaient à ceux qu'elle
 lui avait souvent adressés.
---- Et moi, je ne veux pas que tu portes toute cette histoire seul,
+Et moi, je ne veux pas que tu portes toute cette histoire seul,
 répondit-elle.
 Ils restèrent un moment en silence. Puis Setti Aïcha lui servit la
 galette. Cette fois, il veilla à ce qu'elle garde une part égale à la
@@ -1573,8 +1573,8 @@ il n'était plus utilisé que pour entreposer des caisses, des paniers
 cassés et des outils qu'on ne savait pas où ranger.
 Le gardien, un vieil homme nommé Sidi, reconnut Idriss. Il le salua avec
 prudence.
---- Je me demandais si tu reviendrais un jour.
---- Moi aussi, répondit Idriss.
+Je me demandais si tu reviendrais un jour.
+Moi aussi, répondit Idriss.
 Sidi les conduisit à une pièce fraîche où des registres étaient empilés
 sur des étagères. Beaucoup de pages avaient été abîmées par l'humidité
 ou les insectes. Certaines couvertures portaient des marques semblables
@@ -1583,7 +1583,7 @@ Yassine sentit l'excitation lui monter à la tête. Il voulait ouvrir
 chaque registre, chercher le nom de son père et découvrir en quelques
 minutes ce qui avait été caché pendant douze ans. Mais l'imam lui
 rappela qu'il faudrait procéder avec méthode.
---- Nous ne cherchons pas une histoire qui nous plaît, dit-il. Nous
+Nous ne cherchons pas une histoire qui nous plaît, dit-il. Nous
 cherchons des faits.
 Ils commencèrent par les registres de transport de l'année où le père de
 Yassine avait quitté Dar-Salam. Idriss reconnaissait certaines écritures
@@ -1591,14 +1591,14 @@ et indiquait les pages où les livraisons de grain étaient consignées. À
 plusieurs endroits, les quantités reçues ne correspondaient pas aux
 quantités distribuées. Une ligne avait été grattée, puis réécrite. Sur
 une autre page, un total avait été modifié sans signature.
---- Cela peut indiquer une erreur, expliqua l'imam, ou une
+Cela peut indiquer une erreur, expliqua l'imam, ou une
 falsification. Il nous faut davantage d'éléments avant de conclure.
 Yassine se pencha sur les chiffres. Il ne comprenait pas tous les
 calculs, mais il remarquait les différences. Il pensa aux familles qui
 avaient attendu de la nourriture et à son père qui avait voulu vérifier
 les comptes.
 Sidi sortit d'une caisse un cahier plus petit.
---- Celui-ci n'est pas un registre officiel, dit-il. Il appartenait à un
+Celui-ci n'est pas un registre officiel, dit-il. Il appartenait à un
 employé chargé de noter les livraisons avant leur inscription dans les
 grands livres. Je l'ai gardé parce que personne ne venait le réclamer.
 Le cahier contenait des listes de sacs, des dates et des initiales.
@@ -1607,10 +1607,10 @@ devait être distribué à des familles de la partie nord du village. Le
 nombre de sacs inscrits sur le cahier était supérieur à celui du
 registre officiel.
 Idriss resta silencieux.
---- C'est important, dit-il enfin. Mais ce n'est pas encore une preuve
+C'est important, dit-il enfin. Mais ce n'est pas encore une preuve
 complète de qui a décidé le changement.
---- Le nom de Mansour apparaît ici, murmura Yassine.
---- Son nom apparaît comme celui d'un marchand qui devait recevoir une
+Le nom de Mansour apparaît ici, murmura Yassine.
+Son nom apparaît comme celui d'un marchand qui devait recevoir une
 livraison, répondit l'imam. Cela ne prouve pas qu'il ait détourné quoi
 que ce soit. Nous devons savoir qui a signé, qui a transporté les sacs
 et qui a modifié les comptes.
@@ -1620,34 +1620,34 @@ mais il savait que la précipitation pouvait faire accuser le mauvais
 homme.
 Sidi leur montra ensuite une marque sur le bord du cahier : le même
 cercle traversé de trois lignes.
---- Cette marque servait à identifier les documents vérifiés par le
+Cette marque servait à identifier les documents vérifiés par le
 bureau de transport, expliqua-t-il. Mais plusieurs personnes avaient
 accès au sceau.
---- Qui travaillait à cette époque ? demanda Idriss.
+Qui travaillait à cette époque ? demanda Idriss.
 Sidi énuméra quelques noms. Certains étaient morts, d'autres avaient
 quitté la région. Un nom fit sursauter le voyageur : Moussa.
---- Il était jeune, précisa Sidi. Il transportait parfois les messages
+Il était jeune, précisa Sidi. Il transportait parfois les messages
 et aidait à compter les sacs. Il connaissait les chemins entre le dépôt
 et les entrepôts.
 Yassine pensa au sourire de Moussa et à sa phrase sur les occasions que
 les autres ne voient pas. Le petit commerçant avait peut-être menti, ou
 peut-être savait-il quelque chose qu'il n'osait pas raconter.
---- Nous devons lui parler, dit Yassine.
---- Oui, répondit Idriss. Mais nous ne l'accuserons pas. Nous lui
+Nous devons lui parler, dit Yassine.
+Oui, répondit Idriss. Mais nous ne l'accuserons pas. Nous lui
 poserons des questions et nous écouterons ses réponses.
 Moussa et ses demi-vérités
 Ils retrouvèrent Moussa près de son étal, en train de discuter avec un
 client. Lorsqu'il aperçut Idriss et l'imam, son sourire se figea. Il
 termina rapidement la vente, puis demanda ce qu'ils lui voulaient.
---- Nous cherchons à comprendre certaines anciennes livraisons de grain,
+Nous cherchons à comprendre certaines anciennes livraisons de grain,
 dit l'imam. Tu travaillais parfois au dépôt, il y a douze ans.
 Moussa se gratta la barbe.
---- Beaucoup de gens travaillaient au dépôt.
---- Ton nom apparaît dans un cahier de livraison, ajouta Idriss.
+Beaucoup de gens travaillaient au dépôt.
+Ton nom apparaît dans un cahier de livraison, ajouta Idriss.
 Le commerçant jeta un regard vers Yassine. Il semblait hésiter entre le
 déni et la fuite.
---- J'étais jeune. Je portais des messages. Je ne décidais de rien.
---- Personne ne dit le contraire, répondit l'imam. Nous cherchons
+J'étais jeune. Je portais des messages. Je ne décidais de rien.
+Personne ne dit le contraire, répondit l'imam. Nous cherchons
 seulement à savoir ce que tu as vu.
 Moussa affirma d'abord qu'il ne se souvenait de rien. Puis il dit qu'il
 avait peut-être entendu parler d'un chargement incomplet. Ensuite, il
@@ -1655,14 +1655,14 @@ prétendit que les chiffres avaient probablement été mal copiés. Chaque
 fois qu'on lui posait une question précise, il modifiait légèrement sa
 réponse.
 Yassine sentit la colère remonter.
---- Vous savez quelque chose, dit-il. Pourquoi ne pas le dire ?
+Vous savez quelque chose, dit-il. Pourquoi ne pas le dire ?
 Moussa se raidit.
---- Parce que les gens qui posent des questions ne sont pas toujours
+Parce que les gens qui posent des questions ne sont pas toujours
 ceux qui peuvent protéger les personnes qui répondent.
 Cette fois, sa peur paraissait réelle. Il regarda autour de lui, comme
 s'il craignait qu'un employé de Mansour se trouve à proximité.
 Idriss ne haussa pas la voix.
---- Si tu as peur, dis-le. Mais ne nous donne pas des histoires
+Si tu as peur, dis-le. Mais ne nous donne pas des histoires
 différentes. Nous ne pouvons pas distinguer une vérité difficile d'un
 mensonge si tu changes les faits à chaque phrase.
 Moussa baissa les yeux. Il finit par avouer qu'il avait transporté un
@@ -1671,22 +1671,22 @@ comptes. Il ne savait pas ce que contenait le message, mais il avait vu
 deux hommes se disputer près du dépôt. L'un d'eux était un responsable
 des transports ; l'autre était un marchand dont il ne voulait pas
 prononcer le nom.
---- Pourquoi ? demanda Maryam, qui les avait rejoints après avoir
+Pourquoi ? demanda Maryam, qui les avait rejoints après avoir
 entendu qu'ils interrogeaient Moussa.
---- Parce que je dois encore vendre ici, répondit-il. Je n'ai pas de
+Parce que je dois encore vendre ici, répondit-il. Je n'ai pas de
 grande réserve, pas de famille riche pour me protéger. Si je me mets à
 parler, certains peuvent me fermer toutes les portes.
---- Et si tu te tais, ceux qui ont été privés de grain n'obtiendront
+Et si tu te tais, ceux qui ont été privés de grain n'obtiendront
 jamais justice, répondit Maryam.
 Moussa passa une main sur son visage.
---- Tu crois que je ne le sais pas ? Je me le rappelle chaque fois que
+Tu crois que je ne le sais pas ? Je me le rappelle chaque fois que
 je vois une famille compter ses morceaux de pain. Mais savoir ce qui est
 juste et avoir le courage de le faire sont deux choses différentes.
 Cette confession changea légèrement le regard de Yassine. Moussa n'était
 pas un héros. Il avait probablement menti, évité ses responsabilités et
 profité de situations ambiguës. Mais il était aussi effrayé, et sa peur
 l'avait rendu lâche.
---- Nous ne pouvons pas te promettre que personne ne te fera de mal, dit
+Nous ne pouvons pas te promettre que personne ne te fera de mal, dit
 l'imam. Nous pouvons seulement te promettre de ne pas te condamner sans
 preuve et de chercher une manière juste de faire entendre ce que tu
 sais.
@@ -1695,8 +1695,8 @@ la dispute, il avait vu un petit registre être emporté vers un entrepôt
 privé, différent du dépôt officiel. Il ne savait pas qui l'avait
 déplacé. Il se souvenait seulement d'un sceau de cuivre et d'une
 charrette dont une roue était fendue.
---- Pourquoi ne l'as-tu pas dit plus tôt ? demanda Yassine.
---- Parce que j'ai cru que le silence me protégerait. Et parce que j'ai
+Pourquoi ne l'as-tu pas dit plus tôt ? demanda Yassine.
+Parce que j'ai cru que le silence me protégerait. Et parce que j'ai
 laissé les années passer jusqu'à ce que parler me paraisse encore plus
 dangereux.
 L'imam lui demanda de réfléchir à ce qu'il était prêt à déclarer devant
@@ -1712,18 +1712,18 @@ des écarts dans les registres, entendu parler d'un cahier disparu et
 appris que Moussa avait transporté un message. Pourtant, il ne savait
 toujours pas ce qui était arrivé à son père. Les indices formaient un
 chemin, mais le chemin restait incomplet.
---- Tu es déçu ? demanda l'imam.
---- Je pensais que nous trouverions une réponse.
---- Nous avons trouvé des questions plus précises. C'est déjà un
+Tu es déçu ? demanda l'imam.
+Je pensais que nous trouverions une réponse.
+Nous avons trouvé des questions plus précises. C'est déjà un
 progrès, même si cela ne soulage pas immédiatement ton cœur.
 Yassine fronça les sourcils.
---- Est-ce que la vérité arrive toujours aussi lentement ?
---- Souvent, elle exige de la patience. Pas parce qu'elle aime se
+Est-ce que la vérité arrive toujours aussi lentement ?
+Souvent, elle exige de la patience. Pas parce qu'elle aime se
 cacher, mais parce que les hommes mélangent les faits, les peurs, les
 intérêts et les souvenirs. Il faut démêler tout cela sans arracher ce
 qui est vrai avec ce qui est faux.
 Idriss marchait de l'autre côté du garçon.
---- Ton père avait compris qu'une accusation pouvait être juste dans son
+Ton père avait compris qu'une accusation pouvait être juste dans son
 intention et injuste dans sa méthode. Il voulait prouver ce qu'il avait
 découvert. Il a demandé des documents, cherché des témoins et refusé de
 signer un rapport qu'il jugeait incomplet. Cela lui a attiré des
@@ -1733,8 +1733,8 @@ seul.
 Yassine pensa à Setti Aïcha, qui lui avait dit la même chose. Son père
 avait peut-être été courageux, mais son courage n'avait pas empêché les
 choses de mal tourner.
---- Alors, je ne dois pas devenir comme lui ?
---- Tu peux hériter de ses qualités sans répéter ses erreurs, répondit
+Alors, je ne dois pas devenir comme lui ?
+Tu peux hériter de ses qualités sans répéter ses erreurs, répondit
 Idriss. Le respect que tu lui portes ne t'oblige pas à l'idéaliser.
 Aimer quelqu'un, c'est aussi accepter qu'il ait été humain.
 Cette idée troublait Yassine. Il avait longtemps imaginé son père comme
@@ -1768,15 +1768,15 @@ avec de la poussière sur les manches et une inquiétude qu'il tentait de
 cacher. Il avait demandé si Yassine dormait, puis était allé regarder
 l'enfant sans le réveiller. Setti Aïcha l'avait trouvé dans l'embrasure
 de la porte, immobile.
---- Il grandit vite, avait-il dit.
---- Tu devrais être là pour le voir grandir, avait-elle répondu.
+Il grandit vite, avait-il dit.
+Tu devrais être là pour le voir grandir, avait-elle répondu.
 Il avait baissé la tête. Il n'avait pas voulu partir. Il croyait
 seulement qu'il ne pouvait pas rester silencieux après avoir découvert
 que des familles avaient été privées de provisions destinées à leur
 secours. Il avait promis de revenir, puis avait confié à sa mère la
 lettre et les quelques objets du coffre.
---- Pourquoi ne l'as-tu pas accompagné ? demanda Yassine.
---- Parce que quelqu'un devait rester avec toi. Et parce qu'il m'avait
+Pourquoi ne l'as-tu pas accompagné ? demanda Yassine.
+Parce que quelqu'un devait rester avec toi. Et parce qu'il m'avait
 assuré qu'il ne serait absent que quelques jours. Je ne pensais pas que
 ce serait la dernière fois que je le verrais.
 Setti Aïcha raconta ensuite les jours d'attente. Au début, elle avait
@@ -1786,11 +1786,11 @@ de réponse claire. Certains disaient que son fils avait quitté la région
 commerciale. Un homme lui avait même affirmé qu'il avait choisi de
 recommencer sa vie ailleurs. Elle n'avait jamais pu vérifier ces
 paroles.
---- J'ai voulu te protéger de ces rumeurs, dit-elle. Mais en les gardant
+J'ai voulu te protéger de ces rumeurs, dit-elle. Mais en les gardant
 pour moi, j'ai fini par te priver de la possibilité de comprendre.
 Yassine prit sa main.
---- Je suis en colère, mais je sais que tu as eu peur.
---- Tu peux être en colère contre moi sans cesser de m'aimer.
+Je suis en colère, mais je sais que tu as eu peur.
+Tu peux être en colère contre moi sans cesser de m'aimer.
 Il réfléchit à cette phrase. Il avait souvent cru que l'amour exigeait
 de cacher les blessures pour ne pas faire de peine à l'autre. Il
 comprenait maintenant qu'on pouvait aimer quelqu'un et lui dire qu'il
@@ -1799,15 +1799,15 @@ Setti Aïcha lui montra le morceau de tissu qui avait appartenu à son
 père. Il était usé sur les bords, mais une petite broderie demeurait
 visible : trois lignes entourées d'un cercle. Le même signe que celui
 gravé sur la pièce de métal.
---- Il portait cette écharpe le jour de son départ, expliqua-t-elle. Il
+Il portait cette écharpe le jour de son départ, expliqua-t-elle. Il
 m'a demandé de la garder pour toi.
 Yassine la toucha avec précaution. Le tissu ne pouvait pas lui rendre
 son père, mais il lui donnait une image concrète de l'homme qu'il
 cherchait à connaître.
---- Je ne veux plus que nous gardions chacun nos peurs séparément,
+Je ne veux plus que nous gardions chacun nos peurs séparément,
 dit-il.
 Setti Aïcha serra sa main.
---- Alors, nous essaierons de parler, même lorsque les mots seront
+Alors, nous essaierons de parler, même lorsque les mots seront
 difficiles.
 Ils restèrent assis jusqu'à ce que la lampe baisse. Le coffre était
 ouvert, la lettre posée sur la table et le passé n'était plus
@@ -1820,8 +1820,8 @@ parler de la charrette à roue fendue. Plusieurs années auparavant, un
 vieux transporteur avait utilisé une charrette dont la roue gauche
 grinçait et se fendait près du moyeu. Il l'avait parfois garée derrière
 un entrepôt abandonné, à l'extrémité du village.
---- L'entrepôt appartient-il à Mansour ? demanda Yassine.
---- Il a appartenu à son père, répondit Souleymane. Mais cela ne
+L'entrepôt appartient-il à Mansour ? demanda Yassine.
+Il a appartenu à son père, répondit Souleymane. Mais cela ne
 signifie pas que nous y trouverons quelque chose. Les bâtiments changent
 de propriétaire, et les objets restent parfois là où on les oublie.
 Ils se rendirent sur place avec l'imam et Idriss. L'entrepôt était à
@@ -1830,16 +1830,16 @@ herbes sèches poussaient entre les pierres. À l'intérieur, ils
 trouvèrent des caisses vides, des morceaux de corde et une roue cassée
 posée contre le mur. Elle était fendue près du moyeu.
 Yassine sentit son cœur accélérer.
---- C'est peut-être celle dont Moussa parlait.
+C'est peut-être celle dont Moussa parlait.
 Idriss l'examina, sans tirer de conclusion.
---- C'est possible. Mais nous devons chercher autre chose qu'une
+C'est possible. Mais nous devons chercher autre chose qu'une
 ressemblance.
 Derrière une caisse, Maryam découvrit un morceau de toile portant la
 marque du cercle traversé de trois lignes. Elle appela les autres. La
 toile semblait avoir servi à envelopper un paquet. Dans un coin, des
 traces de cire restaient collées au tissu.
 L'imam observa la marque.
---- Cela mérite d'être consigné. Nous devons demander à Sidi s'il peut
+Cela mérite d'être consigné. Nous devons demander à Sidi s'il peut
 comparer cette marque avec celles des registres.
 Yassine voulait fouiller chaque recoin, mais Idriss lui rappela qu'ils
 ne devaient rien déplacer sans noter où ils l'avaient trouvé. Ils
@@ -1849,22 +1849,22 @@ indices qui confirmaient qu'un paquet avait pu être transporté jusqu'à
 cet endroit.
 À la sortie, Karim les attendait. Il avait appris que son père était
 mentionné dans les vieux registres et semblait furieux.
---- Vous fouillez les bâtiments de ma famille maintenant ?
---- Nous cherchons des documents liés à une ancienne livraison, répondit
+Vous fouillez les bâtiments de ma famille maintenant ?
+Nous cherchons des documents liés à une ancienne livraison, répondit
 l'imam. Nous ne t'accusons pas, pas plus que nous n'accusons ton père
 sans preuve.
---- Mais tout le monde va parler ! Mon père sera montré du doigt, et moi
+Mais tout le monde va parler ! Mon père sera montré du doigt, et moi
 avec lui.
 Yassine comprit soudain que Karim avait peur, lui aussi. Il craignait
 d'être jugé pour les actes d'un autre, exactement comme Yassine avait
 été blessé par les paroles sur son père.
---- Je ne veux pas que tu sois accusé pour ce que ton père a fait ou n'a
+Je ne veux pas que tu sois accusé pour ce que ton père a fait ou n'a
 pas fait, dit Yassine. Je veux seulement savoir la vérité sur le mien.
 Karim resta silencieux. Son expression se durcit moins vite que
 d'habitude.
---- Mon père dit que les anciens comptes ont été réglés depuis
+Mon père dit que les anciens comptes ont été réglés depuis
 longtemps.
---- Alors, il pourra peut-être nous aider à comprendre, répondit Maryam.
+Alors, il pourra peut-être nous aider à comprendre, répondit Maryam.
 Si tout est clair, les preuves le montreront.
 Karim ne promit rien. Il s'éloigna, mais il ne lança aucune insulte. Ce
 petit changement n'était pas une réconciliation, pourtant Yassine le
@@ -1890,21 +1890,21 @@ fondations avaient besoin d'être consolidées. Le village n'avait pas
 résolu la crise, mais il travaillait enfin.
 Karim arriva à son tour. Il resta d'abord à distance, puis s'approcha de
 la margelle.
---- Je voulais te dire quelque chose, commença-t-il.
+Je voulais te dire quelque chose, commença-t-il.
 Yassine attendit.
---- Quand j'ai parlé de ton père au marché, je savais que je te ferais
+Quand j'ai parlé de ton père au marché, je savais que je te ferais
 mal. Mon père m'avait dit que les gens devaient apprendre à se
 débrouiller seuls. Je l'ai répété comme si cela me rendait fort.
 Il regarda ses sandales.
---- Je ne sais pas ce qui s'est passé il y a douze ans. Je ne sais même
+Je ne sais pas ce qui s'est passé il y a douze ans. Je ne sais même
 pas si mon père le sait entièrement. Mais je n'aurais pas dû t'utiliser
 pour me sentir supérieur.
 Yassine fut surpris. Il avait imaginé que Karim ne présenterait jamais
 d'excuses.
---- Tes paroles m'ont blessé, dit-il. Je ne peux pas faire comme si
+Tes paroles m'ont blessé, dit-il. Je ne peux pas faire comme si
 elles n'avaient pas existé.
---- Je le comprends.
---- Mais je ne veux pas passer ma vie à te détester. Si tu veux réparer,
+Je le comprends.
+Mais je ne veux pas passer ma vie à te détester. Si tu veux réparer,
 commence par ne plus parler ainsi aux autres.
 Karim acquiesça. Il ne tendit pas la main et Yassine ne lui demanda pas
 de devenir son ami immédiatement. Ils restèrent simplement côte à côte,
@@ -1923,14 +1923,14 @@ une toile. Il l'avait trouvé au fond d'une boîte de documents que
 personne n'avait ouverte depuis des années. Le paquet portait le même
 signe que la pièce de métal du coffre.
 Setti Aïcha le reconnut aussitôt. Elle posa une main sur sa bouche.
---- Je croyais que celui-ci avait disparu.
+Je croyais que celui-ci avait disparu.
 Idriss défit la ficelle. À l'intérieur se trouvait une page pliée,
 abîmée sur un bord, ainsi qu'une liste de noms et de quantités. La page
 semblait être une copie d'un registre. Plusieurs chiffres avaient été
 corrigés, mais une annotation indiquait qu'une partie de la livraison
 avait été redirigée vers un entrepôt privé, sur ordre d'un responsable
 dont le nom était illisible.
---- Cela confirme qu'une modification a eu lieu, dit l'imam. Mais le nom
+Cela confirme qu'une modification a eu lieu, dit l'imam. Mais le nom
 manque. Nous devons vérifier l'écriture et chercher la copie originale.
 Yassine regarda la liste. Il reconnut le nom d'un quartier où vivaient
 autrefois plusieurs familles pauvres. Il pensa aux enfants qui avaient
@@ -1938,15 +1938,15 @@ peut-être attendu des sacs de grain qui n'étaient jamais arrivés. La
 colère revint, plus lourde cette fois, car elle ne concernait plus
 seulement son père. Elle concernait des gens dont il ne connaîtrait
 jamais les noms.
---- Est-ce que mon père avait cette page ? demanda-t-il.
---- C'est possible, répondit Idriss. La lettre indique qu'il avait
+Est-ce que mon père avait cette page ? demanda-t-il.
+C'est possible, répondit Idriss. La lettre indique qu'il avait
 découvert une preuve. Mais nous ne savons pas s'il s'agissait de cette
 copie ou d'un autre document.
 Setti Aïcha prit la page avec précaution.
---- Il m'avait dit qu'il reviendrait lorsqu'il aurait remis les preuves
+Il m'avait dit qu'il reviendrait lorsqu'il aurait remis les preuves
 à des personnes capables d'agir. Si cette page a été cachée ici,
 quelqu'un a peut-être voulu la protéger.
---- Ou la faire disparaître en la laissant oubliée, dit Maryam. Nous
+Ou la faire disparaître en la laissant oubliée, dit Maryam. Nous
 devons garder les deux possibilités ouvertes.
 L'imam approuva. Il recommanda de conserver le document dans un endroit
 sûr et de ne pas en diffuser le contenu avant qu'il soit authentifié.
@@ -1965,14 +1965,14 @@ l'ai oublié. » Il avait envie de croire que son père avait survécu
 quelque part et qu'il pourrait un jour le retrouver. Mais il savait
 qu'espérer n'était pas la même chose que savoir.
 Il se rendit près de Setti Aïcha, qui repliait un tissu.
---- Si nous découvrons que mon père a commis une erreur, est-ce que je
+Si nous découvrons que mon père a commis une erreur, est-ce que je
 dois cesser de l'aimer ?
 Sa grand-mère posa son ouvrage.
---- Non. Tu devras regarder ses actes avec honnêteté. Tu peux aimer
+Non. Tu devras regarder ses actes avec honnêteté. Tu peux aimer
 quelqu'un sans prétendre qu'il a toujours eu raison. Et tu peux
 reconnaître ses fautes sans effacer ce qu'il a fait de bon.
---- Et si les gens le jugent ?
---- Certains le feront. D'autres écouteront. Tu ne peux pas contrôler
+Et si les gens le jugent ?
+Certains le feront. D'autres écouteront. Tu ne peux pas contrôler
 toutes les paroles du village. Tu peux seulement veiller à ne pas
 répéter une injustice.
 Yassine réfléchit. Pendant longtemps, il avait cherché une histoire dans
@@ -1980,10 +1980,10 @@ laquelle son père serait entièrement innocent et les autres entièrement
 coupables. Cela aurait rendu sa peine plus facile à comprendre. Mais les
 registres, les silences et les souvenirs lui montraient un monde plus
 compliqué.
---- Je veux connaître la vérité, dit-il. Même si elle n'est pas celle
+Je veux connaître la vérité, dit-il. Même si elle n'est pas celle
 que j'espère.
 Setti Aïcha le prit dans ses bras.
---- C'est une décision courageuse. Souviens-toi seulement que le courage
+C'est une décision courageuse. Souviens-toi seulement que le courage
 n'oblige pas à aller vite. Tu peux avancer étape par étape, avec des
 personnes de confiance, et demander conseil lorsque tu ne sais pas quoi
 faire.
@@ -2024,17 +2024,17 @@ querelle.
 À la fin de la journée, Yassine retourna chez sa grand-mère. Cheikh
 Idriss l'attendait près de la porte. Il tenait une petite feuille sur
 laquelle Sidi avait reconnu une autre marque de transport.
---- Nous avons une nouvelle piste, dit-il. Elle mène au-delà des
+Nous avons une nouvelle piste, dit-il. Elle mène au-delà des
 collines, vers une vallée où des caravanes s'arrêtaient autrefois.
---- Est-ce que mon père y est allé ?
---- Je ne peux pas encore te le promettre. Mais son nom apparaît dans
+Est-ce que mon père y est allé ?
+Je ne peux pas encore te le promettre. Mais son nom apparaît dans
 une note liée à cette route.
 Yassine sentit son cœur se serrer. Une nouvelle piste signifiait une
 nouvelle attente, de nouveaux risques et peut-être une nouvelle
 déception. Pourtant, il ne détourna pas les yeux.
---- Alors, nous irons vérifier.
+Alors, nous irons vérifier.
 Idriss acquiesça.
---- Oui. Mais nous ne partirons pas sans préparation. Le désert
+Oui. Mais nous ne partirons pas sans préparation. Le désert
 n'accorde pas de seconde chance à ceux qui confondent courage et
 imprudence.
 Yassine regarda le ciel. Au loin, les collines de l'est se découpaient
@@ -2052,7 +2052,7 @@ réserves restaient maigres et les réponses n'étaient pas complètes. Mais
 le village avait commencé à travailler ensemble, Yassine avait résisté à
 la tentation de garder une bourse qui ne lui appartenait pas, et une
 piste nouvelle se dessinait au-delà des collines.
-À suivre : Chapitre 3 --- La Tempête de sable.
+À suivre : Chapitre 3 : La Tempête de sable.
 Yassine apprit ce jour-là qu'une bonne décision ne produit pas toujours
 un sentiment de victoire. Lorsqu'il avait rendu la bourse, il avait
 espéré ressentir une paix immédiate. À la place, il avait éprouvé la
@@ -2135,9 +2135,9 @@ et à reconnaître ce qu'il ne savait pas.`
   {
     id: 'chapitre-3',
     number: 'Chapitre 3',
-    title: 'Chapitre 3 --- La Tempête de sable',
+    title: 'Chapitre 3 : La Tempête de sable',
     epigraph: '« Le courage n\'efface pas la peur : il apprend à marcher avec elle. »',
-    rawText: `Chapitre 3 --- La Tempête de sable
+    rawText: `Chapitre 3 : La Tempête de sable
 Le Puits de Nour
 > « Le courage n'efface pas la peur : il apprend à marcher avec elle. »
 1. La route vers l'est
@@ -2163,33 +2163,33 @@ Setti Aïcha était déjà assise près du foyer, enveloppée dans son châle.
 Une petite lampe éclairait ses mains ridées. Elle préparait une galette
 mince avec le peu de farine qu'il leur restait. Elle leva les yeux quand
 Yassine entra.
---- Tu as dormi ?
---- Un peu.
---- C'est la réponse des gens qui n'ont pas fermé l'œil.
+Tu as dormi ?
+Un peu.
+C'est la réponse des gens qui n'ont pas fermé l'œil.
 Yassine s'assit en face d'elle. Il aurait voulu lui demander pourquoi
 elle avait gardé la lettre si longtemps, pourquoi elle avait attendu
 qu'il découvre lui-même les secrets, pourquoi le nom de son père
 semblait ouvrir des portes que tout le monde s'était appliqué à fermer.
 Mais il vit la fatigue dans ses yeux et ravala ses questions.
---- Je dois aller vers l'est, dit-il enfin.
+Je dois aller vers l'est, dit-il enfin.
 La galette s'immobilisa entre les doigts de sa grand-mère.
---- Tu dois ?
---- Je veux dire... je crois que c'est là qu'on trouvera la suite. Le
+Tu dois ?
+Je veux dire... je crois que c'est là qu'on trouvera la suite. Le
 vieux dépôt, les registres, peut-être la source dont parlait mon père.
---- Et tu crois qu'une phrase suffit à te conduire dans le désert ?
---- Non. Mais elle suffit à me dire que je ne dois pas rester sans rien
+Et tu crois qu'une phrase suffit à te conduire dans le désert ?
+Non. Mais elle suffit à me dire que je ne dois pas rester sans rien
 faire.
 Setti Aïcha posa la galette sur une assiette. Pendant un moment, on
 n'entendit que le crépitement du foyer.
---- Ton père disait souvent qu'une vérité peut être une lumière, mais
+Ton père disait souvent qu'une vérité peut être une lumière, mais
 qu'une lumière ne remplace pas les chaussures. Il faut savoir où l'on
 met les pieds.
---- Alors apprends-moi à marcher.
+Alors apprends-moi à marcher.
 Elle le regarda longuement. Sa première réaction fut de dire non.
 Yassine la vit se préparer à prononcer ce refus : ses lèvres se
 serrèrent, son menton se releva. Puis elle sembla se souvenir qu'on ne
 protège pas un enfant en l'empêchant toujours de grandir.
---- Tu ne partiras pas seul, répondit-elle. Et tu ne partiras pas sans
+Tu ne partiras pas seul, répondit-elle. Et tu ne partiras pas sans
 prévenir l'imam.
 À la mosquée, Imam Abdelkarim écouta Yassine sans l'interrompre. Bilal,
 qui avait entendu parler du départ par Ibrahim, arriva en courant,
@@ -2198,24 +2198,24 @@ carnet serré contre elle. Souleymane le berger attendait déjà sous
 l'ombre d'un acacia, son bâton à la main. Il connaissait les pistes de
 la région mieux que quiconque, et sa présence signifiait qu'une décision
 avait commencé à prendre forme.
---- La route de l'est n'est pas une route comme les autres, dit
+La route de l'est n'est pas une route comme les autres, dit
 Souleymane. Après les dernières terres cultivées, il y a des cailloux
 noirs, des creux où le vent tourne sans prévenir, puis une zone de
 dunes. Si la chaleur monte trop vite, on peut perdre le nord même en
 plein jour.
---- Nous n'irons pas sans préparation, dit l'imam. Nous prendrons de
+Nous n'irons pas sans préparation, dit l'imam. Nous prendrons de
 l'eau, des tissus pour couvrir le visage, des provisions et une corde.
 Nous dirons aux familles où nous allons. Et si le vent se lève, nous
 chercherons un abri au lieu de jouer les héros.
---- Je ne joue pas au héros, protesta Bilal.
+Je ne joue pas au héros, protesta Bilal.
 Maryam le regarda de côté.
---- Tu as crié hier parce qu'un lézard a traversé ton pied.
---- Il m'a surpris. C'est différent.
+Tu as crié hier parce qu'un lézard a traversé ton pied.
+Il m'a surpris. C'est différent.
 Malgré la gravité du moment, Yassine sourit. Le rire fut bref, mais il
 fit du bien. La peur ne disparaissait pas ; elle reculait juste assez
 pour laisser respirer les autres sentiments.
 L'imam posa une main sur l'épaule de Yassine.
---- Nous allons chercher des réponses, pas provoquer le danger. La
+Nous allons chercher des réponses, pas provoquer le danger. La
 confiance en Allah n'est pas une excuse pour négliger les moyens qu'Il
 nous a permis d'utiliser. Nous nous préparons, nous nous entraiderons,
 et nous accepterons de faire demi-tour si les circonstances l'exigent.
@@ -2237,24 +2237,24 @@ registres. Il n'avait pas non plus oublié les années pendant lesquelles
 il s'était moqué de lui. La veille, il avait commencé à s'excuser, mais
 ses paroles étaient restées maladroites, presque avalées.
 Quand Yassine passa près de lui, Karim demanda :
---- Vous partez vraiment ?
---- Oui.
---- Pour retrouver une source qui n'existe peut-être pas ?
---- Pour retrouver la vérité. La source, si elle existe, sera une partie
+Vous partez vraiment ?
+Oui.
+Pour retrouver une source qui n'existe peut-être pas ?
+Pour retrouver la vérité. La source, si elle existe, sera une partie
 de la réponse.
 Karim baissa les yeux vers ses sandales.
---- Je connais un peu les comptes de mon père. Pas tout. Mais il y a des
+Je connais un peu les comptes de mon père. Pas tout. Mais il y a des
 pages qui manquent dans les registres. Je peux vous aider à comparer les
 marques si vous trouvez d'autres documents.
 Yassine ne répondit pas immédiatement. Une part de lui voulait lui dire
 qu'il avait trop tardé, que les excuses ne suffisaient pas à effacer les
 humiliations. Une autre part savait qu'un changement sincère devait
 pouvoir commencer quelque part.
---- Tu peux aider en restant ici et en disant la vérité, répondit-il. Si
+Tu peux aider en restant ici et en disant la vérité, répondit-il. Si
 quelqu'un te demande ce que tu sais, ne mens pas pour protéger ton père.
 Mais nous ne savons pas encore ce que nous allons trouver là-bas.
 Karim encaissa la réponse sans protester.
---- Je comprends.
+Je comprends.
 Ce n'était pas tout à fait vrai, mais c'était déjà mieux que ses
 anciennes moqueries.
 Khadija la tisserande apporta des bandes de tissu serrées, assez longues
@@ -2263,34 +2263,34 @@ afin qu'elles ne se défassent pas au premier souffle violent. Oumar le
 forgeron fabriqua deux crochets et répara la boucle d'une gourde. Il
 grogna pendant tout son travail, puis glissa à Yassine un petit couteau
 à manche de bois.
---- Pour couper une corde, ouvrir un sac ou tailler une branche, dit-il.
+Pour couper une corde, ouvrir un sac ou tailler une branche, dit-il.
 Pas pour te battre.
---- Je ne compte pas me battre.
---- Tant mieux. Les gens qui partent en disant qu'ils ne se battront
+Je ne compte pas me battre.
+Tant mieux. Les gens qui partent en disant qu'ils ne se battront
 jamais sont souvent ceux qui finissent par oublier pourquoi ils étaient
 partis.
 Oumar avait parlé sèchement, mais ses yeux étaient doux. Yassine le
 remercia.
 Khadija glissa aussi un morceau de tissu supplémentaire dans le sac de
 Maryam.
---- Pour tes notes, ou pour couvrir quelqu'un qui aurait froid.
---- Il fera chaud, dit Maryam.
---- Dans le désert, la chaleur du jour ne promet pas la douceur de la
+Pour tes notes, ou pour couvrir quelqu'un qui aurait froid.
+Il fera chaud, dit Maryam.
+Dans le désert, la chaleur du jour ne promet pas la douceur de la
 nuit.
 Souleymane vérifia les gourdes, les nœuds et les sacs. Il répartit les
 charges afin que personne ne porte tout le poids. Bilal voulut prendre
 le plus gros paquet pour prouver qu'il était courageux ; il dut le
 reposer après quelques pas, et Ibrahim, qui l'avait suivi jusque-là,
 éclata de rire.
---- Tu vois ? dit Bilal à son petit frère. Je testais la solidité du
+Tu vois ? dit Bilal à son petit frère. Je testais la solidité du
 paquet.
---- Il a gagné, répondit Ibrahim.
+Il a gagné, répondit Ibrahim.
 Le rire d'Ibrahim fit sourire plusieurs adultes. Même dans un village
 accablé par la sécheresse, l'enfance trouvait parfois un passage.
 Setti Aïcha prépara pour Yassine une petite poche de dattes et un carré
 de tissu appartenant à son père. Le tissu était usé, mais propre. Elle
 le lui remit sans cérémonie.
---- Ne le prends pas comme une protection magique, dit-elle. C'est un
+Ne le prends pas comme une protection magique, dit-elle. C'est un
 souvenir. Les souvenirs peuvent nous donner du courage, mais ils ne
 remplacent ni la prudence ni l'effort.
 Yassine passa le tissu autour de son poignet, puis le glissa dans sa
@@ -2324,15 +2324,15 @@ deux doigts vers lui, leur ancien signe lorsqu'elle voulait lui dire :
 avance, mais n'oublie pas le chemin du retour.
 Yassine lui répondit de la même manière.
 Bilal, qui avait déjà fait trois pas, revint sur ses pas.
---- Si on découvre une montagne d'or, dit-il, je propose qu'on la
+Si on découvre une montagne d'or, dit-il, je propose qu'on la
 partage équitablement.
---- Tu viens de dire ça devant l'imam, remarqua Maryam.
---- Je voulais m'assurer que le partage serait béni.
+Tu viens de dire ça devant l'imam, remarqua Maryam.
+Je voulais m'assurer que le partage serait béni.
 L'imam secoua la tête, amusé malgré lui.
---- Si vous trouvez une montagne d'or, commencez par vérifier qu'elle
+Si vous trouvez une montagne d'or, commencez par vérifier qu'elle
 n'appartient à personne.
---- Et si elle appartient à quelqu'un de très riche ? demanda Bilal.
---- Alors la question de la justice sera encore plus importante.
+Et si elle appartient à quelqu'un de très riche ? demanda Bilal.
+Alors la question de la justice sera encore plus importante.
 Ils reprirent la route. Au-delà des champs asséchés, les traces de
 culture s'effaçaient peu à peu. La terre craquelée laissait place à des
 pierres plates, puis à un terrain rouge où poussaient des buissons
@@ -2345,19 +2345,19 @@ sandales, puis du fait que personne ne l'écoutait lorsqu'il disait qu'il
 avait faim. Mais il partageait ses dattes avec Ibrahim, qui était resté
 au village, et il surveillait Yassine d'un regard inquiet dès que
 celui-ci ralentissait.
---- Tu n'es pas obligé de porter toute l'histoire de ton père sur ton
+Tu n'es pas obligé de porter toute l'histoire de ton père sur ton
 dos, lui dit-il à un moment où ils marchaient côte à côte.
 Yassine fronça les sourcils.
---- Je ne la porte pas.
---- Bien sûr que si. Tu réfléchis comme si chaque pas devait réparer
+Je ne la porte pas.
+Bien sûr que si. Tu réfléchis comme si chaque pas devait réparer
 tout ce qui s'est passé avant ta naissance.
 Yassine aurait voulu répondre que Bilal ne pouvait pas comprendre. Puis
 il se souvint que son ami avait lui aussi ses peurs, même s'il les
 cachait derrière des plaisanteries.
---- J'ai juste peur de découvrir quelque chose que je ne pourrai pas
+J'ai juste peur de découvrir quelque chose que je ne pourrai pas
 supporter, avoua-t-il.
 Bilal cessa de sourire.
---- Alors on le supportera ensemble. Et si c'est trop lourd, on fera une
+Alors on le supportera ensemble. Et si c'est trop lourd, on fera une
 pause. Je ne promets pas d'être silencieux, mais je peux rester.
 Yassine sentit sa gorge se serrer. Il hocha la tête sans trouver de
 mots.
@@ -2369,29 +2369,29 @@ conduisit vers un creux où quelques arbustes offraient une ombre maigre.
 Ils burent de petites gorgées, sans vider les gourdes. L'imam leur
 demanda de s'asseoir et de manger un peu avant de continuer. Bilal
 s'allongea sur le dos et fixa le ciel.
---- Je confirme : le soleil nous déteste.
---- Le soleil ne te connaît pas, répondit Maryam.
---- C'est encore pire. Il fait souffrir des gens sans même savoir qui
+Je confirme : le soleil nous déteste.
+Le soleil ne te connaît pas, répondit Maryam.
+C'est encore pire. Il fait souffrir des gens sans même savoir qui
 ils sont.
 Souleymane observa le vent. Il avait changé. Une fine poussière glissait
 au ras du sol, poussée par une brise venue de l'est. Les oiseaux qui,
 jusque-là, tournaient au-dessus des pierres avaient disparu.
---- Nous devons avancer jusqu'à l'abri de la falaise, dit-il. Il est
+Nous devons avancer jusqu'à l'abri de la falaise, dit-il. Il est
 encore loin, mais nous y serons mieux protégés que dans ce creux.
 L'imam regarda le ciel. Une ligne ocre se formait au loin, si basse
 qu'on aurait pu la prendre pour une colline.
---- Est-ce une tempête ? demanda Maryam.
---- Peut-être un souffle de vent chargé de poussière, répondit
+Est-ce une tempête ? demanda Maryam.
+Peut-être un souffle de vent chargé de poussière, répondit
 Souleymane. Mais nous allons agir comme si cela pouvait empirer.
 Il leur fit resserrer les tissus sur leurs visages, attacher les objets
 qui pouvaient s'envoler et garder une distance assez courte pour se
 voir. La corde fut sortie du sac. Souleymane noua une extrémité à sa
 ceinture, puis proposa aux autres de s'y relier par intervalles.
 Bilal regarda la corde.
---- Je ne veux pas être attaché comme une chèvre.
---- Une chèvre connaît parfois mieux le chemin qu'un garçon, répondit
+Je ne veux pas être attaché comme une chèvre.
+Une chèvre connaît parfois mieux le chemin qu'un garçon, répondit
 Souleymane.
---- Je retire ma plainte.
+Je retire ma plainte.
 Ils avancèrent. Le vent se mit à pousser dans leurs dos, puis à leur
 barrer la route. Les grains de sable frappaient les jambes. L'air,
 jusque-là brûlant et clair, prit une couleur jaune. Au-dessus d'eux, le
@@ -2410,16 +2410,16 @@ d'Allah sans prétendre connaître l'issue.
 Le premier grondement ne ressemblait pas à un tonnerre. C'était un bruit
 continu, profond, comme si des milliers de mains frottaient la terre en
 même temps. Souleymane leva le bras. Le groupe s'arrêta.
---- Couvrez vos yeux. Ne vous éloignez pas de la corde. Si vous ne voyez
+Couvrez vos yeux. Ne vous éloignez pas de la corde. Si vous ne voyez
 plus la personne devant vous, vous avancez seulement au signal.
 La poussière devint plus épaisse. Les tissus se plaquaient contre les
 bouches. Les yeux piquaient. Les pierres semblaient vibrer sous les
 rafales. Maryam serra son carnet contre sa poitrine, puis le glissa sous
 sa tunique pour le protéger. Bilal attrapa la corde d'une main et
 l'épaule de Yassine de l'autre.
---- Si je dis que je n'ai pas peur, murmura-t-il, rappelle-moi que je
+Si je dis que je n'ai pas peur, murmura-t-il, rappelle-moi que je
 mens.
---- Je n'aurai pas besoin de te le rappeler, répondit Yassine. Tu parles
+Je n'aurai pas besoin de te le rappeler, répondit Yassine. Tu parles
 trop pour quelqu'un qui n'a pas peur.
 Bilal eut un rire étouffé, vite emporté par le vent.
 L'imam compta les voyageurs à voix haute. Souleymane, l'imam, Yassine,
@@ -2432,7 +2432,7 @@ corde se tendre brutalement. Quelque chose glissa sous son pied. Il
 tomba à genoux. Une rafale lui arracha presque le tissu qui couvrait son
 visage. Il se releva, toussa, puis chercha la main de Bilal.
 Elle n'était plus là.
---- Bilal !
+Bilal !
 Le vent avala son cri. Il tira sur la corde, mais sentit un mouvement
 désordonné, puis un relâchement. Maryam appelait l'imam. Souleymane
 hurlait des instructions que personne ne comprenait. La corde s'était
@@ -2441,16 +2441,16 @@ tranchante. Yassine ne savait pas laquelle de ces choses était arrivée.
 Il aperçut une silhouette à quelques pas, penchée contre une roche. Il
 crut reconnaître Bilal et se précipita. Mais la silhouette était Maryam,
 qui s'était accrochée à un bloc de pierre.
---- Où est Bilal ? cria-t-elle.
+Où est Bilal ? cria-t-elle.
 Yassine tourna la tête. Il ne voyait plus l'imam ni Souleymane. Il
 n'entendait que le rugissement du vent. Le monde s'était réduit à
 quelques mètres de poussière et de peur.
---- On reste près de la roche ! cria Maryam.
+On reste près de la roche ! cria Maryam.
 Yassine savait qu'elle avait raison. Pourtant, l'idée que Bilal pouvait
 être seul quelque part lui serrait le ventre. Il voulut courir dans la
 direction où il l'avait vu pour la dernière fois.
 Maryam lui saisit le poignet.
---- Si tu pars au hasard, nous serons deux à disparaître.
+Si tu pars au hasard, nous serons deux à disparaître.
 Il se figea. Pendant une seconde, il détesta cette phrase parce qu'elle
 était vraie.
 Ils s'accroupirent derrière la roche, le visage couvert, les doigts
@@ -2466,14 +2466,14 @@ l'un l'autre. Ils parlaient peu, économisant leur souffle, mais chaque
 silence semblait contenir une question.
 Au loin, un appel se fit entendre. Il était si faible que Yassine crut
 d'abord l'avoir imaginé.
---- Vous avez entendu ? demanda-t-il.
+Vous avez entendu ? demanda-t-il.
 Maryam leva la tête.
 Une voix se perdit dans le vent. Puis un autre cri, plus proche, leur
 parvint.
---- Ici !
+Ici !
 Yassine se redressa trop vite et manqua de tomber. Maryam l'attrapa par
 la manche.
---- Nous devons savoir d'où vient la voix avant de bouger.
+Nous devons savoir d'où vient la voix avant de bouger.
 Ils attendirent une nouvelle rafale. Entre deux grondements, ils
 entendirent encore l'appel. Il venait de leur gauche, au-delà d'un amas
 de pierres. Maryam prit une extrémité de la corde qu'ils avaient gardée
@@ -2486,8 +2486,8 @@ rien, puis reprenaient leur marche.
 Ils découvrirent d'abord une gourde renversée. Un peu plus loin, une
 sandale. Yassine la reconnut : elle appartenait à Karim.
 Son cœur se mit à battre plus fort.
---- Karim est ici, dit-il.
---- Mais nous ne savons pas s'il est seul, répondit Maryam.
+Karim est ici, dit-il.
+Mais nous ne savons pas s'il est seul, répondit Maryam.
 Karim n'était pas censé être avec eux. Pourtant, il avait quitté
 Dar-Salam après leur départ, emportant un petit sac et des pages copiées
 des registres de son père. Il avait suivi leurs traces à distance,
@@ -2495,22 +2495,22 @@ convaincu qu'il devait réparer au moins une partie de ce qu'il avait
 laissé faire. Il n'avait prévenu personne, par peur que son père l'en
 empêche. Son choix avait été courageux, mais imprudent.
 Un nouveau cri fendit l'air.
---- Au secours !
+Au secours !
 Yassine se mit à courir. Maryam le suivit, la corde tendue entre eux.
 Derrière les pierres, ils trouvèrent Karim coincé au bord d'un petit
 ravin, les doigts agrippés à une racine sèche. Une partie du sol s'était
 effondrée sous ses pieds. Le vent lui jetait du sable dans les yeux, et
 ses bras tremblaient.
---- Ne bouge pas ! cria Yassine.
+Ne bouge pas ! cria Yassine.
 Karim leva la tête. Quand il reconnut celui qu'il avait si souvent
 humilié, son visage exprima d'abord la honte, puis une peur si nue
 qu'elle effaça toute arrogance.
---- Je n'arrive plus à remonter, dit-il.
+Je n'arrive plus à remonter, dit-il.
 Yassine s'allongea à plat ventre et tendit le bras. La distance était
 trop grande. Maryam planta le bâton de Souleymane, qu'elle avait
 récupéré près de la roche, dans une fissure du sol pour se stabiliser.
 Elle attrapa la corde et fit un nœud autour d'un rocher solide.
---- Yassine, ne te penche pas davantage ! Si la terre cède, vous
+Yassine, ne te penche pas davantage ! Si la terre cède, vous
 tomberez tous les deux.
 Il savait qu'elle avait raison. Karim, lui, glissait lentement. Ses
 doigts s'ouvraient sous l'effort.
@@ -2523,7 +2523,7 @@ Mais il vit le visage de Karim, et il comprit que la justice ne
 consistait pas à rendre la souffrance à celui qui l'avait causée. Il ne
 savait pas encore s'il pourrait lui pardonner complètement. Il savait
 seulement qu'il ne voulait pas le laisser mourir.
---- Donne-moi ta main ! cria Yassine.
+Donne-moi ta main ! cria Yassine.
 Karim tendit le bras. Leurs doigts se touchèrent, glissèrent, se
 retrouvèrent. Yassine serra de toutes ses forces. Maryam tira sur la
 corde, mais le nœud se tendit brusquement et le rocher bougea. Elle cria
@@ -2540,15 +2540,15 @@ décisions prises dans la peur. Maryam enroula la corde autour de son
 avant-bras, sans la laisser lui couper la peau. Yassine recula un peu,
 puis s'arrêta chaque fois que Karim perdait son appui. Il lui donna des
 instructions simples, répétées plusieurs fois.
---- Regarde ma main. Ne regarde pas le ravin. Cherche la pierre avec ton
+Regarde ma main. Ne regarde pas le ravin. Cherche la pierre avec ton
 pied. Maintenant, pousse.
 Karim obéissait, tremblant. Il avait les doigts écorchés et le visage
 couvert de poussière. Une fois, il lâcha presque prise. Yassine sentit
 leurs mains se séparer et un cri lui échappa. Puis Karim parvint à
 accrocher son poignet.
---- Je suis désolé ! cria Karim.
---- Garde ton souffle pour remonter !
---- Je suis désolé pour tout !
+Je suis désolé ! cria Karim.
+Garde ton souffle pour remonter !
+Je suis désolé pour tout !
 Yassine ne répondit pas. Il ne voulait pas que Karim pense qu'une excuse
 prononcée dans la peur suffisait à tout réparer. Mais il ne voulait pas
 non plus transformer le sauvetage en tribunal. Il y aurait du temps,
@@ -2561,9 +2561,9 @@ Pendant plusieurs secondes, personne ne parla. Karim respirait par
 saccades. Yassine avait mal aux doigts et aux genoux. Maryam tremblait
 de tout son corps, mais elle vérifia aussitôt si les deux garçons
 pouvaient bouger.
---- Vous êtes blessés ?
---- Seulement à l'orgueil, répondit Karim d'une voix cassée.
---- L'orgueil n'est pas une blessure légère, dit Maryam. Mais il ne
+Vous êtes blessés ?
+Seulement à l'orgueil, répondit Karim d'une voix cassée.
+L'orgueil n'est pas une blessure légère, dit Maryam. Mais il ne
 saigne pas autant que tes mains.
 Elle déchira une bande de tissu et enveloppa les doigts de Karim.
 Yassine détourna le regard pour cacher les larmes qui lui montaient aux
@@ -2572,18 +2572,18 @@ découvrir qu'il pouvait aider quelqu'un sans que cela efface ce que
 cette personne lui avait fait, et que la bonté n'avait pas besoin
 d'attendre que le passé soit réglé.
 Karim s'assit contre la roche, incapable de soutenir son regard.
---- Je vous ai suivis, avoua-t-il. J'ai pris les pages des registres. Je
+Je vous ai suivis, avoua-t-il. J'ai pris les pages des registres. Je
 voulais vous les donner. Je pensais pouvoir marcher assez loin derrière
 pour que vous ne me voyiez pas.
---- C'était dangereux, dit Maryam.
---- Je sais.
---- Tu aurais pu nous prévenir.
---- Mon père m'aurait interdit de partir. Et j'avais peur de ce qu'il
+C'était dangereux, dit Maryam.
+Je sais.
+Tu aurais pu nous prévenir.
+Mon père m'aurait interdit de partir. Et j'avais peur de ce qu'il
 dirait si je lui avouais que j'avais vu les comptes.
 Yassine le regarda enfin.
---- Tu as peur de ton père ?
+Tu as peur de ton père ?
 Karim eut un rire amer.
---- Tout le monde croit que le fils de Hadj Mansour n'a peur de rien.
+Tout le monde croit que le fils de Hadj Mansour n'a peur de rien.
 Mais mon père mesure tout : les sacs de grain, les pièces, les mots,
 même les silences. Quand je fais quelque chose de bien, il demande si
 cela rapportera quelque chose. Quand je fais une erreur, il me rappelle
@@ -2593,10 +2593,10 @@ Cette confession surprit Yassine. Il avait imaginé Karim comme un garçon
 qui prenait plaisir à dominer les autres. Il découvrait une solitude
 réelle derrière sa cruauté. Cela n'excusait pas les humiliations, mais
 cela lui donnait un autre angle pour les comprendre.
---- Tu aurais quand même pu choisir de ne pas nous faire de mal, dit
+Tu aurais quand même pu choisir de ne pas nous faire de mal, dit
 Yassine.
 Karim acquiesça, les yeux baissés.
---- Oui. Je n'ai pas d'excuse pour ça.
+Oui. Je n'ai pas d'excuse pour ça.
 Cette réponse, parce qu'elle ne cherchait pas à se défendre, compta
 davantage que les longues justifications qu'il aurait pu inventer.
 8. Trouver un abri
@@ -2605,21 +2605,21 @@ une cavité repérée plus tôt, mais le vent avait brouillé leurs traces.
 Yassine regarda autour de lui. Les roches se ressemblaient toutes. La
 lumière avait pris une couleur uniforme, et la ligne de l'horizon avait
 disparu.
---- Nous devons retrouver Souleymane et l'imam, dit-il.
---- Oui, répondit Maryam. Mais pas en courant au hasard.
+Nous devons retrouver Souleymane et l'imam, dit-il.
+Oui, répondit Maryam. Mais pas en courant au hasard.
 Karim tenta de se lever, puis grimaça. Sa cheville avait tourné quand le
 sol s'était effondré. Il pouvait poser le pied, mais pas supporter tout
 son poids. Yassine passa son bras sous son épaule. Karim se raidit,
 surpris par ce geste.
---- Je peux marcher.
---- Alors marche lentement. Si tu tombes, nous nous arrêterons.
+Je peux marcher.
+Alors marche lentement. Si tu tombes, nous nous arrêterons.
 Ils progressèrent en restant près des rochers. Maryam utilisait le bâton
 pour sonder le sol. Yassine soutenait Karim, tandis que la corde les
 reliait tous les trois. Ils appelaient leurs compagnons entre les
 rafales, sans crier plus que nécessaire.
 Au bout d'un temps impossible à mesurer, une voix leur répondit. Cette
 fois, ils la reconnurent : c'était Souleymane.
---- Par ici ! Restez près des pierres !
+Par ici ! Restez près des pierres !
 Ils suivirent le son. La silhouette du berger apparut derrière un grand
 bloc, le visage couvert et les yeux plissés. Il tenait la corde
 principale, qui avait été rompue à un endroit. L'imam se trouvait près
@@ -2627,18 +2627,18 @@ de lui, une main sur l'épaule de Bilal. Le garçon était vivant, mais son
 front était égratigné et sa respiration rapide.
 Quand Bilal aperçut Yassine, il se précipita vers lui, puis s'arrêta en
 voyant Karim appuyé contre son épaule.
---- Tu as trouvé Karim ?
---- Il était au bord d'un ravin, répondit Yassine.
+Tu as trouvé Karim ?
+Il était au bord d'un ravin, répondit Yassine.
 Bilal regarda Karim. Pendant une seconde, l'ancienne colère revint sur
 son visage. Karim avait déjà ri de lui devant d'autres enfants. Il avait
 aussi traité Yassine comme si sa pauvreté le rendait inférieur. Mais
 Bilal vit les bandages sur les mains de Karim et la façon dont Yassine
 le soutenait.
---- Tu es vraiment blessé ? demanda-t-il.
---- Oui.
---- Alors tu vas devoir écouter les conseils de Maryam. Elle est
+Tu es vraiment blessé ? demanda-t-il.
+Oui.
+Alors tu vas devoir écouter les conseils de Maryam. Elle est
 insupportable, mais elle a souvent raison.
---- J'ai entendu, répondit Maryam.
+J'ai entendu, répondit Maryam.
 Souleymane les conduisit vers une cavité peu profonde sous une avancée
 rocheuse. Ce n'était pas un abri parfait, mais la pierre cassait la
 force du vent. Ils s'y tassèrent, protégeant les gourdes et les
@@ -2654,47 +2654,47 @@ forcer. Maryam reprit son carnet, dont les bords étaient froissés mais
 les pages encore lisibles. Bilal se frotta le front, puis se mit à
 parler sans s'arrêter, comme s'il devait remplir le silence avant qu'il
 ne l'avale.
---- J'ai vu une pierre rouler vers moi. J'ai pensé que c'était un
+J'ai vu une pierre rouler vers moi. J'ai pensé que c'était un
 animal. Ensuite, j'ai pensé que c'était un animal très gros. Puis j'ai
 pensé que je ne voulais plus jamais voir de pierre de ma vie.
---- Tu as crié mon nom, dit Yassine.
---- Bien sûr. J'avais besoin d'un témoin pour raconter mon courage.
---- Tu as surtout crié parce que tu avais peur, dit Maryam.
+Tu as crié mon nom, dit Yassine.
+Bien sûr. J'avais besoin d'un témoin pour raconter mon courage.
+Tu as surtout crié parce que tu avais peur, dit Maryam.
 Bilal soupira.
---- Je sais. C'est étrange, la peur. On croit qu'elle nous rend faibles,
+Je sais. C'est étrange, la peur. On croit qu'elle nous rend faibles,
 alors on la cache. Mais quand je ne voyais plus personne, je me suis mis
 à penser à Ibrahim. Je me suis demandé ce qu'il ferait si je ne revenais
 pas. Et je n'avais plus envie de faire le malin.
 L'imam le regarda avec bienveillance.
---- Reconnaître sa peur ne la rend pas maîtresse de toi. Cela t'aide à
+Reconnaître sa peur ne la rend pas maîtresse de toi. Cela t'aide à
 choisir ce que tu fais ensuite.
 Bilal baissa la tête. Puis il demanda à Karim :
---- Pourquoi nous avoir suivis sans rien dire ?
+Pourquoi nous avoir suivis sans rien dire ?
 Karim prit du temps avant de répondre. Il avait compris qu'il ne pouvait
 pas se cacher derrière la tempête.
---- Je voulais remettre les pages à Yassine. Je voulais aussi montrer
+Je voulais remettre les pages à Yassine. Je voulais aussi montrer
 que je n'étais pas seulement le fils de mon père. Mais je n'ai pas eu le
 courage de lui parler avant le départ.
---- Alors tu as choisi une route dangereuse pour éviter une conversation
+Alors tu as choisi une route dangereuse pour éviter une conversation
 difficile, résuma Maryam.
---- Oui.
---- C'est une très mauvaise stratégie.
---- Je commence à m'en rendre compte.
+Oui.
+C'est une très mauvaise stratégie.
+Je commence à m'en rendre compte.
 Bilal souffla du nez, presque amusé, puis redevint sérieux.
---- Tu m'as déjà humilié devant des gens. Tu as fait rire des enfants
+Tu m'as déjà humilié devant des gens. Tu as fait rire des enfants
 quand tu savais que je n'avais pas les moyens de m'acheter ce qu'ils
 avaient. Je ne vais pas te dire que tout est oublié parce que tu as
 failli tomber dans un ravin.
 Karim acquiesça.
---- Tu as raison.
---- Mais je ne vais pas non plus te laisser mourir si je peux t'aider.
+Tu as raison.
+Mais je ne vais pas non plus te laisser mourir si je peux t'aider.
 Je ne veux pas devenir comme toi.
 Yassine sentit que les mots de son ami exprimaient ce qu'il avait
 lui-même ressenti au bord du ravin. Le pardon ne consistait pas à
 prétendre que le mal n'avait pas eu lieu. Il pouvait commencer par
 refuser de le reproduire.
 L'imam les écouta, puis dit :
---- Il y a une différence entre pardonner et faire comme si rien ne
+Il y a une différence entre pardonner et faire comme si rien ne
 s'était passé. La confiance se reconstruit par des actes répétés.
 Personne ne peut l'exiger de celui qu'il a blessé. Mais chacun peut
 décider de commencer à agir autrement.
@@ -2707,7 +2707,7 @@ huilé. Il le protégeait depuis le départ, même lorsque le sol avait cédé
 sous lui. À l'intérieur se trouvaient plusieurs pages copiées des
 anciens registres de son père, ainsi qu'un croquis grossier du vieux
 dépôt à l'est de Dar-Salam.
---- Je n'ai pas tout pris, expliqua-t-il. Certaines pages étaient trop
+Je n'ai pas tout pris, expliqua-t-il. Certaines pages étaient trop
 fragiles. J'ai recopié les colonnes qui semblaient importantes : les
 quantités de grain reçues, celles qui étaient distribuées, et les noms
 des familles qui n'avaient pas signé.
@@ -2717,9 +2717,9 @@ indiquait que des sacs avaient été envoyés vers un dépôt situé au-delà
 des pierres noires, mais aucun reçu ne confirmait leur arrivée. Une
 autre mentionnait des réserves destinées aux familles les plus pauvres,
 puis une marque qui ne correspondait à aucune des signatures connues.
---- Ce n'est pas une preuve complète, dit Maryam. Il faut comparer avec
+Ce n'est pas une preuve complète, dit Maryam. Il faut comparer avec
 les autres documents.
---- Je sais, répondit Karim. Mais j'ai reconnu la marque de mon père sur
+Je sais, répondit Karim. Mais j'ai reconnu la marque de mon père sur
 deux lignes. Je ne peux pas prétendre ne pas l'avoir vue.
 Yassine fixa les pages. Il avait voulu découvrir une vérité claire,
 quelque chose qui aurait séparé les bons des mauvais comme une ligne
@@ -2728,21 +2728,21 @@ aussi simple. Il pouvait y avoir des erreurs, des mensonges, des ordres
 mal compris, des gens qui avaient profité de la peur et d'autres qui
 s'étaient tus pour protéger leur famille. La vérité demanderait plus que
 de la colère.
---- Mon père savait peut-être ce qui se passait, dit Karim. Ou il a
+Mon père savait peut-être ce qui se passait, dit Karim. Ou il a
 peut-être fermé les yeux. Je ne sais pas encore. Je ne veux pas
 l'accuser sans comprendre. Mais je ne veux plus mentir pour lui.
---- C'est un début, répondit Yassine.
+C'est un début, répondit Yassine.
 Il ne savait pas s'il était prêt à appeler Karim son ami. Pourtant, il
 voyait que le garçon venait de faire un pas qu'il aurait pu éviter. Il
 avait apporté des documents qui risquaient de mettre sa famille en
 difficulté. Cela ne réparait pas tout, mais cela comptait.
 Souleymane examina le croquis.
---- Le dépôt se trouve probablement près d'une ancienne piste
+Le dépôt se trouve probablement près d'une ancienne piste
 caravanière. Si la tempête nous laisse passer, nous pourrons y arriver
 demain. Mais nous ne poursuivrons pas si le terrain est trop dangereux.
---- Et la source dont parlait mon père ? demanda Yassine.
+Et la source dont parlait mon père ? demanda Yassine.
 Le berger suivit du doigt une ligne sur la carte.
---- Il existe une dépression rocheuse à l'est. Les anciens disaient que
+Il existe une dépression rocheuse à l'est. Les anciens disaient que
 l'eau y reste parfois sous la pierre, même lorsque la surface est sèche.
 Mais il faut savoir lire le terrain. On ne creuse pas au hasard dans le
 désert.
@@ -2759,17 +2759,17 @@ la couleur d'une pierre après une nuit fraîche, la direction que
 prenaient les insectes avant que l'air ne change. Il lui avait aussi
 appris que les récits des anciens devaient être écoutés sans être pris
 pour des cartes exactes.
---- Une histoire peut garder le souvenir d'un lieu, dit-il. Mais le
+Une histoire peut garder le souvenir d'un lieu, dit-il. Mais le
 souvenir se déforme. Une source peut être devenue un puits. Un puits
 peut avoir été recouvert par un éboulement. Et parfois, les gens disent
 qu'un endroit est maudit alors qu'ils ont simplement oublié comment y
 accéder.
---- Pourquoi personne n'a cherché plus tôt ? demanda Maryam.
---- Certains ont cherché. D'autres ont préféré croire que la sécheresse
+Pourquoi personne n'a cherché plus tôt ? demanda Maryam.
+Certains ont cherché. D'autres ont préféré croire que la sécheresse
 ne durerait pas. Il est plus facile d'attendre la pluie que de
 reconnaître qu'on a négligé une chose pendant des années.
 L'imam acquiesça.
---- L'espoir n'est pas une erreur. Mais l'espoir sans effort peut
+L'espoir n'est pas une erreur. Mais l'espoir sans effort peut
 devenir une manière de repousser les responsabilités.
 Yassine pensa aux habitants de Dar-Salam. Il pensa aussi à lui-même, à
 toutes les fois où il avait attendu qu'un adulte explique le monde à sa
@@ -2785,7 +2785,7 @@ de leurs pas. Une partie du sentier avait disparu sous une couche de
 sable. Les rochers, eux, étaient restés. Souleymane les observa comme on
 observe les pages d'un livre dont plusieurs lignes auraient été
 effacées.
---- Nous ne retournerons pas au village aujourd'hui, dit-il. Il faut
+Nous ne retournerons pas au village aujourd'hui, dit-il. Il faut
 trouver un endroit sûr pour la nuit. Demain, nous chercherons le dépôt
 si le temps le permet.
 Personne ne protesta. Le courage n'était pas de continuer à tout prix ;
@@ -2802,11 +2802,11 @@ encore mal à la cheville, mais il pouvait bouger les orteils. Maryam
 nettoya les éraflures de ses mains avec un peu d'eau, en utilisant un
 tissu propre. Elle le fit avec efficacité, sans douceur exagérée, mais
 sans la moindre moquerie.
---- Tu n'es pas obligée de m'aider, dit Karim.
---- Je le sais.
---- Alors pourquoi tu le fais ?
+Tu n'es pas obligée de m'aider, dit Karim.
+Je le sais.
+Alors pourquoi tu le fais ?
 Maryam haussa les épaules.
---- Parce que tes mains sont blessées. Si tu veux une explication plus
+Parce que tes mains sont blessées. Si tu veux une explication plus
 compliquée, attends que j'aie dormi.
 Karim baissa la tête. Il avait l'habitude que les autres l'aident parce
 qu'ils craignaient son père ou espéraient obtenir quelque chose de lui.
@@ -2825,28 +2825,28 @@ grand-mère sans la blesser, quelle que soit la vérité sur son père.
 Il ne reçut aucun signe extraordinaire. La nuit resta silencieuse. Mais
 son cœur se calma peu à peu, comme un récipient qu'on cesse de secouer.
 Bilal vint s'asseoir près de lui.
---- Tu crois que ton père savait qu'un jour tu viendrais ici ?
---- Je ne sais pas.
---- Tu crois qu'il aurait été fier de toi ?
+Tu crois que ton père savait qu'un jour tu viendrais ici ?
+Je ne sais pas.
+Tu crois qu'il aurait été fier de toi ?
 Yassine réfléchit.
---- J'aimerais qu'il le soit. Mais je ne veux pas faire tout ça
+J'aimerais qu'il le soit. Mais je ne veux pas faire tout ça
 uniquement pour imaginer ce qu'il aurait pensé. Je veux faire ce qui est
 juste, même si je ne connais jamais toute son histoire.
 Bilal ramassa un petit caillou, le fit rouler entre ses doigts, puis le
 posa à côté de lui.
---- C'est une réponse d'adulte.
---- Je suis encore un enfant.
---- Oui. C'est ce qui rend la réponse agaçante.
+C'est une réponse d'adulte.
+Je suis encore un enfant.
+Oui. C'est ce qui rend la réponse agaçante.
 Yassine sourit. Puis il demanda :
---- Tu as eu très peur, aujourd'hui ?
+Tu as eu très peur, aujourd'hui ?
 Bilal ne plaisanta pas.
---- Oui. J'ai pensé que je ne reverrais pas Ibrahim. J'ai pensé que je
+Oui. J'ai pensé que je ne reverrais pas Ibrahim. J'ai pensé que je
 n'avais pas assez joué avec lui, que je m'étais trop souvent fâché pour
 des choses stupides. J'ai même promis à Allah que je ne me moquerais
 plus jamais de personne si je rentrais.
---- Tu ne devrais pas faire une promesse seulement quand tu as peur de
+Tu ne devrais pas faire une promesse seulement quand tu as peur de
 mourir, dit Yassine doucement.
---- Je sais. Mais parfois, la peur te montre ce que tu oublies quand
+Je sais. Mais parfois, la peur te montre ce que tu oublies quand
 tout va bien.
 Ils restèrent assis sans parler. Au loin, le vent frottait les dunes,
 désormais sans violence. Yassine comprit que la tempête avait déplacé le
@@ -2866,7 +2866,7 @@ comparait le croquis de Karim avec le terrain. Après plusieurs heures,
 ils aperçurent une construction basse, presque avalée par le sable. Des
 murs de terre s'étaient effondrés sur un côté. Une porte de bois,
 déformée par le temps, pendait sur une charnière.
---- Le dépôt, murmura Maryam.
+Le dépôt, murmura Maryam.
 Ils s'approchèrent avec prudence. Souleymane inspecta les murs avant de
 les laisser entrer. À l'intérieur, l'air sentait la poussière et le bois
 ancien. Des paniers brisés gisaient dans un coin. Des sacs avaient
@@ -2875,25 +2875,25 @@ durcis restaient coincés dans les fissures du sol.
 Yassine sentit une déception immédiate. Il s'était imaginé des preuves
 rangées dans des coffres, des documents préservés, peut-être même des
 réserves intactes. Il ne trouvait que des ruines.
---- Nous sommes venus trop tard, dit-il.
---- Peut-être, répondit l'imam. Mais nous ne savons pas encore ce que le
+Nous sommes venus trop tard, dit-il.
+Peut-être, répondit l'imam. Mais nous ne savons pas encore ce que le
 lieu peut nous apprendre.
 Maryam commença à examiner les murs. Elle remarqua des marques gravées
 dans une poutre, presque effacées : des traits groupés par cinq, puis
 des symboles qui ressemblaient à ceux des registres. Karim sortit ses
 pages. Il compara les signes, puis pâlit.
---- Cette marque apparaît dans les comptes de mon père. Elle indique les
+Cette marque apparaît dans les comptes de mon père. Elle indique les
 sacs qui devaient être déplacés vers un autre lieu.
---- Quel lieu ? demanda Bilal.
+Quel lieu ? demanda Bilal.
 Karim tourna la page et montra un symbole en forme de cercle traversé
 par une ligne.
 Souleymane se pencha.
---- Je connais ce signe. Il désignait autrefois un point d'eau. Pas
+Je connais ce signe. Il désignait autrefois un point d'eau. Pas
 nécessairement une source ouverte, mais un endroit où les voyageurs
 pouvaient remplir leurs gourdes.
 Yassine sentit son cœur accélérer.
---- La source de mon père ?
---- Peut-être, dit Souleymane. Nous ne pouvons pas encore l'affirmer.
+La source de mon père ?
+Peut-être, dit Souleymane. Nous ne pouvons pas encore l'affirmer.
 Au fond du dépôt, derrière une pile de planches, Maryam découvrit une
 dalle de pierre qui ne ressemblait pas au reste du sol. Elle appela les
 autres. Ils dégagèrent les débris avec précaution. Sous la dalle, il y
@@ -2905,7 +2905,7 @@ fermé, et un rouleau de tissu huilé. Yassine sentit ses mains devenir
 moites. Il pensa au coffre de sa grand-mère, aux lettres qu'il avait
 révélées, aux années de silence. Cette fois, il ne voulut pas se
 précipiter.
---- Nous devons l'ouvrir ensemble, dit-il.
+Nous devons l'ouvrir ensemble, dit-il.
 L'imam approuva. Le coffret ne contenait ni or ni bijoux. Il renfermait
 des feuilles pliées, une liste de noms, un petit morceau de cuir gravé
 et une lettre dont l'encre avait pâli. Maryam lut lentement les
@@ -2920,12 +2920,12 @@ une dispute entre les responsables du dépôt. Une partie des fonds avait
 pas qui avait détourné les ressources. Il prouvait seulement que le
 village avait possédé autrefois un système d'entraide dont les règles
 avaient été abandonnées.
---- Mon père cherchait donc à retrouver ce système, murmura Yassine.
+Mon père cherchait donc à retrouver ce système, murmura Yassine.
 Karim fixa les feuilles.
---- Et les registres de mon père montrent que des sacs ont été déplacés
+Et les registres de mon père montrent que des sacs ont été déplacés
 vers ici. Mais nous ne savons pas ce qu'ils sont devenus.
 L'imam replia soigneusement la lettre.
---- Nous avons une piste, pas encore un verdict. Il faudra rapporter ces
+Nous avons une piste, pas encore un verdict. Il faudra rapporter ces
 documents, les comparer et écouter les personnes concernées. Si nous
 accusons trop vite, nous risquons de faire du tort à des innocents. Si
 nous nous taisons, nous risquons de laisser une injustice continuer.
@@ -2942,7 +2942,7 @@ ancien. La direction menait vers une zone de terrain plus basse,
 entourée de roches plates. Il ne s'agissait pas d'une vallée profonde,
 mais d'une longue dépression dont le fond était couvert de sable
 compact.
---- Si l'ancien canal existe encore, dit-il, il pourrait passer sous
+Si l'ancien canal existe encore, dit-il, il pourrait passer sous
 cette zone. Mais nous ne devons pas creuser au hasard. Un terrain peut
 sembler solide et cacher des cavités.
 Ils se rendirent jusqu'à la dépression. Souleymane observa la
@@ -2950,7 +2950,7 @@ végétation, les fissures et la couleur du sol. À certains endroits, de
 minuscules touffes d'herbe poussaient au pied des pierres. Il
 s'agenouilla, toucha la terre, puis la porta près de son visage pour en
 sentir l'humidité.
---- Il y a peut-être de l'eau plus bas, dit-il. Mais la présence
+Il y a peut-être de l'eau plus bas, dit-il. Mais la présence
 d'humidité ne garantit pas qu'une source soit accessible. Il faudrait
 des outils, du temps et l'aide de personnes qui connaissent la
 maçonnerie des anciens puits.
@@ -2970,7 +2970,7 @@ Le soleil descendait. Il était temps de repartir vers un abri connu,
 puis de préparer le retour. Ils avaient trouvé une piste, mais leur eau
 diminuait et la cheville de Karim avait besoin de repos. L'imam refusa
 de prolonger l'exploration.
---- Nous reviendrons avec les moyens nécessaires, dit-il. Le but n'est
+Nous reviendrons avec les moyens nécessaires, dit-il. Le but n'est
 pas de mourir à quelques pas d'une réponse.
 Yassine accepta, même si chaque pas en direction du retour lui semblait
 éloigner la possibilité de sauver Dar-Salam. Il comprit pourtant que la
@@ -2983,24 +2983,24 @@ ensemble.
 Sur le chemin du retour vers leur abri, Karim demanda à marcher à côté
 de Yassine. Pendant un moment, il ne dit rien. Puis il sortit une
 feuille de son sac.
---- J'ai recopié les lignes où apparaît la marque de mon père, dit-il.
+J'ai recopié les lignes où apparaît la marque de mon père, dit-il.
 Je pourrais les cacher. Si je les donne à l'imam, mon père saura que je
 les ai prises.
---- Il le saura peut-être de toute façon, répondit Yassine.
---- Je sais. Mais si je les garde, je peux encore prétendre que je n'ai
+Il le saura peut-être de toute façon, répondit Yassine.
+Je sais. Mais si je les garde, je peux encore prétendre que je n'ai
 rien vu.
 Yassine ne lui dit pas quoi faire. Il avait envie que Karim choisisse la
 vérité, mais il savait que ce choix devait lui appartenir. Sinon, il ne
 serait qu'une obéissance de plus, une autre façon de vivre sous la
 volonté de quelqu'un.
---- Tu dois décider de la personne que tu veux devenir, dit-il. Pas
+Tu dois décider de la personne que tu veux devenir, dit-il. Pas
 seulement de ce qui te coûtera le moins.
 Karim regarda la feuille, puis la tendit à l'imam quand celui-ci les
 rejoignit. Il expliqua d'où elle venait et reconnut qu'il avait pris les
 copies sans autorisation. Il ne chercha pas à accuser son père. Il dit
 seulement qu'il voulait que les documents soient examinés.
 L'imam reçut la feuille sans le féliciter comme un héros.
---- Ce choix peut avoir des conséquences, dit-il. Tu devras les
+Ce choix peut avoir des conséquences, dit-il. Tu devras les
 affronter sans inventer des excuses. Mais tu as bien fait de ne pas
 détruire ou cacher ce que tu crois important.
 Karim hocha la tête. Il semblait à la fois soulagé et effrayé. Il venait
@@ -3009,13 +3009,13 @@ famille. Ce n'était pas une victoire éclatante. C'était une décision
 silencieuse, qui demanderait encore du courage demain.
 Bilal marcha de l'autre côté de Yassine. Il observa Karim un instant,
 puis déclara :
---- Je ne te pardonne pas tout aujourd'hui.
---- Je ne te le demande pas, répondit Karim.
---- Mais si tu continues à dire la vérité, je pourrai peut-être te
+Je ne te pardonne pas tout aujourd'hui.
+Je ne te le demande pas, répondit Karim.
+Mais si tu continues à dire la vérité, je pourrai peut-être te
 parler sans avoir envie de te jeter dans un puits.
 Karim esquissa un sourire.
---- C'est déjà beaucoup.
---- Ne t'emballe pas. Je n'ai pas encore décidé si je te laisserai
+C'est déjà beaucoup.
+Ne t'emballe pas. Je n'ai pas encore décidé si je te laisserai
 porter mon sac.
 Pour la première fois, le rire de Bilal ne servait pas à masquer sa
 peur. Il ouvrait une petite place où la relation pouvait commencer à
@@ -3041,19 +3041,19 @@ héros et de traîtres. Peut-être qu'elle contenait des erreurs, des
 regrets, des choix faits dans la peur. Yassine devait apprendre à aimer
 la mémoire de son père sans lui demander d'être parfait.
 L'imam vint s'asseoir près de lui.
---- Tu sembles porter beaucoup de questions.
---- J'ai peur que la vérité fasse mal à tout le monde.
---- Elle peut faire mal. Mais un mensonge peut aussi prolonger une
+Tu sembles porter beaucoup de questions.
+J'ai peur que la vérité fasse mal à tout le monde.
+Elle peut faire mal. Mais un mensonge peut aussi prolonger une
 blessure. Ce qui compte, c'est la manière dont on cherche la vérité :
 avec justice, patience et prudence, sans humilier les gens pour le
 plaisir de les voir tomber.
---- Et si mon père s'était trompé ?
---- Alors il se serait trompé, comme tout être humain peut se tromper.
+Et si mon père s'était trompé ?
+Alors il se serait trompé, comme tout être humain peut se tromper.
 Aimer quelqu'un ne nous oblige pas à appeler juste tout ce qu'il a fait.
 Et reconnaître une erreur ne détruit pas forcément la valeur d'une vie.
 Yassine regarda les étoiles.
---- J'aurais voulu qu'il soit encore là pour m'expliquer.
---- C'est naturel. Mais tu n'as pas à devenir lui pour honorer ce qu'il
+J'aurais voulu qu'il soit encore là pour m'expliquer.
+C'est naturel. Mais tu n'as pas à devenir lui pour honorer ce qu'il
 a tenté de faire. Tu peux apprendre de son courage et aussi de ses
 limites, si tu les découvres.
 L'imam se leva pour rejoindre les autres. Yassine resta un peu plus
@@ -3113,7 +3113,7 @@ petite annotation apparaissait à côté du symbole : trois niveaux sous
 la pierre plate. Ils ne savaient pas si cela désignait une profondeur,
 trois marches, ou trois couches de maçonnerie. La découverte renforçait
 la piste, mais elle soulevait de nouvelles questions.
---- Il faudra revenir avec des outils et des personnes qui savent
+Il faudra revenir avec des outils et des personnes qui savent
 travailler la pierre, dit Souleymane. Nous ne pouvons pas ouvrir un
 ancien ouvrage sans vérifier sa stabilité.
 Yassine accepta. Le garçon qui était parti à l'aube avec l'idée de
@@ -3132,13 +3132,13 @@ savait pas, puis finit par avouer qu'il avait appris très tôt que les
 gens riaient quand il se montrait dur, et qu'ils se détournaient quand
 il montrait sa peur. Il avait fini par confondre le respect avec la
 crainte.
---- Tu sais, dit Bilal, les gens peuvent aussi rire avec toi sans rire
+Tu sais, dit Bilal, les gens peuvent aussi rire avec toi sans rire
 de quelqu'un.
---- Je ne sais pas toujours comment faire.
---- Moi non plus. Mais je peux te donner quelques leçons. Elles
+Je ne sais pas toujours comment faire.
+Moi non plus. Mais je peux te donner quelques leçons. Elles
 coûteront cher.
---- Combien ?
---- Une galette entière.
+Combien ?
+Une galette entière.
 Karim sourit pour de vrai, puis grimaça quand sa cheville heurta une
 pierre. Bilal le soutint avant même de réfléchir. Ce petit geste ne
 transforma pas leur relation en amitié parfaite. Il montra simplement
@@ -3152,7 +3152,7 @@ citerne n'était pas vide. Une petite quantité d'eau avait été recueillie
 par les pluies anciennes, protégée de l'évaporation par la profondeur de
 la cavité. Elle était trouble et devait être filtrée et traitée avant
 d'être consommée.
---- Ce n'est pas une solution pour le village, expliqua-t-il. Mais cela
+Ce n'est pas une solution pour le village, expliqua-t-il. Mais cela
 nous permettra de poursuivre sans épuiser nos gourdes.
 Ils utilisèrent un tissu propre pour retenir les particules visibles,
 puis suivirent les précautions que Souleymane connaissait pour rendre
@@ -3165,10 +3165,10 @@ Karim reconnut ce nom dans les documents. Il appartenait à un homme qui
 avait travaillé avec le père de Yassine. À côté, un signe indiquait que
 la halte avait été réparée par plusieurs familles, dont certaines
 n'avaient jamais reçu la compensation promise.
---- Les noms reviennent partout, murmura Maryam. Le dépôt, la halte, les
+Les noms reviennent partout, murmura Maryam. Le dépôt, la halte, les
 registres... Ce n'est pas une seule erreur isolée. C'est tout un système
 qui a cessé de fonctionner.
---- Ou que certaines personnes ont laissé cesser de fonctionner,
+Ou que certaines personnes ont laissé cesser de fonctionner,
 répondit l'imam. Nous devons rester précis. Les documents montrent des
 faits, mais ils ne nous donnent pas encore toutes les intentions.
 Yassine observa les noms. Il ressentait de la colère à l'idée que des
@@ -3186,19 +3186,19 @@ Le soir, alors qu'ils marchaient sur une piste plus ferme, Karim
 s'arrêta pour regarder l'horizon. Le ciel était rouge et violet. Le vent
 avait presque cessé. Il demanda à Yassine s'il pensait que les habitants
 de Dar-Salam lui pardonneraient.
---- Je ne peux pas répondre à leur place, dit Yassine.
---- Et toi ?
+Je ne peux pas répondre à leur place, dit Yassine.
+Et toi ?
 Yassine réfléchit avant de parler.
---- Je ne vais pas oublier ce que tu m'as fait. Mais je ne veux pas
+Je ne vais pas oublier ce que tu m'as fait. Mais je ne veux pas
 passer ma vie à attendre que tu souffres autant que moi. Si tu changes
 vraiment, je le verrai avec le temps. Si tu recommences, je le verrai
 aussi.
 Karim accepta ces paroles sans protester.
---- C'est juste.
---- La justice, ce n'est pas toujours une punition. C'est aussi demander
+C'est juste.
+La justice, ce n'est pas toujours une punition. C'est aussi demander
 à quelqu'un de réparer ce qu'il peut réparer.
---- Alors je commencerai par dire la vérité à mon père.
---- Tu ne dois pas le faire seul si tu crains qu'il devienne violent.
+Alors je commencerai par dire la vérité à mon père.
+Tu ne dois pas le faire seul si tu crains qu'il devienne violent.
 Parle d'abord à l'imam et à ta mère, si tu peux lui faire confiance. Il
 faut dire la vérité avec courage, mais aussi avec prudence.
 Karim sembla surpris que Yassine s'inquiète encore pour lui. Il hocha la
@@ -3233,9 +3233,9 @@ encore.`
   {
     id: 'chapitre-4',
     number: 'Chapitre 4 & Épilogue',
-    title: "Chapitre 4 --- Le Retour de l'eau",
+    title: "Chapitre 4 : Le Retour de l'eau",
     epigraph: "La gratitude ne consiste pas seulement à remercier lorsque l'eau revient, mais à prendre soin de ce qui permet à chacun d'en boire.",
-    rawText: `Chapitre 4 --- Le Retour de l'eau
+    rawText: `Chapitre 4 : Le Retour de l'eau
 Le Puits de Nour
 > La gratitude ne consiste pas seulement à remercier lorsque l'eau
 > revient, mais à prendre soin de ce qui permet à chacun d'en boire.
@@ -3253,10 +3253,10 @@ seule.
 Bilal se tenait à côté de lui. Il avait les lèvres sèches, les vêtements
 couverts de poussière et une égratignure au front qui le faisait
 paraître plus sérieux que d'habitude.
---- Si quelqu'un me demande ce qui s'est passé, dit-il, je raconterai
+Si quelqu'un me demande ce qui s'est passé, dit-il, je raconterai
 que j'ai affronté la tempête sans trembler.
---- Tu tremblais, répondit Maryam.
---- Je raconterai aussi que Maryam a inventé cette partie.
+Tu tremblais, répondit Maryam.
+Je raconterai aussi que Maryam a inventé cette partie.
 Karim, qui s'appuyait encore sur une branche, laissa échapper un rire
 prudent. Il ne cherchait plus à se rendre important. Il semblait
 comprendre que le retour ne serait pas une entrée triomphale, mais le
@@ -3275,11 +3275,11 @@ marche rapide trahissait son inquiétude. Quand elle vit Yassine, son
 visage se détendit, puis se contracta de nouveau en découvrant ses
 genoux écorchés et les bandages autour de ses mains.
 Elle l'attira contre elle et le serra longuement.
---- Tu es revenu, murmura-t-elle.
---- Oui, grand-mère.
+Tu es revenu, murmura-t-elle.
+Oui, grand-mère.
 Elle posa ses deux mains sur ses joues, comme pour vérifier qu'il était
 bien là.
---- J'avais demandé à Allah de vous protéger. J'ai attendu chaque bruit
+J'avais demandé à Allah de vous protéger. J'ai attendu chaque bruit
 de pas. J'ai essayé de préparer le repas, mais j'ai oublié le sel. Puis
 j'ai mis le sel deux fois. La cuisine ne m'obéit plus quand mon cœur
 s'inquiète.
@@ -3288,14 +3288,14 @@ il voulait d'abord rester dans cette étreinte. Il venait de comprendre
 que ceux qui restent au village portent eux aussi le poids du voyage :
 l'attente, les scénarios terribles, l'impossibilité d'agir.
 Quand Setti Aïcha recula, elle remarqua Karim.
---- Le fils de Hadj Mansour est revenu avec vous ?
+Le fils de Hadj Mansour est revenu avec vous ?
 Karim baissa la tête.
---- Oui, Setti Aïcha. Je vous dois des excuses, à vous aussi. J'ai
+Oui, Setti Aïcha. Je vous dois des excuses, à vous aussi. J'ai
 blessé Yassine par mes paroles et par mes actes. Je ne peux pas
 prétendre que le voyage efface cela.
 La vieille femme l'observa sans dureté, mais sans lui offrir une
 absolution facile.
---- Alors ne prétends pas. Commence par dire la vérité, puis montre par
+Alors ne prétends pas. Commence par dire la vérité, puis montre par
 tes actes que tu as compris.
 Karim acquiesça.
 La foule attendait des explications. Certains habitants voulaient savoir
@@ -3303,7 +3303,7 @@ s'ils avaient trouvé de l'eau. D'autres demandaient si la tempête avait
 détruit le dépôt. Quelques-uns murmuraient déjà que les voyageurs
 avaient rapporté des accusations contre les familles riches. L'imam leva
 la main pour obtenir le silence.
---- Nous avons trouvé des documents qui méritent d'être examinés. Nous
+Nous avons trouvé des documents qui méritent d'être examinés. Nous
 avons aussi repéré l'emplacement possible d'un ancien ouvrage d'eau.
 Nous ne dirons pas aujourd'hui que nous avons trouvé une source, car
 nous ne l'avons pas encore ouverte. Nous ne désignerons pas de coupable
@@ -3328,23 +3328,23 @@ manipuler les originaux.
 Hadj Mansour arriva sur la place peu avant midi. Il portait une tunique
 impeccable, mais ses traits étaient tirés. Quand il aperçut son fils, il
 s'arrêta. Son regard passa de Karim à Yassine, puis au sac de l'imam.
---- Tu es parti sans ma permission, dit-il à Karim.
---- Oui, père.
---- Tu as pris des documents qui ne t'appartenaient pas.
---- J'ai fait des copies des registres. J'aurais dû te parler avant de
+Tu es parti sans ma permission, dit-il à Karim.
+Oui, père.
+Tu as pris des documents qui ne t'appartenaient pas.
+J'ai fait des copies des registres. J'aurais dû te parler avant de
 partir. Mais j'ai vu des lignes qui ne correspondaient pas, et j'ai eu
 peur de te poser des questions.
 Le marchand pâlit légèrement. Plusieurs habitants se rapprochèrent pour
 mieux entendre. Karim aurait pu reculer, se taire ou accuser son père
 pour détourner la colère. Il choisit de continuer.
---- Je ne sais pas ce que signifient toutes les marques. Je ne dis pas
+Je ne sais pas ce que signifient toutes les marques. Je ne dis pas
 que je connais toute l'histoire. Mais je ne veux plus cacher ce que j'ai
 vu.
 Hadj Mansour regarda la foule qui se formait. Son premier réflexe fut de
 défendre son nom.
---- Les registres sont complexes. Vous ne pouvez pas comprendre des
+Les registres sont complexes. Vous ne pouvez pas comprendre des
 comptes en regardant quelques pages.
---- C'est justement pour cela qu'il faut les examiner ensemble, répondit
+C'est justement pour cela qu'il faut les examiner ensemble, répondit
 l'imam. Personne ne sera déclaré coupable sur la base d'un soupçon. Mais
 personne ne peut non plus réclamer que les documents restent cachés.
 Le marchand serra les lèvres. Il semblait partagé entre la colère contre
@@ -3353,8 +3353,8 @@ première fois, Yassine aperçut clairement la fragilité qui se cachait
 derrière son orgueil. Mansour n'était pas seulement un homme riche qui
 aimait son argent. Il avait bâti son identité sur l'idée qu'il
 contrôlait les choses. L'incertitude lui était insupportable.
---- Nous en parlerons après l'assemblée, dit-il à son fils.
---- Je préfère en parler devant les personnes concernées, répondit
+Nous en parlerons après l'assemblée, dit-il à son fils.
+Je préfère en parler devant les personnes concernées, répondit
 Karim. Je ne veux pas que nous changions de version selon les gens qui
 nous écoutent.
 Un murmure parcourut la place. Yassine vit l'effort que cette phrase
@@ -3384,14 +3384,14 @@ ligne désignait autrefois un point d'eau ou un ouvrage lié à l'eau, sans
 que cela suffise à garantir qu'il existait encore.
 Fatou, qui avait souvent répété des rumeurs sur les familles du village,
 se leva brusquement.
---- Tout le monde sait que les riches gardent les choses pour eux ! Il
+Tout le monde sait que les riches gardent les choses pour eux ! Il
 n'est pas nécessaire d'avoir des pages pour comprendre cela.
 Plusieurs personnes approuvèrent. D'autres protestèrent. Hadj Mansour,
 assis près du bord du cercle, se redressa.
---- Voilà donc ce que vous voulez : un coupable avant même d'avoir lu
+Voilà donc ce que vous voulez : un coupable avant même d'avoir lu
 les documents !
 L'imam leva la main.
---- Nous ne sommes pas ici pour remplacer une injustice par une autre.
+Nous ne sommes pas ici pour remplacer une injustice par une autre.
 Si une personne a détourné des ressources, il faut le démontrer. Si une
 erreur a été commise, il faut la corriger. Et si plusieurs personnes ont
 laissé un système se dégrader, chacune doit examiner sa part de
@@ -3405,12 +3405,12 @@ autrefois à l'entretien de la citerne et du canal. Certaines avaient
 fourni du travail, d'autres des outils ou des sacs de grain. Pourtant,
 après plusieurs années, personne ne savait plus qui devait entretenir
 quoi, ni où étaient conservés les comptes.
---- Nous avons attendu que les responsables s'occupent de tout,
+Nous avons attendu que les responsables s'occupent de tout,
 dit-elle. Quand les choses ont commencé à se dégrader, nous avons
 continué à attendre. Peut-être que certains ont profité de ce silence.
 Mais nous aussi, nous avons laissé les règles disparaître.
 Oumar le forgeron hocha la tête.
---- J'ai réparé des outils pour les gens qui pouvaient payer. Je n'ai
+J'ai réparé des outils pour les gens qui pouvaient payer. Je n'ai
 pas demandé comment les familles sans argent allaient entretenir le
 puits. Je me disais que ce n'était pas mon affaire. Peut-être que je me
 suis trompé.
@@ -3435,14 +3435,14 @@ père de Yassine comme d'un homme discret, qui aidait sans réclamer de
 reconnaissance. D'autres l'avaient à peine connu. Certains avaient
 entendu dire qu'il s'était disputé avec des responsables avant sa mort.
 Personne ne connaissait toute l'histoire.
---- Pourquoi n'avons-nous jamais entendu parler de cette lettre ?
+Pourquoi n'avons-nous jamais entendu parler de cette lettre ?
 demanda une femme.
 Setti Aïcha, assise près de Yassine, ferma les yeux un instant.
---- Parce que j'ai eu peur, répondit-elle.
+Parce que j'ai eu peur, répondit-elle.
 Tous les regards se tournèrent vers elle. Yassine sentit son cœur se
 serrer. Il savait que le moment viendrait, mais il n'avait pas imaginé
 qu'elle parlerait devant tout le village.
---- J'ai eu peur de perdre ce qu'il me restait de mon fils,
+J'ai eu peur de perdre ce qu'il me restait de mon fils,
 continua-t-elle. Après sa mort, j'ai gardé ses lettres, ses notes et
 quelques objets. Je pensais protéger Yassine en lui cachant les conflits
 qui avaient entouré son père. Je pensais qu'un enfant devait grandir
@@ -3450,16 +3450,16 @@ sans porter les disputes des adultes. Mais le silence a aussi laissé les
 questions grandir.
 Elle regarda son petit-fils. Sa voix tremblait, mais elle ne détourna
 pas les yeux.
---- Je lui dois la vérité. Et je vous dois de reconnaître que mon
+Je lui dois la vérité. Et je vous dois de reconnaître que mon
 silence n'a pas aidé à réparer ce qui était brisé.
 Yassine lui prit la main. Il aurait voulu lui dire qu'elle n'avait rien
 fait de mal, parce qu'il l'aimait et qu'il ne voulait pas la voir
 souffrir. Mais il savait que l'aimer ne signifiait pas lui demander de
 nier ses regrets.
---- Tu as essayé de me protéger, murmura-t-il. Maintenant, nous pouvons
+Tu as essayé de me protéger, murmura-t-il. Maintenant, nous pouvons
 chercher ensemble.
 Setti Aïcha essuya une larme.
---- Oui. Ensemble.
+Oui. Ensemble.
 L'imam rappela que la mémoire du père de Yassine ne devait pas servir à
 fabriquer un saint ou un coupable. Les documents montraient qu'il avait
 voulu défendre des règles équitables. Ils ne racontaient pas tout ce
@@ -3479,11 +3479,11 @@ village bruissait au-delà de la porte, mais, dans la cour, le temps
 sembla ralentir.
 La vieille femme resta silencieuse un moment. Puis elle sortit de sa
 poche une enveloppe pliée, plus petite que les lettres déjà retrouvées.
---- Il y a une chose que je n'ai pas encore dite, commença-t-elle. Je ne
+Il y a une chose que je n'ai pas encore dite, commença-t-elle. Je ne
 l'ai pas cachée parce que je voulais te tromper. Je l'ai cachée parce
 que je ne savais pas comment te la raconter sans rouvrir une blessure.
 Yassine ne l'interrompit pas.
---- Ton père ne s'est pas seulement disputé avec les responsables du
+Ton père ne s'est pas seulement disputé avec les responsables du
 dépôt. Il a découvert que plusieurs familles avaient été exclues des
 décisions qui concernaient l'eau et le grain. Il voulait rendre les
 comptes publics. Il croyait que si chacun pouvait vérifier les réserves,
@@ -3496,35 +3496,35 @@ qu'elle la garde jusqu'à ce que les tensions retombent. Il lui demandait
 de ne pas laisser Yassine devenir prisonnier des querelles, mais de lui
 apprendre à reconnaître la vérité sans haïr ceux qui s'étaient trompés.
 Yassine relut la phrase deux fois.
---- Tu avais cette lettre depuis tout ce temps ?
---- Oui.
---- Pourquoi ne me l'as-tu pas donnée plus tôt ?
+Tu avais cette lettre depuis tout ce temps ?
+Oui.
+Pourquoi ne me l'as-tu pas donnée plus tôt ?
 Setti Aïcha baissa la tête.
---- Parce que j'ai entendu des hommes se disputer devant ma porte. Parce
+Parce que j'ai entendu des hommes se disputer devant ma porte. Parce
 que j'ai vu des familles se déchirer. Parce que je craignais que
 quelqu'un ne s'en prenne à toi si tu portais ces documents. Et, je dois
 te l'avouer, parce que j'avais peur de découvrir que ton père avait lui
 aussi commis des erreurs. Je voulais garder de lui un souvenir sans
 tache.
 Elle inspira profondément.
---- C'était une erreur. Une erreur née de l'amour, mais une erreur tout
+C'était une erreur. Une erreur née de l'amour, mais une erreur tout
 de même.
 Yassine sentit les larmes lui monter aux yeux. Il n'était pas en colère
 comme il l'avait imaginé. Il était triste que sa grand-mère ait porté
 seule une peur aussi lourde. Il était aussi déçu d'avoir été tenu à
 l'écart. Les deux sentiments pouvaient exister ensemble.
---- Je ne veux pas que tu me protèges en me cachant la vérité, dit-il.
+Je ne veux pas que tu me protèges en me cachant la vérité, dit-il.
 Même si elle est difficile.
---- Je le comprends maintenant.
---- Et je ne veux pas qu'on transforme mon père en héros parfait. Je
+Je le comprends maintenant.
+Et je ne veux pas qu'on transforme mon père en héros parfait. Je
 veux savoir ce qu'il a fait, ce qu'il a essayé de faire, et ce qu'on
 peut apprendre de lui.
 Setti Aïcha posa sa main sur la sienne.
---- Alors c'est ainsi que nous avancerons. Je te raconterai ce dont je
+Alors c'est ainsi que nous avancerons. Je te raconterai ce dont je
 me souviens, et je distinguerai mes souvenirs de ce que je sais
 réellement. Je ne remplirai pas les trous avec des histoires inventées.
 Yassine sourit faiblement.
---- C'est tout ce que je te demande.
+C'est tout ce que je te demande.
 Ils restèrent longtemps assis ensemble. Pour la première fois, leur
 silence ne ressemblait pas à un mur. Il ressemblait à une place où la
 vérité pouvait s'installer, même si elle n'était pas encore complète.
@@ -3545,7 +3545,7 @@ D'autres répondirent que les enfants, les malades et les personnes âgées
 devaient être protégés en priorité. La discussion risqua de tourner à la
 dispute.
 L'imam laissa chacun parler, puis posa une question :
---- Si nous construisons un système qui avantage les plus forts, que
+Si nous construisons un système qui avantage les plus forts, que
 restera-t-il de ce que nous prétendons réparer ?
 Personne ne répondit immédiatement.
 Khadija proposa qu'une règle soit écrite et affichée sur la place. Les
@@ -3555,7 +3555,7 @@ habitants vérifierait les comptes. Aucun responsable ne pourrait
 modifier seul les règles de distribution. Les familles les plus
 vulnérables seraient identifiées avec discrétion, sans être humiliées
 devant tout le monde.
---- Il faut aussi prévoir les jours où il n'y aura pas assez d'eau,
+Il faut aussi prévoir les jours où il n'y aura pas assez d'eau,
 ajouta Maryam. Sinon, nous déciderons dans la panique, et les mêmes
 disputes recommenceront.
 Sa proposition fut prise au sérieux. On convint que les règles seraient
@@ -3569,15 +3569,15 @@ concernaient.
 Hadj Mansour resta silencieux jusqu'à ce que l'imam lui demande s'il
 souhaitait examiner les documents avec les autres responsables.
 Le marchand se leva lentement.
---- Je ne peux pas promettre que toutes les marques de ces registres
+Je ne peux pas promettre que toutes les marques de ces registres
 signifient ce que vous pensez. Je veux vérifier les comptes. Je
 reconnais aussi que j'ai parfois gardé les informations pour moi, parce
 que je pensais que le contrôle devait rester entre les mains de ceux qui
 savaient compter. Je comprends maintenant que cela a nourri la méfiance.
 Il marqua une pause.
---- Si j'ai pris une décision injuste, je devrai la corriger. Mais je
+Si j'ai pris une décision injuste, je devrai la corriger. Mais je
 demande que nous examinions les faits avant de me condamner.
---- C'est ce que nous demandons à chacun, répondit l'imam.
+C'est ce que nous demandons à chacun, répondit l'imam.
 Karim regarda son père. Il ne savait pas encore si Mansour avait
 réellement changé ou s'il cherchait seulement à protéger son nom. Il ne
 pouvait pas le savoir en une matinée. Mais il avait entendu son père
@@ -3596,8 +3596,8 @@ Souleymane, Oumar, Khadija, Yassine, Bilal, Maryam, Karim et plusieurs
 habitants habitués aux travaux difficiles. Hadj Mansour se joignit à
 eux, à la surprise de beaucoup. Il n'apportait pas seulement de l'argent
 ou des ordres ; il portait lui-même une pelle et un sac de provisions.
---- Tu n'as pas besoin de venir, lui dit Karim à voix basse.
---- Peut-être, répondit Mansour. Mais je ne peux pas demander aux autres
+Tu n'as pas besoin de venir, lui dit Karim à voix basse.
+Peut-être, répondit Mansour. Mais je ne peux pas demander aux autres
 de vérifier les comptes si je refuse de voir le lieu où ils ont été
 utilisés.
 Karim ne sut pas quoi répondre. Il marchait près de son père, sans
@@ -3620,15 +3620,15 @@ chaque minute passée loin du puits de Dar-Salam prolongeait la
 souffrance du village. Mais son corps se fatigua vite. Ses mains, encore
 blessées, commencèrent à lui faire mal.
 Oumar le vit serrer les dents.
---- Pose cet outil.
---- Je peux continuer.
---- Je n'ai pas dit que tu ne pouvais pas. J'ai dit que tu devais le
+Pose cet outil.
+Je peux continuer.
+Je n'ai pas dit que tu ne pouvais pas. J'ai dit que tu devais le
 poser. Si tu blesses tes mains, tu ne pourras plus aider demain.
 Yassine obéit à contrecœur. Il s'assit près de Maryam, qui notait les
 étapes du travail.
---- Tu as l'air contrarié, remarqua-t-elle.
---- J'ai l'impression de ne pas en faire assez.
---- Tu n'es pas le seul à devoir creuser. Tu peux aussi observer, noter
+Tu as l'air contrarié, remarqua-t-elle.
+J'ai l'impression de ne pas en faire assez.
+Tu n'es pas le seul à devoir creuser. Tu peux aussi observer, noter
 et vérifier que les choses sont faites correctement. Le travail utile
 n'est pas toujours celui qui fait le plus de bruit.
 Yassine regarda les adultes qui travaillaient ensemble. Il comprit que
@@ -3641,13 +3641,13 @@ correspondait pas à la roche naturelle. Elle descendait en biais vers
 une partie plus basse du terrain. Oumar passa la main sur les joints.
 Certaines pierres avaient été assemblées avec un mélange de terre et de
 chaux, technique qu'il avait déjà vue dans de vieux bâtiments.
---- C'est bien un ouvrage construit par des mains humaines, dit-il. Mais
+C'est bien un ouvrage construit par des mains humaines, dit-il. Mais
 il est très ancien. Nous devons avancer sans déstabiliser les côtés.
 Les habitants dégagèrent les pierres une à une. Sous la poussière, une
 ouverture étroite apparut. Elle était partiellement bouchée par des
 débris. L'air qui en sortait était plus frais que celui de la surface.
 Souleymane s'accroupit et observa la pente.
---- Il peut s'agir d'un canal, dit-il. Nous ne savons pas encore s'il
+Il peut s'agir d'un canal, dit-il. Nous ne savons pas encore s'il
 conduit à de l'eau ou s'il s'arrête plus loin.
 Le groupe se tut. Après tant de recherches, la première preuve
 matérielle de l'existence de l'ouvrage se trouvait devant eux. Yassine
@@ -3658,7 +3658,7 @@ protégée dans l'ouverture. On apercevait une galerie courte, puis un
 coude qui disparaissait sous la roche. La structure semblait encore
 tenir, mais il était impossible d'en évaluer l'état complet sans un
 examen plus approfondi.
---- Nous n'entrerons pas aujourd'hui, décida l'imam. Nous devons
+Nous n'entrerons pas aujourd'hui, décida l'imam. Nous devons
 consolider l'ouverture et revenir avec du matériel adapté. Personne ne
 risque sa vie pour obtenir une réponse plus vite.
 Quelques habitants protestèrent. Ils avaient travaillé toute la journée
@@ -3667,13 +3667,13 @@ l'ouverture pouvait s'effondrer si l'on retirait trop de pierres à la
 fois. La prudence l'emporta.
 Hadj Mansour observa les pierres en silence. Puis il s'approcha de
 l'imam.
---- J'ai des outils et des matériaux dans mon entrepôt. Je peux les
+J'ai des outils et des matériaux dans mon entrepôt. Je peux les
 fournir pour consolider l'entrée.
---- Nous les noterons dans les comptes communs, répondit l'imam. Ainsi,
+Nous les noterons dans les comptes communs, répondit l'imam. Ainsi,
 personne ne pourra prétendre plus tard que ton aide t'accorde un droit
 supérieur sur l'eau.
 Mansour parut d'abord vexé. Puis il hocha la tête.
---- C'est juste. Notez-les.
+C'est juste. Notez-les.
 Ce petit échange était important. L'aide ne serait pas transformée en
 dette imposée aux autres. Le village commençait à comprendre que la
 solidarité devait être organisée pour ne pas devenir un instrument de
@@ -3691,25 +3691,25 @@ destinée à l'entretien du canal avait été déplacée vers un entrepôt
 privé. Le nom de Mansour apparaissait dans la colonne des responsables
 de transport, mais la ligne ne précisait pas qui avait décidé le
 transfert ni ce qu'étaient devenus les sacs.
---- Je veux comprendre cette ligne, dit Karim. Je ne veux pas t'accuser.
+Je veux comprendre cette ligne, dit Karim. Je ne veux pas t'accuser.
 Mais je ne veux plus faire semblant de ne pas la voir.
 Mansour examina la page longtemps. Son visage se ferma.
---- Il y a des années, les récoltes ont été mauvaises. Les responsables
+Il y a des années, les récoltes ont été mauvaises. Les responsables
 craignaient que les réserves soient pillées. J'ai accepté de stocker une
 partie du grain dans mon entrepôt, en attendant que la situation se
 stabilise.
---- Et pourquoi les registres ne disent-ils pas où le grain a été
+Et pourquoi les registres ne disent-ils pas où le grain a été
 redistribué ? demanda Karim.
 Mansour ne répondit pas immédiatement.
---- Parce que les comptes ont été mal tenus. Certains sacs ont été
+Parce que les comptes ont été mal tenus. Certains sacs ont été
 vendus pour payer des travaux. D'autres ont peut-être été distribués
 sans reçu. Je ne peux pas affirmer que tout a été fait correctement.
 J'ai cru que je pourrais remettre de l'ordre plus tard.
---- Et tu ne l'as pas fait, dit Karim.
+Et tu ne l'as pas fait, dit Karim.
 Le marchand ferma les yeux. Il aurait pu se défendre, accuser les
 employés ou prétendre qu'il avait agi pour sauver le village. Il finit
 par dire :
---- Non. Je ne l'ai pas fait. J'ai laissé les comptes devenir confus, et
+Non. Je ne l'ai pas fait. J'ai laissé les comptes devenir confus, et
 j'ai préféré éviter les questions parce que j'avais peur qu'on me
 soupçonne. Je ne sais pas si chaque sac a été utilisé comme prévu. Je
 dois accepter qu'on vérifie.
@@ -3718,9 +3718,9 @@ Karim semblait bouleversé. Il avait imaginé que la vérité serait simple
 histoire faite de décisions prises dans la peur, d'erreurs réelles et de
 responsabilités qui ne pouvaient pas être effacées par une bonne
 intention.
---- Si une partie des réserves a été utilisée injustement, nous devons
+Si une partie des réserves a été utilisée injustement, nous devons
 la réparer, dit Karim.
---- Oui, répondit Mansour. Si les comptes montrent une dette, je
+Oui, répondit Mansour. Si les comptes montrent une dette, je
 participerai à la réparation. Mais je veux que les documents soient
 examinés avec précision. Je ne veux pas qu'on invente ce qui manque.
 Karim acquiesça. Il n'éprouvait pas un soulagement complet. Il savait
@@ -3743,7 +3743,7 @@ deux leviers.
 Sous la pierre se trouvait un conduit étroit, rempli de sable et de
 racines. L'air qui en remontait était frais. Souleymane s'agenouilla,
 examina la direction et hocha lentement la tête.
---- Le canal continue. Il faut retirer les débris petit à petit. Nous ne
+Le canal continue. Il faut retirer les débris petit à petit. Nous ne
 savons pas jusqu'où il est obstrué.
 Les habitants se remirent au travail avec une attention redoublée. Les
 paniers passaient de main en main. Les enfants qui accompagnaient les
@@ -3754,13 +3754,13 @@ Yassine travaillait aux côtés de Bilal. Son ami avait cessé de se
 plaindre de chaque pierre. Il plaisantait encore, mais il observait
 davantage les autres et proposait son aide sans attendre qu'on la lui
 demande.
---- Tu crois que l'eau va apparaître d'un coup ? demanda-t-il.
---- Je ne sais pas, répondit Yassine.
---- J'aimerais qu'elle surgisse comme dans les histoires.
---- Dans les histoires, on oublie souvent les heures de travail qui
+Tu crois que l'eau va apparaître d'un coup ? demanda-t-il.
+Je ne sais pas, répondit Yassine.
+J'aimerais qu'elle surgisse comme dans les histoires.
+Dans les histoires, on oublie souvent les heures de travail qui
 précèdent le moment spectaculaire.
 Bilal regarda les paniers remplis de sable.
---- Alors j'espère que le conteur nous donnera au moins un bon repas
+Alors j'espère que le conteur nous donnera au moins un bon repas
 après tout ça.
 À la fin de la journée, le conduit était dégagé sur une plus grande
 longueur, mais aucune eau ne coulait. Quelques personnes perdirent
@@ -3805,11 +3805,11 @@ Setti Aïcha pleurait doucement. Elle avait gardé cette lettre comme on
 garde une braise, craignant qu'elle ne brûle tout ce qui restait de sa
 famille. À présent, elle voyait que la vérité ne détruisait pas
 forcément l'amour. Elle pouvait l'obliger à devenir plus honnête.
---- Je suis désolée, dit-elle à Yassine.
---- Je sais, répondit-il. Et je te pardonne de ne pas avoir su comment
+Je suis désolée, dit-elle à Yassine.
+Je sais, répondit-il. Et je te pardonne de ne pas avoir su comment
 faire. Mais à partir de maintenant, nous devons parler.
 Elle posa son front contre le sien.
---- Oui. Nous parlerons.
+Oui. Nous parlerons.
 12. L'eau se fait attendre
 Les jours suivants furent consacrés au canal. Les habitants retirèrent
 les débris, consolidèrent les parois et découvrirent plusieurs sections
@@ -3843,7 +3843,7 @@ accusèrent Souleymane de s'être trompé sur le lieu. Une dispute éclata
 quand deux familles estimèrent que les ouvriers de leur quartier avaient
 fourni plus d'heures que les autres.
 L'imam interrompit la querelle.
---- Nous ne pouvons pas commander à l'eau d'arriver aujourd'hui. Mais
+Nous ne pouvons pas commander à l'eau d'arriver aujourd'hui. Mais
 nous pouvons décider de ne pas détruire notre travail par impatience. Si
 nous découvrons que le canal ne mène nulle part, nous chercherons une
 autre solution. Si nous découvrons qu'il faut davantage de réparations,
@@ -3854,7 +3854,7 @@ avait encore beaucoup à apprendre.
 13. Fatou choisit de parler vrai
 Un après-midi, Fatou vint trouver Maryam. Elle tenait un petit paquet de
 feuilles, qu'elle avait serré contre elle tout le long de la ruelle.
---- Je dois vous dire quelque chose, commença-t-elle.
+Je dois vous dire quelque chose, commença-t-elle.
 Maryam posa son carnet.
 Fatou expliqua qu'elle avait répété pendant des années une histoire
 selon laquelle le père de Yassine aurait voulu s'approprier l'eau pour
@@ -3864,15 +3864,15 @@ si la personne qui la lui avait transmise avait menti. Mais elle avait
 aimé l'attention que les autres lui accordaient lorsqu'elle rapportait
 des nouvelles. Peu à peu, elle avait confondu ce qu'elle savait avec ce
 qu'elle imaginait.
---- J'ai fait du tort à Yassine et à sa grand-mère, dit-elle. Je ne peux
+J'ai fait du tort à Yassine et à sa grand-mère, dit-elle. Je ne peux
 pas retirer les paroles que j'ai prononcées. Mais je peux dire devant
 les autres que je n'avais pas de preuve.
 Maryam l'écouta sans la consoler trop vite.
---- Il faudra le dire à l'assemblée, répondit-elle. Et il faudra
+Il faudra le dire à l'assemblée, répondit-elle. Et il faudra
 accepter que certaines personnes ne te fassent pas confiance tout de
 suite.
 Fatou hocha la tête.
---- Je sais.
+Je sais.
 Lors de la réunion suivante, elle prit la parole devant le village. Sa
 voix tremblait. Elle reconnut qu'elle avait répandu une accusation sans
 la vérifier et qu'elle avait ajouté des détails pour rendre son récit
@@ -3883,7 +3883,7 @@ Yassine la regarda. Une partie de lui aurait voulu lui rappeler toutes
 les fois où les rumeurs l'avaient blessé. Il décida de ne pas humilier
 Fatou devant tout le monde. Mais il ne lui dit pas que tout était
 oublié.
---- Merci d'avoir reconnu ce que tu as fait, dit-il. Il faudra du temps
+Merci d'avoir reconnu ce que tu as fait, dit-il. Il faudra du temps
 pour que les paroles perdent leur effet. À l'avenir, si tu ne sais pas
 si une chose est vraie, dis que tu ne sais pas.
 Fatou acquiesça. Elle n'était pas devenue une autre personne en une
@@ -3901,11 +3901,11 @@ La fatigue se fit sentir. Les mains étaient couvertes d'ampoules. Les
 outils s'usaient. Les réserves d'eau du village restaient faibles. Une
 dispute éclata lorsqu'un homme accusa les responsables de gaspiller les
 dernières ressources dans une recherche incertaine.
---- Nous aurions dû réparer le puits directement, cria-t-il. Nous avons
+Nous aurions dû réparer le puits directement, cria-t-il. Nous avons
 perdu du temps à suivre des histoires anciennes.
---- Le puits ne peut pas être réparé tant que nous ne savons pas ce qui
+Le puits ne peut pas être réparé tant que nous ne savons pas ce qui
 l'alimentait, répondit Oumar.
---- Et si rien ne l'alimentait plus ?
+Et si rien ne l'alimentait plus ?
 Personne ne put lui donner une réponse certaine.
 Yassine sentit l'espoir se fissurer. Il avait raconté à sa grand-mère
 que l'ouvrage pouvait sauver le village. Il avait encouragé Bilal,
@@ -3915,18 +3915,18 @@ détruit ? Il craignait que les habitants ne se retournent les uns contre
 les autres, qu'ils choisissent un coupable pour donner un sens à leur
 déception.
 Il s'éloigna jusqu'à l'ombre d'un rocher. L'imam le rejoignit.
---- Tu crois que nous avons échoué ? demanda Yassine.
---- Nous n'avons pas encore terminé.
---- Mais nous ne savons même pas si l'eau est là.
---- C'est vrai.
+Tu crois que nous avons échoué ? demanda Yassine.
+Nous n'avons pas encore terminé.
+Mais nous ne savons même pas si l'eau est là.
+C'est vrai.
 Yassine fut surpris que l'imam ne lui offre pas une réponse rassurante.
---- Alors que devons-nous faire ?
---- Regarder les faits, consulter ceux qui savent, évaluer les moyens
+Alors que devons-nous faire ?
+Regarder les faits, consulter ceux qui savent, évaluer les moyens
 qui nous restent et décider. La confiance en Allah ne nous oblige pas à
 appeler réussite ce qui ne l'est pas. Elle nous aide à faire notre part
 sans croire que nous contrôlons tout.
---- Et si nous ne trouvons pas l'eau ?
---- Nous chercherons d'autres solutions. Nous organiserons le partage de
+Et si nous ne trouvons pas l'eau ?
+Nous chercherons d'autres solutions. Nous organiserons le partage de
 ce qui reste. Nous demanderons de l'aide aux villages voisins si cela
 est possible. Nous ne laisserons pas les personnes les plus fragiles
 porter seules les conséquences de notre échec.
@@ -3952,7 +3952,7 @@ Personne ne cria victoire. Oumar vérifia la structure, et Souleymane
 observa la direction du conduit. Ils dégagèrent un peu plus de terre,
 sans toucher aux pierres qui soutenaient la galerie. Une nouvelle goutte
 apparut, puis une autre.
---- Il y a de l'humidité, dit Souleymane. Cela ne signifie pas encore
+Il y a de l'humidité, dit Souleymane. Cela ne signifie pas encore
 que nous avons un débit suffisant. Mais le canal pourrait être relié à
 une réserve souterraine.
 La nouvelle se répandit rapidement. Les habitants arrivèrent, puis
@@ -3964,7 +3964,7 @@ cacher sous une couche de pierre et de poussière.
 Oumar et les artisans consolidèrent la paroi. Ils retirèrent les débris
 petit à petit. L'humidité augmenta, mais l'eau ne coulait toujours pas
 librement. La galerie semblait obstruée plus loin.
---- Il faudra continuer demain, dit Oumar. Si nous forçons, nous
+Il faudra continuer demain, dit Oumar. Si nous forçons, nous
 risquons d'effondrer le conduit.
 La foule laissa échapper un soupir de déception. L'eau était proche,
 mais pas encore disponible. Yassine se sentit partagé entre l'impatience
@@ -3982,9 +3982,9 @@ Les familles partagèrent les plats. Khadija avait apporté du pain, Oumar
 des légumes cuits dans un pot, et Setti Aïcha une petite quantité de
 dattes qu'elle gardait pour les occasions importantes. Elle en donna une
 à Yassine.
---- Tu gardes toujours quelque chose pour les moments difficiles,
+Tu gardes toujours quelque chose pour les moments difficiles,
 dit-il.
---- Non, répondit-elle. Je garde parfois trop de choses parce que j'ai
+Non, répondit-elle. Je garde parfois trop de choses parce que j'ai
 peur de manquer. Il faut apprendre à distinguer la prudence de
 l'accumulation.
 Yassine sourit. Il reconnaissait dans cette phrase une leçon qui
@@ -3998,7 +3998,7 @@ parfois maladroits.
 Fatou resta près de Khadija. Elle n'osait pas encore parler librement,
 mais elle écoutait davantage. Quand une femme répéta une rumeur au sujet
 de Mansour, Fatou intervint :
---- Nous ne savons pas si c'est vrai. Il faut vérifier avant de la
+Nous ne savons pas si c'est vrai. Il faut vérifier avant de la
 répéter.
 La femme la regarda avec surprise, puis se tut.
 Yassine observa ces petits changements. Ils ne remplissaient pas les
@@ -4022,11 +4022,11 @@ quelques doigts de longueur et se rassembla dans une petite cavité.
 Pendant un instant, les ouvriers restèrent immobiles, comme s'ils
 craignaient que le mouvement ne s'arrête s'ils parlaient trop fort.
 Une seconde goutte tomba. Puis une troisième.
---- Reculez doucement, dit Oumar. Ne touchez pas à la paroi.
+Reculez doucement, dit Oumar. Ne touchez pas à la paroi.
 Souleymane s'agenouilla près de l'ouverture, sans y plonger les mains.
 Il observa le filet, la façon dont il suivait le conduit et la quantité
 qui s'accumulait dans la cavité.
---- L'eau passe encore, murmura-t-il. Le canal n'est pas entièrement
+L'eau passe encore, murmura-t-il. Le canal n'est pas entièrement
 mort.
 La nouvelle se répandit jusqu'au village. Des habitants arrivèrent en
 courant, puis ralentirent en approchant du chantier. Setti Aïcha
@@ -4039,13 +4039,13 @@ arrêté par un nouvel éboulement. Mais il vit aussi le résultat de jours
 de travail, de décisions prudentes et d'efforts partagés.
 Il sentit les larmes couler sur ses joues. Cette fois, il ne chercha pas
 à les cacher.
---- Elle revient, murmura Bilal.
---- Elle commence à revenir, corrigea Maryam. Il faut encore réparer le
+Elle revient, murmura Bilal.
+Elle commence à revenir, corrigea Maryam. Il faut encore réparer le
 conduit et vérifier la qualité de l'eau.
 Bilal leva les mains.
---- Même quand l'eau arrive, tu trouves le moyen de nous rappeler le
+Même quand l'eau arrive, tu trouves le moyen de nous rappeler le
 travail.
---- C'est pour cela que tu as besoin de moi.
+C'est pour cela que tu as besoin de moi.
 Ils rirent doucement, les yeux brillants.
 L'imam remercia Allah pour cette possibilité et rappela que le village
 devait continuer à agir avec prudence. Le filet ne signifiait pas que
@@ -4055,8 +4055,8 @@ organiser sa distribution. Mais l'ouvrage fonctionnait encore. Il
 pouvait être réparé.
 Yassine posa sa main sur l'épaule de Setti Aïcha. Elle pleurait sans
 bruit.
---- Ton père aurait aimé voir cela, dit-elle.
---- Peut-être, répondit Yassine. Mais je suis content que tu sois là
+Ton père aurait aimé voir cela, dit-elle.
+Peut-être, répondit Yassine. Mais je suis content que tu sois là
 pour le voir avec moi.
 18. Le puits de Nour
 Les jours suivants, les habitants réparèrent le canal et aménagèrent un
@@ -4088,19 +4088,19 @@ incapables de se tromper ; ils disposaient enfin d'un moyen de repérer
 et de corriger les erreurs.
 Un matin, alors que le filet d'eau atteignait enfin le bassin principal,
 Ibrahim s'approcha de Yassine.
---- Pourquoi appelle-t-on le puits le puits de Nour ? demanda-t-il. Nour
+Pourquoi appelle-t-on le puits le puits de Nour ? demanda-t-il. Nour
 veut dire lumière, n'est-ce pas ?
 Yassine regarda l'eau qui se rassemblait au fond du bassin.
---- Oui. Mais ce nom ne veut pas dire que l'eau est magique. Il nous
+Oui. Mais ce nom ne veut pas dire que l'eau est magique. Il nous
 rappelle ce que nous avons appris en la cherchant : la vérité doit être
 mise en lumière, et la lumière doit aider tout le monde, pas seulement
 ceux qui se tiennent près de la lampe.
 Ibrahim réfléchit très sérieusement.
---- Alors, si quelqu'un cache un seau, il faut allumer une lampe ?
+Alors, si quelqu'un cache un seau, il faut allumer une lampe ?
 Bilal éclata de rire.
---- Il faut surtout vérifier le registre, petit frère.
+Il faut surtout vérifier le registre, petit frère.
 L'imam, qui les avait entendus, sourit.
---- La lumière commence parfois par une simple question.
+La lumière commence parfois par une simple question.
 Le nom se répandit parmi les habitants. Ils appelèrent l'ouvrage
 restauré le Puits de Nour, non parce qu'il était le plus grand ni le
 plus profond, mais parce que sa remise en service avait obligé le
@@ -4161,9 +4161,9 @@ parfois maladroitement. Lorsqu'ils ne savaient pas, Maryam nota la
 question pour qu'une réponse soit recherchée.
 Bilal demanda pourquoi les règles n'avaient pas été écrites plus tôt.
 Un vieil homme soupira.
---- Nous pensions que tout le monde se souviendrait de ce qu'il fallait
+Nous pensions que tout le monde se souviendrait de ce qu'il fallait
 faire.
---- Mais les gens oublient, répondit Bilal. Moi-même, j'oublie parfois
+Mais les gens oublient, répondit Bilal. Moi-même, j'oublie parfois
 où je pose mes sandales.
 Les rires détendirent l'assemblée. Le vieil homme reconnut que la
 mémoire ne suffisait pas toujours. Les règles devaient être transmises,
@@ -4181,35 +4181,35 @@ pas obligés de répéter les mêmes erreurs.
 21. Le pardon ne se commande pas
 Un soir, Karim vint trouver Yassine près du figuier de la cour de Setti
 Aïcha. Il tenait un petit paquet enveloppé dans du tissu.
---- Je veux te donner quelque chose, dit-il.
+Je veux te donner quelque chose, dit-il.
 Yassine l'invita à s'asseoir. Karim ouvrit le paquet. À l'intérieur se
 trouvait une petite bourse de cuir, vide, qu'il avait réparée avec soin.
 Elle ressemblait à celle que Yassine avait rendue à son père, mais elle
 était plus simple.
---- Je ne veux pas acheter ton pardon, expliqua Karim. Je sais que ce
+Je ne veux pas acheter ton pardon, expliqua Karim. Je sais que ce
 serait une autre manière d'essayer de contrôler les choses. J'ai
 fabriqué cette bourse parce que j'avais besoin de faire quelque chose de
 mes mains, quelque chose qui ne soit pas un calcul.
 Yassine examina les coutures. Elles étaient solides, même si elles
 n'étaient pas parfaites.
---- Merci, dit-il.
+Merci, dit-il.
 Karim baissa les yeux.
---- Est-ce que tu me pardonnes ?
+Est-ce que tu me pardonnes ?
 Yassine prit le temps de répondre. Il se souvenait des moqueries, des
 regards des autres enfants, des jours où il avait voulu disparaître
 plutôt que d'affronter Karim. Il se souvenait aussi de la main tendue au
 bord du ravin, du choix de remettre les pages et des efforts qu'il avait
 vus depuis leur retour.
---- Je ne veux pas te garder prisonnier de ce que tu étais, répondit-il.
+Je ne veux pas te garder prisonnier de ce que tu étais, répondit-il.
 Je te pardonne pour ce que je peux pardonner aujourd'hui. Mais la
 confiance se construira avec le temps. Si tu recommences à humilier les
 autres, je te le dirai.
 Karim hocha la tête.
---- C'est juste.
---- Et tu devras aussi apprendre à te parler autrement. Tu n'as pas
+C'est juste.
+Et tu devras aussi apprendre à te parler autrement. Tu n'as pas
 besoin de devenir dur pour que les gens te respectent.
 Karim regarda la bourse vide.
---- Je crois que je commence à le comprendre.
+Je crois que je commence à le comprendre.
 Ils restèrent assis en silence. Leur amitié ne ressemblait pas à celle
 de deux garçons qui n'auraient jamais été blessés. Elle ressemblait à
 une porte réparée : les anciennes fissures restaient visibles, mais la
@@ -4220,7 +4220,7 @@ avait promis de leur raconter une histoire depuis longtemps, et elle
 estimait que le moment était venu. Yassine s'assit près d'elle. Bilal et
 Ibrahim prirent place sur un tapis. Maryam apporta son carnet, tandis
 que Karim resta un peu en retrait, ne sachant pas s'il était invité.
---- Approche, lui dit la vieille femme. Les histoires ne sont pas
+Approche, lui dit la vieille femme. Les histoires ne sont pas
 réservées à ceux qui n'ont jamais commis d'erreur.
 Karim s'assit.
 Setti Aïcha raconta l'histoire d'un village qui avait construit un
@@ -4235,8 +4235,8 @@ Le sage répondit qu'il faudrait examiner les faits pour connaître les
 responsabilités, mais qu'une question devait être posée à tous :
 pourquoi chacun avait-il attendu que l'ouvrage se brise pour se souvenir
 qu'il appartenait à tout le monde ?
---- Alors personne n'était coupable ? demanda Ibrahim.
---- Ce n'est pas ce que dit l'histoire, répondit Setti Aïcha. Certaines
+Alors personne n'était coupable ? demanda Ibrahim.
+Ce n'est pas ce que dit l'histoire, répondit Setti Aïcha. Certaines
 personnes avaient commis des fautes précises et devaient les réparer.
 Mais les autres devaient aussi comprendre comment leur silence avait
 permis aux problèmes de grandir. Reconnaître une responsabilité
@@ -4244,10 +4244,10 @@ collective ne signifie pas que toutes les fautes sont égales. Cela
 signifie que chacun peut participer à la réparation.
 Maryam nota cette phrase.
 Bilal demanda si le sage avait été payé pour ses conseils.
---- Non, dit Setti Aïcha.
---- Alors il était vraiment sage.
+Non, dit Setti Aïcha.
+Alors il était vraiment sage.
 La vieille femme rit. Puis elle regarda Yassine.
---- La sagesse ne consiste pas à connaître toutes les réponses. Elle
+La sagesse ne consiste pas à connaître toutes les réponses. Elle
 consiste aussi à savoir quelles questions poser, à reconnaître ce qu'on
 ignore et à ne pas utiliser le savoir pour écraser les autres.
 Yassine pensa à la lettre de son père. Il pensa à la tempête, aux
@@ -4261,7 +4261,7 @@ préparèrent un repas, nettoyèrent la place et réparèrent les murs autour
 du puits. Mais l'imam insista pour que la célébration ne soit pas
 seulement une fête. Le village devait consacrer une partie de la journée
 à l'entretien de l'ouvrage et à l'organisation des tours de garde.
---- Remercier pour une chose, dit-il, c'est aussi en prendre soin. Nous
+Remercier pour une chose, dit-il, c'est aussi en prendre soin. Nous
 pouvons exprimer notre gratitude à Allah par nos paroles, nos prières et
 nos actes. Si nous laissons à nouveau le canal se dégrader, nos
 remerciements seront incomplets.
@@ -4308,26 +4308,26 @@ vérifiés. Il ne pouvait pas le savoir. Il n'avait plus besoin d'inventer
 sa réponse.
 Setti Aïcha vint le rejoindre. Elle s'assit près de lui et regarda
 l'eau.
---- Tu as trouvé ce que tu cherchais ? demanda-t-elle.
+Tu as trouvé ce que tu cherchais ? demanda-t-elle.
 Yassine réfléchit longtemps.
---- J'ai trouvé une partie de l'histoire de mon père. J'ai trouvé des
+J'ai trouvé une partie de l'histoire de mon père. J'ai trouvé des
 choses que je ne comprends pas encore. J'ai trouvé une source possible,
 un canal à entretenir et des personnes qui peuvent m'aider. Mais je
 crois que je cherchais aussi une réponse à une autre question.
---- Laquelle ?
---- Je voulais savoir si je pouvais faire quelque chose d'important
+Laquelle ?
+Je voulais savoir si je pouvais faire quelque chose d'important
 alors que je suis encore un enfant.
 Setti Aïcha lui prit la main.
---- Et quelle est ta réponse ?
+Et quelle est ta réponse ?
 Yassine regarda les habitants qui se relayaient près du puits. Il vit
 Maryam expliquer les registres à Ibrahim. Il vit Bilal porter un seau
 avec Karim, chacun tenant une anse. Il vit Oumar corriger le geste d'un
 jeune apprenti, et Khadija distribuer du pain à une famille qui venait
 d'arriver au village.
---- Je crois que je peux faire ma part, dit-il. Mais je n'ai pas à tout
+Je crois que je peux faire ma part, dit-il. Mais je n'ai pas à tout
 faire seul.
 Sa grand-mère sourit.
---- C'est une réponse qui peut te protéger toute ta vie.
+C'est une réponse qui peut te protéger toute ta vie.
 Yassine se pencha et toucha la pierre du rebord. Elle était fraîche. Le
 puits n'était plus seulement un trou dans le sol. Il était devenu un
 rappel : ce qui appartient à tous demande une attention partagée, et ce
@@ -4342,9 +4342,9 @@ vérifiait un compte, partageait une ressource, corrigeait une rumeur,
 réparait une pierre ou demandait pardon sans exiger qu'on oublie
 aussitôt le passé.
 Yassine remit le tissu dans sa poche et se leva.
---- Viens, grand-mère. Il faut que j'aide à porter les seaux.
---- Tu as déjà beaucoup travaillé.
---- Justement. J'ai appris qu'il faut aussi revenir le lendemain.
+Viens, grand-mère. Il faut que j'aide à porter les seaux.
+Tu as déjà beaucoup travaillé.
+Justement. J'ai appris qu'il faut aussi revenir le lendemain.
 Setti Aïcha éclata de rire et prit son bras. Ensemble, ils rejoignirent
 les autres.
 Le puits de Nour demeura au centre de Dar-Salam, non comme la preuve
@@ -4356,8 +4356,7 @@ appris que le courage n'est pas de porter seul le monde sur ses épaules.
 Le courage, parfois, c'est de tendre la main, d'écouter la vérité et de
 rester fidèle au travail commun, même lorsque personne ne promet que la
 route sera facile.
----
-Épilogue --- Ce que l'eau enseigne
+Épilogue : Ce que l'eau enseigne
 Au fil des mois, les habitants de Dar-Salam continuèrent à entretenir le
 canal. Ils ne le firent pas toujours avec enthousiasme. Certains jours,
 la chaleur rendait le travail pénible. D'autres jours, les réunions
@@ -4424,7 +4423,7 @@ qui leur appartenait sans effort. Il était un bien commun dont chacun
 devait prendre soin.
 Et lorsque les enfants demandaient pourquoi on l'appelait le Puits de
 Nour, les anciens répondaient :
---- Parce que l'eau nous a appris à chercher la lumière, et que la
+Parce que l'eau nous a appris à chercher la lumière, et que la
 lumière nous a appris à mieux partager l'eau.
 Ils ne racontaient pas cette histoire pour faire croire que toute
 épreuve se termine par une récompense visible. Ils la racontaient pour
