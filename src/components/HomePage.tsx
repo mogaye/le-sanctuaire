@@ -1735,31 +1735,31 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
 
-          {/* Card 6: Bibliothèque Numérique (6 Livres) */}
+          {/* Card 6: Bibliothèque Numérique — Le Puits de Nour */}
           <div
-            onClick={() => onOpenLibrary && onOpenLibrary()}
-            className="group bg-white/95 hover:bg-emerald-50/70 dark:bg-[#193226]/90 dark:hover:bg-[#1E3B2E] rounded-[24px] p-5 border border-neutral-200/90 dark:border-emerald-500/25 hover:border-emerald-400/50 transition-all cursor-pointer shadow-sm flex flex-col justify-between text-neutral-900 dark:text-neutral-100"
+            onClick={() => onOpenLibrary && onOpenLibrary('le-puits-de-nour')}
+            className="group bg-white/95 hover:bg-amber-50/70 dark:bg-[#193226]/90 dark:hover:bg-[#1E3B2E] rounded-[24px] p-5 border border-amber-300/90 dark:border-amber-500/35 hover:border-amber-500/70 transition-all cursor-pointer shadow-sm flex flex-col justify-between text-neutral-900 dark:text-neutral-100"
           >
             <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
                 <Library className="w-5 h-5" />
               </div>
-              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 px-2.5 py-1 rounded-full">
-                6 Livres Inclus
+              <span className="text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 px-2.5 py-1 rounded-full">
+                Livre du Jour • Nouveau
               </span>
             </div>
 
             <div className="mt-4">
-              <h4 className="font-semibold text-sm text-neutral-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-emerald-200">
-                Bibliothèque Islamique
+              <h4 className="font-semibold text-sm text-neutral-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-200">
+                Le Puits de Nour (Bibliothèque)
               </h4>
               <p className="text-xs text-neutral-600 dark:text-emerald-200/70 mt-0.5">
-                Coran Arabe, livres de Cheikh Ibn Baz et Dr. Al-Achqar en lecture directe.
+                Texte intégral (4 chapitres & épilogue) et fiches latérales illustrées des 19 personnages.
               </p>
             </div>
 
-            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-emerald-800/40 flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-              <span>Ouvrir la Maktaba</span>
+            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-emerald-800/40 flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-300">
+              <span>Lire Le Puits de Nour</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
