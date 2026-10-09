@@ -23,19 +23,24 @@ import {
 import { ISLAMIC_STORIES, IslamicStory } from '../data/islamicStoriesData';
 import { DonationModal } from './DonationModal';
 
-export const FloatingInteractiveWidgets: React.FC = () => {
+interface FloatingInteractiveWidgetsProps {
+  onOpenLibrary?: () => void;
+}
+
+export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProps> = ({ onOpenLibrary }) => {
   // Modal states
   const [activeModal, setActiveModal] = useState<'donation' | 'stories' | null>(null);
   const [selectedStory, setSelectedStory] = useState<IslamicStory | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
+  const filteredStories =
+    activeCategory === 'all'
+      ? ISLAMIC_STORIES
+      : ISLAMIC_STORIES.filter((s) => s.category === activeCategory);
+
   // Drag tracking refs to avoid triggering action when dragging
   const isDraggingStoriesRef = useRef(false);
   const isDraggingDonationRef = useRef(false);
-
-  const filteredStories = activeCategory === 'all'
-    ? ISLAMIC_STORIES
-    : ISLAMIC_STORIES.filter((s) => s.category === activeCategory);
 
   return (
     <>
@@ -65,11 +70,8 @@ export const FloatingInteractiveWidgets: React.FC = () => {
             <div className="bg-[#0B1E13]/95 backdrop-blur-md text-white px-3 py-1.5 rounded-xl border border-emerald-400/30 shadow-[0_6px_20px_rgba(0,0,0,0.35)] flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
               <div>
-                <p className="text-[11px] font-bold text-emerald-200">Histoires & Récits Spirituels</p>
-                <p className="text-[9px] text-emerald-100/70">Écrits avec dévotion par l'Auteur</p>
-              </div>
-              <div className="text-[9px] bg-emerald-400/20 text-emerald-300 px-1 py-0.5 rounded font-mono">
-                {ISLAMIC_STORIES.length} récits
+                <p className="text-[11px] font-bold text-emerald-200">Bibliothèque & Livres du Vendredi</p>
+                <p className="text-[9px] text-emerald-100/70">Un nouvel ouvrage chaque vendredi à 21h</p>
               </div>
             </div>
           </div>
@@ -83,11 +85,12 @@ export const FloatingInteractiveWidgets: React.FC = () => {
                 e.stopPropagation();
                 return;
               }
-              setSelectedStory(null);
-              setActiveModal('stories');
+              if (onOpenLibrary) {
+                onOpenLibrary();
+              }
             }}
             className="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 text-neutral-950 p-[1px] sm:p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(16,185,129,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100 sm:opacity-100"
-            aria-label="Lire les histoires islamiques rédigées par l'auteur"
+            aria-label="Accéder à la bibliothèque et aux livres du vendredi"
           >
             {/* Pulsation lumineuse subtile */}
             <span className="hidden sm:block absolute inset-0 rounded-full bg-emerald-400/30 animate-ping pointer-events-none opacity-20" />
@@ -98,7 +101,7 @@ export const FloatingInteractiveWidgets: React.FC = () => {
 
             {/* Plume d'auteur badge */}
             <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-r from-emerald-300 to-teal-200 text-[#092214] text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white">
-              <Feather className="w-1.5 h-1.5 sm:w-2 sm:h-2" />
+              <Feather className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
             </span>
           </motion.button>
         </div>
@@ -131,7 +134,7 @@ export const FloatingInteractiveWidgets: React.FC = () => {
               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
               <div>
                 <p className="text-[11px] font-bold text-amber-200">Soutenir le Sanctuaire</p>
-                <p className="text-[9px] text-emerald-100/70">Faire un don ou offrir un présent</p>
+                <p className="text-[9px] text-emerald-100/70">Don sécurisé via PayDunya</p>
               </div>
               <div className="text-[9px] bg-amber-400/20 text-amber-300 px-1 py-0.5 rounded font-mono">
                 Glisser ↔

@@ -428,64 +428,48 @@ export const FastingPage: React.FC<FastingPageProps> = ({
             <div className="p-6 rounded-3xl bg-white dark:bg-[#193226] border border-neutral-200 dark:border-emerald-500/25 shadow-xs space-y-4 transition-colors">
               <h3 className="text-base font-black text-neutral-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
-                <span>Ouvrages Authentiques Fournis sur le Jeûne</span>
+                <span>Bibliothèque & Ouvrages sur le Jeûne</span>
               </h3>
               <p className="text-xs text-neutral-600 dark:text-emerald-200/70 leading-relaxed">
-                Vous pouvez consulter ces précieux ouvrages PDF directement dans l'application ou les télécharger pour une lecture hors-ligne.
+                Un nouvel ouvrage spirituel sort chaque vendredi à 21h00 dans la Bibliothèque du Sanctuaire.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                {fastingBooks.map((book) => (
-                  <div
-                    key={book.id}
-                    className="p-5 rounded-2xl bg-neutral-50 dark:bg-[#14281E] border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-4 shadow-xs"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                          PDF • {book.pageEstimate} pages
-                        </span>
-                        <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              {fastingBooks.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  {fastingBooks.map((book) => (
+                    <div
+                      key={book.id}
+                      className="p-5 rounded-2xl bg-neutral-50 dark:bg-[#14281E] border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-4 shadow-xs"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
+                            PDF • {book.pageEstimate} pages
+                          </span>
+                          <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <h4 className="text-sm font-black text-neutral-900 dark:text-white">{book.title}</h4>
+                        <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">{book.author}</p>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed line-clamp-3">
+                          {book.description}
+                        </p>
                       </div>
-                      <h4 className="text-sm font-black text-neutral-900 dark:text-white">{book.title}</h4>
-                      <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">{book.author}</p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed line-clamp-3">
-                        {book.description}
-                      </p>
                     </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t border-neutral-200 dark:border-emerald-800/40">
-                      {onOpenBookReader ? (
-                        <button
-                          onClick={() => onOpenBookReader(book.id)}
-                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border border-emerald-600 dark:border-emerald-400/30"
-                        >
-                          <BookOpen className="w-3.5 h-3.5 text-amber-300" />
-                          <span>Lire le Livre</span>
-                        </button>
-                      ) : (
-                        <a
-                          href={book.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs border border-emerald-600 dark:border-emerald-400/30"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-                          <span>Ouvrir</span>
-                        </a>
-                      )}
-                      <a
-                        href={book.pdfUrl}
-                        download={book.pdfFileName}
-                        className="p-2 rounded-xl bg-neutral-200/80 hover:bg-neutral-300 dark:bg-[#193226] dark:hover:bg-[#1E3B2E] border border-neutral-300 dark:border-emerald-500/20 text-neutral-700 dark:text-neutral-200 transition-all cursor-pointer"
-                        title="Télécharger le PDF"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-500/20 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-amber-300 mx-auto flex items-center justify-center font-bold">
+                    <BookOpen className="w-6 h-6" />
                   </div>
-                ))}
-              </div>
+                  <h4 className="text-base font-bold text-neutral-900 dark:text-white">
+                    Parution Hebdomadaire Chaque Vendredi à 21h00
+                  </h4>
+                  <p className="text-xs text-neutral-600 dark:text-emerald-200/80 max-w-md mx-auto">
+                    Tous les ouvrages et livres numériques sont désormais centralisés dans la Bibliothèque du Sanctuaire, avec un nouveau livre publié chaque vendredi à 21h.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

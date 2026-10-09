@@ -344,88 +344,56 @@ export const FaithPage: React.FC<FaithPageProps> = ({
           </div>
         )}
 
-        {/* TAB 4: LES LIVRES ORIGINAUX DU DR. AL-ACHQAR */}
+        {/* TAB 4: LES LIVRES DE RÉFÉRENCE */}
         {activeTab === 'livres' && (
           <div className="space-y-6">
             <div className="p-6 rounded-3xl bg-white dark:bg-[#193226] border border-neutral-200 dark:border-emerald-500/25 shadow-xs space-y-4 transition-colors">
               <h3 className="text-base font-black text-neutral-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
-                <span>Les Deux Livres de Référence du Dr. ‘Omar Sulaimân Al-Achqar</span>
+                <span>Bibliothèque & Ouvrages de Référence</span>
               </h3>
               <p className="text-xs text-neutral-600 dark:text-emerald-200/70 leading-relaxed">
-                Retrouvez les versions intégrales numérisées incluses dans votre sanctuaire. Vous pouvez les feuilleter directement dans le lecteur ou les télécharger en PDF.
+                Un nouvel ouvrage spirituel est publié chaque vendredi à 21h00 dans la Bibliothèque du Sanctuaire.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-                {faithBooks.map((book) => (
-                  <div
-                    key={book.id}
-                    className="p-6 rounded-3xl bg-neutral-50 dark:bg-[#14281E] border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-4 shadow-xs"
-                  >
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                          Ouvrage Majeur • {book.pageEstimate} pages
-                        </span>
-                        <span className="font-arabic text-sm font-bold text-amber-800 dark:text-amber-200">
-                          {book.arabicTitle}
-                        </span>
-                      </div>
-                      <h4 className="text-base font-black text-neutral-900 dark:text-white">{book.title}</h4>
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">{book.author}</p>
-                      <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
-                        {book.description}
-                      </p>
-
-                      <div className="pt-2 border-t border-neutral-200 dark:border-emerald-800/40 space-y-1">
-                        <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">
-                          Thèmes Traités :
-                        </span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {book.topics.map((t, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 rounded-lg bg-white dark:bg-[#193226] border border-neutral-200 dark:border-emerald-500/20 text-[11px] text-neutral-700 dark:text-neutral-200 font-medium"
-                            >
-                              {t}
-                            </span>
-                          ))}
+              {faithBooks.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                  {faithBooks.map((book) => (
+                    <div
+                      key={book.id}
+                      className="p-6 rounded-3xl bg-neutral-50 dark:bg-[#14281E] border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-4 shadow-xs"
+                    >
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
+                            Ouvrage Majeur • {book.pageEstimate} pages
+                          </span>
+                          <span className="font-arabic text-sm font-bold text-amber-800 dark:text-amber-200">
+                            {book.arabicTitle}
+                          </span>
                         </div>
+                        <h4 className="text-base font-black text-neutral-900 dark:text-white">{book.title}</h4>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">{book.author}</p>
+                        <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
+                          {book.description}
+                        </p>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-2 pt-3 border-t border-neutral-200 dark:border-emerald-800/40">
-                      {onOpenBookReader ? (
-                        <button
-                          onClick={() => onOpenBookReader(book.id)}
-                          className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs border border-emerald-600 dark:border-emerald-400/30"
-                        >
-                          <BookOpen className="w-4 h-4 text-amber-300" />
-                          <span>Ouvrir dans le Lecteur</span>
-                        </button>
-                      ) : (
-                        <a
-                          href={book.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs border border-emerald-600 dark:border-emerald-400/30"
-                        >
-                          <ExternalLink className="w-4 h-4 text-amber-300" />
-                          <span>Consulter</span>
-                        </a>
-                      )}
-                      <a
-                        href={book.pdfUrl}
-                        download={book.pdfFileName}
-                        className="p-2.5 rounded-xl bg-neutral-200/80 hover:bg-neutral-300 dark:bg-[#193226] dark:hover:bg-[#1E3B2E] border border-neutral-300 dark:border-emerald-500/20 text-neutral-700 dark:text-neutral-200 transition-all cursor-pointer"
-                        title="Télécharger le PDF"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-500/20 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-amber-300 mx-auto flex items-center justify-center font-bold">
+                    <BookOpen className="w-6 h-6" />
                   </div>
-                ))}
-              </div>
+                  <h4 className="text-base font-bold text-neutral-900 dark:text-white">
+                    Parution Hebdomadaire Chaque Vendredi à 21h00
+                  </h4>
+                  <p className="text-xs text-neutral-600 dark:text-emerald-200/80 max-w-md mx-auto">
+                    Tous les ouvrages et livres numériques sont désormais centralisés dans la Bibliothèque du Sanctuaire, avec un nouveau livre publié chaque vendredi à 21h.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}

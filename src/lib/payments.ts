@@ -78,7 +78,7 @@ async function requestPayDunyaInvoice(amount: number, description: string, ref: 
       description: description || 'Sadaqah Jariyah',
     },
     store: {
-      name: 'Plateforme Islamique',
+      name: 'Le Sanctuaire',
       website_url: window.location.origin,
     },
     custom_data: {

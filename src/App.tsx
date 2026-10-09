@@ -576,7 +576,9 @@ export default function App() {
 
       {/* Two Floating Draggable Interactive Widgets (Dons & Histoires écrites par l'auteur) - Présents sur mobile et desktop */}
       <AnimatePresence>
-        {(currentView === 'home' || currentView === 'landing') && <FloatingInteractiveWidgets />}
+        {(currentView === 'home' || currentView === 'landing') && (
+          <FloatingInteractiveWidgets onOpenLibrary={handleOpenLibrary} />
+        )}
       </AnimatePresence>
 
       {/* Interactive Multi-Step Welcome Walkthrough / Welcome Back Overlay */}

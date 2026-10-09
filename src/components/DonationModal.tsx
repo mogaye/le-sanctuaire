@@ -21,6 +21,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
   const [donorPhone, setDonorPhone] = useState<string>('');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<{ reference: string; message: string; checkoutUrl?: string } | null>(null);
 
   if (!isOpen) return null;
@@ -32,16 +33,19 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
   const handleSelectPreset = (val: number) => {
     setIsCustom(false);
     setAmount(val);
+    setErrorMsg(null);
   };
 
   const handleSelectCustom = () => {
     setIsCustom(true);
+    setErrorMsg(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (currentAmount < 500) {
-      alert('Le montant minimum pour un don est de 500 FCFA.');
+      setErrorMsg('Le montant minimum pour un don est de 500 FCFA.');
       return;
     }
 
@@ -66,17 +70,17 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
         checkoutUrl: res.checkoutUrl,
       });
 
-      // Try opening the PayDunya checkout window safely
+      // Try opening the PayDunya checkout window safely if allowed
       if (res.checkoutUrl) {
         try {
-          window.open(res.checkoutUrl, '_blank');
-        } catch (e) {
-          console.warn('Popup blocked, using fallback button', e);
+          window.open(res.checkoutUrl, '_blank', 'noopener,noreferrer');
+        } catch {
+          // If popup is blocked by iframe, user can click direct button
         }
       }
     } catch (err) {
       console.error('Erreur lors du don DunyaPay:', err);
-      alert('Une erreur est survenue lors de l’initialisation du don. Veuillez réessayer.');
+      setErrorMsg('Une erreur est survenue lors de l’initialisation du don. Veuillez réessayer.');
     } finally {
       setIsProcessing(false);
     }
@@ -95,12 +99,12 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
             <div>
               <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white leading-tight flex items-center gap-2">
                 Faire un don (Sadaqah)
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
-                  DunyaPay
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
+                  PayDunya
                 </span>
               </h2>
               <p className="text-xs text-neutral-500 dark:text-emerald-400/80">
-                Paiement sécurisé via Orange Money, Wave, Free Money et Cartes
+                Paiement sécurisé via PayDunya (Orange Money, Wave, Free Money et Cartes)
               </p>
             </div>
           </div>
@@ -129,7 +133,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
               </div>
 
               <div className="p-3 bg-neutral-100 dark:bg-emerald-950/40 rounded-xl text-xs text-neutral-500 dark:text-neutral-400 font-mono">
-                Référence DunyaPay : {successResult.reference}
+                Référence de transaction : {successResult.reference}
               </div>
 
               <p className="text-xs italic text-emerald-700 dark:text-emerald-300">
@@ -144,7 +148,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer ring-2 ring-emerald-400/30"
                   >
-                    <span>Ouvrir la page de paiement sécurisée PayDunya</span>
+                    <span>Accéder au paiement sécurisé</span>
                     <ExternalLink className="w-4 h-4" />
                   </a>
                   <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -166,27 +170,21 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               
-              {/* Gateway Banner: DunyaPay Multi-Money */}
+              {/* Payment Methods Banner */}
               <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-amber-500/10 to-teal-500/10 border border-emerald-500/25 dark:border-emerald-500/30 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                    DP
+                    <ShieldCheck className="w-5 h-5 text-white" />
                   </div>
                   <div>
                     <div className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                      <span>Passerelle DunyaPay</span>
-                      {isConfigured ? (
-                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded-full border border-emerald-300/40">
-                          Connecté
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 rounded-full border border-amber-300/40">
-                          Prêt pour vos 4 clés
-                        </span>
-                      )}
+                      <span>Paiement PayDunya 100% sécurisé</span>
+                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-300/50">
+                        Certifié PayDunya
+                      </span>
                     </div>
                     <p className="text-[11px] text-neutral-500 dark:text-emerald-300/80">
-                      Orange Money • Wave • Free Money • Cartes Bancaires
+                      Wave • Orange Money • Free Money • Cartes Bancaires (PayDunya)
                     </p>
                   </div>
                 </div>
@@ -248,7 +246,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
               <div className="space-y-2.5 pt-1">
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    2. Numéro de téléphone pour la notification DunyaPay
+                    2. Numéro de téléphone pour la confirmation et le reçu
                   </label>
                   <input
                     type="tel"
@@ -277,7 +275,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
               {/* Security Badge */}
               <div className="flex items-center gap-2 p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300">
                 <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>Transactions sécurisées via la passerelle officielle DunyaPay avec journalisation Supabase.</span>
+                <span>Transactions chiffrées et sécurisées via la passerelle officielle PayDunya.</span>
               </div>
 
               {/* Submit Button */}
@@ -289,7 +287,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
                 {isProcessing ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    Initialisation DunyaPay...
+                    Initialisation sécurisée via PayDunya...
                   </span>
                 ) : (
                   <>

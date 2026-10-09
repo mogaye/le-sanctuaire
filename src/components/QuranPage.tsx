@@ -958,8 +958,47 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       <header
         className={`shrink-0 z-30 w-full px-2.5 sm:px-6 md:px-8 py-2 sm:py-3 border-b ${themeClasses.border} flex items-center justify-between gap-1.5 sm:gap-4 ${themeClasses.headerBg} backdrop-blur-md select-none shadow-2xs transition-colors`}
       >
-          {/* Left: Brand Name, Arabic Calligraphy, Sidebar Toggle & Reading Mode */}
+          {/* Left: Brand Name, Quran Title, Sidebar Toggle & Reading Mode */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            {/* Brand Logo & Name: Le Sanctuaire (returns to home) */}
+            <button
+              id="btn-brand-logo-quran"
+              onClick={onBackToHome}
+              className="inline-flex items-center gap-2 bg-white/95 dark:bg-[#183022] hover:bg-white dark:hover:bg-[#20402E] text-neutral-900 dark:text-white text-xs sm:text-sm font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-neutral-200/80 dark:border-emerald-700/50 shadow-xs hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95 shrink-0 whitespace-nowrap"
+              title="Retour à l'accueil Le Sanctuaire"
+            >
+              <img
+                src="/images/sanctuaire_logo.jpg"
+                alt="Logo Le Sanctuaire"
+                referrerPolicy="no-referrer"
+                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover ring-1 ring-emerald-600/40 group-hover:scale-105 transition-transform shrink-0"
+              />
+              <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none">
+                Le Sanctuaire
+              </span>
+            </button>
+
+            {/* Subtle Divider */}
+            <div className={`w-px h-5 shrink-0 hidden sm:block ${isDark ? 'bg-emerald-500/25' : 'bg-neutral-200'}`} />
+
+            {/* Quran Title with Arabic script */}
+            <div className="flex items-baseline gap-1.5 shrink-0">
+              <span className={`text-base sm:text-lg font-bold tracking-tight ${isDark ? 'text-emerald-400' : 'text-[#007A65]'}`}>
+                Quran
+              </span>
+              <span
+                dir="rtl"
+                className={`text-xs sm:text-sm font-serif font-semibold hidden md:inline transition-colors ${
+                  isDark
+                    ? 'text-amber-200/80'
+                    : 'text-[#007A65]/70'
+                }`}
+                style={{ fontFamily: "'Amiri', serif" }}
+              >
+                القرآن الكريم
+              </span>
+            </div>
+
             {/* Desktop Sidebar Toggle Button */}
             <button
               onClick={toggleSidebarCollapse}
@@ -972,18 +1011,17 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                   ? 'text-emerald-300/80 hover:text-white bg-[#14281E] hover:bg-emerald-900/40 border-emerald-500/25'
                   : 'text-neutral-500 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200/80 border-neutral-200/80'
               }`}
-              title={isSidebarCollapsed ? 'Afficher le panneau latéral' : 'Réduire le panneau latéral'}
+              title={isSidebarCollapsed ? "Afficher le panneau de navigation" : "Masquer le panneau de navigation"}
             >
               {isSidebarCollapsed ? (
                 <>
-                  <PanelLeft className={`w-4 h-4 ${isDark ? 'text-emerald-400' : 'text-[#007A65]'}`} />
-                  <span className="hidden xl:inline">Index des Sourates</span>
-                  <span className="xl:hidden">Index</span>
+                  <PanelLeft className={`w-3.5 h-3.5 ${isDark ? 'text-emerald-400' : 'text-[#007A65]'}`} />
+                  <span className="hidden xl:inline">Index</span>
                 </>
               ) : (
                 <>
-                  <PanelLeftClose className="w-4 h-4" />
-                  <span className="hidden xl:inline">Réduire</span>
+                  <PanelLeftClose className="w-3.5 h-3.5" />
+                  <span className="hidden xl:inline">Masquer</span>
                 </>
               )}
             </button>
@@ -999,26 +1037,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               title="Menu des sourates"
             >
               <Menu className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={onBackToHome}
-              className={`flex items-baseline gap-1.5 text-lg sm:text-2xl font-bold tracking-tight hover:opacity-90 transition-opacity cursor-pointer group shrink-0 ${
-                isDark ? 'text-emerald-400' : 'text-[#007A65]'
-              }`}
-            >
-              <span>Quran</span>
-              <span
-                dir="rtl"
-                className={`text-xs sm:text-sm font-serif font-semibold hidden md:inline transition-colors ${
-                  isDark
-                    ? 'text-amber-200/80 group-hover:text-amber-200'
-                    : 'text-[#007A65]/70 group-hover:text-[#007A65]'
-                }`}
-                style={{ fontFamily: "'Amiri', serif" }}
-              >
-                القرآن الكريم
-              </span>
             </button>
 
             {/* Reading Mode Switcher Pill */}
@@ -1096,19 +1114,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               title={isDark ? 'Passer en mode clair' : 'Passer en mode sombre'}
             >
               {isDark ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
-            </button>
-
-            {/* Home Icon */}
-            <button
-              onClick={onBackToHome}
-              className={`hidden md:flex relative p-2 transition cursor-pointer flex-col items-center rounded-lg shrink-0 ${
-                isDark
-                  ? 'text-emerald-300/80 hover:text-white hover:bg-[#14281E]'
-                  : 'text-neutral-600 hover:text-neutral-950 hover:bg-neutral-100'
-              }`}
-              title="Retour à l'accueil"
-            >
-              <Home className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
 
             {/* Bookmarks Icon */}
@@ -1393,7 +1398,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 ? isDark ? 'w-2 bg-[#14281E] hover:bg-emerald-500/20' : 'w-2 bg-neutral-100 hover:bg-[#007A65]/20'
                 : 'w-1.5 hover:bg-[#007A65]/30'
             } ${isResizing ? 'bg-[#007A65]' : 'bg-transparent'}`}
-            title="Glisser pour redimensionner ou double-cliquer pour réduire"
+            title="Glisser pour ajuster la largeur de l'index"
             onDoubleClick={toggleSidebarCollapse}
           >
             <div
@@ -1412,7 +1417,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                   ? 'bg-[#193226] border-emerald-500/40 text-emerald-300 hover:border-emerald-300 hover:text-white'
                   : 'bg-white border-neutral-300 hover:border-[#007A65] hover:text-[#007A65] text-neutral-400'
               }`}
-              title={isSidebarCollapsed ? 'Déplier le menu latéral' : 'Réduire le menu latéral'}
+              title={isSidebarCollapsed ? 'Afficher les sourates' : 'Masquer les sourates'}
             >
               {isSidebarCollapsed ? (
                 <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />

@@ -276,7 +276,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
   const handleSocialClick = async (provider: string) => {
     if (provider === 'Google') {
       setIsLoading(true);
-      setFeedback({ type: 'success', message: 'Initialisation de la connexion Google via Supabase...' });
+      setFeedback({ type: 'success', message: 'Connexion avec Google en cours...' });
       try {
         const { data, error, isFallback } = await signInWithGoogle();
         if (error) {
@@ -621,7 +621,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                       className="w-full h-[38px] px-4 rounded-[14px] bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Confirmer immédiatement (Simulation test)</span>
+                      <span>Activer et accéder immédiatement à mon espace</span>
                     </button>
 
                     <button
@@ -765,32 +765,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                   )}
                 </button>
               </form>
-
-              {/* Database & Auth sync status banner */}
-              <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-neutral-50 dark:bg-[#12231A] border border-neutral-200 dark:border-emerald-900/40 text-[11px]">
-                <div className="flex items-center gap-1.5">
-                  <Database className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-neutral-600 dark:text-emerald-300/80 font-medium">
-                    Base de données & Auth :
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                    }`}
-                  />
-                  <span
-                    className={`font-semibold ${
-                      isConfigured
-                        ? 'text-emerald-700 dark:text-emerald-400'
-                        : 'text-amber-700 dark:text-amber-400'
-                    }`}
-                  >
-                    {isConfigured ? 'Supabase Connecté' : 'Mode Local'}
-                  </span>
-                </div>
-              </div>
 
               {/* Divider: "or continue with" */}
               <div className="relative flex items-center justify-center pt-2 pb-1">

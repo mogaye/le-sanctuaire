@@ -807,11 +807,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                         <span className="text-[11px] text-emerald-300/80 font-serif">
                           {currentVerse.arabicSurahName}
                         </span>
-                        <span className="text-neutral-400 text-xs">•</span>
-                        <span className="text-[10px] text-emerald-200/70 flex items-center gap-1 font-mono">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          change chaque minute
-                        </span>
                       </div>
                     </motion.div>
                   </AnimatePresence>
@@ -1517,14 +1512,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                     </span>
                   </h3>
                   <p className="text-[11px] text-neutral-500 dark:text-emerald-300/70">
-                    Transmission authentique renouvelée chaque jour
+                    Transmission prophétique authentique
                   </p>
                 </div>
               </div>
 
               <div className="hidden sm:flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300/80 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
                 <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>Renouvellement quotidien</span>
+                <span>Hadith du jour</span>
               </div>
             </div>
 
@@ -1563,13 +1558,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </h4>
               </div>
               <p className="text-xs text-neutral-700 dark:text-emerald-200/85 leading-relaxed">
-                Participez à la pérennité de cette plateforme spirituelle bénie par un don via la passerelle sécurisée DunyaPay (Orange Money, Wave, Cartes Bancaires).
+                Participez à la pérennité de cette plateforme spirituelle bénie par un don sécurisé via PayDunya (Orange Money, Wave, Free Money, Cartes Bancaires).
               </p>
             </div>
 
             <div className="space-y-2 pt-2">
-              <div className="flex items-center gap-2 text-[11px] text-neutral-600 dark:text-emerald-300/80">
-                <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">DunyaPay</span>
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600 dark:text-emerald-300/80">
+                <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 font-bold border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300">PayDunya</span>
+                <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Wave</span>
                 <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Orange Money</span>
                 <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Cartes</span>
               </div>
@@ -1581,7 +1577,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   className="w-full h-11 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-neutral-950 font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
                 >
                   <Heart className="w-4 h-4 text-neutral-950 fill-neutral-950/20" />
-                  <span>Faire un don (DunyaPay)</span>
+                  <span>Faire un don (Sadaqah)</span>
                 </button>
               )}
             </div>

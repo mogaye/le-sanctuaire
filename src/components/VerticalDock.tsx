@@ -102,7 +102,7 @@ export const VerticalDock: React.FC<VerticalDockProps> = ({
           <button
             id="dock-btn-library"
             onClick={onOpenLibrary}
-            title="Bibliothèque Islamique (6 Livres)"
+            title="Bibliothèque Islamique (Le Livre du Vendredi à 21h)"
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition cursor-pointer"
           >
             <Library className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-emerald-700 dark:text-emerald-300 stroke-[2.2]" />

@@ -350,7 +350,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-950 dark:text-emerald-300 bg-emerald-50/70 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-left font-semibold cursor-pointer"
                     >
                       <Library className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                      <span>Bibliothèque (6 Livres PDF)</span>
+                      <span>Bibliothèque (Livre du Vendredi)</span>
                     </button>
                   )}
                   {onOpenDonations && (
@@ -362,7 +362,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-amber-950 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-left font-bold cursor-pointer border border-amber-300/40"
                     >
                       <Heart className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 fill-amber-500/30" />
-                      <span>Faire un Don (DunyaPay)</span>
+                      <span>Faire un Don (PayDunya)</span>
                     </button>
                   )}
                   {onOpenPrayerSettings && (

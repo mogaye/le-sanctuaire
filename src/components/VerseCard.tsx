@@ -101,15 +101,10 @@ export const VerseCard: React.FC = () => {
                   {currentVerse.french}
                 </p>
 
-                {/* Reference & Timer Badge */}
-                <div className="mt-4 sm:mt-6 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+                {/* Reference Badge */}
+                <div className="mt-4 sm:mt-6 flex items-center justify-center">
                   <span className="inline-block text-[10px] sm:text-[11px] font-bold tracking-widest text-emerald-900 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-3 sm:px-3.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-500/40 uppercase">
                     [{currentVerse.reference}]
-                  </span>
-
-                  <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] text-neutral-600 dark:text-neutral-300 bg-emerald-50 dark:bg-white/5 px-2.5 sm:px-3 py-1 rounded-full border border-emerald-200/60 dark:border-white/10">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
-                    Renouvelé chaque minute
                   </span>
                 </div>
               </motion.div>
