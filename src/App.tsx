@@ -9,6 +9,7 @@ import { VerseCard } from './components/VerseCard';
 import { FeatureGrid } from './components/FeatureGrid';
 import { AppPreviewSection } from './components/AppPreviewSection';
 import { TrustHighlightsSection } from './components/TrustHighlightsSection';
+import { DonorReviewsSection } from './components/DonorReviewsSection';
 import { FooterSection } from './components/FooterSection';
 import { LoginPage } from './components/LoginPage';
 import { HomePage } from './components/HomePage';
@@ -687,6 +688,12 @@ export default function App() {
               />
 
               <TrustHighlightsSection />
+
+              <DonorReviewsSection
+                currentUser={currentUser}
+                hasMadeDonation={hasMadeDonation}
+                cityName={selectedCity.name}
+              />
 
               <FooterSection
                 onOpenPrayerGuide={() => handleOpenPrayerGuide()}

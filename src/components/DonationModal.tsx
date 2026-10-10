@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Heart,
@@ -8,12 +8,17 @@ import {
   Check,
   ShieldCheck,
   Maximize2,
+  MailCheck,
+  Sparkles,
+  Star,
+  Send,
 } from 'lucide-react';
 import {
   processWaveDonation,
   WAVE_MERCHANT_BASE_URL,
   ORANGE_MONEY_NUMBER,
 } from '../lib/payments';
+import { submitDonorReview } from '../lib/supabase';
 
 interface DonationModalProps {
   isOpen: boolean;
@@ -139,59 +144,100 @@ export const DonationModal: React.FC<DonationModalProps> = ({
   const [copiedOrange, setCopiedOrange] = useState<boolean>(false);
   const [showFullOrangeQr, setShowFullOrangeQr] = useState<boolean>(false);
 
+  // Donor account gratitude & review state
+  const [donationTriggered, setDonationTriggered] = useState<boolean>(false);
+  const [reviewRating, setReviewRating] = useState<number>(5);
+  const [reviewComment, setReviewComment] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState<boolean>(false);
+
+  // Resolve active user account from props or localStorage
+  const resolvedAccount = React.useMemo(() => {
+    if (userEmail) {
+      return { email: userEmail.trim(), name: (userName || userEmail.split('@')[0]).trim() };
+    }
+    try {
+      const saved = localStorage.getItem('sanctuaire_user');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.email) {
+          return {
+            email: String(parsed.email).trim(),
+            name: String(parsed.name || parsed.firstName || parsed.email.split('@')[0]).trim(),
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, [userEmail, userName, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowFullOrangeQr(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const waveQrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=12&data=${encodeURIComponent(
     WAVE_MERCHANT_BASE_URL
   )}`;
 
+  const triggerDonorGratitudeFlow = (provider: 'wave' | 'orange_money') => {
+    if (resolvedAccount?.email) {
+      setDonationTriggered(true);
+    }
+    processWaveDonation({
+      currency: 'XOF',
+      provider,
+      cause: 'Sadaqah Jariyah - Le Sanctuaire',
+      donorName: resolvedAccount?.name || userName || undefined,
+      donorEmail: resolvedAccount?.email || userEmail || undefined,
+    }).catch(() => {});
+  };
+
   const handleCopyWaveLink = () => {
     navigator.clipboard.writeText(WAVE_MERCHANT_BASE_URL);
     setCopiedWave(true);
     setTimeout(() => setCopiedWave(false), 2500);
-
-    processWaveDonation({
-      currency: 'XOF',
-      provider: 'wave',
-      cause: 'Sadaqah Jariyah - Le Sanctuaire',
-      donorName: userName || undefined,
-      donorEmail: userEmail || undefined,
-    }).catch(() => {});
+    triggerDonorGratitudeFlow('wave');
   };
 
   const handleOpenWaveLink = () => {
-    processWaveDonation({
-      currency: 'XOF',
-      provider: 'wave',
-      cause: 'Sadaqah Jariyah - Le Sanctuaire',
-      donorName: userName || undefined,
-      donorEmail: userEmail || undefined,
-    }).catch(() => {});
+    triggerDonorGratitudeFlow('wave');
   };
 
   const handleCopyOrangeMoney = () => {
     navigator.clipboard.writeText(ORANGE_MONEY_NUMBER);
     setCopiedOrange(true);
     setTimeout(() => setCopiedOrange(false), 2500);
-
-    processWaveDonation({
-      currency: 'XOF',
-      provider: 'orange_money',
-      cause: 'Sadaqah Jariyah - Le Sanctuaire',
-      donorName: userName || undefined,
-      donorEmail: userEmail || undefined,
-    }).catch(() => {});
+    triggerDonorGratitudeFlow('orange_money');
   };
 
   const handleOpenOrangeQr = () => {
     setShowFullOrangeQr(true);
-    processWaveDonation({
-      currency: 'XOF',
-      provider: 'orange_money',
-      cause: 'Sadaqah Jariyah - Le Sanctuaire',
-      donorName: userName || undefined,
-      donorEmail: userEmail || undefined,
-    }).catch(() => {});
+    triggerDonorGratitudeFlow('orange_money');
+  };
+
+  const handlePublishReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewComment.trim() || isSubmittingReview) return;
+    setIsSubmittingReview(true);
+    try {
+      await submitDonorReview({
+        name: resolvedAccount?.name || userName || 'Membre Bienfaiteur',
+        email: resolvedAccount?.email || userEmail,
+        city: 'Sénégal',
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setReviewSubmitted(true);
+      setReviewComment('');
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -354,6 +400,104 @@ export const DonationModal: React.FC<DonationModalProps> = ({
             </>
           )}
 
+          {/* Message automatique de remerciement, encouragement sur le droit chemin & demande d'avis si le donneur a un compte */}
+          {resolvedAccount?.email && (
+            <div className="text-left rounded-2xl bg-emerald-50/90 dark:bg-[#0F2318] border border-emerald-200 dark:border-emerald-500/35 p-4 space-y-3 shadow-xs">
+              {donationTriggered ? (
+                <div className="flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                    <MailCheck className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-extrabold text-emerald-950 dark:text-emerald-200">
+                      BarakAllahu Fikum {resolvedAccount.name} ! E-mail envoyé automatiquement
+                    </p>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300/90 leading-relaxed">
+                      Un message de remerciement et d'encouragement sur le droit chemin a été envoyé à{' '}
+                      <strong className="underline">{resolvedAccount.email}</strong>.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
+                    Compte connecté : <strong>{resolvedAccount.email}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => triggerDonorGratitudeFlow(activeTab)}
+                    className="text-[11px] font-bold text-emerald-700 dark:text-amber-300 underline cursor-pointer"
+                  >
+                    J'ai fait mon don
+                  </button>
+                </div>
+              )}
+
+              {/* Rappel sur le droit chemin */}
+              <div className="p-3 rounded-xl bg-white/80 dark:bg-emerald-950/60 border border-emerald-200/70 dark:border-emerald-800/50 space-y-1">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Encouragement sur le Droit Chemin</span>
+                </p>
+                <p className="text-xs text-neutral-700 dark:text-emerald-100/90 italic leading-relaxed">
+                  « Qu'Allah accepte votre Sadaqah Jariyah, affermisse vos pas sur le droit chemin (As-Sirāt Al-Mustaqīm), illumine votre cœur par le Coran et vous accorde la constance dans la prière. »
+                </p>
+              </div>
+
+              {/* Formulaire d'avis pour la page Landing */}
+              {reviewSubmitted ? (
+                <div className="p-3 rounded-xl bg-emerald-600/15 border border-emerald-500/40 text-center space-y-1">
+                  <p className="text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                    Merci ! Votre avis est maintenant affiché sur la page d'accueil (Landing Page).
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handlePublishReview} className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-neutral-900 dark:text-white">
+                      Votre avis (affiché sur la page Landing) :
+                    </label>
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewRating(star)}
+                          className="p-0.5 cursor-pointer"
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${
+                              star <= reviewRating
+                                ? 'text-amber-400 fill-amber-400'
+                                : 'text-neutral-300 dark:text-neutral-600'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Partagez votre témoignage ou ressenti sur Le Sanctuaire..."
+                    className="w-full rounded-xl px-3 py-2 text-xs bg-white dark:bg-emerald-950/80 border border-neutral-200 dark:border-emerald-700/60 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-none focus:border-emerald-500"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={!reviewComment.trim() || isSubmittingReview}
+                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>{isSubmittingReview ? 'Publication...' : 'Publier mon avis'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          )}
+
           {/* Security Badge */}
           <div className="flex items-center justify-center gap-2 p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300">
             <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -368,7 +512,3 @@ export const DonationModal: React.FC<DonationModalProps> = ({
     </div>
   );
 };
-
-
-
-

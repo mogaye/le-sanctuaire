@@ -280,3 +280,101 @@ export async function getSentEmailsFromDb() {
     throw new Error('Failed to fetch email logs.', { cause: error });
   }
 }
+
+export interface DonorReviewRecord {
+  id: string;
+  name: string;
+  email?: string;
+  city?: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export async function insertDonorReviewInDb(data: {
+  name: string;
+  email?: string;
+  city?: string;
+  rating: number;
+  comment: string;
+}): Promise<DonorReviewRecord> {
+  const cleanName = (data.name || ' Membre Bienfaiteur').trim();
+  const cleanEmail = (data.email || 'donateur@sanctuaire.app').trim().toLowerCase();
+  const rating = Math.min(5, Math.max(1, Number(data.rating) || 5));
+  const cleanComment = data.comment.trim();
+  const metaJson = JSON.stringify({
+    name: cleanName,
+    city: data.city || 'Sénégal',
+    rating,
+  });
+
+  try {
+    const inserted = await db
+      .insert(emailLogs)
+      .values({
+        senderEmail: cleanEmail,
+        recipientEmail: 'landing_page_reviews',
+        subject: metaJson,
+        bodyPreview: cleanComment,
+        emailType: 'donor_review',
+        status: 'published',
+      })
+      .returning();
+
+    const row = inserted[0];
+    return {
+      id: String(row.id),
+      name: cleanName,
+      email: cleanEmail,
+      city: data.city || 'Sénégal',
+      rating,
+      comment: cleanComment,
+      createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error('Database query failed in insertDonorReviewInDb:', error);
+    return {
+      id: 'local_' + Date.now(),
+      name: cleanName,
+      email: cleanEmail,
+      city: data.city || 'Sénégal',
+      rating,
+      comment: cleanComment,
+      createdAt: new Date().toISOString(),
+    };
+  }
+}
+
+export async function getDonorReviewsFromDb(): Promise<DonorReviewRecord[]> {
+  try {
+    const rows = await db
+      .select()
+      .from(emailLogs)
+      .where(eq(emailLogs.emailType, 'donor_review'))
+      .orderBy(desc(emailLogs.createdAt));
+
+    return rows
+      .map((r) => {
+        let meta: { name?: string; city?: string; rating?: number } = {};
+        try {
+          meta = JSON.parse(r.subject || '{}');
+        } catch {
+          meta = { name: r.subject || 'Bienfaiteur' };
+        }
+        return {
+          id: String(r.id),
+          name: meta.name || r.senderEmail.split('@')[0] || 'Membre Bienfaiteur',
+          email: r.senderEmail,
+          city: meta.city || 'Dakar',
+          rating: Number(meta.rating) || 5,
+          comment: r.bodyPreview || '',
+          createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+        };
+      })
+      .filter((r) => Boolean(r.comment));
+  } catch (error) {
+    console.error('Database query failed in getDonorReviewsFromDb:', error);
+    return [];
+  }
+}
+

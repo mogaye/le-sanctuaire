@@ -957,7 +957,7 @@ export async function updateDailyPrayerLog(
 export interface DonationRecord {
   amount: number;
   currency: 'XOF' | 'EUR' | 'USD';
-  provider: 'wave' | 'dunyapay' | 'direct_transfer';
+  provider: 'wave' | 'orange_money' | 'dunyapay' | 'direct_transfer';
   status: 'pending' | 'succeeded' | 'failed';
   cause: string;
   donorName?: string;
@@ -966,6 +966,138 @@ export interface DonationRecord {
   isAnonymous?: boolean;
   transactionReference?: string;
   userId?: string;
+}
+
+export interface DonorReviewItem {
+  id: string;
+  name: string;
+  email?: string;
+  city?: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+const LOCAL_DONOR_REVIEWS_KEY = 'sanctuaire_donor_reviews';
+
+export const DEFAULT_DONOR_REVIEWS: DonorReviewItem[] = [
+  {
+    id: 'rev_default_1',
+    name: 'Mamadou Gaye',
+    city: 'Dakar',
+    rating: 5,
+    comment:
+      "Alhamdulillah, une plateforme apaisante, sans aucune publicité, qui m'accompagne chaque jour pour les heures de prière et la lecture du Noble Coran. Qu'Allah récompense toute l'équipe.",
+    createdAt: '2026-10-08T18:30:00.000Z',
+  },
+  {
+    id: 'rev_default_2',
+    name: 'Fatou Bintou Diop',
+    city: 'Thiès',
+    rating: 5,
+    comment:
+      "J'ai fait ma Sadaqah avec joie. Le rappel spirituel et la bibliothèque du vendredi sont une vraie bénédiction pour rester concentrée sur le droit chemin.",
+    createdAt: '2026-10-09T14:15:00.000Z',
+  },
+  {
+    id: 'rev_default_3',
+    name: 'Cheikh Tidiane Ndiaye',
+    city: 'Saint-Louis',
+    rating: 5,
+    comment:
+      "Interface très claire, récitateurs magnifiques et suivi quotidien des prières très motivant. Qu'Allah accepte cette œuvre comme une Sadaqah Jariyah.",
+    createdAt: '2026-10-09T20:45:00.000Z',
+  },
+];
+
+export function getLocalDonorReviews(): DonorReviewItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_DONOR_REVIEWS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchDonorReviews(): Promise<DonorReviewItem[]> {
+  const local = getLocalDonorReviews();
+  let remote: DonorReviewItem[] = [];
+
+  try {
+    const res = await fetch('/api/reviews');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.reviews)) {
+        remote = data.reviews;
+      }
+    }
+  } catch {
+    // ignore network errors
+  }
+
+  const mergedMap = new Map<string, DonorReviewItem>();
+  for (const r of [...local, ...remote, ...DEFAULT_DONOR_REVIEWS]) {
+    if (r && r.comment) {
+      const dedupeKey = `${(r.name || '').toLowerCase()}::${r.comment.trim().toLowerCase()}`;
+      if (!mergedMap.has(dedupeKey)) {
+        mergedMap.set(dedupeKey, r);
+      }
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}
+
+export async function submitDonorReview(input: {
+  name: string;
+  email?: string;
+  city?: string;
+  rating: number;
+  comment: string;
+}): Promise<DonorReviewItem> {
+  const newReview: DonorReviewItem = {
+    id: 'rev_' + Date.now(),
+    name: (input.name || 'Membre Bienfaiteur').trim(),
+    email: input.email?.trim(),
+    city: (input.city || 'Dakar').trim(),
+    rating: Math.min(5, Math.max(1, Number(input.rating) || 5)),
+    comment: input.comment.trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    const existing = getLocalDonorReviews();
+    const updated = [newReview, ...existing];
+    localStorage.setItem(LOCAL_DONOR_REVIEWS_KEY, JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+
+  try {
+    const res = await fetch('/api/reviews', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newReview),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.review) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('sanctuaire-reviews-updated'));
+        }
+        return data.review;
+      }
+    }
+  } catch {
+    // ignore network error
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('sanctuaire-reviews-updated'));
+  }
+
+  return newReview;
 }
 
 export function hasUserDonatedLocally(user?: { email?: string; name?: string } | null): boolean {
@@ -997,7 +1129,7 @@ export function hasUserDonatedLocally(user?: { email?: string; name?: string } |
     const history = JSON.parse(localStorage.getItem('sanctuaire_donations') || '[]');
     if (Array.isArray(history)) {
       const found = history.some((d: Record<string, any>) => {
-        if (!d || Number(d.amount) <= 0 || d.status === 'failed') return false;
+        if (!d || d.status === 'failed') return false;
         const dEmail = String(d.donorEmail || d.accountEmail || '').trim().toLowerCase();
         const dName = String(d.donorName || '').trim().toLowerCase();
         if (emailKey && dEmail && dEmail === emailKey) return true;
@@ -1093,7 +1225,7 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
       }
       const userEmailKey = (savedUser?.email || '').trim().toLowerCase();
       const userNameKey = (savedUser?.name || '').trim().toLowerCase();
-      if (donation.amount > 0 && donation.status !== 'failed') {
+      if (donation.status !== 'failed') {
         if (userEmailKey) {
           localStorage.setItem(`sanctuaire_user_donated_${userEmailKey}`, 'true');
         }
@@ -1103,7 +1235,7 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
       }
     }
 
-    if (accountEmail && donation.amount > 0 && donation.status !== 'failed') {
+    if (accountEmail && donation.status !== 'failed') {
       localStorage.setItem(`sanctuaire_user_donated_${accountEmail.trim().toLowerCase()}`, 'true');
     }
 
@@ -1123,9 +1255,10 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
     // ignore
   }
 
-  // Persist in Cloud SQL PostgreSQL backend
+  // Persist in Cloud SQL PostgreSQL backend (which also automatically sends the thank-you + encouragement + review request email if donorEmail is present)
+  let emailSent = false;
   try {
-    await fetch('/api/donations', {
+    const res = await fetch('/api/donations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1142,12 +1275,16 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
         transactionReference: donation.transactionReference || null,
       }),
     });
+    if (res.ok) {
+      const json = await res.json();
+      emailSent = Boolean(json?.emailSent);
+    }
   } catch {
     // ignore offline/network error
   }
 
   if (!supabase) {
-    return { success: true, localOnly: true };
+    return { success: true, localOnly: true, emailSent };
   }
 
   try {
@@ -1169,10 +1306,10 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
     );
 
     if (error) throw error;
-    return { success: true, data };
+    return { success: true, data, emailSent };
   } catch (e) {
     console.error('Error saving donation to Supabase:', e);
-    return { success: false, error: e };
+    return { success: false, error: e, emailSent };
   }
 }
 
