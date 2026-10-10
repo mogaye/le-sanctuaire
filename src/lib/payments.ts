@@ -3,7 +3,7 @@ import { recordDonationInSupabase, DonationRecord } from './supabase';
 export interface PaymentRequest {
   amount?: number;
   currency: 'XOF' | 'EUR' | 'USD';
-  provider: 'wave';
+  provider: 'wave' | 'orange_money';
   cause: string;
   donorName?: string;
   donorEmail?: string;
@@ -17,11 +17,14 @@ export interface PaymentResponse {
   checkoutUrl: string;
   paymentReference: string;
   message: string;
-  provider: 'wave';
+  provider: 'wave' | 'orange_money';
 }
 
 // Lien Marchand Wave Officiel
 export const WAVE_MERCHANT_BASE_URL = 'https://pay.wave.com/m/M_sn_HHtFRD3L0nX1/c/sn/';
+
+// Numéro Orange Money (non affiché en clair dans l'interface, uniquement copié)
+export const ORANGE_MONEY_NUMBER = '789139036';
 
 export const getWaveCheckoutUrl = (): string => {
   return WAVE_MERCHANT_BASE_URL;
@@ -31,15 +34,16 @@ export const isWaveConfigured = (): boolean => {
   return true;
 };
 
-// Process Donation via Wave Merchant Link
+// Process Donation via Wave or Orange Money
 export async function processWaveDonation(req: PaymentRequest): Promise<PaymentResponse> {
-  const ref = 'WAVE-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(Math.random() * 1000);
+  const prefix = req.provider === 'orange_money' ? 'OM-' : 'WAVE-';
+  const ref = prefix + Date.now().toString(36).toUpperCase() + '-' + Math.floor(Math.random() * 1000);
   const checkoutUrl = WAVE_MERCHANT_BASE_URL;
 
   const donationData: DonationRecord = {
     amount: req.amount || 0,
     currency: req.currency || 'XOF',
-    provider: 'wave',
+    provider: req.provider,
     status: 'succeeded',
     cause: req.cause,
     donorName: req.isAnonymous ? 'Donateur Anonyme (Sadaqah)' : req.donorName,
@@ -50,23 +54,27 @@ export async function processWaveDonation(req: PaymentRequest): Promise<PaymentR
     userId: req.userId,
   };
 
-  // Non-blocking save in Supabase (waits at most 350ms so redirect is immediate)
+  // Non-blocking save in Supabase (waits at most 350ms so action is immediate)
   try {
     await Promise.race([
       recordDonationInSupabase(donationData),
       new Promise((resolve) => setTimeout(resolve, 350)),
     ]);
   } catch {
-    // Ignore Supabase logging errors so Wave payment never fails
+    // Ignore Supabase logging errors so payment action never fails
   }
 
   return {
     success: true,
     paymentReference: ref,
     checkoutUrl,
-    message: 'Copier le lien ou ouvrir le QR Code Wave.',
-    provider: 'wave',
+    message:
+      req.provider === 'orange_money'
+        ? 'Copier ou scanner le QR Code Orange Money.'
+        : 'Copier le lien ou ouvrir le QR Code Wave.',
+    provider: req.provider,
   };
 }
+
 
 
