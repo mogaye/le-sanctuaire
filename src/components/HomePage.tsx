@@ -1567,7 +1567,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </section>
 
-          {/* Sadaqah & Dons DunyaPay (Col 4) */}
+          {/* Sadaqah & Dons Wave (Col 4) */}
           <section className="lg:col-span-4 bg-gradient-to-br from-amber-500/15 via-emerald-500/10 to-teal-500/15 dark:from-[#173827] dark:via-[#132E20] dark:to-[#0F2218] rounded-[28px] p-6 sm:p-7 border border-amber-400/40 dark:border-emerald-500/30 shadow-md flex flex-col justify-between space-y-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -1579,28 +1579,30 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </h4>
               </div>
               <p className="text-xs text-neutral-700 dark:text-emerald-200/85 leading-relaxed">
-                Participez à la pérennité de cette plateforme spirituelle bénie par un don sécurisé via PayDunya (Orange Money, Wave, Free Money, Cartes Bancaires).
+                Participez à la pérennité de cette plateforme spirituelle bénie par un don sécurisé via Wave.
               </p>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-neutral-600 dark:text-emerald-300/80">
-                <span className="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/80 font-bold border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300">PayDunya</span>
-                <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Wave</span>
-                <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Orange Money</span>
-                <span className="px-2 py-0.5 rounded bg-white/60 dark:bg-white/10 font-bold border border-neutral-200 dark:border-white/10">Cartes</span>
-              </div>
+            <div className="space-y-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText('https://pay.wave.com/m/M_sn_HHtFRD3L0nX1/c/sn/');
+                  if (onOpenDonations) onOpenDonations();
+                }}
+                className="w-full h-10 rounded-xl bg-white/80 hover:bg-white dark:bg-emerald-950/60 dark:hover:bg-emerald-900/70 text-neutral-900 dark:text-white font-bold text-xs border border-neutral-200 dark:border-emerald-700/50 flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <span>Copier le lien</span>
+              </button>
 
-              {onOpenDonations && (
-                <button
-                  type="button"
-                  onClick={onOpenDonations}
-                  className="w-full h-11 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-neutral-950 font-bold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
-                >
-                  <Heart className="w-4 h-4 text-neutral-950 fill-neutral-950/20" />
-                  <span>Faire un don (Sadaqah)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={onOpenDonations}
+                className="w-full h-11 rounded-2xl bg-gradient-to-r from-[#1DC8FF] via-[#38BDF8] to-[#0095D9] hover:opacity-95 active:scale-[0.98] text-neutral-950 font-extrabold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+              >
+                <Heart className="w-4 h-4 text-neutral-950 fill-neutral-950/20" />
+                <span>Ouvrir QR Code Wave</span>
+              </button>
             </div>
           </section>
 

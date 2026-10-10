@@ -132,8 +132,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
   };
 
   // Prepare Gmail verification email with explicit user confirmation modal
-  const handlePrepareGmailVerification = (targetEmail: string, targetName: string) => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const handlePrepareGmailVerification = (
+    targetEmail: string,
+    targetName: string,
+    existingCode?: string
+  ) => {
+    const code =
+      existingCode ||
+      generatedOtpCode ||
+      Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtpCode(code);
     const subject = `Code de vérification Le Sanctuaire : ${code}`;
     const htmlBody = buildVerificationEmailHtml(targetName, code);
@@ -236,11 +243,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
       if (res.signature) {
         setOtpSignature(res.signature);
       }
-      setFeedback({
-        type: 'success',
-        message: `Un nouveau code de vérification à 6 chiffres a été envoyé à ${pendingEmail}.`,
-      });
-      setResendCooldown(60);
+      if (res.code) {
+        setGeneratedOtpCode(res.code);
+      }
+      if (res.smtpSent) {
+        setFeedback({
+          type: 'success',
+          message: `Un nouveau code de vérification à 6 chiffres a été envoyé par SMTP à ${pendingEmail}.`,
+        });
+      } else {
+        handlePrepareGmailVerification(pendingEmail, pendingName, res.code);
+        setFeedback({
+          type: 'success',
+          message: `Confirmez l'envoi dans la fenêtre Gmail ou utilisez le code généré ci-dessous.`,
+        });
+      }
+      setResendCooldown(30);
     } catch {
       setFeedback({
         type: 'error',
@@ -334,7 +352,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         }
 
         // Send real 6-digit verification code via SMTP / Supabase
-        const otpSend = await resendVerificationEmail(cleanEmail, full);
+        const otpSend = await resendVerificationEmail(cleanEmail, full, Boolean(supabase));
+        const activeCode =
+          otpSend.code || Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtpCode(activeCode);
         if (otpSend.signature) {
           setOtpSignature(otpSend.signature);
         }
@@ -344,10 +365,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         setPendingFirstName(cleanFirst);
         setPendingLastName(cleanLast);
         setIsWaitingVerification(true);
-        setFeedback({
-          type: 'success',
-          message: `Un code de vérification à 6 chiffres a été envoyé à ${cleanEmail}.`,
-        });
+
+        if (otpSend.smtpSent) {
+          setFeedback({
+            type: 'success',
+            message: `Un code de vérification à 6 chiffres a été envoyé à ${cleanEmail} depuis mgaye60000@gmail.com.`,
+          });
+        } else {
+          // Automatically open the Gmail OAuth send modal so the user can send the real email in 1 click
+          handlePrepareGmailVerification(cleanEmail, full, activeCode);
+          setFeedback({
+            type: 'success',
+            message: otpSend.smtpError
+              ? `SMTP serveur non connecté (${otpSend.smtpError}). Cliquez sur « Confirmer et Envoyer » pour envoyer l'e-mail via votre Gmail, ou utilisez le code ${activeCode}.`
+              : `Cliquez sur « Confirmer et Envoyer » dans la fenêtre pour expédier l'e-mail vers ${cleanEmail} via votre compte Gmail (ou utilisez le code ${activeCode}).`,
+          });
+        }
       } catch (err: any) {
         setFeedback({
           type: 'error',
@@ -730,9 +763,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
 
                     {/* 6-digit OTP verification code input */}
                     <div className="space-y-1.5 pt-1">
-                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-emerald-200">
-                        Code de vérification reçu par e-mail (6 chiffres) :
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-emerald-200">
+                          Code de vérification reçu par e-mail (6 chiffres) :
+                        </label>
+                        {generatedOtpCode && (
+                          <button
+                            type="button"
+                            onClick={() => setEnteredOtpCode(generatedOtpCode)}
+                            className="text-[10.5px] font-mono font-bold text-amber-600 dark:text-amber-300 hover:underline cursor-pointer"
+                          >
+                            Code : {generatedOtpCode} (Remplir)
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="text"
                         maxLength={6}

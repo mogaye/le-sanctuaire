@@ -142,7 +142,7 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
               <div>
                 <p className="text-[11px] font-bold text-amber-200">Soutenir le Sanctuaire</p>
-                <p className="text-[9px] text-emerald-100/70">Don sécurisé via PayDunya</p>
+                <p className="text-[9px] text-emerald-100/70">Copier le lien & Ouvrir QR Code Wave</p>
               </div>
               <div className="text-[9px] bg-amber-400/20 text-amber-300 px-1 py-0.5 rounded font-mono">
                 Glisser ↔
@@ -179,7 +179,7 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
         </div>
       </motion.div>
 
-      {/* 3. MODAL DES DONS (Wave, DunyaPay, Cartes & Supabase Ledger) */}
+      {/* 3. MODAL DES DONS (Wave & Supabase Ledger) */}
       <DonationModal
         isOpen={activeModal === 'donation'}
         onClose={() => setActiveModal(null)}

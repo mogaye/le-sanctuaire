@@ -477,11 +477,18 @@ export async function signUpWithEmail(email: string, password: string, fullName:
 }
 
 // Send real 6-digit verification code via Server SMTP (/api/auth/send-code) and/or Supabase SMTP
-export async function resendVerificationEmail(email: string, fullName?: string) {
+export async function resendVerificationEmail(
+  email: string,
+  fullName?: string,
+  skipSupabaseOtp = false
+) {
   const cleanEmail = email.trim().toLowerCase();
   const redirectUrl = typeof window !== 'undefined' ? window.location.origin : '';
   let signature = '';
+  let code = '';
   let smtpSent = false;
+  let supabaseSent = false;
+  let smtpError = '';
 
   // 1. Trigger server-side SMTP endpoint (/api/auth/send-code)
   try {
@@ -493,9 +500,15 @@ export async function resendVerificationEmail(email: string, fullName?: string) 
     if (res.ok) {
       const json = await res.json();
       if (json?.signature) {
-        signature = json.signature;
+        signature = String(json.signature);
       }
-      if (json?.provider === 'smtp') {
+      if (json?.code) {
+        code = String(json.code);
+      }
+      if (json?.smtpError) {
+        smtpError = String(json.smtpError);
+      }
+      if (json?.provider === 'smtp' && json?.smtpSent) {
         smtpSent = true;
       }
     }
@@ -504,7 +517,7 @@ export async function resendVerificationEmail(email: string, fullName?: string) 
   }
 
   // 2. Also trigger Supabase OTP if Supabase is configured and server SMTP didn't already send
-  if (supabase && !smtpSent) {
+  if (supabase && !smtpSent && !skipSupabaseOtp) {
     try {
       const { data, error } = await withTimeout(
         supabase.auth.signInWithOtp({
@@ -517,17 +530,57 @@ export async function resendVerificationEmail(email: string, fullName?: string) 
         5000
       );
 
-      if (error && isNetworkOrFetchError(error)) {
-        return { data: {}, error: null, isFallback: true, signature };
+      if (!error) {
+        supabaseSent = true;
       }
 
-      return { data, error, isFallback: false, signature };
+      if (error && isNetworkOrFetchError(error)) {
+        return {
+          data: {},
+          error: null,
+          isFallback: true,
+          signature,
+          code,
+          smtpSent,
+          supabaseSent: false,
+          smtpError,
+        };
+      }
+
+      return {
+        data,
+        error,
+        isFallback: false,
+        signature,
+        code,
+        smtpSent,
+        supabaseSent,
+        smtpError,
+      };
     } catch {
-      return { data: {}, error: null, isFallback: true, signature };
+      return {
+        data: {},
+        error: null,
+        isFallback: true,
+        signature,
+        code,
+        smtpSent,
+        supabaseSent: false,
+        smtpError,
+      };
     }
   }
 
-  return { data: {}, error: null, isFallback: !smtpSent, signature };
+  return {
+    data: {},
+    error: null,
+    isFallback: !smtpSent,
+    signature,
+    code,
+    smtpSent,
+    supabaseSent,
+    smtpError,
+  };
 }
 
 export async function verifyEmailOtpCode(email: string, token: string, signature?: string) {

@@ -73,40 +73,63 @@ export default async function handler(req, res) {
     const smtpHost = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
     const smtpPort = Number(process.env.SMTP_PORT || 465);
     const smtpUser = (process.env.SMTP_USER || 'mgaye60000@gmail.com').trim();
-    const smtpPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+    const rawPass = (process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
+    const isPlaceholderPass =
+      !rawPass ||
+      rawPass.includes('VOTRE_MOT_DE_PASSE') ||
+      rawPass.includes('16_LETTRES') ||
+      rawPass === 'your-app-password';
+    const smtpPass = isPlaceholderPass ? '' : rawPass;
 
     if (smtpPass) {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
 
-      await transporter.sendMail({
-        from: `"Le Sanctuaire" <${smtpUser}>`,
-        to: email,
-        subject: `Code de vérification Le Sanctuaire : ${code}`,
-        html: buildEmailHtml(fullName, code, email),
-      });
+        await transporter.sendMail({
+          from: `"Le Sanctuaire" <${smtpUser}>`,
+          to: email,
+          subject: `Code de vérification Le Sanctuaire : ${code}`,
+          html: buildEmailHtml(fullName, code, email),
+        });
 
-      return res.status(200).json({
-        success: true,
-        provider: 'smtp',
-        signature,
-        senderEmail: smtpUser,
-        message: `Un vrai code de vérification à 6 chiffres a été envoyé à ${email}.`,
-      });
+        return res.status(200).json({
+          success: true,
+          provider: 'smtp',
+          smtpSent: true,
+          signature,
+          code,
+          senderEmail: smtpUser,
+          message: `Un vrai code de vérification à 6 chiffres a été envoyé à ${email}.`,
+        });
+      } catch (smtpError) {
+        console.error('SMTP error in /api/auth/send-code:', smtpError);
+        return res.status(200).json({
+          success: true,
+          provider: 'smtp_error',
+          smtpSent: false,
+          smtpError: smtpError?.message || 'Erreur SMTP Gmail',
+          signature,
+          code,
+          message: 'Envoi via Gmail OAuth requis (SMTP_PASS invalide ou non configuré).',
+        });
+      }
     }
 
     return res.status(200).json({
       success: true,
-      provider: 'supabase_or_gmail',
+      provider: 'gmail_oauth',
+      smtpSent: false,
       signature,
-      message: 'Envoi délégué à Supabase SMTP / Gmail.',
+      code,
+      message: 'Envoi délégué à Gmail OAuth / Supabase.',
     });
   } catch (error) {
     console.error('Error in /api/auth/send-code:', error);

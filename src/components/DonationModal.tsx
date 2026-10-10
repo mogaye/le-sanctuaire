@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, Heart, CheckCircle, ShieldCheck, ArrowRight, Smartphone, CreditCard, Sparkles, KeyRound, ExternalLink } from 'lucide-react';
-import { processDunyaPayDonation, isDunyaPayConfigured, getDunyaPayConfig } from '../lib/payments';
+import {
+  X,
+  Heart,
+  QrCode,
+  ExternalLink,
+  Copy,
+  Check,
+  ShieldCheck,
+} from 'lucide-react';
+import {
+  processWaveDonation,
+  WAVE_MERCHANT_BASE_URL,
+} from '../lib/payments';
 
 interface DonationModalProps {
   isOpen: boolean;
@@ -10,312 +20,132 @@ interface DonationModalProps {
   userName?: string;
 }
 
-const PRESET_AMOUNTS = [1000, 2500, 5000, 10000, 25000, 50000];
-
-export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, userEmail, userName }) => {
-  const [amount, setAmount] = useState<number>(5000);
-  const [customAmount, setCustomAmount] = useState<string>('');
-  const [isCustom, setIsCustom] = useState<boolean>(false);
-  const [cause, setCause] = useState<string>('Sadaqah Jariyah - Développement & Hébergement du Sanctuaire');
-  const [donorName, setDonorName] = useState<string>(userName || '');
-  const [donorPhone, setDonorPhone] = useState<string>('');
-  const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successResult, setSuccessResult] = useState<{ reference: string; message: string; checkoutUrl?: string } | null>(null);
+export const DonationModal: React.FC<DonationModalProps> = ({
+  isOpen,
+  onClose,
+  userEmail,
+  userName,
+}) => {
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
-  const currentAmount = isCustom ? (parseInt(customAmount, 10) || 0) : amount;
-  const isConfigured = isDunyaPayConfigured();
-  const dunyaPayConfig = getDunyaPayConfig();
+  const qrCodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=12&data=${encodeURIComponent(
+    WAVE_MERCHANT_BASE_URL
+  )}`;
 
-  const handleSelectPreset = (val: number) => {
-    setIsCustom(false);
-    setAmount(val);
-    setErrorMsg(null);
+  const handleCopyWaveLink = () => {
+    navigator.clipboard.writeText(WAVE_MERCHANT_BASE_URL);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+
+    processWaveDonation({
+      currency: 'XOF',
+      provider: 'wave',
+      cause: 'Sadaqah Jariyah - Le Sanctuaire',
+      donorName: userName || undefined,
+      donorEmail: userEmail || undefined,
+    }).catch(() => {});
   };
 
-  const handleSelectCustom = () => {
-    setIsCustom(true);
-    setErrorMsg(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    if (currentAmount < 500) {
-      setErrorMsg('Le montant minimum pour un don est de 500 FCFA.');
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      const payload = {
-        amount: currentAmount,
-        currency: 'XOF' as const,
-        provider: 'dunyapay' as const,
-        cause,
-        donorName: donorName.trim() || undefined,
-        donorEmail: userEmail || undefined,
-        donorPhone: donorPhone.trim() || undefined,
-        isAnonymous,
-      };
-
-      const res = await processDunyaPayDonation(payload);
-
-      if (!res.checkoutUrl) {
-        setErrorMsg(res.message || 'Impossible de générer la facture PayDunya. Veuillez réessayer.');
-        return;
-      }
-
-      setSuccessResult({
-        reference: res.paymentReference,
-        message: res.message,
-        checkoutUrl: res.checkoutUrl,
-      });
-
-      // On Vercel / standalone browser (outside an iframe), redirect directly to PayDunya checkout
-      // so mobile & desktop popup blockers never block the payment page
-      const isInIframe = (() => {
-        try {
-          return window.self !== window.top;
-        } catch {
-          return true;
-        }
-      })();
-
-      if (!isInIframe) {
-        window.location.href = res.checkoutUrl;
-      }
-    } catch (err) {
-      console.error('Erreur lors du don DunyaPay:', err);
-      setErrorMsg('Une erreur est survenue lors de l’initialisation du don. Veuillez réessayer.');
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleOpenWaveLink = () => {
+    processWaveDonation({
+      currency: 'XOF',
+      provider: 'wave',
+      cause: 'Sadaqah Jariyah - Le Sanctuaire',
+      donorName: userName || undefined,
+      donorEmail: userEmail || undefined,
+    }).catch(() => {});
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="relative w-full max-w-lg bg-white dark:bg-[#162a20] rounded-2xl sm:rounded-3xl border border-neutral-200 dark:border-emerald-500/25 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
-        
+      <div className="relative w-full max-w-md bg-white dark:bg-[#162a20] rounded-2xl sm:rounded-3xl border border-neutral-200 dark:border-emerald-500/25 shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-neutral-100 dark:border-emerald-800/40 bg-neutral-50/50 dark:bg-emerald-950/20">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center text-amber-700 dark:text-amber-400">
+            <div className="w-9 h-9 rounded-xl bg-[#1DC8FF]/20 border border-[#1DC8FF]/40 flex items-center justify-center text-[#0095D9] dark:text-[#38BDF8]">
               <Heart className="w-5 h-5 fill-current" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white leading-tight flex items-center gap-2">
                 Faire un don (Sadaqah)
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50">
-                  PayDunya
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1DC8FF]/20 text-[#0077B6] dark:text-[#38BDF8] border border-[#1DC8FF]/40">
+                  Wave
                 </span>
               </h2>
-              <p className="text-xs text-neutral-500 dark:text-emerald-400/80">
-                Paiement sécurisé via PayDunya (Orange Money, Wave, Free Money et Cartes)
+              <p className="text-xs text-neutral-500 dark:text-emerald-300/80">
+                Soutenir Le Sanctuaire via Wave
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-5">
-          {successResult ? (
-            <div className="py-6 text-center space-y-4 animate-in zoom-in-95">
-              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                <CheckCircle className="w-10 h-10" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
-                  Barak’Allahu Feek !
-                </h3>
-                <p className="text-sm text-neutral-600 dark:text-neutral-300 max-w-sm mx-auto">
-                  {successResult.message}
-                </p>
-              </div>
-
-              <div className="p-3 bg-neutral-100 dark:bg-emerald-950/40 rounded-xl text-xs text-neutral-500 dark:text-neutral-400 font-mono">
-                Référence de transaction : {successResult.reference}
-              </div>
-
-              <p className="text-xs italic text-emerald-700 dark:text-emerald-300">
-                « Ceux qui dépensent leurs biens dans le sentier d’Allah sont semblables à un grain d’où germent sept épis, portant chacun cent grains. » (Sourate 2, v. 261)
-              </p>
-
-              {successResult.checkoutUrl && (
-                <div className="space-y-2 pt-2">
-                  <a
-                    href={successResult.checkoutUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-xl transition-all cursor-pointer ring-2 ring-emerald-400/30"
-                  >
-                    <span>Accéder au paiement sécurisé</span>
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                    Accepte Orange Money, Wave, Free Money et Cartes Bancaires
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={() => {
-                  setSuccessResult(null);
-                  onClose();
-                }}
-                className="w-full py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 rounded-xl font-semibold transition-colors text-sm"
-              >
-                Fermer
-              </button>
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 text-center">
+          {/* QR Code Wave */}
+          <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-gradient-to-br from-[#1DC8FF]/15 via-sky-500/10 to-emerald-500/10 border border-[#1DC8FF]/40 space-y-3">
+            <div className="bg-white p-3 rounded-2xl shadow-md border border-[#1DC8FF]/30">
+              <img
+                src={qrCodeImageUrl}
+                alt="QR Code Wave"
+                className="w-44 h-44 sm:w-48 sm:h-48 object-contain mx-auto rounded-lg"
+              />
             </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              {/* Payment Methods Banner */}
-              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-amber-500/10 to-teal-500/10 border border-emerald-500/25 dark:border-emerald-500/30 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                    <ShieldCheck className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                      <span>Paiement PayDunya 100% sécurisé</span>
-                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-300/50">
-                        Certifié PayDunya
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 dark:text-emerald-300/80">
-                      Wave • Orange Money • Free Money • Cartes Bancaires (PayDunya)
-                    </p>
-                  </div>
-                </div>
-                <CreditCard className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              </div>
+            <p className="text-xs font-semibold text-neutral-700 dark:text-emerald-100">
+              Scannez le QR Code ou utilisez les boutons ci-dessous
+            </p>
+          </div>
 
-              {/* Amount Selection */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-2">
-                  1. Montant du don (FCFA)
-                </label>
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {PRESET_AMOUNTS.map((val) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => handleSelectPreset(val)}
-                      className={`py-2 px-2 text-xs sm:text-sm font-semibold rounded-lg border transition-colors ${
-                        !isCustom && amount === val
-                          ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                          : 'bg-neutral-50 dark:bg-neutral-800/40 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:border-emerald-500'
-                      }`}
-                    >
-                      {val.toLocaleString('fr-FR')} F
-                    </button>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSelectCustom}
-                    className={`py-1.5 px-3 text-xs font-medium rounded-lg border transition-colors ${
-                      isCustom
-                        ? 'bg-emerald-700 text-white border-emerald-700'
-                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-transparent'
-                    }`}
-                  >
-                    Montant libre :
-                  </button>
-                  <div className="flex-1 relative">
-                    <input
-                      type="number"
-                      placeholder="Autre montant..."
-                      value={customAmount}
-                      onChange={(e) => {
-                        setIsCustom(true);
-                        setCustomAmount(e.target.value);
-                      }}
-                      onFocus={() => setIsCustom(true)}
-                      className="w-full py-1.5 px-3 text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                    />
-                    <span className="absolute right-2.5 top-1.5 text-xs text-neutral-400">FCFA</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Donor Contact */}
-              <div className="space-y-2.5 pt-1">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    2. Numéro de téléphone (optionnel, pour le reçu)
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="Ex: +221 77 123 45 67"
-                    value={donorPhone}
-                    onChange={(e) => setDonorPhone(e.target.value)}
-                    className="w-full py-2 px-3 text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="anonymous-check"
-                    checked={isAnonymous}
-                    onChange={(e) => setIsAnonymous(e.target.checked)}
-                    className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
-                  />
-                  <label htmlFor="anonymous-check" className="text-xs text-neutral-600 dark:text-neutral-400 select-none cursor-pointer">
-                    Faire ce don de manière anonyme (Sadaqah cachée)
-                  </label>
-                </div>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/60 rounded-xl text-xs text-red-700 dark:text-red-300 font-medium">
-                  {errorMsg}
-                </div>
+          {/* Action Buttons: Copier le lien & Ouvrir QR Code Wave */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleCopyWaveLink}
+              className="w-full py-3.5 px-4 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/70 text-neutral-900 dark:text-white font-bold text-sm border border-neutral-200 dark:border-emerald-700/50 flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-xs"
+            >
+              {copiedLink ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                  <span>Lien Wave copié !</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-[#0095D9] dark:text-[#38BDF8] stroke-[2.2]" />
+                  <span>Copier le lien</span>
+                </>
               )}
+            </button>
 
-              {/* Security Badge */}
-              <div className="flex items-center gap-2 p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300">
-                <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" />
-                <span>Transactions chiffrées et sécurisées via la passerelle officielle PayDunya.</span>
-              </div>
+            <a
+              href={WAVE_MERCHANT_BASE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={handleOpenWaveLink}
+              className="w-full py-3.5 px-4 rounded-xl bg-[#1DC8FF] hover:bg-[#00B4F0] text-neutral-950 font-extrabold text-sm flex items-center justify-center gap-2.5 shadow-md hover:shadow-lg transition-all cursor-pointer ring-2 ring-[#1DC8FF]/40"
+            >
+              <QrCode className="w-4 h-4 stroke-[2.3]" />
+              <span>Ouvrir QR Code Wave</span>
+              <ExternalLink className="w-4 h-4 stroke-[2.3]" />
+            </a>
+          </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isProcessing || currentAmount < 500}
-                className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                    Initialisation sécurisée via PayDunya...
-                  </span>
-                ) : (
-                  <>
-                    <span>Confirmer le don de {currentAmount.toLocaleString('fr-FR')} FCFA</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+          {/* Security Badge */}
+          <div className="flex items-center justify-center gap-2 p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span>Paiement direct et sécurisé sur Wave</span>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+
 
