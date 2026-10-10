@@ -9,7 +9,7 @@ const rawEnvUrl = (
   metaEnv.VITE_SUPABASE_URL ||
   metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
   metaEnv.SUPABASE_URL ||
-  ''
+  'https://bkfklfnnturdwtfjoxci.supabase.co'
 ).trim();
 
 const rawEnvAnonKey = (
@@ -28,7 +28,8 @@ const isValidCustomUrl =
 
 const isValidCustomKey =
   rawEnvAnonKey.length > 15 &&
-  !rawEnvAnonKey.includes('your-anon-public-key');
+  !rawEnvAnonKey.includes('your-anon-public-key') &&
+  !rawEnvAnonKey.includes('VOTRE_CLE');
 
 const supabaseUrl = isValidCustomUrl ? rawEnvUrl : '';
 const supabaseAnonKey = isValidCustomKey ? rawEnvAnonKey : '';
@@ -98,12 +99,13 @@ export async function syncConnectedAccountToBackend(account: {
   const cleanEmail = account.email.trim().toLowerCase();
   if (!cleanEmail) return;
 
+  const resolvedId = account.id || `acct_${cleanEmail}`;
   const fullName = account.fullName || cleanEmail.split('@')[0] || 'Fidèle';
   const firstName = account.firstName || fullName.split(' ')[0] || 'Fidèle';
   const lastName = account.lastName || fullName.split(' ').slice(1).join(' ') || '';
 
   saveLocalAccount({
-    id: account.id || `acct_${cleanEmail}`,
+    id: resolvedId,
     email: cleanEmail,
     fullName,
     firstName,
@@ -113,12 +115,13 @@ export async function syncConnectedAccountToBackend(account: {
     lastConnectedAt: new Date().toISOString(),
   });
 
+  // 1. Synchronize to Backend PostgreSQL (/api/accounts/sync -> users & profiles)
   try {
     await fetch('/api/accounts/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: account.id || `acct_${cleanEmail}`,
+        id: resolvedId,
         email: cleanEmail,
         fullName,
         firstName,
@@ -128,6 +131,46 @@ export async function syncConnectedAccountToBackend(account: {
     });
   } catch {
     // ignore offline/network errors
+  }
+
+  // 2. Also synchronize directly to Supabase public.users and public.profiles if configured
+  if (supabase) {
+    try {
+      await supabase.from('users').upsert(
+        {
+          uid: resolvedId,
+          email: cleanEmail,
+          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
+          avatar_url: account.avatarUrl || null,
+          city_name: 'Dakar',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'uid' }
+      );
+    } catch {
+      // ignore if RLS blocks or schema differs
+    }
+
+    try {
+      await supabase.from('profiles').upsert(
+        {
+          id: resolvedId,
+          email: cleanEmail,
+          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
+          avatar_url: account.avatarUrl || null,
+          city_name: 'Dakar',
+          last_connected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'email' }
+      );
+    } catch {
+      // ignore if RLS blocks or schema differs
+    }
   }
 }
 
@@ -390,9 +433,9 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   const lastName = parts.slice(1).join(' ');
   const redirectUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
-  const runLocalSignUp = () => {
+  const runLocalSignUp = async () => {
     const newAccount: LocalRegisteredAccount = {
-      id: 'local-user-' + Date.now(),
+      id: `acct_${cleanEmail}`,
       email: cleanEmail,
       password,
       fullName: cleanName,
@@ -401,6 +444,13 @@ export async function signUpWithEmail(email: string, password: string, fullName:
       createdAt: new Date().toISOString(),
     };
     saveLocalAccount(newAccount);
+    await syncConnectedAccountToBackend({
+      id: newAccount.id,
+      email: cleanEmail,
+      fullName: cleanName,
+      firstName,
+      lastName,
+    });
 
     return {
       data: {
@@ -454,15 +504,24 @@ export async function signUpWithEmail(email: string, password: string, fullName:
       };
     }
 
-    // Save locally as backup as well
+    const resolvedId = data?.user?.id || `acct_${cleanEmail}`;
+    // Save locally and sync immediately to backend + Supabase users & profiles tables
     saveLocalAccount({
-      id: data?.user?.id || 'local-user-' + Date.now(),
+      id: resolvedId,
       email: cleanEmail,
       password,
       fullName: cleanName,
       firstName,
       lastName,
       createdAt: new Date().toISOString(),
+    });
+
+    await syncConnectedAccountToBackend({
+      id: resolvedId,
+      email: cleanEmail,
+      fullName: cleanName,
+      firstName,
+      lastName,
     });
 
     return {
@@ -1288,6 +1347,13 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
   }
 
   try {
+    if (accountEmail) {
+      await syncConnectedAccountToBackend({
+        email: accountEmail,
+        fullName: accountName || accountEmail.split('@')[0],
+      });
+    }
+
     const { data, error } = await withTimeout(
       supabase.from('donations').insert({
         amount: donation.amount,
@@ -1300,12 +1366,31 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
         donor_phone: donation.donorPhone || null,
         is_anonymous: !!donation.isAnonymous,
         transaction_reference: donation.transactionReference || null,
-        user_id: donation.userId || null,
+        user_id: donation.userId || (accountEmail ? `acct_${accountEmail.trim().toLowerCase()}` : null),
       }),
       4000
     );
 
-    if (error) throw error;
+    if (error) {
+      // Retry without user_id in case public.donations.user_id is a strict UUID foreign key
+      const retry = await withTimeout(
+        supabase.from('donations').insert({
+          amount: donation.amount,
+          currency: donation.currency,
+          provider: donation.provider === 'orange_money' ? 'direct_transfer' : donation.provider,
+          status: donation.status,
+          cause: donation.cause,
+          donor_name: donation.donorName || accountName || null,
+          donor_email: donation.donorEmail || accountEmail || null,
+          donor_phone: donation.donorPhone || null,
+          is_anonymous: !!donation.isAnonymous,
+          transaction_reference: donation.transactionReference || null,
+        }),
+        4000
+      );
+      if (retry.error) throw retry.error;
+      return { success: true, data: retry.data, emailSent };
+    }
     return { success: true, data, emailSent };
   } catch (e) {
     console.error('Error saving donation to Supabase:', e);

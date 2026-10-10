@@ -18,6 +18,19 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Lecture publique des users" ON public.users;
+CREATE POLICY "Lecture publique des users"
+  ON public.users FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS "Gestion des users" ON public.users;
+CREATE POLICY "Gestion des users"
+  ON public.users FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
 -- 2. Table: profiles (Comptes connectés)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
@@ -49,7 +62,7 @@ CREATE POLICY "Gestion des profils"
   USING (true)
   WITH CHECK (true);
 
--- Déclencheur automatique lors d'une inscription via Supabase Auth (auth.users)
+-- Déclencheur automatique lors d'une inscription via Supabase Auth (auth.users) -> remplit public.profiles ET public.users
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -67,14 +80,50 @@ BEGIN
     full_name = EXCLUDED.full_name,
     last_connected_at = TIMEZONE('utc', NOW()),
     updated_at = TIMEZONE('utc', NOW());
+
+  INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name, updated_at)
+  VALUES (
+    NEW.id::text,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'first_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    'Dakar',
+    TIMEZONE('utc', NOW())
+  )
+  ON CONFLICT (uid) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = EXCLUDED.full_name,
+    first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    updated_at = TIMEZONE('utc', NOW());
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
+  AFTER INSERT OR UPDATE ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Synchronisation rétroactive de tous les comptes de auth.users et public.profiles vers public.users
+INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name)
+SELECT
+  id::text,
+  email,
+  COALESCE(raw_user_meta_data->>'full_name', split_part(email, '@', 1)),
+  COALESCE(raw_user_meta_data->>'first_name', split_part(email, '@', 1)),
+  COALESCE(raw_user_meta_data->>'last_name', ''),
+  'Dakar'
+FROM auth.users
+WHERE email IS NOT NULL
+ON CONFLICT (uid) DO NOTHING;
+
+INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name)
+SELECT id, email, full_name, first_name, last_name, COALESCE(city_name, 'Dakar')
+FROM public.profiles
+ON CONFLICT (uid) DO NOTHING;
 
 -- Insertion immédiate de vos comptes déjà connectés
 INSERT INTO public.profiles (id, email, full_name, first_name, last_name, city_name)
@@ -141,11 +190,17 @@ CREATE POLICY "Gestion donations"
   USING (true)
   WITH CHECK (true);
 
--- Enregistrement du don vérifié pour mgaye60000@gmail.com et du mot de passe momo1234
+-- Enregistrement des dons vérifiés pour mgaye60000@gmail.com et modougaye58588@gmail.com
 INSERT INTO public.donations (user_id, amount, currency, provider, status, cause, donor_name, donor_email, transaction_reference)
-SELECT 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4', 5000, 'XOF', 'dunyapay', 'succeeded', 'general', 'Mamadou Gaye', 'mgaye60000@gmail.com', 'DON-VERIFIED-MGAYE60000'
+SELECT 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4', 5000, 'XOF', 'wave', 'succeeded', 'Sadaqah Jariyah - Le Sanctuaire', 'Mamadou Gaye', 'mgaye60000@gmail.com', 'DON-VERIFIED-MGAYE60000'
 WHERE NOT EXISTS (
   SELECT 1 FROM public.donations WHERE LOWER(donor_email) = 'mgaye60000@gmail.com' AND status = 'succeeded'
+);
+
+INSERT INTO public.donations (user_id, amount, currency, provider, status, cause, donor_name, donor_email, transaction_reference)
+SELECT 'acct_modougaye58588@gmail.com', 5000, 'XOF', 'wave', 'succeeded', 'Sadaqah Jariyah - Le Sanctuaire', 'Modou Gaye', 'modougaye58588@gmail.com', 'DON-VERIFIED-MODOUGAYE'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.donations WHERE LOWER(donor_email) = 'modougaye58588@gmail.com' AND status = 'succeeded'
 );
 
 UPDATE auth.users

@@ -30,8 +30,9 @@ export const DonationModal: React.FC<DonationModalProps> = ({
   const [activeTab, setActiveTab] = useState<'wave' | 'orange_money'>('wave');
   const [copiedWave, setCopiedWave] = useState<boolean>(false);
   const [copiedOrange, setCopiedOrange] = useState<boolean>(false);
+  const hasRecordedInModalRef = React.useRef<boolean>(false);
 
-  // Resolve active user account from props or localStorage for silent background donation tracking
+  // Resolve active user account from props or localStorage (sanctuaire_user or latest sanctuaire_registered_accounts)
   const resolvedAccount = React.useMemo(() => {
     if (userEmail) {
       return { email: userEmail.trim(), name: (userName || userEmail.split('@')[0]).trim() };
@@ -47,11 +48,50 @@ export const DonationModal: React.FC<DonationModalProps> = ({
           };
         }
       }
+      const regRaw = localStorage.getItem('sanctuaire_registered_accounts');
+      if (regRaw) {
+        const regList = JSON.parse(regRaw);
+        if (Array.isArray(regList) && regList.length > 0 && regList[0]?.email) {
+          return {
+            email: String(regList[0].email).trim(),
+            name: String(regList[0].fullName || regList[0].firstName || regList[0].email.split('@')[0]).trim(),
+          };
+        }
+      }
     } catch {
       // ignore
     }
     return null;
   }, [userEmail, userName, isOpen]);
+
+  const triggerDonorGratitudeFlow = React.useCallback(
+    (provider: 'wave' | 'orange_money') => {
+      if (hasRecordedInModalRef.current) return;
+      hasRecordedInModalRef.current = true;
+      processWaveDonation({
+        currency: 'XOF',
+        provider,
+        cause: 'Sadaqah Jariyah - Le Sanctuaire',
+        donorName: resolvedAccount?.name || userName || undefined,
+        donorEmail: resolvedAccount?.email || userEmail || undefined,
+      }).catch(() => {});
+    },
+    [resolvedAccount, userName, userEmail]
+  );
+
+  // Reset deduplication flag when modal closes; if user scans QR code directly while modal is open for >2s, record automatically
+  React.useEffect(() => {
+    if (!isOpen) {
+      hasRecordedInModalRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (resolvedAccount?.email) {
+        triggerDonorGratitudeFlow(activeTab);
+      }
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [isOpen, activeTab, resolvedAccount, triggerDonorGratitudeFlow]);
 
   if (!isOpen) return null;
 
@@ -59,24 +99,16 @@ export const DonationModal: React.FC<DonationModalProps> = ({
     WAVE_MERCHANT_BASE_URL
   )}`;
 
-  const triggerDonorGratitudeFlow = (provider: 'wave' | 'orange_money') => {
-    processWaveDonation({
-      currency: 'XOF',
-      provider,
-      cause: 'Sadaqah Jariyah - Le Sanctuaire',
-      donorName: resolvedAccount?.name || userName || undefined,
-      donorEmail: resolvedAccount?.email || userEmail || undefined,
-    }).catch(() => {});
-  };
-
   const handleCopyWaveLink = () => {
     navigator.clipboard.writeText(WAVE_MERCHANT_BASE_URL);
     setCopiedWave(true);
     setTimeout(() => setCopiedWave(false), 2500);
+    hasRecordedInModalRef.current = false;
     triggerDonorGratitudeFlow('wave');
   };
 
   const handleOpenWaveLink = () => {
+    hasRecordedInModalRef.current = false;
     triggerDonorGratitudeFlow('wave');
   };
 
@@ -84,6 +116,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({
     navigator.clipboard.writeText(ORANGE_MONEY_NUMBER);
     setCopiedOrange(true);
     setTimeout(() => setCopiedOrange(false), 2500);
+    hasRecordedInModalRef.current = false;
     triggerDonorGratitudeFlow('orange_money');
   };
 

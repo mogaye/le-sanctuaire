@@ -1,5 +1,6 @@
 import { CityData } from '../types';
 import { computeDynamicCityPrayers } from '../data/islamicData';
+import { supabase } from '../lib/supabase';
 import type { PrayerKey } from './timeUtils';
 export type { PrayerKey } from './timeUtils';
 
@@ -52,10 +53,22 @@ export function getActiveUserEmail(): string | null {
   try {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem('sanctuaire_user');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const email = (parsed?.email || '').trim().toLowerCase();
-    return email && email.includes('@') ? email : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const email = (parsed?.email || '').trim().toLowerCase();
+      if (email && email.includes('@')) return email;
+    }
+    if (localStorage.getItem('sanctuaire_logged_out') !== 'true') {
+      const regRaw = localStorage.getItem('sanctuaire_registered_accounts');
+      if (regRaw) {
+        const regList = JSON.parse(regRaw);
+        if (Array.isArray(regList) && regList.length > 0 && regList[0]?.email) {
+          const fallbackEmail = String(regList[0].email).trim().toLowerCase();
+          if (fallbackEmail.includes('@')) return fallbackEmail;
+        }
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -167,6 +180,27 @@ export function setPrayerLog(
           .finally(() => {
             inFlightPrayerPushes.delete(dateStr);
           });
+
+        // Also mirror directly to Supabase prayer_logs if client is configured
+        if (supabase) {
+          supabase
+            .from('prayer_logs')
+            .upsert(
+              {
+                user_id: email,
+                date: dateStr,
+                fajr: !!log.fajr,
+                dhuhr: !!log.dhuhr,
+                asr: !!log.asr,
+                maghrib: !!log.maghrib,
+                isha: !!log.isha,
+                updated_at: new Date(nowTs).toISOString(),
+              },
+              { onConflict: 'user_id,date' }
+            )
+            .then(() => {})
+            .catch(() => {});
+        }
       }
     }
   } catch (e) {

@@ -314,22 +314,111 @@ async function startServer() {
     }
   });
 
-  // Synchronize or register a connected profile in the PostgreSQL database
+  const getServerSupabaseCreds = () => {
+    const url = (
+      process.env.VITE_SUPABASE_URL ||
+      process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      process.env.SUPABASE_URL ||
+      'https://bkfklfnnturdwtfjoxci.supabase.co'
+    )
+      .trim()
+      .replace(/\/$/, '');
+    const key = (
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      ''
+    ).trim();
+    const isValidKey =
+      key.length > 15 &&
+      !key.includes('your-anon-public-key') &&
+      !key.includes('VOTRE_CLE');
+    return isValidKey ? { url, key } : null;
+  };
+
+  const mirrorToSupabaseRest = async (
+    table: string,
+    payload: Record<string, any>,
+    onConflict?: string
+  ) => {
+    const creds = getServerSupabaseCreds();
+    if (!creds) return;
+    try {
+      const endpoint = onConflict
+        ? `${creds.url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`
+        : `${creds.url}/rest/v1/${table}`;
+      await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: creds.key,
+          Authorization: `Bearer ${creds.key}`,
+          Prefer: onConflict ? 'resolution=merge-duplicates,return=minimal' : 'return=minimal',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch {
+      // non-fatal
+    }
+  };
+
+  // Synchronize or register a connected profile in the PostgreSQL database (both users and profiles)
   app.post('/api/accounts/sync', async (req, res) => {
     try {
       const { id, email, fullName, firstName, lastName, avatarUrl, cityName } = req.body || {};
       if (!email) {
         return res.status(400).json({ error: 'Email is required' });
       }
+      const cleanEmail = String(email).trim().toLowerCase();
+      const resolvedId = id || `acct_${cleanEmail}`;
+      const resolvedFull = fullName || cleanEmail.split('@')[0] || 'Fidèle';
+      const resolvedFirst = firstName || resolvedFull.split(' ')[0] || 'Fidèle';
+      const resolvedLast = lastName || resolvedFull.split(' ').slice(1).join(' ') || '';
+
       const profile = await upsertConnectedProfile({
-        id: id || `acct_${email.trim().toLowerCase()}`,
-        email,
-        fullName,
-        firstName,
-        lastName,
+        id: resolvedId,
+        email: cleanEmail,
+        fullName: resolvedFull,
+        firstName: resolvedFirst,
+        lastName: resolvedLast,
         avatarUrl,
         cityName,
       });
+
+      // Mirror to Supabase REST API if key is present in env
+      await Promise.all([
+        mirrorToSupabaseRest(
+          'users',
+          {
+            uid: resolvedId,
+            email: cleanEmail,
+            full_name: resolvedFull,
+            first_name: resolvedFirst,
+            last_name: resolvedLast,
+            avatar_url: avatarUrl || null,
+            city_name: cityName || 'Dakar',
+            updated_at: new Date().toISOString(),
+          },
+          'uid'
+        ),
+        mirrorToSupabaseRest(
+          'profiles',
+          {
+            id: resolvedId,
+            email: cleanEmail,
+            full_name: resolvedFull,
+            first_name: resolvedFirst,
+            last_name: resolvedLast,
+            avatar_url: avatarUrl || null,
+            city_name: cityName || 'Dakar',
+            last_connected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          'email'
+        ),
+      ]);
+
       res.json({ profile });
     } catch (error: any) {
       console.error('Failed to sync account:', error);
@@ -476,11 +565,25 @@ async function startServer() {
         current.lastUpdatedAt = serverNow;
         memoryUserSyncCache.set(rawEmail, current);
 
-        // Persist updated prayer days in prayer_logs table
+        // Persist updated prayer days in prayer_logs table & mirror to Supabase REST
         for (const date of datesToPersistInDb) {
           const dayLog = current.prayers[date];
           if (dayLog) {
             await upsertFullPrayerLogInDb(rawEmail, date, dayLog);
+            await mirrorToSupabaseRest(
+              'prayer_logs',
+              {
+                user_id: rawEmail,
+                date,
+                fajr: Boolean(dayLog.fajr),
+                dhuhr: Boolean(dayLog.dhuhr),
+                asr: Boolean(dayLog.asr),
+                maghrib: Boolean(dayLog.maghrib),
+                isha: Boolean(dayLog.isha),
+                updated_at: new Date().toISOString(),
+              },
+              'user_id,date'
+            );
           }
         }
 
@@ -502,16 +605,32 @@ async function startServer() {
       try {
         record = await insertDonationInDb({
           userId: body.userId,
-          amount: String(body.amount || 0),
+          amount: String(body.amount || 5000),
           currency: body.currency || 'XOF',
           provider: body.provider || 'wave',
           status: body.status || 'succeeded',
-          cause: body.cause || 'general',
+          cause: body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
           donorName: body.donorName,
           donorEmail: body.donorEmail,
           donorPhone: body.donorPhone,
           isAnonymous: body.isAnonymous,
           transactionReference: body.transactionReference,
+        });
+
+        await mirrorToSupabaseRest('donations', {
+          user_id: record?.userId || body.userId || null,
+          amount: Number(record?.amount || body.amount || 5000),
+          currency: record?.currency || body.currency || 'XOF',
+          provider: record?.provider || body.provider || 'wave',
+          status: record?.status || body.status || 'succeeded',
+          cause: record?.cause || body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+          donor_name: record?.donorName || body.donorName || null,
+          donor_email:
+            record?.donorEmail ||
+            (body.donorEmail ? String(body.donorEmail).trim().toLowerCase() : null),
+          donor_phone: record?.donorPhone || body.donorPhone || null,
+          is_anonymous: Boolean(body.isAnonymous),
+          transaction_reference: record?.transactionReference || body.transactionReference || null,
         });
       } catch (dbErr) {
         console.warn('Non-fatal DB error recording donation:', dbErr);
