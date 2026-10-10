@@ -496,111 +496,155 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {filteredPersonBooks.map((personBook) => (
-                    <div
-                      key={personBook.id}
-                      onClick={() => {
-                        setSelectedPersonBook(personBook);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="rounded-3xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/25 hover:border-emerald-600/60 dark:hover:border-amber-400/50 p-5 sm:p-6 shadow-xs hover:shadow-xl transition-all flex flex-col justify-between gap-5 cursor-pointer group"
-                    >
-                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                        {/* Couverture du Livre Biographique */}
-                        <div
-                          className={`w-36 sm:w-36 h-48 sm:h-52 rounded-2xl bg-gradient-to-br ${personBook.coverGradient} border-2 border-amber-400/50 shadow-lg flex flex-col items-center justify-between p-4 text-center relative overflow-hidden shrink-0 group-hover:scale-[1.02] transition-transform`}
-                        >
-                          <div className="w-full flex items-center justify-between text-[10px] font-bold text-amber-300/90">
-                            <span>Sîrah & Vie</span>
-                            <BookOpen className="w-3.5 h-3.5" />
-                          </div>
-
-                          <div className="space-y-1.5 my-auto">
-                            <div
-                              className="font-serif text-amber-300 text-xs leading-snug line-clamp-2"
-                              dir="rtl"
-                            >
-                              {personBook.arabicName}
+                  {filteredPersonBooks.map((personBook) => {
+                    const isAvailable = personBook.isAvailable !== false && personBook.chapters.length > 0;
+                    return (
+                      <div
+                        key={personBook.id}
+                        onClick={() => {
+                          if (!isAvailable) return;
+                          setSelectedPersonBook(personBook);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className={`rounded-3xl bg-white dark:bg-[#183022] border p-5 sm:p-6 shadow-xs transition-all flex flex-col justify-between gap-5 ${
+                          isAvailable
+                            ? 'border-stone-200 dark:border-emerald-500/25 hover:border-emerald-600/60 dark:hover:border-amber-400/50 hover:shadow-xl cursor-pointer group'
+                            : 'border-stone-200/80 dark:border-emerald-500/15 opacity-90'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                          {/* Couverture du Livre Biographique */}
+                          <div
+                            className={`w-36 sm:w-36 h-48 sm:h-52 rounded-2xl bg-gradient-to-br ${personBook.coverGradient} border-2 ${
+                              isAvailable ? 'border-amber-400/50 group-hover:scale-[1.02]' : 'border-stone-400/30'
+                            } shadow-lg flex flex-col items-center justify-between p-4 text-center relative overflow-hidden shrink-0 transition-transform`}
+                          >
+                            <div className="w-full flex items-center justify-between text-[10px] font-bold text-amber-300/90">
+                              <span>Sîrah & Vie</span>
+                              <BookOpen className="w-3.5 h-3.5" />
                             </div>
-                            <div className="w-8 h-0.5 bg-amber-400/50 mx-auto rounded-full" />
-                            <h4 className="text-white font-black text-sm leading-tight font-serif">
-                              {personBook.name}
-                            </h4>
-                            <span className="block text-[11px] text-amber-200 font-serif">
-                              {personBook.honorific}
-                            </span>
-                          </div>
 
-                          <div className="text-[10px] font-bold text-emerald-200 bg-black/40 px-2.5 py-1 rounded-full border border-white/15 w-full truncate">
-                            {personBook.chapters.length} Chapitres
-                          </div>
-                        </div>
-
-                        {/* Détails de la personnalité */}
-                        <div className="flex-1 space-y-2.5 text-center sm:text-left">
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-amber-300 border border-emerald-300/50 dark:border-emerald-500/30">
-                              {personBook.categoryLabel}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 dark:text-emerald-300/80">
-                              <Clock className="w-3 h-3" />
-                              {personBook.readTime}
-                            </span>
-                          </div>
-
-                          <div>
-                            <h4 className="text-lg sm:text-xl font-black text-neutral-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-amber-300 transition leading-snug">
-                              {personBook.name}{' '}
-                              <span className="text-amber-600 dark:text-amber-300 font-serif font-normal">
+                            <div className="space-y-1.5 my-auto">
+                              <div
+                                className="font-serif text-amber-300 text-xs leading-snug line-clamp-2"
+                                dir="rtl"
+                              >
+                                {personBook.arabicName}
+                              </div>
+                              <div className="w-8 h-0.5 bg-amber-400/50 mx-auto rounded-full" />
+                              <h4 className="text-white font-black text-sm leading-tight font-serif">
+                                {personBook.name}
+                              </h4>
+                              <span className="block text-[11px] text-amber-200 font-serif">
                                 {personBook.honorific}
                               </span>
-                            </h4>
-                            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
-                              {personBook.title}
-                            </p>
-                          </div>
+                            </div>
 
-                          <p className="text-xs text-neutral-600 dark:text-emerald-100/80 line-clamp-3 leading-relaxed">
-                            {personBook.shortSummary}
-                          </p>
-
-                          <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[11px] text-neutral-500 dark:text-emerald-300/75 pt-0.5">
-                            <Compass className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                            <span className="truncate">{personBook.era}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Pied de carte : Vertus & Bouton Lire */}
-                      <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                          {personBook.virtues.slice(0, 2).map((virtue) => (
-                            <span
-                              key={virtue}
-                              className="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-neutral-100 dark:bg-[#12241A] text-neutral-700 dark:text-emerald-200 border border-neutral-200/80 dark:border-emerald-500/20"
+                            <div
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-full border w-full truncate ${
+                                isAvailable
+                                  ? 'text-emerald-200 bg-black/40 border-white/15'
+                                  : 'text-amber-200 bg-black/55 border-amber-300/30'
+                              }`}
                             >
-                              {virtue}
-                            </span>
-                          ))}
+                              {isAvailable ? `${personBook.chapters.length} Chapitres` : 'Histoire à venir'}
+                            </div>
+                          </div>
+
+                          {/* Détails de la personnalité */}
+                          <div className="flex-1 space-y-2.5 text-center sm:text-left">
+                            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                              <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-amber-300 border border-emerald-300/50 dark:border-emerald-500/30">
+                                {personBook.categoryLabel}
+                              </span>
+                              {isAvailable ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                  <Clock className="w-3 h-3" />
+                                  {personBook.readTime}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300/60 dark:border-amber-400/30">
+                                  <Clock className="w-3 h-3" />
+                                  Pas encore disponible
+                                </span>
+                              )}
+                            </div>
+
+                            <div>
+                              <h4 className="text-lg sm:text-xl font-black text-neutral-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-amber-300 transition leading-snug">
+                                {personBook.name}{' '}
+                                <span className="text-amber-600 dark:text-amber-300 font-serif font-normal">
+                                  {personBook.honorific}
+                                </span>
+                              </h4>
+                              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
+                                {personBook.title}
+                              </p>
+                            </div>
+
+                            {isAvailable ? (
+                              <>
+                                <p className="text-xs text-neutral-600 dark:text-emerald-100/80 line-clamp-3 leading-relaxed">
+                                  {personBook.shortSummary}
+                                </p>
+                                <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[11px] text-neutral-500 dark:text-emerald-300/75 pt-0.5">
+                                  <Compass className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                  <span className="truncate">{personBook.era}</span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="rounded-2xl bg-neutral-100/90 dark:bg-[#12241A] border border-stone-200/80 dark:border-emerald-500/20 px-3.5 py-2.5 text-xs font-semibold text-neutral-600 dark:text-emerald-200/80">
+                                Histoire à venir — Ce récit n&apos;est pas encore disponible.
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPersonBook(personBook);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer ml-auto"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>Lire l&apos;histoire</span>
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </button>
+                        {/* Pied de carte : Vertus & Bouton Lire / État */}
+                        <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-3">
+                          {isAvailable ? (
+                            <>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                {personBook.virtues.slice(0, 2).map((virtue) => (
+                                  <span
+                                    key={virtue}
+                                    className="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-neutral-100 dark:bg-[#12241A] text-neutral-700 dark:text-emerald-200 border border-neutral-200/80 dark:border-emerald-500/20"
+                                  >
+                                    {virtue}
+                                  </span>
+                                ))}
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPersonBook(personBook);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer ml-auto"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                                <span>Lire l&apos;histoire</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <div className="w-full flex items-center justify-between gap-2">
+                              <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300/90 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Histoire à venir</span>
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-neutral-100 dark:bg-[#12241A] text-neutral-500 dark:text-emerald-200/60 border border-neutral-200 dark:border-emerald-500/20 text-xs font-bold">
+                                Pas encore disponible
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
