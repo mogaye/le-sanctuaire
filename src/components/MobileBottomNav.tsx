@@ -47,7 +47,32 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 }) => {
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  const [barWidth, setBarWidth] = useState(360);
   const lastScrollYRef = useRef(0);
+  const barContainerRef = useRef<HTMLDivElement>(null);
+
+  // Mesure exacte en pixels de la barre pour une encoche 100% circulaire sans déformation
+  useEffect(() => {
+    const el = barContainerRef.current;
+    if (!el) return;
+
+    const updateWidth = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w > 180) {
+        setBarWidth(Math.round(w));
+      }
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(el);
+    window.addEventListener('resize', updateWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateWidth);
+    };
+  }, []);
 
   // Disparaît quand on descend, revient quand on monte
   useEffect(() => {
@@ -58,10 +83,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       if (currentScrollY <= 36) {
         setIsVisible(true);
       } else if (diff > 7 && !isMoreOpen) {
-        // Défilement vers le bas -> cacher la barre
         setIsVisible(false);
       } else if (diff < -5) {
-        // Défilement vers le haut -> réafficher la barre
         setIsVisible(true);
       }
 
@@ -162,51 +185,53 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
   ];
 
-  // Calcul géométrique SVG de l'encoche incurvée (inspirée de l'image de référence)
-  // viewBox: 0 0 500 70. Les 5 colonnes occupent [15..485] (largeur 94 chacune).
-  const cx = 15 + activeIndex * 94 + 47;
-  const notchHalfWidth = 37;
-  const notchDepth = 31;
+  // Géométrie 1:1 en pixels réels (aucune distorsion horizontale)
+  const barHeight = 66;
+  const sidePad = 8;
+  const colWidth = (barWidth - sidePad * 2) / 5;
+  const cx = sidePad + activeIndex * colWidth + colWidth / 2;
+  const notchHalfWidth = 36;
+  const notchDepth = 29;
+  const cornerRadius = 22;
+
+  const leftStart = Math.max(cornerRadius, cx - notchHalfWidth);
+  const rightEnd = Math.min(barWidth - cornerRadius, cx + notchHalfWidth);
 
   const svgPath = `
-    M 24 0
-    L ${cx - notchHalfWidth} 0
-    C ${cx - 22} 0, ${cx - 20} ${notchDepth}, ${cx} ${notchDepth}
-    C ${cx + 20} ${notchDepth}, ${cx + 22} 0, ${cx + notchHalfWidth} 0
-    L 476 0
-    A 24 24 0 0 1 500 24
-    L 500 46
-    A 24 24 0 0 1 476 70
-    L 24 70
-    A 24 24 0 0 1 0 46
-    L 0 24
-    A 24 24 0 0 1 24 0
+    M ${cornerRadius} 0
+    L ${leftStart} 0
+    C ${cx - 21} 0, ${cx - 19} ${notchDepth}, ${cx} ${notchDepth}
+    C ${cx + 19} ${notchDepth}, ${cx + 21} 0, ${rightEnd} 0
+    L ${barWidth - cornerRadius} 0
+    A ${cornerRadius} ${cornerRadius} 0 0 1 ${barWidth} ${cornerRadius}
+    L ${barWidth} ${barHeight - cornerRadius}
+    A ${cornerRadius} ${cornerRadius} 0 0 1 ${barWidth - cornerRadius} ${barHeight}
+    L ${cornerRadius} ${barHeight}
+    A ${cornerRadius} ${cornerRadius} 0 0 1 0 ${barHeight - cornerRadius}
+    L 0 ${cornerRadius}
+    A ${cornerRadius} ${cornerRadius} 0 0 1 ${cornerRadius} 0
     Z
   `;
 
   return (
     <>
-      {/* ========================================================
-          BARRE DE NAVIGATION INCURVÉE FLOTTANTE AUX COULEURS DU SANCTUAIRE
-          - Encoche fluide avec bouton circulaire surélevé pour l'onglet actif
-          - Disparaît au défilement vers le bas, réapparaît vers le haut
-          - Écritures et icônes agrandies et parfaitement lisibles
-         ======================================================== */}
       <nav
         id="sanctuary-bottom-nav"
         role="navigation"
         aria-label="Navigation principale"
-        className={`fixed bottom-2.5 left-0 right-0 z-40 md:hidden px-2.5 pointer-events-none select-none transition-all duration-300 ease-out ${
+        className={`fixed bottom-2.5 left-0 right-0 z-40 md:hidden px-3 pointer-events-none select-none transition-all duration-300 ease-out ${
           isVisible || isMoreOpen
             ? 'translate-y-0 opacity-100'
-            : 'translate-y-[135%] opacity-0'
+            : 'translate-y-[140%] opacity-0'
         }`}
       >
-        <div className="relative w-full max-w-md mx-auto h-[68px] pointer-events-auto">
-          {/* Fond SVG avec encoche incurvée dynamique */}
+        <div
+          ref={barContainerRef}
+          className="relative w-full max-w-md mx-auto h-[66px] pointer-events-auto"
+        >
+          {/* Fond SVG avec encoche incurvée 1:1 en pixels réels */}
           <svg
-            viewBox="0 0 500 70"
-            preserveAspectRatio="none"
+            viewBox={`0 0 ${barWidth} ${barHeight}`}
             className="
               absolute inset-0 w-full h-full
               drop-shadow-[0_-6px_22px_rgba(6,78,59,0.16)]
@@ -233,8 +258,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             />
           </svg>
 
-          {/* Les 5 boutons de navigation alignés sur la grille SVG [3% .. 97%] */}
-          <div className="relative z-10 w-full h-full flex items-center justify-between px-[3%]">
+          {/* Les 5 boutons de navigation alignés exactement sur [sidePad .. barWidth - sidePad] */}
+          <div className="relative z-10 w-full h-full flex items-center justify-between px-[8px]">
             {navItems.map((item, idx) => {
               const IconComponent = item.icon;
               const isActive = idx === activeIndex;
@@ -245,30 +270,30 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   id={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="flex-1 h-full flex flex-col items-center justify-end pb-2 relative cursor-pointer group focus:outline-none"
+                  className="flex-1 h-full flex flex-col items-center justify-end pb-[9px] relative cursor-pointer group focus:outline-none"
                 >
-                  {/* Icône : surélevée dans son cercle émeraude & or si actif, sinon bien lisible dans la barre */}
+                  {/* Icône : surélevée dans son cercle émeraude & or si actif, sinon centrée dans la barre */}
                   <div
                     className={`transition-all duration-300 ease-out flex items-center justify-center ${
                       isActive
-                        ? 'absolute -top-[18px] w-12 h-12 rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_18px_rgba(5,150,105,0.45)] scale-105'
-                        : 'mb-1 text-neutral-600 dark:text-emerald-100/80 group-hover:text-emerald-700 dark:group-hover:text-amber-300 active:scale-90'
+                        ? 'absolute -top-[20px] w-[44px] h-[44px] rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_16px_rgba(5,150,105,0.45)]'
+                        : 'mb-[5px] text-neutral-600 dark:text-emerald-100/80 group-hover:text-emerald-700 dark:group-hover:text-amber-300 active:scale-90'
                     }`}
                   >
                     <IconComponent
                       className={`transition-transform duration-300 ${
                         isActive
-                          ? 'w-5.5 h-5.5 text-amber-300 stroke-[2.4]'
-                          : 'w-5 h-5 stroke-[2.1]'
+                          ? 'w-[20px] h-[20px] text-amber-300 stroke-[2.3]'
+                          : 'w-[19px] h-[19px] stroke-[2]'
                       }`}
                     />
                   </div>
 
-                  {/* Texte bien lisible sous chaque icône */}
+                  {/* Texte lisible sous chaque icône */}
                   <span
-                    className={`text-[11px] tracking-tight leading-none transition-all duration-200 ${
+                    className={`text-[11.5px] tracking-tight leading-none transition-all duration-200 whitespace-nowrap ${
                       isActive
-                        ? 'font-extrabold text-emerald-800 dark:text-amber-300 translate-y-0'
+                        ? 'font-extrabold text-emerald-800 dark:text-amber-300'
                         : 'font-semibold text-neutral-700 dark:text-emerald-100/85'
                     }`}
                   >

@@ -37,7 +37,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CityData } from '../types';
 import { CitySelectorModal } from './CitySelectorModal';
-import { getPrayerLog, formatDateKey } from '../utils/prayerTrackerUtils';
+import { getPrayerLog, formatDateKey, pushSettingToCloud } from '../utils/prayerTrackerUtils';
 import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export interface MobileHomeScreenProps {
@@ -189,9 +189,53 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
   const [isSideDrawerOpen, setIsSideDrawerOpen] = useState(false);
 
-  // Quick Mini-Tasbih State
-  const [selectedDhikrIdx, setSelectedDhikrIdx] = useState(0);
-  const [dhikrCount, setDhikrCount] = useState(0);
+  // Quick Mini-Tasbih State synced with Cloud & Desktop
+  const [selectedDhikrIdx, setSelectedDhikrIdx] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_selected_dhikr_index');
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [dhikrCount, setDhikrCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_tasbih_count');
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
+  const [syncTick, setSyncTick] = useState(0);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setSyncTick((t) => t + 1);
+      try {
+        const savedTasbih = localStorage.getItem('sanctuaire_tasbih_count');
+        if (savedTasbih !== null) {
+          const parsed = parseInt(savedTasbih, 10);
+          if (!isNaN(parsed)) setDhikrCount(parsed);
+        }
+        const savedIdx = localStorage.getItem('sanctuaire_selected_dhikr_index');
+        if (savedIdx !== null) {
+          const parsedIdx = parseInt(savedIdx, 10);
+          if (!isNaN(parsedIdx)) setSelectedDhikrIdx(parsedIdx);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('prayer-tracker-updated', handleSync);
+    window.addEventListener('sanctuaire-sync-updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('prayer-tracker-updated', handleSync);
+      window.removeEventListener('sanctuaire-sync-updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
 
   // Daily Asma & Hadith Rotation State
   const [nameIdx, setNameIdx] = useState(0);
@@ -210,16 +254,21 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   };
   const shuruqTime = getShuruqTime(fajrPrayer?.time);
 
-  const currentDhikr = QUICK_DHIKRS[selectedDhikrIdx];
+  const currentDhikr = QUICK_DHIKRS[selectedDhikrIdx] || QUICK_DHIKRS[0];
   const currentHadith = HADITHS[hadithIdx];
   const currentAllahName = ALLAH_NAMES[nameIdx];
 
   const handleIncrementDhikr = () => {
-    if (dhikrCount >= currentDhikr.target) {
-      setDhikrCount(1);
-    } else {
-      setDhikrCount((prev) => prev + 1);
-    }
+    setDhikrCount((prev) => {
+      const next = prev >= currentDhikr.target ? 1 : prev + 1;
+      try {
+        localStorage.setItem('sanctuaire_tasbih_count', String(next));
+        pushSettingToCloud('sanctuaire_tasbih_count', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const completedCount = todayPrayers.filter((p) => p.isCompleted).length;
@@ -262,7 +311,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         count,
       };
     });
-  }, [todayPrayers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayPrayers, syncTick]);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -714,6 +764,14 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   onClick={() => {
                     setSelectedDhikrIdx(idx);
                     setDhikrCount(0);
+                    try {
+                      localStorage.setItem('sanctuaire_selected_dhikr_index', String(idx));
+                      localStorage.setItem('sanctuaire_tasbih_count', '0');
+                      pushSettingToCloud('sanctuaire_selected_dhikr_index', String(idx));
+                      pushSettingToCloud('sanctuaire_tasbih_count', '0');
+                    } catch {
+                      // ignore
+                    }
                   }}
                   className={`p-1.5 rounded-xl text-center text-[10px] font-bold border transition-all cursor-pointer ${
                     selectedDhikrIdx === idx
@@ -744,7 +802,15 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setDhikrCount(0)}
+                  onClick={() => {
+                    setDhikrCount(0);
+                    try {
+                      localStorage.setItem('sanctuaire_tasbih_count', '0');
+                      pushSettingToCloud('sanctuaire_tasbih_count', '0');
+                    } catch {
+                      // ignore
+                    }
+                  }}
                   className="p-2 rounded-xl text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
                   title="Remettre à zéro"
                 >

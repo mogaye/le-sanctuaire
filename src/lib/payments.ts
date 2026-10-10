@@ -70,7 +70,7 @@ export async function processWaveDonation(req: PaymentRequest): Promise<PaymentR
     checkoutUrl,
     message:
       req.provider === 'orange_money'
-        ? 'Copier ou scanner le QR Code Orange Money.'
+        ? 'Copier le numéro de téléphone Orange Money.'
         : 'Copier le lien ou ouvrir le QR Code Wave.',
     provider: req.provider,
   };

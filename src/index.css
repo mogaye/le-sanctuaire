@@ -8,10 +8,10 @@
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
-  /* Confort de lecture mobile : agrandissement harmonieux des polices et éléments sur mobile sans dénaturer le design */
+  /* Confort de lecture mobile : agrandissement équilibré sans casser les grilles ni le design */
   @media (max-width: 767px) {
     html {
-      font-size: 17.5px;
+      font-size: 16.5px;
     }
   }
 
@@ -32,24 +32,19 @@
   }
 }
 
-/* Harmonisation mobile des micro-tailles de texte pour garantir une lisibilité parfaite sur toutes les pages */
+/* Harmonisation mobile douce des petites tailles de texte sans déborder des cartes */
 @media (max-width: 767px) {
-  .text-\[7px\],
-  .text-\[8px\] {
-    font-size: 0.72rem !important;
-    line-height: 1.3 !important;
-  }
   .text-\[9px\] {
-    font-size: 0.76rem !important;
-    line-height: 1.35 !important;
+    font-size: 10.5px;
+    line-height: 1.3;
   }
   .text-\[10px\] {
-    font-size: 0.81rem !important;
-    line-height: 1.4 !important;
+    font-size: 11.5px;
+    line-height: 1.35;
   }
   .text-\[11px\] {
-    font-size: 0.86rem !important;
-    line-height: 1.45 !important;
+    font-size: 12.5px;
+    line-height: 1.4;
   }
 }
 

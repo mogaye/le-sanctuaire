@@ -43,6 +43,7 @@ import {
   ALL_HERO_BACKGROUNDS,
   DEFAULT_GIRL_HERO_BG,
 } from './utils/heroBackgrounds';
+import { pullAndMergeCloudSync, pushSettingToCloud } from './utils/prayerTrackerUtils';
 
 export default function App() {
   const [selectedCity, setSelectedCity] = useState<CityData>(() => {
@@ -63,7 +64,9 @@ export default function App() {
   const handleSelectCity = (city: CityData) => {
     setSelectedCity(city);
     try {
-      localStorage.setItem('sanctuaire_selected_city', JSON.stringify(city));
+      const serialized = JSON.stringify(city);
+      localStorage.setItem('sanctuaire_selected_city', serialized);
+      pushSettingToCloud('sanctuaire_selected_city', serialized);
     } catch (e) {
       // ignore
     }
@@ -203,8 +206,16 @@ export default function App() {
     setPrayerOffsets(newOffsets);
     setAsrMethod(newAsrMethod);
     try {
-      localStorage.setItem('prayer_offsets', JSON.stringify(newOffsets));
+      const offsetsJson = JSON.stringify(newOffsets);
+      localStorage.setItem('prayer_offsets', offsetsJson);
       localStorage.setItem('asr_method', newAsrMethod);
+      pushSettingToCloud('prayer_offsets', offsetsJson);
+      pushSettingToCloud('asr_method', newAsrMethod);
+      window.dispatchEvent(
+        new CustomEvent('sanctuaire-sync-updated', {
+          detail: { settingsChanged: true, updatedSettingKeys: ['prayer_offsets', 'asr_method'] },
+        })
+      );
     } catch (e) {
       // ignore
     }
@@ -224,7 +235,7 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Automatically synchronize active currentUser to Cloud SQL profiles table & local registry
+  // Automatically synchronize active currentUser to Cloud SQL profiles table & start real-time PC <-> Mobile sync
   useEffect(() => {
     if (!currentUser?.email) return;
     syncConnectedAccountToBackend({
@@ -234,7 +245,65 @@ export default function App() {
       lastName: currentUser.lastName,
       avatarUrl: currentUser.avatarUrl,
     });
+
+    // Initial seed & pull immediately upon login / app start
+    pullAndMergeCloudSync(true);
+
+    // Real-time background sync every 2.5 seconds across PC and Mobile
+    const syncInterval = setInterval(() => {
+      pullAndMergeCloudSync(false);
+    }, 2500);
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        pullAndMergeCloudSync(false);
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
   }, [currentUser]);
+
+  // Listen for cloud-synced setting updates so App state updates live without reload
+  useEffect(() => {
+    const handleCloudSettingsUpdate = () => {
+      try {
+        const savedCity = localStorage.getItem('sanctuaire_selected_city');
+        if (savedCity) {
+          const parsed = JSON.parse(savedCity);
+          const found = CITIES.find(
+            (c) => c.id === parsed.id || (c.name === parsed.name && c.country === parsed.country)
+          );
+          if (found) setSelectedCity(found);
+        }
+        const savedOffsets = localStorage.getItem('prayer_offsets');
+        if (savedOffsets) {
+          setPrayerOffsets(JSON.parse(savedOffsets));
+        }
+        const savedAsr = localStorage.getItem('asr_method');
+        if (savedAsr === 'hanafi' || savedAsr === 'standard') {
+          setAsrMethod(savedAsr);
+        }
+        const savedDark = localStorage.getItem('sanctuaire_dark_mode');
+        if (savedDark === 'true' || savedDark === 'false') {
+          setIsDarkMode(savedDark === 'true');
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('sanctuaire-sync-updated', handleCloudSettingsUpdate);
+    return () => {
+      window.removeEventListener('sanctuaire-sync-updated', handleCloudSettingsUpdate);
+    };
+  }, []);
 
   // Supabase session listener for magic links, email verification redirects, and OAuth
   useEffect(() => {

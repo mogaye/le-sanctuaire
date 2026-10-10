@@ -11,7 +11,11 @@ import {
   upsertConnectedProfile,
   getAllConnectedProfiles,
   getPrayerLogFromDb,
+  getAllPrayerLogsForUserFromDb,
   upsertPrayerLogInDb,
+  upsertFullPrayerLogInDb,
+  getUserSyncStateFromDb,
+  saveUserSyncStateInDb,
   insertDonationInDb,
   checkDonorStatusInDb,
   logSentEmailInDb,
@@ -25,6 +29,107 @@ dotenv.config();
 
 const recentThankYouEmails = new Map<string, number>();
 const memoryReviewsCache: DonorReviewRecord[] = [];
+
+export interface SyncedPrayerDay {
+  fajr: boolean;
+  dhuhr: boolean;
+  asr: boolean;
+  maghrib: boolean;
+  isha: boolean;
+  updatedAt: number;
+}
+
+export interface SyncedSettingEntry {
+  value: any;
+  updatedAt: number;
+}
+
+export interface UserCloudSyncState {
+  prayers: Record<string, SyncedPrayerDay>;
+  settings: Record<string, SyncedSettingEntry>;
+  lastUpdatedAt: number;
+}
+
+const memoryUserSyncCache = new Map<string, UserCloudSyncState>();
+
+async function loadMergedUserSyncState(rawEmail: string): Promise<UserCloudSyncState> {
+  const cleanEmail = rawEmail.trim().toLowerCase();
+  const cached = memoryUserSyncCache.get(cleanEmail);
+
+  const dbStateRaw = await getUserSyncStateFromDb(cleanEmail);
+  const dbPrayerRows = await getAllPrayerLogsForUserFromDb(cleanEmail);
+
+  const mergedPrayers: Record<string, SyncedPrayerDay> = {};
+  const mergedSettings: Record<string, SyncedSettingEntry> = {};
+
+  // 1. Seed from DB prayer_logs table
+  for (const row of dbPrayerRows) {
+    const rowTime = row.updatedAt ? new Date(row.updatedAt).getTime() : 1000;
+    mergedPrayers[row.date] = {
+      fajr: Boolean(row.fajr),
+      dhuhr: Boolean(row.dhuhr),
+      asr: Boolean(row.asr),
+      maghrib: Boolean(row.maghrib),
+      isha: Boolean(row.isha),
+      updatedAt: rowTime,
+    };
+  }
+
+  // 2. Merge from DB JSON state
+  if (dbStateRaw && typeof dbStateRaw === 'object') {
+    if (dbStateRaw.prayers && typeof dbStateRaw.prayers === 'object') {
+      for (const [date, pVal] of Object.entries(dbStateRaw.prayers as Record<string, any>)) {
+        if (!pVal || typeof pVal !== 'object') continue;
+        const incomingTs = Number(pVal.updatedAt) || 1000;
+        const current = mergedPrayers[date];
+        if (!current || incomingTs >= current.updatedAt) {
+          mergedPrayers[date] = {
+            fajr: Boolean(pVal.fajr),
+            dhuhr: Boolean(pVal.dhuhr),
+            asr: Boolean(pVal.asr),
+            maghrib: Boolean(pVal.maghrib),
+            isha: Boolean(pVal.isha),
+            updatedAt: incomingTs,
+          };
+        }
+      }
+    }
+    if (dbStateRaw.settings && typeof dbStateRaw.settings === 'object') {
+      for (const [sKey, sVal] of Object.entries(dbStateRaw.settings as Record<string, any>)) {
+        if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
+        mergedSettings[sKey] = {
+          value: sVal.value,
+          updatedAt: Number(sVal.updatedAt) || 1000,
+        };
+      }
+    }
+  }
+
+  // 3. Merge from in-memory cache if newer
+  if (cached) {
+    for (const [date, pVal] of Object.entries(cached.prayers)) {
+      const current = mergedPrayers[date];
+      if (!current || pVal.updatedAt >= current.updatedAt) {
+        mergedPrayers[date] = pVal;
+      }
+    }
+    for (const [sKey, sVal] of Object.entries(cached.settings)) {
+      const current = mergedSettings[sKey];
+      if (!current || sVal.updatedAt >= current.updatedAt) {
+        mergedSettings[sKey] = sVal;
+      }
+    }
+  }
+
+  const finalState: UserCloudSyncState = {
+    prayers: mergedPrayers,
+    settings: mergedSettings,
+    lastUpdatedAt: Date.now(),
+  };
+
+  memoryUserSyncCache.set(cleanEmail, finalState);
+  return finalState;
+}
 
 async function sendDonorThankYouAndReviewEmail(params: {
   donorEmail: string;
@@ -276,6 +381,117 @@ async function startServer() {
       res.json({ log });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to update prayer log' });
+    }
+  });
+
+  // ============================================================================
+  // 2B. CROSS-DEVICE REAL-TIME ACCOUNT SYNCHRONIZATION (PC <-> MOBILE)
+  // ============================================================================
+
+  app.get('/api/sync/:email', async (req, res) => {
+    try {
+      const rawEmail = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+      if (!rawEmail) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+      const state = await loadMergedUserSyncState(rawEmail);
+      res.json({ email: rawEmail, state });
+    } catch (error: any) {
+      console.error('Error in GET /api/sync/:email:', error);
+      res.status(500).json({ error: error.message || 'Failed to load sync state' });
+    }
+  });
+
+  app.post('/api/sync/:email', async (req, res) => {
+    try {
+      const rawEmail = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+      if (!rawEmail) {
+        return res.status(400).json({ error: 'Email is required' });
+      }
+
+      const incoming = req.body || {};
+      const isPushAction = incoming.mode === 'push';
+      const serverNow = Date.now();
+      const current = await loadMergedUserSyncState(rawEmail);
+
+      let hasChanges = false;
+      const datesToPersistInDb: string[] = [];
+
+      // Merge prayer logs by date
+      if (incoming.prayers && typeof incoming.prayers === 'object') {
+        for (const [date, pVal] of Object.entries(incoming.prayers as Record<string, any>)) {
+          if (!pVal || typeof pVal !== 'object') continue;
+          const existing = current.prayers[date];
+          const incomingTs = isPushAction ? serverNow : Number(pVal.updatedAt) || 1000;
+
+          if (!existing || isPushAction || incomingTs > existing.updatedAt) {
+            const nextDay: SyncedPrayerDay = {
+              fajr: Boolean(pVal.fajr),
+              dhuhr: Boolean(pVal.dhuhr),
+              asr: Boolean(pVal.asr),
+              maghrib: Boolean(pVal.maghrib),
+              isha: Boolean(pVal.isha),
+              updatedAt: isPushAction ? serverNow : incomingTs,
+            };
+            const changed =
+              !existing ||
+              existing.fajr !== nextDay.fajr ||
+              existing.dhuhr !== nextDay.dhuhr ||
+              existing.asr !== nextDay.asr ||
+              existing.maghrib !== nextDay.maghrib ||
+              existing.isha !== nextDay.isha ||
+              isPushAction;
+
+            current.prayers[date] = nextDay;
+            if (changed) {
+              hasChanges = true;
+              datesToPersistInDb.push(date);
+            }
+          }
+        }
+      }
+
+      // Merge settings & actions (city, offsets, tasbih, quran bookmarks, theme, etc.)
+      if (incoming.settings && typeof incoming.settings === 'object') {
+        for (const [sKey, sVal] of Object.entries(incoming.settings as Record<string, any>)) {
+          if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
+          const existing = current.settings[sKey];
+          const incomingTs = isPushAction ? serverNow : Number(sVal.updatedAt) || 1000;
+
+          if (!existing || isPushAction || incomingTs > existing.updatedAt) {
+            const prevSerialized = existing ? JSON.stringify(existing.value) : '';
+            const nextSerialized = JSON.stringify(sVal.value);
+            current.settings[sKey] = {
+              value: sVal.value,
+              updatedAt: isPushAction ? serverNow : incomingTs,
+            };
+            if (!existing || prevSerialized !== nextSerialized || isPushAction) {
+              hasChanges = true;
+            }
+          }
+        }
+      }
+
+      if (hasChanges) {
+        current.lastUpdatedAt = serverNow;
+        memoryUserSyncCache.set(rawEmail, current);
+
+        // Persist updated prayer days in prayer_logs table
+        for (const date of datesToPersistInDb) {
+          const dayLog = current.prayers[date];
+          if (dayLog) {
+            await upsertFullPrayerLogInDb(rawEmail, date, dayLog);
+          }
+        }
+
+        // Persist complete sync state in PostgreSQL
+        await saveUserSyncStateInDb(rawEmail, current);
+      }
+
+      res.json({ email: rawEmail, state: current, serverTime: serverNow });
+    } catch (error: any) {
+      console.error('Error in POST /api/sync/:email:', error);
+      res.status(500).json({ error: error.message || 'Failed to save sync state' });
     }
   });
 

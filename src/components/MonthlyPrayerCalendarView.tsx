@@ -57,8 +57,22 @@ export const MonthlyPrayerCalendarView: React.FC<MonthlyPrayerCalendarViewProps>
   // Selected day for the detailed view
   const [selectedDayStr, setSelectedDayStr] = useState<string>(() => formatDateKey(today));
 
-  // Local refresh trigger when user toggles a prayer
+  // Local refresh trigger when user toggles a prayer or when cloud sync arrives
   const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const handleSyncRefresh = () => {
+      setRefreshTick((t) => t + 1);
+    };
+    window.addEventListener('prayer-tracker-updated', handleSyncRefresh);
+    window.addEventListener('sanctuaire-sync-updated', handleSyncRefresh);
+    window.addEventListener('storage', handleSyncRefresh);
+    return () => {
+      window.removeEventListener('prayer-tracker-updated', handleSyncRefresh);
+      window.removeEventListener('sanctuaire-sync-updated', handleSyncRefresh);
+      window.removeEventListener('storage', handleSyncRefresh);
+    };
+  }, []);
 
   // Compute month days and stats
   const monthDays = useMemo(() => {

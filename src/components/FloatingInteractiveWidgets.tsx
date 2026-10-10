@@ -69,7 +69,7 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.8, y: 10 }}
           transition={{ duration: 0.3 }}
-          className="fixed z-50 bottom-[148px] right-2 sm:bottom-34 sm:right-6 cursor-grab select-none touch-none group"
+          className="fixed z-40 bottom-[196px] right-2.5 sm:bottom-34 sm:right-6 cursor-grab select-none touch-none group"
         >
           <div className="relative flex items-center">
             {/* Bulle info dépliante au survol (hover uniquement sur grand écran) */}
@@ -96,19 +96,19 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
                   onOpenLibrary();
                 }
               }}
-              className="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 text-neutral-950 p-[1px] sm:p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(16,185,129,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100 sm:opacity-100"
+              className="relative w-[36px] h-[36px] sm:w-[44px] sm:h-[44px] rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 text-neutral-950 p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(16,185,129,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-95 hover:opacity-100"
               aria-label="Accéder à la bibliothèque et aux livres du vendredi"
             >
               {/* Pulsation lumineuse subtile */}
               <span className="hidden sm:block absolute inset-0 rounded-full bg-emerald-400/30 animate-ping pointer-events-none opacity-20" />
 
               <div className="w-full h-full rounded-full bg-gradient-to-br from-[#0F301F] via-[#082014] to-[#04120B] flex items-center justify-center border border-emerald-400/40">
-                <BookOpen className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-emerald-300 stroke-[1.8] group-hover:scale-110 group-hover:text-emerald-200 transition-transform" />
+                <BookOpen className="w-[15px] h-[15px] sm:w-[18px] sm:h-[18px] text-emerald-300 stroke-[1.8] group-hover:scale-110 group-hover:text-emerald-200 transition-transform" />
               </div>
 
               {/* Plume d'auteur badge */}
-              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-r from-emerald-300 to-teal-200 text-[#092214] text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white">
-                <Feather className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-[14px] h-[14px] sm:w-[16px] sm:h-[16px] rounded-full bg-gradient-to-r from-emerald-300 to-teal-200 text-[#092214] font-black flex items-center justify-center shadow-xs border border-white">
+                <Feather className="w-[8px] h-[8px] sm:w-[10px] sm:h-[10px]" />
               </span>
             </motion.button>
           </div>
@@ -133,7 +133,7 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.8, y: 10 }}
         transition={{ duration: 0.3, delay: 0.05 }}
-        className="fixed z-50 bottom-[110px] right-2 sm:bottom-20 sm:right-6 cursor-grab select-none touch-none group"
+        className="fixed z-40 bottom-[150px] right-2.5 sm:bottom-20 sm:right-6 cursor-grab select-none touch-none group"
       >
         <div className="relative flex items-center">
           {/* Bulle info dépliante au survol (hover uniquement sur grand écran) */}
@@ -142,7 +142,7 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
               <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
               <div>
                 <p className="text-[11px] font-bold text-amber-200">Soutenir le Sanctuaire</p>
-                <p className="text-[9px] text-emerald-100/70">Copier le lien & Ouvrir QR Code Wave</p>
+                <p className="text-[9px] text-emerald-100/70">Faire un don (Wave / Orange Money)</p>
               </div>
               <div className="text-[9px] bg-amber-400/20 text-amber-300 px-1 py-0.5 rounded font-mono">
                 Glisser ↔
@@ -161,19 +161,19 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
               }
               setActiveModal('donation');
             }}
-            className="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-neutral-950 p-[1px] sm:p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(245,158,11,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(245,158,11,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100 sm:opacity-100"
+            className="relative w-[36px] h-[36px] sm:w-[44px] sm:h-[44px] rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-neutral-950 p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(245,158,11,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(245,158,11,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-95 hover:opacity-100"
             aria-label="Faire un don ou soutenir l'application"
           >
             {/* Pulsation lumineuse subtile */}
             <span className="hidden sm:block absolute inset-0 rounded-full bg-amber-300/30 animate-ping pointer-events-none opacity-25" />
             
             <div className="w-full h-full rounded-full bg-gradient-to-br from-[#122E1F] via-[#091B11] to-[#041009] flex items-center justify-center border border-amber-400/40">
-              <Heart className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-300 fill-amber-400/30 stroke-[1.8] group-hover:scale-110 group-hover:text-amber-200 transition-transform" />
+              <Heart className="w-[15px] h-[15px] sm:w-[18px] sm:h-[18px] text-amber-300 fill-amber-400/30 stroke-[1.8] group-hover:scale-110 group-hover:text-amber-200 transition-transform" />
             </div>
 
             {/* Badge cadeau en miniature */}
-            <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 text-[#0E1E14] text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white">
-              <Gift className="w-1.5 h-1.5 sm:w-2 sm:h-2" />
+            <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-[14px] h-[14px] sm:w-[16px] sm:h-[16px] rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 text-[#0E1E14] font-black flex items-center justify-center shadow-xs border border-white">
+              <Gift className="w-[7px] h-[7px] sm:w-[8px] sm:h-[8px]" />
             </span>
           </motion.button>
         </div>

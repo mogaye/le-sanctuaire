@@ -31,7 +31,7 @@ export const FloatingThemeButton: React.FC<FloatingThemeButtonProps> = ({
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 10 }}
       transition={{ duration: 0.3 }}
-      className="fixed z-50 bottom-[72px] right-2 sm:bottom-6 sm:right-6 cursor-grab select-none touch-none group"
+      className="fixed z-40 bottom-[104px] right-2.5 sm:bottom-6 sm:right-6 cursor-grab select-none touch-none group"
     >
       <div className="relative flex items-center">
         {/* Bulle info dépliante au survol (hover sur grand écran) */}
@@ -63,7 +63,7 @@ export const FloatingThemeButton: React.FC<FloatingThemeButtonProps> = ({
             }
             onToggle();
           }}
-          className={`relative w-8 h-8 sm:w-11 sm:h-11 rounded-full p-[1px] sm:p-[1.5px] transition-transform flex items-center justify-center cursor-pointer select-none opacity-90 hover:opacity-100 sm:opacity-100 ${
+          className={`relative w-[36px] h-[36px] sm:w-[44px] sm:h-[44px] rounded-full p-[1.5px] transition-transform flex items-center justify-center cursor-pointer select-none opacity-95 hover:opacity-100 ${
             isDarkMode
               ? 'bg-gradient-to-br from-amber-300 via-amber-500 to-yellow-500 shadow-md sm:shadow-[0_4px_16px_rgba(245,158,11,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(245,158,11,0.6)]'
               : 'bg-gradient-to-br from-indigo-400 via-sky-500 to-emerald-600 shadow-md sm:shadow-[0_4px_16px_rgba(56,189,248,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(56,189,248,0.6)]'
@@ -81,21 +81,21 @@ export const FloatingThemeButton: React.FC<FloatingThemeButtonProps> = ({
           {/* Disque intérieur avec dégradé sombre sanctuaire */}
           <div className="w-full h-full rounded-full bg-gradient-to-br from-[#122E1F] via-[#091B11] to-[#041009] flex items-center justify-center border border-amber-400/40">
             {isDarkMode ? (
-              <Sun className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-300 fill-amber-400/25 stroke-[1.8] group-hover:scale-110 group-hover:text-amber-200 transition-transform animate-[spin_16s_linear_infinite]" />
+              <Sun className="w-[15px] h-[15px] sm:w-[18px] sm:h-[18px] text-amber-300 fill-amber-400/25 stroke-[1.8] group-hover:scale-110 group-hover:text-amber-200 transition-transform animate-[spin_16s_linear_infinite]" />
             ) : (
-              <Moon className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-sky-200 fill-sky-300/25 stroke-[1.8] group-hover:scale-110 group-hover:text-white transition-transform" />
+              <Moon className="w-[15px] h-[15px] sm:w-[18px] sm:h-[18px] text-sky-200 fill-sky-300/25 stroke-[1.8] group-hover:scale-110 group-hover:text-white transition-transform" />
             )}
           </div>
 
           {/* Badge miniature supérieur droit */}
           <span
-            className={`absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white ${
+            className={`absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-[14px] h-[14px] sm:w-[16px] sm:h-[16px] rounded-full font-black flex items-center justify-center shadow-xs border border-white ${
               isDarkMode
                 ? 'bg-gradient-to-r from-amber-300 to-yellow-400 text-[#0E1E14]'
                 : 'bg-gradient-to-r from-sky-300 to-indigo-300 text-[#07131F]'
             }`}
           >
-            <Sparkles className="w-1.5 h-1.5 sm:w-2 sm:h-2" />
+            <Sparkles className="w-[7px] h-[7px] sm:w-[8px] sm:h-[8px]" />
           </span>
         </motion.button>
       </div>

@@ -60,6 +60,7 @@ import {
   togglePrayerInLog,
   formatDateKey,
   logToKeyMap,
+  pushSettingToCloud,
 } from '../utils/prayerTrackerUtils';
 import { getDailyHadith, getDailyReflection } from '../utils/dailyRenewal';
 
@@ -137,7 +138,14 @@ export const HomePage: React.FC<HomePageProps> = ({
     { label: 'Allahu Akbar', arabic: 'اللَّهُ أَكْبَرُ', meaning: 'Allah est le Plus Grand', target: 34 },
     { label: 'Astaghfirullah', arabic: 'أَسْتَغْفِرُ اللَّهَ', meaning: 'Je demande pardon à Allah', target: 100 },
   ];
-  const [selectedDhikrIndex, setSelectedDhikrIndex] = useState(0);
+  const [selectedDhikrIndex, setSelectedDhikrIndex] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_selected_dhikr_index');
+      return saved ? parseInt(saved, 10) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [tasbihCount, setTasbihCount] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('sanctuaire_tasbih_count');
@@ -148,6 +156,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   });
   const [isTasbihRippling, setIsTasbihRippling] = useState(false);
 
+  const handleSelectDhikrIndex = (idx: number) => {
+    setSelectedDhikrIndex(idx);
+    try {
+      localStorage.setItem('sanctuaire_selected_dhikr_index', String(idx));
+      pushSettingToCloud('sanctuaire_selected_dhikr_index', String(idx));
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem('sanctuaire_tasbih_count', String(tasbihCount));
@@ -155,6 +173,51 @@ export const HomePage: React.FC<HomePageProps> = ({
       // ignore
     }
   }, [tasbihCount]);
+
+  // Real-time synchronization listener for prayers & actions across PC and Mobile
+  useEffect(() => {
+    const handleSyncUpdate = () => {
+      const todayStr = formatDateKey(new Date());
+      const log = getPrayerLog(todayStr);
+      setCompletedPrayers(logToKeyMap(log));
+
+      try {
+        const savedTasbih = localStorage.getItem('sanctuaire_tasbih_count');
+        if (savedTasbih !== null) {
+          const parsedTasbih = parseInt(savedTasbih, 10);
+          if (!isNaN(parsedTasbih)) setTasbihCount(parsedTasbih);
+        }
+        const savedDhikrIdx = localStorage.getItem('sanctuaire_selected_dhikr_index');
+        if (savedDhikrIdx !== null) {
+          const parsedIdx = parseInt(savedDhikrIdx, 10);
+          if (!isNaN(parsedIdx)) setSelectedDhikrIndex(parsedIdx);
+        }
+        const savedOffsets = localStorage.getItem('prayer_offsets');
+        if (savedOffsets) {
+          setPrayerOffsets(JSON.parse(savedOffsets));
+        }
+        const savedAsr = localStorage.getItem('asr_method');
+        if (savedAsr === 'hanafi' || savedAsr === 'standard') {
+          setAsrMethod(savedAsr);
+        }
+        const savedTimeMode = localStorage.getItem('time_mode');
+        if (savedTimeMode === 'city' || savedTimeMode === 'device') {
+          setTimeMode(savedTimeMode);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener('prayer-tracker-updated', handleSyncUpdate);
+    window.addEventListener('sanctuaire-sync-updated', handleSyncUpdate);
+    window.addEventListener('storage', handleSyncUpdate);
+    return () => {
+      window.removeEventListener('prayer-tracker-updated', handleSyncUpdate);
+      window.removeEventListener('sanctuaire-sync-updated', handleSyncUpdate);
+      window.removeEventListener('storage', handleSyncUpdate);
+    };
+  }, []);
 
   // Audio recitation playback preview for Quran bookmark (Sourate 18 Al-Kahf, Verset 19)
   const [isPlayingQuran, setIsPlayingQuran] = useState(false);
@@ -313,8 +376,11 @@ export const HomePage: React.FC<HomePageProps> = ({
     setPrayerOffsets(newOffsets);
     setAsrMethod(newAsrMethod);
     try {
-      localStorage.setItem('prayer_offsets', JSON.stringify(newOffsets));
+      const offsetsJson = JSON.stringify(newOffsets);
+      localStorage.setItem('prayer_offsets', offsetsJson);
       localStorage.setItem('asr_method', newAsrMethod);
+      pushSettingToCloud('prayer_offsets', offsetsJson);
+      pushSettingToCloud('asr_method', newAsrMethod);
     } catch (e) {
       // ignore
     }
@@ -354,6 +420,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     setTimeMode(nextMode);
     try {
       localStorage.setItem('time_mode', nextMode);
+      pushSettingToCloud('time_mode', nextMode);
     } catch {
       // ignore
     }
@@ -402,15 +469,15 @@ export const HomePage: React.FC<HomePageProps> = ({
     setTimeout(() => setIsTasbihRippling(false), 200);
     setTasbihCount((prev) => {
       const currentTarget = dhikrOptions[selectedDhikrIndex].target;
-      if (prev + 1 >= currentTarget) {
-        return currentTarget;
-      }
-      return prev + 1;
+      const next = prev + 1 >= currentTarget ? currentTarget : prev + 1;
+      pushSettingToCloud('sanctuaire_tasbih_count', String(next));
+      return next;
     });
   };
 
   const resetTasbih = () => {
     setTasbihCount(0);
+    pushSettingToCloud('sanctuaire_tasbih_count', '0');
   };
 
   const completedCount = Object.values(completedPrayers).filter(Boolean).length;
@@ -1614,7 +1681,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 className="w-full h-11 rounded-2xl bg-gradient-to-r from-[#1DC8FF] via-[#38BDF8] to-[#FF7900] hover:opacity-95 active:scale-[0.98] text-neutral-950 font-extrabold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
               >
                 <Heart className="w-4 h-4 text-neutral-950 fill-neutral-950/20" />
-                <span>Ouvrir QR Code Wave / Orange Money</span>
+                <span>Faire un don (Wave / Orange Money)</span>
               </button>
             </div>
           </section>

@@ -46,6 +46,26 @@ export function formatDateKey(date: Date): string {
 }
 
 /**
+ * Resolves the currently logged-in user's normalized email from localStorage
+ */
+export function getActiveUserEmail(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem('sanctuaire_user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const email = (parsed?.email || '').trim().toLowerCase();
+    return email && email.includes('@') ? email : null;
+  } catch {
+    return null;
+  }
+}
+
+// Track in-flight pushes so a background pull never overwrites an active click
+const inFlightPrayerPushes = new Set<string>();
+const inFlightSettingPushes = new Set<string>();
+
+/**
  * Reads prayer completion log from localStorage for a given date (YYYY-MM-DD)
  */
 export function getPrayerLog(dateStr: string): DailyPrayerLog {
@@ -74,20 +94,81 @@ export function getPrayerLog(dateStr: string): DailyPrayerLog {
 }
 
 /**
- * Saves prayer log for a given date
+ * Saves prayer log for a given date locally AND pushes immediately to the cloud account
  */
-export function setPrayerLog(dateStr: string, log: DailyPrayerLog): void {
+export function setPrayerLog(
+  dateStr: string,
+  log: DailyPrayerLog,
+  options?: { skipCloudPush?: boolean; serverUpdatedAt?: number }
+): void {
   try {
+    const nowTs = options?.serverUpdatedAt || Date.now();
     const payload = {
-      ...log,
-      F: log.fajr,
-      D: log.dhuhr,
-      A: log.asr,
-      M: log.maghrib,
-      I: log.isha,
-      updated_at: new Date().toISOString(),
+      fajr: !!log.fajr,
+      dhuhr: !!log.dhuhr,
+      asr: !!log.asr,
+      maghrib: !!log.maghrib,
+      isha: !!log.isha,
+      F: !!log.fajr,
+      D: !!log.dhuhr,
+      A: !!log.asr,
+      M: !!log.maghrib,
+      I: !!log.isha,
+      updatedAt: nowTs,
+      updated_at: new Date(nowTs).toISOString(),
     };
     localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(payload));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('prayer-tracker-updated'));
+      window.dispatchEvent(
+        new CustomEvent('sanctuaire-sync-updated', {
+          detail: { prayersChanged: true, dateStr },
+        })
+      );
+    }
+
+    if (!options?.skipCloudPush) {
+      const email = getActiveUserEmail();
+      if (email) {
+        inFlightPrayerPushes.add(dateStr);
+        fetch(`/api/sync/${encodeURIComponent(email)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'push',
+            prayers: {
+              [dateStr]: {
+                fajr: !!log.fajr,
+                dhuhr: !!log.dhuhr,
+                asr: !!log.asr,
+                maghrib: !!log.maghrib,
+                isha: !!log.isha,
+                updatedAt: nowTs,
+              },
+            },
+          }),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            const serverDay = data?.state?.prayers?.[dateStr];
+            if (serverDay && serverDay.updatedAt) {
+              const updatedPayload = {
+                ...payload,
+                updatedAt: serverDay.updatedAt,
+                updated_at: new Date(serverDay.updatedAt).toISOString(),
+              };
+              localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(updatedPayload));
+            }
+          })
+          .catch(() => {
+            // Will retry automatically on next background sync
+          })
+          .finally(() => {
+            inFlightPrayerPushes.delete(dateStr);
+          });
+      }
+    }
   } catch (e) {
     console.error('Failed to save prayer log:', e);
   }
@@ -105,6 +186,242 @@ export function togglePrayerInLog(dateStr: string, key: PrayerKey): DailyPrayerL
   };
   setPrayerLog(dateStr, updated);
   return updated;
+}
+
+/**
+ * Pushes a user setting or action (city, offsets, tasbih, quran bookmarks, dark mode, etc.)
+ * to the cloud account so PC and Mobile stay in sync in real time.
+ */
+export function pushSettingToCloud(key: string, value: any): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const nowTs = Date.now();
+    localStorage.setItem(`sanctuaire_sync_ts_${key}`, String(nowTs));
+
+    const email = getActiveUserEmail();
+    if (!email) return;
+
+    inFlightSettingPushes.add(key);
+    fetch(`/api/sync/${encodeURIComponent(email)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'push',
+        settings: {
+          [key]: {
+            value,
+            updatedAt: nowTs,
+          },
+        },
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const serverEntry = data?.state?.settings?.[key];
+        if (serverEntry?.updatedAt) {
+          localStorage.setItem(`sanctuaire_sync_ts_${key}`, String(serverEntry.updatedAt));
+        }
+      })
+      .catch(() => {
+        // Silent retry on next background sync
+      })
+      .finally(() => {
+        inFlightSettingPushes.delete(key);
+      });
+  } catch {
+    // ignore
+  }
+}
+
+const SYNCED_SETTING_KEYS = [
+  'sanctuaire_selected_city',
+  'prayer_offsets',
+  'asr_method',
+  'time_mode',
+  'sanctuaire_dark_mode',
+  'sanctuaire_tasbih_count',
+  'sanctuaire_selected_dhikr_index',
+  'quran_bookmarked_verses',
+  'quran_last_read_surah',
+  'quran_last_read_ayah',
+  'quran_reading_theme',
+] as const;
+
+let isSyncPullInProgress = false;
+
+/**
+ * Pulls the latest account state from PostgreSQL and merges with localStorage.
+ * If forceSeedLocal is true, also uploads any pre-existing local prayer logs & settings
+ * that are not yet stored on the server.
+ */
+export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<void> {
+  if (isSyncPullInProgress) return;
+  const email = getActiveUserEmail();
+  if (!email) return;
+
+  isSyncPullInProgress = true;
+  try {
+    const localPrayersPayload: Record<string, any> = {};
+    const localSettingsPayload: Record<string, any> = {};
+
+    if (forceSeedLocal && typeof localStorage !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('prayer_log_')) {
+          const dateStr = k.replace('prayer_log_', '');
+          try {
+            const parsed = JSON.parse(localStorage.getItem(k) || '{}');
+            const fajr = !!(parsed.fajr ?? parsed.F);
+            const dhuhr = !!(parsed.dhuhr ?? parsed.D);
+            const asr = !!(parsed.asr ?? parsed.A);
+            const maghrib = !!(parsed.maghrib ?? parsed.M);
+            const isha = !!(parsed.isha ?? parsed.I);
+            const ts =
+              Number(parsed.updatedAt) ||
+              (parsed.updated_at ? Date.parse(parsed.updated_at) : 0) ||
+              1000;
+            if (fajr || dhuhr || asr || maghrib || isha || parsed.updatedAt) {
+              localPrayersPayload[dateStr] = {
+                fajr,
+                dhuhr,
+                asr,
+                maghrib,
+                isha,
+                updatedAt: ts,
+              };
+            }
+          } catch {
+            // ignore malformed
+          }
+        }
+      }
+
+      for (const sKey of SYNCED_SETTING_KEYS) {
+        const rawVal = localStorage.getItem(sKey);
+        if (rawVal !== null) {
+          const ts = Number(localStorage.getItem(`sanctuaire_sync_ts_${sKey}`)) || 1000;
+          localSettingsPayload[sKey] = {
+            value: rawVal,
+            updatedAt: ts,
+          };
+        }
+      }
+    }
+
+    const response = await fetch(`/api/sync/${encodeURIComponent(email)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'pull',
+        prayers: localPrayersPayload,
+        settings: localSettingsPayload,
+      }),
+    });
+
+    if (!response.ok) return;
+    const data = await response.json();
+    const state = data?.state;
+    if (!state) return;
+
+    let prayersChanged = false;
+    const updatedSettingKeys: string[] = [];
+
+    // 1. Apply synced prayer logs from server
+    if (state.prayers && typeof state.prayers === 'object') {
+      for (const [dateStr, serverDay] of Object.entries(state.prayers as Record<string, any>)) {
+        if (!serverDay || inFlightPrayerPushes.has(dateStr)) continue;
+
+        const rawLocal = localStorage.getItem(`prayer_log_${dateStr}`);
+        let localTs = 0;
+        let localDiffers = true;
+
+        if (rawLocal) {
+          try {
+            const parsed = JSON.parse(rawLocal);
+            localTs = Number(parsed.updatedAt) || 0;
+            const lFajr = !!(parsed.fajr ?? parsed.F);
+            const lDhuhr = !!(parsed.dhuhr ?? parsed.D);
+            const lAsr = !!(parsed.asr ?? parsed.A);
+            const lMaghrib = !!(parsed.maghrib ?? parsed.M);
+            const lIsha = !!(parsed.isha ?? parsed.I);
+
+            localDiffers =
+              lFajr !== Boolean(serverDay.fajr) ||
+              lDhuhr !== Boolean(serverDay.dhuhr) ||
+              lAsr !== Boolean(serverDay.asr) ||
+              lMaghrib !== Boolean(serverDay.maghrib) ||
+              lIsha !== Boolean(serverDay.isha);
+          } catch {
+            localDiffers = true;
+          }
+        }
+
+        const serverTs = Number(serverDay.updatedAt) || 1000;
+        if (localDiffers && serverTs >= localTs) {
+          const payload = {
+            fajr: Boolean(serverDay.fajr),
+            dhuhr: Boolean(serverDay.dhuhr),
+            asr: Boolean(serverDay.asr),
+            maghrib: Boolean(serverDay.maghrib),
+            isha: Boolean(serverDay.isha),
+            F: Boolean(serverDay.fajr),
+            D: Boolean(serverDay.dhuhr),
+            A: Boolean(serverDay.asr),
+            M: Boolean(serverDay.maghrib),
+            I: Boolean(serverDay.isha),
+            updatedAt: serverTs,
+            updated_at: new Date(serverTs).toISOString(),
+          };
+          localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(payload));
+          prayersChanged = true;
+        }
+      }
+    }
+
+    // 2. Apply synced settings & actions from server
+    if (state.settings && typeof state.settings === 'object') {
+      for (const [sKey, serverEntry] of Object.entries(state.settings as Record<string, any>)) {
+        if (!serverEntry || !('value' in serverEntry) || inFlightSettingPushes.has(sKey)) continue;
+
+        const serverTs = Number(serverEntry.updatedAt) || 1000;
+        const localTs = Number(localStorage.getItem(`sanctuaire_sync_ts_${sKey}`)) || 0;
+        const nextStrVal =
+          typeof serverEntry.value === 'string'
+            ? serverEntry.value
+            : JSON.stringify(serverEntry.value);
+        const currentLocalStrVal = localStorage.getItem(sKey);
+
+        if (serverTs > localTs || (currentLocalStrVal !== nextStrVal && serverTs >= localTs)) {
+          if (currentLocalStrVal !== nextStrVal) {
+            localStorage.setItem(sKey, nextStrVal);
+            updatedSettingKeys.push(sKey);
+          }
+          localStorage.setItem(`sanctuaire_sync_ts_${sKey}`, String(serverTs));
+        }
+      }
+    }
+
+    if (prayersChanged || updatedSettingKeys.length > 0) {
+      if (typeof window !== 'undefined') {
+        if (prayersChanged) {
+          window.dispatchEvent(new Event('prayer-tracker-updated'));
+        }
+        window.dispatchEvent(
+          new CustomEvent('sanctuaire-sync-updated', {
+            detail: {
+              prayersChanged,
+              settingsChanged: updatedSettingKeys.length > 0,
+              updatedSettingKeys,
+            },
+          })
+        );
+      }
+    }
+  } catch {
+    // Ignore transient network errors
+  } finally {
+    isSyncPullInProgress = false;
+  }
 }
 
 /**

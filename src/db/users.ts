@@ -139,14 +139,30 @@ export async function getAllConnectedProfiles() {
 
 export async function getPrayerLogFromDb(userId: string, date: string) {
   try {
+    const cleanId = userId.trim().toLowerCase();
     const rows = await db
       .select()
       .from(prayerLogs)
-      .where(and(eq(prayerLogs.userId, userId), eq(prayerLogs.date, date)));
+      .where(and(eq(prayerLogs.userId, cleanId), eq(prayerLogs.date, date)));
     return rows[0] || null;
   } catch (error) {
     console.error('Database query failed in getPrayerLogFromDb:', error);
     throw new Error('Failed to fetch prayer log.', { cause: error });
+  }
+}
+
+export async function getAllPrayerLogsForUserFromDb(userId: string) {
+  try {
+    const cleanId = userId.trim().toLowerCase();
+    const rows = await db
+      .select()
+      .from(prayerLogs)
+      .where(eq(prayerLogs.userId, cleanId))
+      .orderBy(desc(prayerLogs.date));
+    return rows;
+  } catch (error) {
+    console.error('Database query failed in getAllPrayerLogsForUserFromDb:', error);
+    return [];
   }
 }
 
@@ -157,7 +173,8 @@ export async function upsertPrayerLogInDb(
   completed: boolean
 ) {
   try {
-    const existing = await getPrayerLogFromDb(userId, date);
+    const cleanId = userId.trim().toLowerCase();
+    const existing = await getPrayerLogFromDb(cleanId, date);
     if (existing) {
       const updated = await db
         .update(prayerLogs)
@@ -169,7 +186,7 @@ export async function upsertPrayerLogInDb(
       const inserted = await db
         .insert(prayerLogs)
         .values({
-          userId,
+          userId: cleanId,
           date,
           [prayerKey]: completed,
         })
@@ -179,6 +196,102 @@ export async function upsertPrayerLogInDb(
   } catch (error) {
     console.error('Database query failed in upsertPrayerLogInDb:', error);
     throw new Error('Failed to update prayer log.', { cause: error });
+  }
+}
+
+export async function upsertFullPrayerLogInDb(
+  userId: string,
+  date: string,
+  log: { fajr: boolean; dhuhr: boolean; asr: boolean; maghrib: boolean; isha: boolean }
+) {
+  try {
+    const cleanId = userId.trim().toLowerCase();
+    const existing = await getPrayerLogFromDb(cleanId, date);
+    if (existing) {
+      const updated = await db
+        .update(prayerLogs)
+        .set({
+          fajr: Boolean(log.fajr),
+          dhuhr: Boolean(log.dhuhr),
+          asr: Boolean(log.asr),
+          maghrib: Boolean(log.maghrib),
+          isha: Boolean(log.isha),
+          updatedAt: new Date(),
+        })
+        .where(eq(prayerLogs.id, existing.id))
+        .returning();
+      return updated[0];
+    } else {
+      const inserted = await db
+        .insert(prayerLogs)
+        .values({
+          userId: cleanId,
+          date,
+          fajr: Boolean(log.fajr),
+          dhuhr: Boolean(log.dhuhr),
+          asr: Boolean(log.asr),
+          maghrib: Boolean(log.maghrib),
+          isha: Boolean(log.isha),
+        })
+        .returning();
+      return inserted[0];
+    }
+  } catch (error) {
+    console.error('Database query failed in upsertFullPrayerLogInDb:', error);
+    return null;
+  }
+}
+
+export async function getUserSyncStateFromDb(email: string): Promise<Record<string, any> | null> {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const rows = await db
+      .select()
+      .from(emailLogs)
+      .where(and(eq(emailLogs.emailType, 'user_sync_state'), eq(emailLogs.senderEmail, cleanEmail)))
+      .orderBy(desc(emailLogs.id));
+
+    if (!rows.length || !rows[0].bodyPreview) return null;
+    return JSON.parse(rows[0].bodyPreview);
+  } catch (error) {
+    console.error('Database query failed in getUserSyncStateFromDb:', error);
+    return null;
+  }
+}
+
+export async function saveUserSyncStateInDb(
+  email: string,
+  stateObj: Record<string, any>
+): Promise<void> {
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const serialized = JSON.stringify(stateObj);
+    const existing = await db
+      .select()
+      .from(emailLogs)
+      .where(and(eq(emailLogs.emailType, 'user_sync_state'), eq(emailLogs.senderEmail, cleanEmail)))
+      .orderBy(desc(emailLogs.id));
+
+    if (existing.length > 0) {
+      await db
+        .update(emailLogs)
+        .set({
+          bodyPreview: serialized,
+          subject: `sync_${Date.now()}`,
+        })
+        .where(eq(emailLogs.id, existing[0].id));
+    } else {
+      await db.insert(emailLogs).values({
+        senderEmail: cleanEmail,
+        recipientEmail: cleanEmail,
+        subject: `sync_${Date.now()}`,
+        bodyPreview: serialized,
+        emailType: 'user_sync_state',
+        status: 'synced',
+      });
+    }
+  } catch (error) {
+    console.error('Database query failed in saveUserSyncStateInDb:', error);
   }
 }
 

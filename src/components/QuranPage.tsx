@@ -44,6 +44,7 @@ import { BismillahCalligraphy } from './BismillahCalligraphy';
 import { SurahHeaderBanner } from './SurahHeaderBanner';
 import { SidebarAudioControl } from './SidebarAudioControl';
 import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
+import { pushSettingToCloud } from '../utils/prayerTrackerUtils';
 
 interface AyahData {
   num: number;
@@ -334,9 +335,36 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     try {
       localStorage.setItem('quran_last_read_surah', String(surah));
       localStorage.setItem('quran_last_read_ayah', String(ayah));
+      pushSettingToCloud('quran_last_read_surah', String(surah));
+      pushSettingToCloud('quran_last_read_ayah', String(ayah));
       setLastReadAyah({ surah, ayah });
     } catch {}
   };
+
+  // Listen for cloud sync updates to bookmarks and last read position
+  useEffect(() => {
+    const handleQuranCloudSync = () => {
+      try {
+        const savedBookmarks = localStorage.getItem('quran_bookmarked_verses');
+        if (savedBookmarks) {
+          setBookmarkedVerses(JSON.parse(savedBookmarks));
+        }
+        const s = localStorage.getItem('quran_last_read_surah');
+        const a = localStorage.getItem('quran_last_read_ayah');
+        if (s && a) {
+          setLastReadAyah({ surah: parseInt(s, 10), ayah: parseInt(a, 10) });
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('sanctuaire-sync-updated', handleQuranCloudSync);
+    window.addEventListener('storage', handleQuranCloudSync);
+    return () => {
+      window.removeEventListener('sanctuaire-sync-updated', handleQuranCloudSync);
+      window.removeEventListener('storage', handleQuranCloudSync);
+    };
+  }, []);
 
   // Stop any active audio
   const stopAudio = () => {
@@ -566,7 +594,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
     setBookmarkedVerses(updated);
     try {
-      localStorage.setItem('quran_bookmarked_verses', JSON.stringify(updated));
+      const serialized = JSON.stringify(updated);
+      localStorage.setItem('quran_bookmarked_verses', serialized);
+      pushSettingToCloud('quran_bookmarked_verses', serialized);
     } catch {}
   };
 
@@ -982,7 +1012,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             <div className={`w-px h-5 shrink-0 hidden sm:block ${isDark ? 'bg-emerald-500/25' : 'bg-neutral-200'}`} />
 
             {/* Quran Title with Arabic script */}
-            <div className="flex items-baseline gap-1.5 shrink-0">
+            <div className="hidden sm:flex items-baseline gap-1.5 shrink-0">
               <span className={`text-base sm:text-lg font-bold tracking-tight ${isDark ? 'text-emerald-400' : 'text-[#007A65]'}`}>
                 Quran
               </span>
@@ -1153,31 +1183,58 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         <div className="flex-1 w-full flex flex-col lg:flex-row relative overflow-hidden min-h-0">
           
           {/* ========================================================
+              MOBILE BACKDROP FOR SURAH DRAWER
+             ======================================================== */}
+          {isMobileSidebarOpen && (
+            <div
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs lg:hidden transition-opacity"
+              aria-hidden="true"
+            />
+          )}
+
+          {/* ========================================================
               LEFT SIDEBAR: Surahs Catalog, Search, Tabs & Juz Index
              ======================================================== */}
           <aside
-            style={{
-              width: isSidebarCollapsed ? '0px' : `${sidebarWidth}px`,
-              minWidth: isSidebarCollapsed ? '0px' : '220px',
-              maxWidth: isSidebarCollapsed ? '0px' : '520px',
-            }}
-            className={`shrink-0 border-r ${themeClasses.border} p-4 sm:p-5 flex flex-col gap-3.5 bg-inherit transition-all lg:h-full lg:overflow-hidden ${
+            style={
+              isMobileSidebarOpen
+                ? {
+                    backgroundColor: isDark ? '#12261C' : '#FFFFFF',
+                  }
+                : {
+                    width: isSidebarCollapsed ? '0px' : `${sidebarWidth}px`,
+                    minWidth: isSidebarCollapsed ? '0px' : '220px',
+                    maxWidth: isSidebarCollapsed ? '0px' : '520px',
+                    backgroundColor: isDark ? '#14261C' : '#FFFFFF',
+                  }
+            }
+            className={`shrink-0 border-r ${themeClasses.border} flex flex-col gap-3.5 transition-all lg:h-full lg:overflow-hidden ${
               isResizing ? 'select-none transition-none' : 'duration-200 ease-in-out'
             } ${
-              isSidebarCollapsed
+              isMobileSidebarOpen
+                ? `fixed inset-y-0 left-0 z-[110] w-[92vw] max-w-[380px] p-4 sm:p-5 flex flex-col overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.75)] ${
+                    isDark ? 'bg-[#12261C] text-white border-emerald-500/30' : 'bg-white text-neutral-900 border-neutral-200'
+                  }`
+                : isSidebarCollapsed
                 ? 'hidden overflow-hidden p-0 border-r-0'
-                : isMobileSidebarOpen
-                ? `fixed inset-0 z-50 p-5 flex flex-col overflow-y-auto ${isDark ? 'bg-[#193226] text-white' : 'bg-white text-neutral-900'}`
-                : 'hidden lg:flex'
+                : `hidden lg:flex p-4 sm:p-5 ${isDark ? 'bg-[#14261C] text-white' : 'bg-white text-neutral-900'}`
             }`}
           >
             {/* Mobile Sidebar Close Button */}
             {isMobileSidebarOpen && (
-              <div className={`lg:hidden flex items-center justify-between pb-3 border-b ${isDark ? 'border-emerald-500/20' : 'border-neutral-200'}`}>
-                <span className={`font-bold text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}>Index du Noble Coran</span>
+              <div className={`lg:hidden shrink-0 flex items-center justify-between pb-3 border-b ${isDark ? 'border-emerald-500/25' : 'border-neutral-200'}`}>
+                <span className={`font-extrabold text-base tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                  Index du Noble Coran
+                </span>
                 <button
                   onClick={() => setIsMobileSidebarOpen(false)}
-                  className={`p-1 rounded-md ${isDark ? 'text-emerald-300 hover:text-white' : 'text-neutral-500'}`}
+                  className={`p-1.5 rounded-xl border transition cursor-pointer ${
+                    isDark
+                      ? 'bg-[#193226] border-emerald-500/30 text-emerald-300 hover:text-white'
+                      : 'bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900'
+                  }`}
+                  title="Fermer le menu des sourates"
                 >
                   <X className="w-5 h-5" />
                 </button>
