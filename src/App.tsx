@@ -484,7 +484,7 @@ export default function App() {
                 isDarkMode ? 'bg-[#034223]' : 'bg-[#FEFEFE]'
               }`}
             >
-              {/* Full-bleed background covering 100% of the Hero section with seamless 2.4s natural cross-dissolve */}
+              {/* Full-bleed background covering 100% of the Hero section with seamless natural cross-dissolve */}
               <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
                 {ALL_HERO_BACKGROUNDS.map((bgItem) => {
                   const isCurrent = bgItem.id === currentHeroBg.id;
@@ -496,12 +496,15 @@ export default function App() {
                       alt="Arrière-plan Sanctuaire Islamique"
                       loading="eager"
                       decoding="async"
-                      className={`absolute inset-0 w-full h-full object-cover object-center will-change-[opacity,transform] transition-[opacity,transform] ease-in-out ${
+                      style={{
+                        transition: isCurrent ? 'opacity 1800ms ease-in-out' : 'none',
+                      }}
+                      className={`absolute inset-0 w-full h-full object-cover object-center ${
                         isCurrent
-                          ? 'z-20 opacity-100 scale-100 duration-[2200ms] delay-0'
+                          ? 'z-20 opacity-100'
                           : isPrev
-                            ? 'z-10 opacity-0 scale-100 duration-[800ms] delay-[1600ms]'
-                            : 'z-0 opacity-0 scale-[1.015] duration-300 delay-0'
+                            ? 'z-10 opacity-100'
+                            : 'z-0 opacity-0'
                       }`}
                     />
                   );
