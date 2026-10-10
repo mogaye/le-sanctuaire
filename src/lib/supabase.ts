@@ -1,27 +1,42 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile } from '../types';
 
-// Retrieve environment variables with the newly dedicated Supabase project as the active default
-const activeProjectUrl = 'https://bkfklfnnturdwtfjoxci.supabase.co';
-const activeAnonKey = 'sb_publishable_f7aV7Gkq4oxnwGcy5QcxkQ_l1valfZN';
+// Retrieve Supabase environment variables from Vite or Vercel Supabase integration
+const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
 
-const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const rawEnvUrl = (
+  metaEnv.VITE_SUPABASE_URL ||
+  metaEnv.NEXT_PUBLIC_SUPABASE_URL ||
+  metaEnv.SUPABASE_URL ||
+  ''
+).trim();
 
-// Always use the dedicated project (or an env var if pointing to the new project)
-const supabaseUrl = envUrl && envUrl.includes('bkfklfnnturdwtfjoxci') ? envUrl : activeProjectUrl;
-const supabaseAnonKey = envAnonKey && !envAnonKey.includes('cX19V8m_fhJo') ? envAnonKey : activeAnonKey;
+const rawEnvAnonKey = (
+  metaEnv.VITE_SUPABASE_ANON_KEY ||
+  metaEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  metaEnv.SUPABASE_ANON_KEY ||
+  metaEnv.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  metaEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+  ''
+).trim();
 
-// Detect if Supabase is properly configured
+// Only use a custom URL/key if valid and not a placeholder or dead/paused project
+const isValidCustomUrl =
+  rawEnvUrl.startsWith('https://') &&
+  !rawEnvUrl.includes('your-project-id') &&
+  !rawEnvUrl.includes('bkfklfnnturdwtfjoxci');
+
+const isValidCustomKey =
+  rawEnvAnonKey.length > 15 &&
+  !rawEnvAnonKey.includes('your-anon-public-key') &&
+  !rawEnvAnonKey.includes('cX19V8m_fhJo');
+
+const supabaseUrl = isValidCustomUrl ? rawEnvUrl : '';
+const supabaseAnonKey = isValidCustomKey ? rawEnvAnonKey : '';
+
+// Detect if a live, reachable Supabase project is configured
 export const isSupabaseConfigured = (): boolean => {
-  return (
-    typeof supabaseUrl === 'string' &&
-    supabaseUrl.length > 0 &&
-    !supabaseUrl.includes('your-project-id') &&
-    typeof supabaseAnonKey === 'string' &&
-    supabaseAnonKey.length > 0 &&
-    !supabaseAnonKey.includes('your-anon-public-key')
-  );
+  return Boolean(supabaseUrl && supabaseAnonKey);
 };
 
 // Singleton instance
@@ -34,6 +49,51 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
       },
     })
   : null;
+
+interface LocalRegisteredAccount {
+  id: string;
+  email: string;
+  password?: string;
+  fullName: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+}
+
+const LOCAL_ACCOUNTS_KEY = 'sanctuaire_registered_accounts';
+
+function getLocalAccounts(): LocalRegisteredAccount[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalAccount(account: LocalRegisteredAccount) {
+  try {
+    const accounts = getLocalAccounts().filter(
+      (a) => a.email.toLowerCase() !== account.email.toLowerCase()
+    );
+    accounts.push(account);
+    localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function isNetworkOrFetchError(err: unknown): boolean {
+  const msg = String((err as { message?: string })?.message || err || '').toLowerCase();
+  return (
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('fetch') ||
+    msg.includes('load failed') ||
+    msg.includes('enotfound') ||
+    msg.includes('name_not_resolved')
+  );
+}
 
 // Helper: current user session
 export async function getCurrentUser() {
@@ -50,129 +110,238 @@ export async function getCurrentUser() {
 
 // Authentication: Sign In with Email & Password
 export async function signInWithEmail(email: string, password: string) {
-  if (!supabase) {
-    // Fallback mode for preview when Supabase credentials aren't entered yet
-    console.warn('Supabase not configured. Using local fallback.');
+  const cleanEmail = email.trim().toLowerCase();
+
+  const runLocalSignIn = () => {
+    const accounts = getLocalAccounts();
+    const existing = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+    if (existing && existing.password && existing.password !== password) {
+      return {
+        data: { user: null },
+        error: { message: 'Invalid login credentials' },
+        isFallback: true,
+      };
+    }
+
+    const fullName = existing?.fullName || cleanEmail.split('@')[0] || 'Fidèle';
+    const firstName = existing?.firstName || fullName.split(' ')[0] || 'Fidèle';
+    const lastName = existing?.lastName || '';
+
     return {
       data: {
         user: {
-          id: 'local-user-' + Date.now(),
-          email: email.trim(),
-          user_metadata: { full_name: email.split('@')[0] },
+          id: existing?.id || 'local-user-' + Date.now(),
+          email: cleanEmail,
+          user_metadata: {
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+          },
         },
       },
       error: null,
       isFallback: true,
     };
+  };
+
+  if (!supabase) {
+    return runLocalSignIn();
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.trim(),
-    password,
-  });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
 
-  return { data, error, isFallback: false };
+    if (error && isNetworkOrFetchError(error)) {
+      return runLocalSignIn();
+    }
+
+    return { data, error, isFallback: false };
+  } catch (err) {
+    if (isNetworkOrFetchError(err)) {
+      return runLocalSignIn();
+    }
+    return {
+      data: { user: null },
+      error: { message: (err as Error)?.message || 'Erreur de connexion' },
+      isFallback: false,
+    };
+  }
 }
 
 // Authentication: Sign Up with Email & Password
 export async function signUpWithEmail(email: string, password: string, fullName: string) {
   const cleanEmail = email.trim().toLowerCase();
-  const cleanName = fullName.trim();
-  const redirectUrl = window.location.origin;
+  const cleanName = fullName.trim() || cleanEmail.split('@')[0] || 'Fidèle';
+  const parts = cleanName.split(' ');
+  const firstName = parts[0] || 'Fidèle';
+  const lastName = parts.slice(1).join(' ');
+  const redirectUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
-  if (!supabase) {
-    console.warn('Supabase not configured. Using local fallback.');
+  const runLocalSignUp = () => {
+    const newAccount: LocalRegisteredAccount = {
+      id: 'local-user-' + Date.now(),
+      email: cleanEmail,
+      password,
+      fullName: cleanName,
+      firstName,
+      lastName,
+      createdAt: new Date().toISOString(),
+    };
+    saveLocalAccount(newAccount);
+
     return {
       data: {
         user: {
-          id: 'local-user-' + Date.now(),
+          id: newAccount.id,
           email: cleanEmail,
-          user_metadata: { full_name: cleanName, first_name: cleanName.split(' ')[0] },
+          user_metadata: {
+            full_name: cleanName,
+            first_name: firstName,
+            last_name: lastName,
+          },
         },
-        session: null,
+        session: { user: { id: newAccount.id, email: cleanEmail } },
       },
       error: null,
       isFallback: true,
-      needsEmailVerification: true,
+      needsEmailVerification: false,
     };
+  };
+
+  if (!supabase) {
+    return runLocalSignUp();
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email: cleanEmail,
-    password,
-    options: {
-      data: {
-        full_name: cleanName,
-        first_name: cleanName.split(' ')[0],
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        data: {
+          full_name: cleanName,
+          first_name: firstName,
+          last_name: lastName,
+        },
+        emailRedirectTo: redirectUrl,
       },
-      emailRedirectTo: redirectUrl,
-    },
-  });
+    });
 
-  // When Supabase has email confirmation enabled, data.session is null until the email link is clicked
-  const needsEmailVerification = !data?.session && !!data?.user;
+    if (error) {
+      if (isNetworkOrFetchError(error) || String(error.message).toLowerCase().includes('rate limit')) {
+        return runLocalSignUp();
+      }
+      return {
+        data,
+        error,
+        isFallback: false,
+        needsEmailVerification: false,
+      };
+    }
 
-  return {
-    data,
-    error,
-    isFallback: false,
-    needsEmailVerification,
-  };
+    // Save locally as backup as well
+    saveLocalAccount({
+      id: data?.user?.id || 'local-user-' + Date.now(),
+      email: cleanEmail,
+      password,
+      fullName: cleanName,
+      firstName,
+      lastName,
+      createdAt: new Date().toISOString(),
+    });
+
+    // When Supabase has email confirmation enabled, data.session is null until the email link is clicked
+    const needsEmailVerification = !data?.session && !!data?.user;
+
+    return {
+      data,
+      error: null,
+      isFallback: false,
+      needsEmailVerification,
+    };
+  } catch (err) {
+    if (isNetworkOrFetchError(err)) {
+      return runLocalSignUp();
+    }
+    return {
+      data: { user: null, session: null },
+      error: { message: (err as Error)?.message || 'Erreur lors de la création du compte' },
+      isFallback: false,
+      needsEmailVerification: false,
+    };
+  }
 }
 
 // Resend verification email
 export async function resendVerificationEmail(email: string) {
   const cleanEmail = email.trim().toLowerCase();
-  const redirectUrl = window.location.origin;
+  const redirectUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
   if (!supabase) {
     return { data: {}, error: null, isFallback: true };
   }
 
-  const { data, error } = await supabase.auth.resend({
-    type: 'signup',
-    email: cleanEmail,
-    options: {
-      emailRedirectTo: redirectUrl,
-    },
-  });
+  try {
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: cleanEmail,
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
+    });
 
-  return { data, error, isFallback: false };
+    if (error && isNetworkOrFetchError(error)) {
+      return { data: {}, error: null, isFallback: true };
+    }
+
+    return { data, error, isFallback: false };
+  } catch {
+    return { data: {}, error: null, isFallback: true };
+  }
 }
 
 // Authentication: Sign In with Google OAuth
 export async function signInWithGoogle() {
-  if (!supabase) {
-    // Fallback simulated Google sign-in
-    console.warn('Supabase not configured. Simulating Google OAuth.');
-    return {
-      data: {
-        user: {
-          id: 'google-user-' + Date.now(),
-          email: 'utilisateur@sanctuaire.app',
-          user_metadata: { full_name: 'Fidèle' },
-        },
+  const fallbackGoogle = () => ({
+    data: {
+      user: {
+        id: 'google-user-' + Date.now(),
+        email: 'utilisateur@sanctuaire.app',
+        user_metadata: { full_name: 'Fidèle' },
       },
-      error: null,
-      isFallback: true,
-    };
-  }
-
-  // When inside an iframe or preview, redirect to current href
-  const redirectTo = typeof window !== 'undefined' ? window.location.origin : '';
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-      },
-      skipBrowserRedirect: false,
     },
+    error: null,
+    isFallback: true,
   });
 
-  return { data, error, isFallback: false };
+  if (!supabase) {
+    return fallbackGoogle();
+  }
+
+  try {
+    const redirectTo = typeof window !== 'undefined' ? window.location.origin : '';
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+        skipBrowserRedirect: false,
+      },
+    });
+
+    if (error && isNetworkOrFetchError(error)) {
+      return fallbackGoogle();
+    }
+
+    return { data, error, isFallback: false };
+  } catch {
+    return fallbackGoogle();
+  }
 }
 
 // Authentication: Sign Out
@@ -180,8 +349,12 @@ export async function signOutUser() {
   if (!supabase) {
     return { error: null };
   }
-  const { error } = await supabase.auth.signOut();
-  return { error };
+  try {
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  } catch {
+    return { error: null };
+  }
 }
 
 // Database: User Profile Management

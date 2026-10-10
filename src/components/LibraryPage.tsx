@@ -13,6 +13,7 @@ import {
 import { PuitsDeNourReader } from './PuitsDeNourReader';
 import { PUITS_DE_NOUR_HERO_IMAGE, PUITS_DE_NOUR_CHARACTERS } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS } from '../data/puitsDeNourText';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface LibraryPageProps {
   onBackToHome: () => void;
@@ -168,14 +169,14 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
           <>
             {/* BANNIÈRE HÉRO & ANNONCE PRINCIPALE AVEC CHRONOMÈTRE */}
             <section className="relative rounded-3xl overflow-hidden bg-[#132A1D] border border-emerald-600/35 dark:border-emerald-500/30 shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.35)] p-6 sm:p-10 text-center">
-              {/* Image de fond (la femme lisant le Coran) */}
+              {/* Image de fond (Portrait serein au Coran sur fond vert) */}
               <div className="absolute inset-0 z-0 pointer-events-none">
                 <img
-                  src="/images/backgrounds/user_uploaded_bg.png"
+                  src={portraitSereinVertBg}
                   alt="Bibliothèque du Sanctuaire"
-                  className="w-full h-full object-cover object-right sm:object-center opacity-55"
+                  className="w-full h-full object-cover object-right sm:object-center opacity-70"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/90 via-[#0D261A]/80 to-[#091D13]/75" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/85 via-[#0D261A]/65 to-[#091D13]/60" />
               </div>
 
               <div className="relative z-10">

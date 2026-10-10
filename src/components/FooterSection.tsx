@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles } from 'lucide-react';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export interface FooterSectionProps {
   onOpenPrayerGuide: () => void;
@@ -25,9 +26,9 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
       {/* Background Image behind the whole footer and CTA area */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img
-          src="/images/backgrounds/cta_twilight_bg.jpg"
-          alt="Arrière-plan sérénité nocturne"
-          className="w-full h-full object-cover object-center opacity-30"
+          src={portraitSereinVertBg}
+          alt="Portrait serein au Coran sur fond vert"
+          className="w-full h-full object-cover object-center opacity-25"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-[#05170E]/95 via-[#061D12]/90 to-[#030E08]" />
       </div>
@@ -36,17 +37,16 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
         {/* 1. Final Call To Action (CTA) Banner (optional) */}
         {showCta && (
           <div className="w-full max-w-6xl mx-auto px-3.5 sm:px-8 mb-10 sm:mb-16 relative z-20">
-            <div className="rounded-2xl sm:rounded-[36px] bg-[#071F15]/90 border border-emerald-400/30 shadow-[0_25px_60px_rgba(0,0,0,0.5)] p-5 sm:p-14 text-center relative overflow-hidden text-white backdrop-blur-xl">
-              {/* Spiritual Twilight Sanctuary Background */}
+            <div className="rounded-2xl sm:rounded-[36px] bg-[#071F15]/90 border border-emerald-400/30 shadow-[0_25px_60px_rgba(0,0,0,0.5)] p-5 sm:p-14 text-center relative overflow-hidden text-white">
+              {/* Portrait serein au Coran sur fond vert Background */}
               <div className="absolute inset-0 z-0 pointer-events-none">
                 <img
-                  src="/images/backgrounds/cta_twilight_bg.jpg"
-                  alt="Arrière-plan sérénité nocturne"
-                  className="w-full h-full object-cover object-center opacity-40"
+                  src={portraitSereinVertBg}
+                  alt="Portrait serein au Coran sur fond vert"
+                  className="w-full h-full object-cover object-center"
                 />
-                {/* Protective Gradient Overlays */}
-                <div className="absolute inset-0 bg-gradient-to-r from-[#061D12]/92 via-[#072417]/85 to-[#061D12]/92" />
-                <div className="absolute inset-0 bg-gradient-to-b from-[#05170E]/80 via-transparent to-[#05170E]/90" />
+                {/* Subtle protective gradient so the portrait and text both remain clear */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#041D11]/75 via-[#052918]/45 to-[#041D11]/65" />
               </div>
 
               <div className="relative z-10">

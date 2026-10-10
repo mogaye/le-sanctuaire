@@ -16,6 +16,7 @@ import {
 } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS, BookChapter } from '../data/puitsDeNourText';
 import { CharacterPortrait } from './CharacterPortrait';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface PuitsDeNourReaderProps {
   onClose?: () => void;
@@ -290,11 +291,11 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
       <div className="relative rounded-3xl overflow-hidden bg-[#0D2016] border border-emerald-600/35 dark:border-amber-500/30 shadow-lg dark:shadow-2xl mb-6">
         <div className="absolute inset-0">
           <img
-            src="/images/backgrounds/user_uploaded_bg.png"
+            src={portraitSereinVertBg}
             alt="Le Puits de Nour - Bibliothèque du Sanctuaire"
             className="w-full h-full object-cover object-right sm:object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/90 via-[#091D13]/65 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#091D13]/85 via-[#091D13]/55 to-transparent" />
         </div>
 
         <div className="relative z-10 p-6 sm:p-10">

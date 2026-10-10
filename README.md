@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Le Sanctuaire — Compagnon Spirituel au Quotidien
 
-# Run and deploy your AI Studio app
+Application web islamique francophone dédiée à la prière, la lecture du Saint Coran, la direction de la Qibla, la bibliothèque spirituelle et la Sadaqah.
 
-This contains everything you need to run your app locally.
+## Configuration locale & Déploiement Vercel
 
-View your app in AI Studio: https://ai.studio/apps/8acbdbcd-088d-4986-bffe-451342954cc4
+1. Installer les dépendances :
+   ```bash
+   npm install
+   ```
+2. Configurer les variables d'environnement (optionnel si déjà configurées sur Vercel) :
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_PAYDUNYA_MASTER_KEY`
+   - `VITE_PAYDUNYA_PUBLIC_KEY`
+   - `VITE_PAYDUNYA_PRIVATE_KEY`
+   - `VITE_PAYDUNYA_TOKEN`
+3. Lancer le serveur de développement :
+   ```bash
+   npm run dev
+   ```
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`

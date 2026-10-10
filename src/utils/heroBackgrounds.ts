@@ -1,13 +1,11 @@
-import userUploadedSisterBg from '../assets/images/backgrounds/user_uploaded_bg.png';
-
-// 5 Nouveaux Fonds Mode Vert (Sombre / Émeraude)
+// 5 Fonds Mode Vert (Sombre / Émeraude)
+import greenPortraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 import greenFemmeVoileeLisantBg from '../Femme voilée lisant le Coran sur fond vert.png';
 import greenLectureEcrinVertBg from '../Lecture coranique dans un écrin vert.png';
-import greenPortraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 import greenFemmeAgeeEnPaixBg from '../Femme âgée lisant le Coran en paix.png';
 import greenLecturePaisibleVertBg from '../Lecture paisible du Coran sur fond vert.png';
 
-// 5 Nouveaux Fonds Mode Blanc (Clair / Studio Blanc)
+// 5 Fonds Mode Blanc (Clair / Studio Blanc)
 import whiteLectureSereineHijabBg from '../Lecture sereine du Coran en hijab.png';
 import whiteFemmeVoileeCoranOrneBg from '../Femme voilée tenant un Coran orné.png';
 import whiteLectureSereineStudioBg from '../Lecture sereine du Coran en studio.png';
@@ -22,35 +20,29 @@ export interface AnalyzedHeroBg {
 }
 
 export const DEFAULT_GIRL_HERO_BG: AnalyzedHeroBg = {
-  id: 'green-0-user-uploaded-girl',
-  src: userUploadedSisterBg,
+  id: 'green-1-portrait-serein-vert',
+  src: greenPortraitSereinVertBg,
   mode: 'green',
-  name: 'user_uploaded_bg.png',
+  name: 'Portrait serein avec Coran sur fond vert.png',
 };
 
 /**
- * 6 Fonds Hero pour le Mode Vert (Sombre) :
- * L'image existante de la jeune femme + les 5 nouvelles images sur fond vert émeraude.
+ * 5 Fonds Hero pour le Mode Vert (Sombre) :
+ * Commence par "Portrait serein au Coran sur fond vert" suivi des 4 autres images sur fond vert émeraude.
  */
 export const GREEN_HERO_BACKGROUNDS: AnalyzedHeroBg[] = [
   DEFAULT_GIRL_HERO_BG,
   {
-    id: 'green-1-femme-voilee-lisant',
+    id: 'green-2-femme-voilee-lisant',
     src: greenFemmeVoileeLisantBg,
     mode: 'green',
     name: 'Femme voilée lisant le Coran sur fond vert.png',
   },
   {
-    id: 'green-2-lecture-ecrin-vert',
+    id: 'green-3-lecture-ecrin-vert',
     src: greenLectureEcrinVertBg,
     mode: 'green',
     name: 'Lecture coranique dans un écrin vert.png',
-  },
-  {
-    id: 'green-3-portrait-serein-vert',
-    src: greenPortraitSereinVertBg,
-    mode: 'green',
-    name: 'Portrait serein avec Coran sur fond vert.png',
   },
   {
     id: 'green-4-femme-agee-paix-vert',

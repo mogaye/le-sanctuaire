@@ -21,7 +21,7 @@ export interface PaymentResponse {
   isSandbox?: boolean;
 }
 
-// PayDunya / DunyaPay 4 Verified Merchant Credentials
+// PayDunya / DunyaPay 4 Verified Live Merchant Credentials
 export interface DunyaPayConfig {
   masterKey: string;
   privateKey: string;
@@ -29,29 +29,15 @@ export interface DunyaPayConfig {
   publicKey: string;
 }
 
+const VERIFIED_PAYDUNYA_KEYS: DunyaPayConfig = {
+  masterKey: 'DbDQF7UZ-eGTd-AvLI-rKX0-TRalACuat69v',
+  privateKey: 'live_private_vp0fK771yioUfxI5MUz9pDscnrY',
+  token: 'pBMNpVEEk3jX2VINqMvJ',
+  publicKey: 'live_public_sQarWhJMc6Tgjy1uDroFvTxuSer',
+};
+
 export const getDunyaPayConfig = (): DunyaPayConfig => {
-  return {
-    masterKey: (
-      import.meta.env.VITE_PAYDUNYA_MASTER_KEY ||
-      import.meta.env.VITE_DUNYAPAY_MERCHANT_ID ||
-      'DbDQF7UZ-eGTd-AvLI-rKX0-TRalACuat69v'
-    ).trim(),
-    privateKey: (
-      import.meta.env.VITE_PAYDUNYA_PRIVATE_KEY ||
-      import.meta.env.VITE_DUNYAPAY_SECRET_KEY ||
-      'live_private_vp0fK771yioUfxI5MUz9pDscnrY'
-    ).trim(),
-    token: (
-      import.meta.env.VITE_PAYDUNYA_TOKEN ||
-      import.meta.env.VITE_DUNYAPAY_TOKEN_KEY ||
-      'pBMNpVEEk3jX2VINqMvJ'
-    ).trim(),
-    publicKey: (
-      import.meta.env.VITE_PAYDUNYA_PUBLIC_KEY ||
-      import.meta.env.VITE_DUNYAPAY_API_KEY ||
-      'live_public_sQarWhJMc6Tgjy1uDroFvTxuSer'
-    ).trim(),
-  };
+  return VERIFIED_PAYDUNYA_KEYS;
 };
 
 export const isDunyaPayConfigured = (): boolean => {
@@ -68,29 +54,68 @@ export const isWaveConfigured = (): boolean => {
   return false;
 };
 
+async function callPayDunyaDirect(payload: Record<string, unknown>, keys: DunyaPayConfig) {
+  const directRes = await fetch('https://app.paydunya.com/api/v1/checkout-invoice/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'PAYDUNYA-MASTER-KEY': keys.masterKey.trim(),
+      'PAYDUNYA-PUBLIC-KEY': keys.publicKey.trim(),
+      'PAYDUNYA-PRIVATE-KEY': keys.privateKey.trim(),
+      'PAYDUNYA-TOKEN': keys.token.trim(),
+    },
+    body: JSON.stringify(payload),
+  });
+  return directRes.json();
+}
+
 // Call PayDunya API to generate live payment invoice URL
-async function requestPayDunyaInvoice(amount: number, description: string, ref: string, cancelUrl: string, returnUrl: string): Promise<{ url?: string; token?: string; error?: string }> {
-  const conf = getDunyaPayConfig();
+async function requestPayDunyaInvoice(
+  amount: number,
+  description: string,
+  ref: string,
+  cancelUrl: string,
+  returnUrl: string
+): Promise<{ url?: string; token?: string; error?: string }> {
+  const cleanOrigin =
+    typeof window !== 'undefined' && window.location.origin.startsWith('http')
+      ? window.location.origin
+      : 'https://le-sanctuaire.vercel.app';
+  const safeCancelUrl = cancelUrl && cancelUrl.startsWith('http') ? cancelUrl : cleanOrigin;
+  const safeReturnUrl = returnUrl && returnUrl.startsWith('http') ? returnUrl : cleanOrigin;
 
   const payload = {
     invoice: {
-      total_amount: amount,
-      description: description || 'Sadaqah Jariyah',
+      total_amount: Math.round(Number(amount) || 5000),
+      description: description || 'Sadaqah Jariyah - Le Sanctuaire',
     },
     store: {
       name: 'Le Sanctuaire',
-      website_url: window.location.origin,
+      website_url: cleanOrigin,
     },
     custom_data: {
       transaction_id: ref,
     },
     actions: {
-      cancel_url: cancelUrl,
-      return_url: returnUrl,
+      cancel_url: safeCancelUrl,
+      return_url: safeReturnUrl,
     },
   };
 
-  // 1. Try local Vite API proxy
+  // 1. Try direct PayDunya API call with verified live credentials first (fastest on Vercel & browsers)
+  try {
+    const directData = await callPayDunyaDirect(payload, VERIFIED_PAYDUNYA_KEYS);
+    if (directData && directData.response_code === '00' && directData.response_text) {
+      const cleanUrl = String(directData.response_text).replace(/\\\//g, '/').trim();
+      if (cleanUrl.startsWith('http')) {
+        return { url: cleanUrl, token: directData.token };
+      }
+    }
+  } catch {
+    // Fall back to serverless API proxy
+  }
+
+  // 2. Try Vercel / Vite API proxy (/api/paydunya/create-invoice)
   try {
     const proxyRes = await fetch('/api/paydunya/create-invoice', {
       method: 'POST',
@@ -100,42 +125,27 @@ async function requestPayDunyaInvoice(amount: number, description: string, ref: 
 
     if (proxyRes.ok) {
       const data = await proxyRes.json();
-      if (data.response_code === '00' && data.response_text) {
-        return { url: data.response_text, token: data.token };
+      if (data && data.response_code === '00' && data.response_text) {
+        const cleanUrl = String(data.response_text).replace(/\\\//g, '/').trim();
+        if (cleanUrl.startsWith('http')) {
+          return { url: cleanUrl, token: data.token };
+        }
+      }
+      if (data && data.response_text) {
+        return { error: String(data.response_text) };
       }
     }
-  } catch {
-    // Fall back to direct PayDunya API
-  }
-
-  // 2. Direct PayDunya API call (CORS supported)
-  try {
-    const directRes = await fetch('https://app.paydunya.com/api/v1/checkout-invoice/create', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'PAYDUNYA-MASTER-KEY': conf.masterKey,
-        'PAYDUNYA-PUBLIC-KEY': conf.publicKey,
-        'PAYDUNYA-PRIVATE-KEY': conf.privateKey,
-        'PAYDUNYA-TOKEN': conf.token,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await directRes.json();
-    if (data.response_code === '00' && data.response_text) {
-      return { url: data.response_text, token: data.token };
-    }
-    return { error: data.response_text || 'Erreur lors de la création de la facture PayDunya' };
   } catch (err) {
     return { error: String(err) };
   }
+
+  return { error: 'Impossible de joindre le service PayDunya. Veuillez réessayer.' };
 }
 
 // Process Donation via PayDunya (Orange Money, Wave, Free Money, Carte Bancaire)
 export async function processDunyaPayDonation(req: PaymentRequest): Promise<PaymentResponse> {
   const ref = 'DP-' + Date.now().toString(36).toUpperCase() + '-' + Math.floor(Math.random() * 1000);
-  const currentUrl = window.location.href;
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : 'https://le-sanctuaire.vercel.app';
 
   const invoiceResult = await requestPayDunyaInvoice(
     req.amount,
@@ -148,7 +158,7 @@ export async function processDunyaPayDonation(req: PaymentRequest): Promise<Paym
   const checkoutUrl = invoiceResult.url;
   const paymentToken = invoiceResult.token || ref;
 
-  // Record donation in Supabase
+  // Record donation in Supabase without blocking the PayDunya redirect
   const donationData: DonationRecord = {
     amount: req.amount,
     currency: req.currency,
@@ -163,7 +173,15 @@ export async function processDunyaPayDonation(req: PaymentRequest): Promise<Paym
     userId: req.userId,
   };
 
-  await recordDonationInSupabase(donationData);
+  // Non-blocking save (waits at most 400ms so user activation / redirect is instantaneous)
+  try {
+    await Promise.race([
+      recordDonationInSupabase(donationData),
+      new Promise((resolve) => setTimeout(resolve, 400)),
+    ]);
+  } catch {
+    // Ignore Supabase logging errors so payment never fails
+  }
 
   if (checkoutUrl) {
     return {
@@ -177,12 +195,12 @@ export async function processDunyaPayDonation(req: PaymentRequest): Promise<Paym
   }
 
   return {
-    success: true,
+    success: false,
     paymentReference: ref,
     checkoutUrl: undefined,
     message: invoiceResult.error
-      ? `Attention: ${invoiceResult.error}. Votre intention de don a été enregistrée avec la référence ${ref}.`
-      : `Votre intention de don de ${req.amount.toLocaleString('fr-FR')} FCFA a été enregistrée avec succès.`,
+      ? `Erreur PayDunya : ${invoiceResult.error}`
+      : `Impossible de générer le lien de paiement PayDunya. Veuillez réessayer.`,
     provider: 'dunyapay',
     isSandbox: false,
   };

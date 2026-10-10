@@ -64,19 +64,29 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
 
       const res = await processDunyaPayDonation(payload);
 
+      if (!res.checkoutUrl) {
+        setErrorMsg(res.message || 'Impossible de générer la facture PayDunya. Veuillez réessayer.');
+        return;
+      }
+
       setSuccessResult({
         reference: res.paymentReference,
         message: res.message,
         checkoutUrl: res.checkoutUrl,
       });
 
-      // Try opening the PayDunya checkout window safely if allowed
-      if (res.checkoutUrl) {
+      // On Vercel / standalone browser (outside an iframe), redirect directly to PayDunya checkout
+      // so mobile & desktop popup blockers never block the payment page
+      const isInIframe = (() => {
         try {
-          window.open(res.checkoutUrl, '_blank', 'noopener,noreferrer');
+          return window.self !== window.top;
         } catch {
-          // If popup is blocked by iframe, user can click direct button
+          return true;
         }
+      })();
+
+      if (!isInIframe) {
+        window.location.href = res.checkoutUrl;
       }
     } catch (err) {
       console.error('Erreur lors du don DunyaPay:', err);
@@ -246,14 +256,13 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
               <div className="space-y-2.5 pt-1">
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    2. Numéro de téléphone pour la confirmation et le reçu
+                    2. Numéro de téléphone (optionnel, pour le reçu)
                   </label>
                   <input
                     type="tel"
                     placeholder="Ex: +221 77 123 45 67"
                     value={donorPhone}
                     onChange={(e) => setDonorPhone(e.target.value)}
-                    required
                     className="w-full py-2 px-3 text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
                   />
                 </div>
@@ -271,6 +280,12 @@ export const DonationModal: React.FC<DonationModalProps> = ({ isOpen, onClose, u
                   </label>
                 </div>
               </div>
+
+              {errorMsg && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800/60 rounded-xl text-xs text-red-700 dark:text-red-300 font-medium">
+                  {errorMsg}
+                </div>
+              )}
 
               {/* Security Badge */}
               <div className="flex items-center gap-2 p-2.5 bg-emerald-50/70 dark:bg-emerald-950/40 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300">

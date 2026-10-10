@@ -202,14 +202,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           return;
         }
 
-        // Email verification required for security!
-        setPendingEmail(cleanEmail);
-        setPendingName(full);
-        setPendingFirstName(cleanFirst);
-        setPendingLastName(cleanLast);
-        setIsFallbackMode(Boolean(res.isFallback));
-        setIsWaitingVerification(true);
-        setResendCooldown(60);
+        if (res.needsEmailVerification && !res.isFallback) {
+          setPendingEmail(cleanEmail);
+          setPendingName(full);
+          setPendingFirstName(cleanFirst);
+          setPendingLastName(cleanLast);
+          setIsFallbackMode(false);
+          setIsWaitingVerification(true);
+          setResendCooldown(60);
+        } else {
+          setFeedback({
+            type: 'success',
+            message: 'Compte créé avec succès ! Ouverture de votre sanctuaire...',
+          });
+          setTimeout(() => {
+            onLoginSuccess(
+              {
+                name: full,
+                email: cleanEmail,
+                firstName: cleanFirst,
+                lastName: cleanLast,
+              },
+              true
+            );
+          }, 700);
+        }
       } catch (err: any) {
         setFeedback({
           type: 'error',
