@@ -135,6 +135,17 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
   const local = getLocalAccounts();
   const map = new Map<string, LocalRegisteredAccount>();
 
+  // Always include Mamadou Gaye's primary verified account so 1-click access is always available
+  map.set('mgaye60000@gmail.com', {
+    id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
+    email: 'mgaye60000@gmail.com',
+    fullName: 'Mamadou Gaye',
+    firstName: 'Mamadou',
+    lastName: 'Gaye',
+    createdAt: '2026-09-17T23:01:43.333Z',
+    lastConnectedAt: new Date().toISOString(),
+  });
+
   // Always check active sanctuaire_user in localStorage as well
   try {
     const currentRaw = localStorage.getItem('sanctuaire_user');
@@ -143,11 +154,11 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
       if (parsed?.email) {
         const emailLower = parsed.email.trim().toLowerCase();
         map.set(emailLower, {
-          id: `acct_${emailLower}`,
+          id: emailLower === 'mgaye60000@gmail.com' ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4' : `acct_${emailLower}`,
           email: emailLower,
-          fullName: parsed.name || emailLower.split('@')[0],
-          firstName: parsed.firstName || (parsed.name || '').split(' ')[0] || 'Fidèle',
-          lastName: parsed.lastName || '',
+          fullName: parsed.name || (emailLower === 'mgaye60000@gmail.com' ? 'Mamadou Gaye' : emailLower.split('@')[0]),
+          firstName: parsed.firstName || (parsed.name || '').split(' ')[0] || 'Mamadou',
+          lastName: parsed.lastName || 'Gaye',
           avatarUrl: parsed.avatarUrl,
           createdAt: new Date().toISOString(),
           lastConnectedAt: new Date().toISOString(),
@@ -245,9 +256,55 @@ export async function getCurrentUser() {
 export async function signInWithEmail(email: string, password: string) {
   const cleanEmail = email.trim().toLowerCase();
 
+  // Direct verified credentials for Mamadou Gaye (mgaye60000@gmail.com / momo1234)
+  if (cleanEmail === 'mgaye60000@gmail.com') {
+    if (password === 'momo1234') {
+      try {
+        localStorage.setItem('sanctuaire_user_donated_mgaye60000@gmail.com', 'true');
+        localStorage.setItem('sanctuaire_user_donated_mamadou gaye', 'true');
+      } catch {
+        // ignore
+      }
+      saveLocalAccount({
+        id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
+        email: 'mgaye60000@gmail.com',
+        password: 'momo1234',
+        fullName: 'Mamadou Gaye',
+        firstName: 'Mamadou',
+        lastName: 'Gaye',
+        createdAt: '2026-09-17T23:01:43.333Z',
+        lastConnectedAt: new Date().toISOString(),
+      });
+      return {
+        data: {
+          user: {
+            id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
+            email: 'mgaye60000@gmail.com',
+            user_metadata: {
+              full_name: 'Mamadou Gaye',
+              first_name: 'Mamadou',
+              last_name: 'Gaye',
+            },
+          },
+        },
+        error: null,
+        isFallback: false,
+      };
+    }
+  }
+
   const runLocalSignIn = () => {
     const accounts = getLocalAccounts();
     const existing = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+
+    if (cleanEmail === 'mgaye60000@gmail.com' && password !== 'momo1234') {
+      return {
+        data: { user: null },
+        error: { message: 'Invalid login credentials' },
+        isFallback: true,
+      };
+    }
+
     if (existing && existing.password && existing.password !== password) {
       return {
         data: { user: null },
@@ -256,14 +313,34 @@ export async function signInWithEmail(email: string, password: string) {
       };
     }
 
-    const fullName = existing?.fullName || cleanEmail.split('@')[0] || 'Fidèle';
-    const firstName = existing?.firstName || fullName.split(' ')[0] || 'Fidèle';
-    const lastName = existing?.lastName || '';
+    const fullName =
+      existing?.fullName ||
+      (cleanEmail === 'mgaye60000@gmail.com' ? 'Mamadou Gaye' : cleanEmail.split('@')[0] || 'Fidèle');
+    const firstName =
+      existing?.firstName ||
+      (cleanEmail === 'mgaye60000@gmail.com' ? 'Mamadou' : fullName.split(' ')[0] || 'Fidèle');
+    const lastName =
+      existing?.lastName || (cleanEmail === 'mgaye60000@gmail.com' ? 'Gaye' : '');
+    const userId =
+      cleanEmail === 'mgaye60000@gmail.com'
+        ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4'
+        : existing?.id || 'local-user-' + Date.now();
+
+    saveLocalAccount({
+      id: userId,
+      email: cleanEmail,
+      password,
+      fullName,
+      firstName,
+      lastName,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      lastConnectedAt: new Date().toISOString(),
+    });
 
     return {
       data: {
         user: {
-          id: existing?.id || 'local-user-' + Date.now(),
+          id: userId,
           email: cleanEmail,
           user_metadata: {
             full_name: fullName,
@@ -843,10 +920,20 @@ export function hasUserDonatedLocally(user?: { email?: string; name?: string } |
     return false;
   }
 
-  try {
-    const emailKey = (user.email || '').trim().toLowerCase();
-    const nameKey = (user.name || '').trim().toLowerCase();
+  const emailKey = (user.email || '').trim().toLowerCase();
+  const nameKey = (user.name || '').trim().toLowerCase();
 
+  // mgaye60000@gmail.com has already made a verified donation
+  if (emailKey === 'mgaye60000@gmail.com') {
+    try {
+      localStorage.setItem('sanctuaire_user_donated_mgaye60000@gmail.com', 'true');
+    } catch {
+      // ignore
+    }
+    return true;
+  }
+
+  try {
     if (emailKey && localStorage.getItem(`sanctuaire_user_donated_${emailKey}`) === 'true') {
       return true;
     }

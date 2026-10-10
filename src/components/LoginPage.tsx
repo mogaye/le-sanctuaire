@@ -810,74 +810,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                     </p>
                   </div>
 
-                  {/* ========================================================
-                      ALREADY CONNECTED ACCOUNTS SECTION (Database & Local)
-                     ======================================================== */}
-                  {connectedAccounts.length > 0 && (
-                    <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-[#112219] border border-emerald-200/80 dark:border-emerald-500/30 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-900 dark:text-emerald-300">
-                          <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span>Comptes déjà connectés ({connectedAccounts.length})</span>
-                        </div>
-                        <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/70 font-medium">
-                          Accès 1-clic
-                        </span>
-                      </div>
 
-                      <div className="space-y-1.5 max-h-[148px] overflow-y-auto pr-0.5">
-                        {connectedAccounts.map((acc) => (
-                          <div
-                            key={acc.email}
-                            className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#172E22] border border-emerald-200/60 dark:border-emerald-600/25 hover:border-emerald-500/60 transition-all shadow-2xs"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => handleQuickReconnect(acc)}
-                              className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer group"
-                            >
-                              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold shrink-0 ring-2 ring-emerald-400/30 group-hover:scale-105 transition-transform">
-                                {(acc.fullName || acc.email).charAt(0).toUpperCase()}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
-                                  {acc.fullName}
-                                </div>
-                                <div className="text-[10.5px] text-neutral-500 dark:text-emerald-200/70 truncate font-mono">
-                                  {acc.email}
-                                </div>
-                              </div>
-                            </button>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                title="Envoyer un code de vérification par e-mail avec mon Gmail"
-                                onClick={() => {
-                                  setPendingEmail(acc.email);
-                                  setPendingName(acc.fullName);
-                                  setPendingFirstName(acc.firstName);
-                                  setPendingLastName(acc.lastName);
-                                  setIsWaitingVerification(true);
-                                  handlePrepareGmailVerification(acc.email, acc.fullName);
-                                }}
-                                className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300/50 dark:border-amber-500/30 cursor-pointer transition-colors"
-                              >
-                                <Send className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleQuickReconnect(acc)}
-                                className="px-2.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-bold cursor-pointer transition-colors"
-                              >
-                                Connecter
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {/* Feedback banners */}
                   {feedback && (
@@ -991,28 +924,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                       <ArrowRight className="w-3.5 h-3.5 text-white group-hover:translate-x-0.5 transition-transform" />
                     </>
                   )}
-                </button>
-
-                {/* Email authentication via User's Gmail Account button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const targetMail = email.trim() || 'mgaye60000@gmail.com';
-                    const targetFull =
-                      firstName.trim() || lastName.trim()
-                        ? `${firstName.trim()} ${lastName.trim()}`.trim()
-                        : targetMail.split('@')[0] || 'Fidèle';
-                    setPendingEmail(targetMail);
-                    setPendingName(targetFull);
-                    setPendingFirstName(firstName.trim() || targetFull.split(' ')[0] || 'Fidèle');
-                    setPendingLastName(lastName.trim() || '');
-                    setIsWaitingVerification(true);
-                    handlePrepareGmailVerification(targetMail, targetFull);
-                  }}
-                  className="w-full h-[40px] px-4 rounded-[14px] bg-amber-50 dark:bg-amber-950/35 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-300 border border-amber-300/70 dark:border-amber-500/35 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                  <span>Authentifier par e-mail (Envoyer avec mon Gmail)</span>
                 </button>
               </form>
 

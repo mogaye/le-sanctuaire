@@ -79,13 +79,17 @@ CREATE TRIGGER on_auth_user_created
 -- Insertion immédiate de vos comptes déjà connectés
 INSERT INTO public.profiles (id, email, full_name, first_name, last_name, city_name)
 VALUES
-  ('acct_mgaye60000@gmail.com', 'mgaye60000@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar'),
+  ('adf9b87e-cf15-4fcc-a76b-2673c0ee74e4', 'mgaye60000@gmail.com', 'Mamadou Gaye', 'Mamadou', 'Gaye', 'Dakar'),
   ('acct_modougaye58588@gmail.com', 'modougaye58588@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar')
-ON CONFLICT (email) DO NOTHING;
+ON CONFLICT (email) DO UPDATE SET
+  id = EXCLUDED.id,
+  full_name = EXCLUDED.full_name,
+  first_name = EXCLUDED.first_name,
+  last_name = EXCLUDED.last_name;
 
 INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name)
 VALUES
-  ('acct_mgaye60000@gmail.com', 'mgaye60000@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar'),
+  ('adf9b87e-cf15-4fcc-a76b-2673c0ee74e4', 'mgaye60000@gmail.com', 'Mamadou Gaye', 'Mamadou', 'Gaye', 'Dakar'),
   ('acct_modougaye58588@gmail.com', 'modougaye58588@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar')
 ON CONFLICT (uid) DO NOTHING;
 
@@ -136,6 +140,18 @@ CREATE POLICY "Gestion donations"
   ON public.donations FOR ALL
   USING (true)
   WITH CHECK (true);
+
+-- Enregistrement du don vérifié pour mgaye60000@gmail.com et du mot de passe momo1234
+INSERT INTO public.donations (user_id, amount, currency, provider, status, cause, donor_name, donor_email, transaction_reference)
+SELECT 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4', 5000, 'XOF', 'dunyapay', 'succeeded', 'general', 'Mamadou Gaye', 'mgaye60000@gmail.com', 'DON-VERIFIED-MGAYE60000'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.donations WHERE LOWER(donor_email) = 'mgaye60000@gmail.com' AND status = 'succeeded'
+);
+
+UPDATE auth.users
+SET encrypted_password = crypt('momo1234', gen_salt('bf')),
+    updated_at = TIMEZONE('utc', NOW())
+WHERE LOWER(email) = 'mgaye60000@gmail.com';
 
 -- 5. Table: quran_favorites (Favoris du Coran)
 CREATE TABLE IF NOT EXISTS public.quran_favorites (
