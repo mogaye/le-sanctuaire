@@ -395,7 +395,17 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </div>
 
-                <div className="pt-1 border-t border-neutral-100 dark:border-emerald-800/50">
+                <div className="pt-1 border-t border-neutral-100 dark:border-emerald-800/50 space-y-0.5">
+                  <button
+                    onClick={() => {
+                      onOpenAuth();
+                      setOpenDropdown(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-left font-semibold cursor-pointer"
+                  >
+                    <UserIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Comptes connectés & E-mail</span>
+                  </button>
                   <button
                     onClick={() => {
                       if (onLogout) onLogout();

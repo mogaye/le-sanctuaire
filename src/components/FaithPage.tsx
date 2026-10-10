@@ -21,6 +21,7 @@ import {
   HELL_WARNINGS,
 } from '../data/faithData';
 import { ISLAMIC_BOOKS } from '../data/booksData';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface FaithPageProps {
   onBackToHome: () => void;
@@ -86,17 +87,23 @@ export const FaithPage: React.FC<FaithPageProps> = ({
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 flex-1 w-full space-y-4 sm:space-y-6">
         {/* HERO BANNER */}
-        <div className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[32px] bg-white dark:bg-[#193226] border border-neutral-200 dark:border-emerald-500/25 text-neutral-900 dark:text-white relative overflow-hidden shadow-xs transition-colors">
+        <div className="p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-[32px] bg-[#133A26] border border-emerald-500/30 text-white relative overflow-hidden shadow-xs transition-colors">
+          <img
+            src={portraitSereinVertBg}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-35 pointer-events-none select-none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A1F14]/85 via-[#133A26]/75 to-[#0A1F14]/75 pointer-events-none" />
           <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 max-w-3xl space-y-2 sm:space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-400/30 text-[11px] sm:text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500 dark:text-amber-300" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-400/30 text-[11px] sm:text-xs font-semibold text-emerald-300">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>Eschatologie Musulmane Authentique • Dr. Omar Al-Achqar</span>
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-neutral-900 dark:text-white">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white">
               « Le Jour où les gens se tiendront debout devant le Seigneur de l'Univers »
             </h2>
-            <p className="text-xs sm:text-sm text-neutral-700 dark:text-emerald-100/80 leading-relaxed">
+            <p className="text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
               Méditez sur le destin éternel de l'âme : les étapes du Jour Dernier (la Trompe, le Mahshar, la Balance, le Bassin, le Sirat), les splendeurs inimaginables du Paradis d’Al-Firdaws et la terreur des tourments de la Géhenne.
             </p>
           </div>

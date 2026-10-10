@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, RotateCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export const VerseCard: React.FC = () => {
   const [copied, setCopied] = useState(false);
@@ -20,7 +21,7 @@ export const VerseCard: React.FC = () => {
       {/* Background Image behind the verse section */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img
-          src="/images/backgrounds/verse_card_bg.jpg"
+          src={portraitSereinVertBg}
           alt="Arrière-plan spirituel verset"
           className="w-full h-full object-cover object-center opacity-15 dark:opacity-25"
         />

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldCheck, HeartHandshake, BookMarked, Lock, CheckCircle, Sparkles } from 'lucide-react';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export const TrustHighlightsSection: React.FC = () => {
   const highlights = [
@@ -58,7 +59,7 @@ export const TrustHighlightsSection: React.FC = () => {
       {/* Background Image behind Trust & Values elements */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img
-          src="/images/backgrounds/trust_section_bg.jpg"
+          src={portraitSereinVertBg}
           alt="Arrière-plan jardin de sérénité et valeurs"
           className="w-full h-full object-cover object-center opacity-10 dark:opacity-25"
         />

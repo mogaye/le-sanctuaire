@@ -54,18 +54,35 @@ export const isWaveConfigured = (): boolean => {
   return false;
 };
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+}
+
 async function callPayDunyaDirect(payload: Record<string, unknown>, keys: DunyaPayConfig) {
-  const directRes = await fetch('https://app.paydunya.com/api/v1/checkout-invoice/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'PAYDUNYA-MASTER-KEY': keys.masterKey.trim(),
-      'PAYDUNYA-PUBLIC-KEY': keys.publicKey.trim(),
-      'PAYDUNYA-PRIVATE-KEY': keys.privateKey.trim(),
-      'PAYDUNYA-TOKEN': keys.token.trim(),
+  const directRes = await fetchWithTimeout(
+    'https://app.paydunya.com/api/v1/checkout-invoice/create',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'PAYDUNYA-MASTER-KEY': keys.masterKey.trim(),
+        'PAYDUNYA-PUBLIC-KEY': keys.publicKey.trim(),
+        'PAYDUNYA-PRIVATE-KEY': keys.privateKey.trim(),
+        'PAYDUNYA-TOKEN': keys.token.trim(),
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+    8000
+  );
   return directRes.json();
 }
 
@@ -117,11 +134,15 @@ async function requestPayDunyaInvoice(
 
   // 2. Try Vercel / Vite API proxy (/api/paydunya/create-invoice)
   try {
-    const proxyRes = await fetch('/api/paydunya/create-invoice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const proxyRes = await fetchWithTimeout(
+      '/api/paydunya/create-invoice',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      8000
+    );
 
     if (proxyRes.ok) {
       const data = await proxyRes.json();

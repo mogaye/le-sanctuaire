@@ -38,6 +38,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CityData } from '../types';
 import { CitySelectorModal } from './CitySelectorModal';
 import { getPrayerLog, formatDateKey } from '../utils/prayerTrackerUtils';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export interface MobileHomeScreenProps {
   currentUser: { name?: string; firstName?: string; lastName?: string; email?: string } | null;
@@ -385,6 +386,12 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             background: 'linear-gradient(135deg, #1B5E39 0%, #174E30 45%, #0F3721 100%)',
           }}
         >
+          <img
+            src={portraitSereinVertBg}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-35 pointer-events-none select-none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0F3721]/85 via-[#174E30]/75 to-[#0F3721]/75 pointer-events-none" />
           <div className="absolute top-0 right-0 w-44 h-44 bg-emerald-400/15 rounded-full blur-2xl pointer-events-none -mr-10 -mt-10" />
           <div className="absolute bottom-0 right-10 w-28 h-28 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
 

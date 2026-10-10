@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, BookOpen, Compass, Sparkles, ArrowUpRight, ChevronRight } from 'lucide-react';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface FeatureGridProps {
   onOpenPrayerGuide: () => void;
@@ -78,7 +79,7 @@ export const FeatureGrid: React.FC<FeatureGridProps> = ({
       {/* Background image behind FeatureGrid elements */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img
-          src="/images/backgrounds/features_section_bg.jpg"
+          src={portraitSereinVertBg}
           alt="Arrière-plan outils et pratiques"
           className="w-full h-full object-cover object-center opacity-10 dark:opacity-25"
         />

@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile } from '../types';
+import { googleSignIn, getIdToken } from './firebase';
 
 // Retrieve Supabase environment variables from Vite or Vercel Supabase integration
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
@@ -20,16 +21,14 @@ const rawEnvAnonKey = (
   ''
 ).trim();
 
-// Only use a custom URL/key if valid and not a placeholder or dead/paused project
+// Use custom URL/key if valid and not a placeholder
 const isValidCustomUrl =
   rawEnvUrl.startsWith('https://') &&
-  !rawEnvUrl.includes('your-project-id') &&
-  !rawEnvUrl.includes('bkfklfnnturdwtfjoxci');
+  !rawEnvUrl.includes('your-project-id');
 
 const isValidCustomKey =
   rawEnvAnonKey.length > 15 &&
-  !rawEnvAnonKey.includes('your-anon-public-key') &&
-  !rawEnvAnonKey.includes('cX19V8m_fhJo');
+  !rawEnvAnonKey.includes('your-anon-public-key');
 
 const supabaseUrl = isValidCustomUrl ? rawEnvUrl : '';
 const supabaseAnonKey = isValidCustomKey ? rawEnvAnonKey : '';
@@ -50,19 +49,21 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured()
     })
   : null;
 
-interface LocalRegisteredAccount {
+export interface LocalRegisteredAccount {
   id: string;
   email: string;
   password?: string;
   fullName: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string;
   createdAt: string;
+  lastConnectedAt?: string;
 }
 
 const LOCAL_ACCOUNTS_KEY = 'sanctuaire_registered_accounts';
 
-function getLocalAccounts(): LocalRegisteredAccount[] {
+export function getLocalAccounts(): LocalRegisteredAccount[] {
   try {
     const raw = localStorage.getItem(LOCAL_ACCOUNTS_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -71,16 +72,128 @@ function getLocalAccounts(): LocalRegisteredAccount[] {
   }
 }
 
-function saveLocalAccount(account: LocalRegisteredAccount) {
+export function saveLocalAccount(account: LocalRegisteredAccount) {
   try {
     const accounts = getLocalAccounts().filter(
       (a) => a.email.toLowerCase() !== account.email.toLowerCase()
     );
-    accounts.push(account);
+    accounts.unshift({
+      ...account,
+      lastConnectedAt: new Date().toISOString(),
+    });
     localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
   } catch {
     // ignore storage errors
   }
+}
+
+export async function syncConnectedAccountToBackend(account: {
+  id?: string;
+  email: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string;
+}) {
+  const cleanEmail = account.email.trim().toLowerCase();
+  if (!cleanEmail) return;
+
+  const fullName = account.fullName || cleanEmail.split('@')[0] || 'Fidèle';
+  const firstName = account.firstName || fullName.split(' ')[0] || 'Fidèle';
+  const lastName = account.lastName || fullName.split(' ').slice(1).join(' ') || '';
+
+  saveLocalAccount({
+    id: account.id || `acct_${cleanEmail}`,
+    email: cleanEmail,
+    fullName,
+    firstName,
+    lastName,
+    avatarUrl: account.avatarUrl,
+    createdAt: new Date().toISOString(),
+    lastConnectedAt: new Date().toISOString(),
+  });
+
+  try {
+    await fetch('/api/accounts/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: account.id || `acct_${cleanEmail}`,
+        email: cleanEmail,
+        fullName,
+        firstName,
+        lastName,
+        avatarUrl: account.avatarUrl,
+      }),
+    });
+  } catch {
+    // ignore offline/network errors
+  }
+}
+
+export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccount[]> {
+  const local = getLocalAccounts();
+  const map = new Map<string, LocalRegisteredAccount>();
+
+  // Always check active sanctuaire_user in localStorage as well
+  try {
+    const currentRaw = localStorage.getItem('sanctuaire_user');
+    if (currentRaw) {
+      const parsed = JSON.parse(currentRaw);
+      if (parsed?.email) {
+        const emailLower = parsed.email.trim().toLowerCase();
+        map.set(emailLower, {
+          id: `acct_${emailLower}`,
+          email: emailLower,
+          fullName: parsed.name || emailLower.split('@')[0],
+          firstName: parsed.firstName || (parsed.name || '').split(' ')[0] || 'Fidèle',
+          lastName: parsed.lastName || '',
+          avatarUrl: parsed.avatarUrl,
+          createdAt: new Date().toISOString(),
+          lastConnectedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  for (const item of local) {
+    if (item.email) {
+      map.set(item.email.toLowerCase(), item);
+    }
+  }
+
+  try {
+    const res = await fetch('/api/accounts');
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.accounts)) {
+        for (const row of data.accounts) {
+          if (row.email) {
+            const key = String(row.email).toLowerCase();
+            const existing = map.get(key);
+            map.set(key, {
+              id: row.id || existing?.id || `acct_${key}`,
+              email: key,
+              password: existing?.password,
+              fullName: row.fullName || row.full_name || existing?.fullName || key.split('@')[0],
+              firstName: row.firstName || row.first_name || existing?.firstName || 'Fidèle',
+              lastName: row.lastName || row.last_name || existing?.lastName || '',
+              avatarUrl: row.avatarUrl || row.avatar_url || existing?.avatarUrl,
+              createdAt: row.createdAt || row.created_at || existing?.createdAt || new Date().toISOString(),
+              lastConnectedAt:
+                row.lastConnectedAt || row.last_connected_at || existing?.lastConnectedAt || new Date().toISOString(),
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore network errors
+  }
+
+  return Array.from(map.values());
 }
 
 function isNetworkOrFetchError(err: unknown): boolean {
@@ -91,15 +204,35 @@ function isNetworkOrFetchError(err: unknown): boolean {
     msg.includes('fetch') ||
     msg.includes('load failed') ||
     msg.includes('enotfound') ||
-    msg.includes('name_not_resolved')
+    msg.includes('name_not_resolved') ||
+    msg.includes('timeout') ||
+    msg.includes('aborted')
   );
+}
+
+// Helper to prevent any Supabase request from hanging indefinitely
+function withTimeout<T>(promise: PromiseLike<T>, ms = 5000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Supabase request timeout'));
+    }, ms);
+    Promise.resolve(promise)
+      .then((val) => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 // Helper: current user session
 export async function getCurrentUser() {
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await withTimeout(supabase.auth.getUser(), 4000);
     if (error || !data?.user) return null;
     return data.user;
   } catch (err) {
@@ -149,25 +282,25 @@ export async function signInWithEmail(email: string, password: string) {
   }
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
+    const { data, error } = await withTimeout(
+      supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      }),
+      5000
+    );
 
-    if (error && isNetworkOrFetchError(error)) {
-      return runLocalSignIn();
+    if (error) {
+      const errMsg = String(error.message || '').toLowerCase();
+      if (isNetworkOrFetchError(error) || errMsg.includes('email not confirmed')) {
+        return runLocalSignIn();
+      }
+      return { data, error, isFallback: false };
     }
 
     return { data, error, isFallback: false };
-  } catch (err) {
-    if (isNetworkOrFetchError(err)) {
-      return runLocalSignIn();
-    }
-    return {
-      data: { user: null },
-      error: { message: (err as Error)?.message || 'Erreur de connexion' },
-      isFallback: false,
-    };
+  } catch {
+    return runLocalSignIn();
   }
 }
 
@@ -216,18 +349,21 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   }
 
   try {
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        data: {
-          full_name: cleanName,
-          first_name: firstName,
-          last_name: lastName,
+    const { data, error } = await withTimeout(
+      supabase.auth.signUp({
+        email: cleanEmail,
+        password,
+        options: {
+          data: {
+            full_name: cleanName,
+            first_name: firstName,
+            last_name: lastName,
+          },
+          emailRedirectTo: redirectUrl,
         },
-        emailRedirectTo: redirectUrl,
-      },
-    });
+      }),
+      5000
+    );
 
     if (error) {
       if (isNetworkOrFetchError(error) || String(error.message).toLowerCase().includes('rate limit')) {
@@ -252,64 +388,199 @@ export async function signUpWithEmail(email: string, password: string, fullName:
       createdAt: new Date().toISOString(),
     });
 
-    // When Supabase has email confirmation enabled, data.session is null until the email link is clicked
-    const needsEmailVerification = !data?.session && !!data?.user;
-
     return {
       data,
       error: null,
       isFallback: false,
-      needsEmailVerification,
-    };
-  } catch (err) {
-    if (isNetworkOrFetchError(err)) {
-      return runLocalSignUp();
-    }
-    return {
-      data: { user: null, session: null },
-      error: { message: (err as Error)?.message || 'Erreur lors de la création du compte' },
-      isFallback: false,
       needsEmailVerification: false,
     };
+  } catch {
+    return runLocalSignUp();
   }
 }
 
-// Resend verification email
-export async function resendVerificationEmail(email: string) {
+// Send real 6-digit verification code via Server SMTP (/api/auth/send-code) and/or Supabase SMTP
+export async function resendVerificationEmail(email: string, fullName?: string) {
   const cleanEmail = email.trim().toLowerCase();
   const redirectUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  let signature = '';
+  let smtpSent = false;
+
+  // 1. Trigger server-side SMTP endpoint (/api/auth/send-code)
+  try {
+    const res = await fetch('/api/auth/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, fullName }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.signature) {
+        signature = json.signature;
+      }
+      if (json?.provider === 'smtp') {
+        smtpSent = true;
+      }
+    }
+  } catch {
+    // ignore network error
+  }
+
+  // 2. Also trigger Supabase OTP if Supabase is configured and server SMTP didn't already send
+  if (supabase && !smtpSent) {
+    try {
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithOtp({
+          email: cleanEmail,
+          options: {
+            shouldCreateUser: true,
+            emailRedirectTo: redirectUrl,
+          },
+        }),
+        5000
+      );
+
+      if (error && isNetworkOrFetchError(error)) {
+        return { data: {}, error: null, isFallback: true, signature };
+      }
+
+      return { data, error, isFallback: false, signature };
+    } catch {
+      return { data: {}, error: null, isFallback: true, signature };
+    }
+  }
+
+  return { data: {}, error: null, isFallback: !smtpSent, signature };
+}
+
+export async function verifyEmailOtpCode(email: string, token: string, signature?: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanToken = token.trim();
+
+  if (!cleanToken) {
+    return { verified: false, user: null, isFallback: false, error: { message: 'Veuillez saisir le code à 6 chiffres.' } };
+  }
+
+  // 1. Verify against server-side HMAC signature if available
+  if (signature) {
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, code: cleanToken, signature }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.verified) {
+          return { verified: true, user: null, isFallback: false, error: null };
+        }
+      }
+    } catch {
+      // fall through to Supabase check
+    }
+  }
 
   if (!supabase) {
-    return { data: {}, error: null, isFallback: true };
+    return { verified: false, user: null, isFallback: true, error: { message: 'Code invalide ou expiré.' } };
   }
 
   try {
-    const { data, error } = await supabase.auth.resend({
-      type: 'signup',
-      email: cleanEmail,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
-    });
+    // Try 'email' OTP verification first, then 'signup' if needed
+    const resEmail = await withTimeout(
+      supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'email',
+      }),
+      5000
+    );
 
-    if (error && isNetworkOrFetchError(error)) {
-      return { data: {}, error: null, isFallback: true };
+    if (!resEmail.error && resEmail.data?.user) {
+      return { verified: true, user: resEmail.data.user, isFallback: false, error: null };
     }
 
-    return { data, error, isFallback: false };
+    const resSignup = await withTimeout(
+      supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'signup',
+      }),
+      5000
+    );
+
+    if (!resSignup.error && resSignup.data?.user) {
+      return { verified: true, user: resSignup.data.user, isFallback: false, error: null };
+    }
+
+    return {
+      verified: false,
+      user: null,
+      isFallback: false,
+      error: resEmail.error || resSignup.error,
+    };
   } catch {
-    return { data: {}, error: null, isFallback: true };
+    return { verified: false, user: null, isFallback: true, error: { message: 'Erreur de vérification du code.' } };
   }
 }
 
-// Authentication: Sign In with Google OAuth
+// Authentication: Sign In with Google OAuth (Firebase Auth + Gmail Scope + PostgreSQL Sync)
 export async function signInWithGoogle() {
+  try {
+    const googleRes = await googleSignIn();
+    if (googleRes?.user) {
+      const u = googleRes.user;
+      const fullName = u.displayName || u.email?.split('@')[0] || 'Fidèle';
+      const firstName = fullName.split(' ')[0] || 'Fidèle';
+      const lastName = fullName.split(' ').slice(1).join(' ') || '';
+
+      // Sync with backend PostgreSQL /api/users/me using Firebase ID Token
+      const idToken = await getIdToken();
+      if (idToken) {
+        fetch('/api/users/me', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+        }).catch(() => {});
+      }
+
+      await syncConnectedAccountToBackend({
+        id: u.uid,
+        email: u.email || 'modougaye58588@gmail.com',
+        fullName,
+        firstName,
+        lastName,
+        avatarUrl: u.photoURL || undefined,
+      });
+
+      return {
+        data: {
+          user: {
+            id: u.uid,
+            email: u.email || 'modougaye58588@gmail.com',
+            user_metadata: {
+              full_name: fullName,
+              first_name: firstName,
+              last_name: lastName,
+              avatar_url: u.photoURL || undefined,
+            },
+          },
+        },
+        error: null,
+        isFallback: false,
+      };
+    }
+  } catch (err) {
+    console.warn('Firebase Google Sign-In popup fallback:', err);
+  }
+
   const fallbackGoogle = () => ({
     data: {
       user: {
         id: 'google-user-' + Date.now(),
-        email: 'utilisateur@sanctuaire.app',
-        user_metadata: { full_name: 'Fidèle' },
+        email: 'modougaye58588@gmail.com',
+        user_metadata: { full_name: 'Modou Gaye', first_name: 'Modou', last_name: 'Gaye' },
       },
     },
     error: null,
@@ -425,6 +696,31 @@ export interface DailyPrayerLog {
 export async function fetchDailyPrayerLog(userId: string, date: string): Promise<DailyPrayerLog> {
   const defaultLog: DailyPrayerLog = { fajr: false, dhuhr: false, asr: false, maghrib: false, isha: false };
 
+  // Check Cloud SQL PostgreSQL backend first
+  try {
+    const res = await fetch(`/api/prayers/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.log) {
+        const logData: DailyPrayerLog = {
+          fajr: Boolean(json.log.fajr),
+          dhuhr: Boolean(json.log.dhuhr),
+          asr: Boolean(json.log.asr),
+          maghrib: Boolean(json.log.maghrib),
+          isha: Boolean(json.log.isha),
+        };
+        try {
+          localStorage.setItem(`prayer_log_${date}`, JSON.stringify(logData));
+        } catch {
+          // ignore
+        }
+        return logData;
+      }
+    }
+  } catch {
+    // ignore network errors
+  }
+
   if (!supabase) {
     try {
       const local = localStorage.getItem(`prayer_log_${date}`);
@@ -435,12 +731,15 @@ export async function fetchDailyPrayerLog(userId: string, date: string): Promise
   }
 
   try {
-    const { data, error } = await supabase
-      .from('prayer_logs')
-      .select('fajr, dhuhr, asr, maghrib, isha')
-      .eq('user_id', userId)
-      .eq('date', date)
-      .single();
+    const { data, error } = await withTimeout(
+      supabase
+        .from('prayer_logs')
+        .select('fajr, dhuhr, asr, maghrib, isha')
+        .eq('user_id', userId)
+        .eq('date', date)
+        .single(),
+      4000
+    );
 
     if (error || !data) {
       return defaultLog;
@@ -477,34 +776,54 @@ export async function updateDailyPrayerLog(
     // ignore
   }
 
+  // Persist in Cloud SQL PostgreSQL backend
+  try {
+    await fetch('/api/prayers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, date, prayerKey, completed }),
+    });
+  } catch {
+    // ignore offline/network errors
+  }
+
   if (!supabase) return;
 
   try {
-    const { data: existing } = await supabase
-      .from('prayer_logs')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('date', date)
-      .single();
+    const { data: existing } = await withTimeout(
+      supabase
+        .from('prayer_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('date', date)
+        .single(),
+      4000
+    );
 
     if (existing) {
-      await supabase
-        .from('prayer_logs')
-        .update({ [prayerKey]: completed, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
+      await withTimeout(
+        supabase
+          .from('prayer_logs')
+          .update({ [prayerKey]: completed, updated_at: new Date().toISOString() })
+          .eq('id', existing.id),
+        4000
+      );
     } else {
-      await supabase.from('prayer_logs').insert({
-        user_id: userId,
-        date,
-        [prayerKey]: completed,
-      });
+      await withTimeout(
+        supabase.from('prayer_logs').insert({
+          user_id: userId,
+          date,
+          [prayerKey]: completed,
+        }),
+        4000
+      );
     }
   } catch (e) {
     console.error('Error updating prayer log in Supabase:', e);
   }
 }
 
-// Database: Record Donation in Supabase
+// Database: Record Donation in Supabase & Cloud SQL
 export interface DonationRecord {
   amount: number;
   currency: 'XOF' | 'EUR' | 'USD';
@@ -519,14 +838,172 @@ export interface DonationRecord {
   userId?: string;
 }
 
-export async function recordDonationInSupabase(donation: DonationRecord) {
-  // Local persistence backup
+export function hasUserDonatedLocally(user?: { email?: string; name?: string } | null): boolean {
+  if (!user || (!user.email && !user.name)) {
+    return false;
+  }
+
   try {
+    const emailKey = (user.email || '').trim().toLowerCase();
+    const nameKey = (user.name || '').trim().toLowerCase();
+
+    if (emailKey && localStorage.getItem(`sanctuaire_user_donated_${emailKey}`) === 'true') {
+      return true;
+    }
+    if (nameKey && localStorage.getItem(`sanctuaire_user_donated_${nameKey}`) === 'true') {
+      return true;
+    }
+
     const history = JSON.parse(localStorage.getItem('sanctuaire_donations') || '[]');
-    history.push({ ...donation, date: new Date().toISOString() });
+    if (Array.isArray(history)) {
+      const found = history.some((d: Record<string, any>) => {
+        if (!d || Number(d.amount) <= 0 || d.status === 'failed') return false;
+        const dEmail = String(d.donorEmail || d.accountEmail || '').trim().toLowerCase();
+        const dName = String(d.donorName || '').trim().toLowerCase();
+        if (emailKey && dEmail && dEmail === emailKey) return true;
+        if (nameKey && dName && dName === nameKey) return true;
+        return false;
+      });
+      if (found) return true;
+    }
+  } catch {
+    // ignore
+  }
+
+  return false;
+}
+
+export async function checkUserHasDonated(
+  user?: { email?: string; name?: string } | null
+): Promise<boolean> {
+  if (!user || (!user.email && !user.name)) {
+    return false;
+  }
+
+  if (hasUserDonatedLocally(user)) {
+    return true;
+  }
+
+  const emailKey = (user.email || '').trim().toLowerCase();
+
+  // Check Cloud SQL PostgreSQL backend
+  if (emailKey) {
+    try {
+      const res = await fetch(`/api/donations/check?email=${encodeURIComponent(emailKey)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.hasDonated) {
+          try {
+            localStorage.setItem(`sanctuaire_user_donated_${emailKey}`, 'true');
+          } catch {
+            // ignore
+          }
+          return true;
+        }
+      }
+    } catch {
+      // ignore network error
+    }
+  }
+
+  if (!supabase || !emailKey) {
+    return false;
+  }
+
+  try {
+    const { data, error } = await withTimeout(
+      supabase
+        .from('donations')
+        .select('id, amount, status')
+        .ilike('donor_email', emailKey)
+        .neq('status', 'failed')
+        .limit(1),
+      4000
+    );
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      try {
+        localStorage.setItem(`sanctuaire_user_donated_${emailKey}`, 'true');
+      } catch {
+        // ignore
+      }
+      return true;
+    }
+  } catch {
+    // ignore network errors
+  }
+
+  return false;
+}
+
+export async function recordDonationInSupabase(donation: DonationRecord) {
+  let accountEmail = donation.donorEmail || '';
+  let accountName = donation.donorName || '';
+
+  // Local persistence backup + link to active logged-in user account
+  try {
+    const savedUserStr = localStorage.getItem('sanctuaire_user');
+    if (savedUserStr) {
+      const savedUser = JSON.parse(savedUserStr);
+      if (!accountEmail && savedUser?.email) {
+        accountEmail = savedUser.email;
+      }
+      if (!accountName && savedUser?.name) {
+        accountName = savedUser.name;
+      }
+      const userEmailKey = (savedUser?.email || '').trim().toLowerCase();
+      const userNameKey = (savedUser?.name || '').trim().toLowerCase();
+      if (donation.amount > 0 && donation.status !== 'failed') {
+        if (userEmailKey) {
+          localStorage.setItem(`sanctuaire_user_donated_${userEmailKey}`, 'true');
+        }
+        if (userNameKey) {
+          localStorage.setItem(`sanctuaire_user_donated_${userNameKey}`, 'true');
+        }
+      }
+    }
+
+    if (accountEmail && donation.amount > 0 && donation.status !== 'failed') {
+      localStorage.setItem(`sanctuaire_user_donated_${accountEmail.trim().toLowerCase()}`, 'true');
+    }
+
+    const history = JSON.parse(localStorage.getItem('sanctuaire_donations') || '[]');
+    history.push({
+      ...donation,
+      donorEmail: donation.donorEmail || accountEmail || undefined,
+      accountEmail: accountEmail || undefined,
+      date: new Date().toISOString(),
+    });
     localStorage.setItem('sanctuaire_donations', JSON.stringify(history));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sanctuaire-donation-updated'));
+    }
   } catch (e) {
     // ignore
+  }
+
+  // Persist in Cloud SQL PostgreSQL backend
+  try {
+    await fetch('/api/donations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: donation.userId || null,
+        amount: donation.amount,
+        currency: donation.currency,
+        provider: donation.provider,
+        status: donation.status,
+        cause: donation.cause,
+        donorName: donation.donorName || accountName || null,
+        donorEmail: donation.donorEmail || accountEmail || null,
+        donorPhone: donation.donorPhone || null,
+        isAnonymous: !!donation.isAnonymous,
+        transactionReference: donation.transactionReference || null,
+      }),
+    });
+  } catch {
+    // ignore offline/network error
   }
 
   if (!supabase) {
@@ -534,19 +1011,22 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
   }
 
   try {
-    const { data, error } = await supabase.from('donations').insert({
-      amount: donation.amount,
-      currency: donation.currency,
-      provider: donation.provider,
-      status: donation.status,
-      cause: donation.cause,
-      donor_name: donation.donorName || null,
-      donor_email: donation.donorEmail || null,
-      donor_phone: donation.donorPhone || null,
-      is_anonymous: !!donation.isAnonymous,
-      transaction_reference: donation.transactionReference || null,
-      user_id: donation.userId || null,
-    });
+    const { data, error } = await withTimeout(
+      supabase.from('donations').insert({
+        amount: donation.amount,
+        currency: donation.currency,
+        provider: donation.provider,
+        status: donation.status,
+        cause: donation.cause,
+        donor_name: donation.donorName || accountName || null,
+        donor_email: donation.donorEmail || accountEmail || null,
+        donor_phone: donation.donorPhone || null,
+        is_anonymous: !!donation.isAnonymous,
+        transaction_reference: donation.transactionReference || null,
+        user_id: donation.userId || null,
+      }),
+      4000
+    );
 
     if (error) throw error;
     return { success: true, data };

@@ -28,7 +28,12 @@ import { DhikrModal } from './components/DhikrModal';
 import { PrayerTimeSettingsModal, PrayerOffsets } from './components/PrayerTimeSettingsModal';
 import { DonationModal } from './components/DonationModal';
 import { GuestAccountReminderToast } from './components/GuestAccountReminderToast';
-import { supabase } from './lib/supabase';
+import {
+  supabase,
+  hasUserDonatedLocally,
+  checkUserHasDonated,
+  syncConnectedAccountToBackend,
+} from './lib/supabase';
 import { CITIES, METHODS, RECITERS } from './data/islamicData';
 import { CityData, Method, Reciter, UserProfile } from './types';
 import {
@@ -125,6 +130,52 @@ export default function App() {
   const [isPrayerSettingsOpen, setIsPrayerSettingsOpen] = useState<boolean>(false);
   const [isDonationOpen, setIsDonationOpen] = useState<boolean>(false);
 
+  // Track whether the logged-in user has made at least 1 donation
+  const [hasMadeDonation, setHasMadeDonation] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_user');
+      const parsedUser = saved ? JSON.parse(saved) : null;
+      return hasUserDonatedLocally(parsedUser);
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const verifyDonationStatus = async () => {
+      if (!currentUser) {
+        if (isMounted) setHasMadeDonation(false);
+        return;
+      }
+      // Instant local check first
+      const localResult = hasUserDonatedLocally(currentUser);
+      if (localResult && isMounted) {
+        setHasMadeDonation(true);
+      }
+      // Also verify with Supabase donations table
+      const remoteResult = await checkUserHasDonated(currentUser);
+      if (isMounted) {
+        setHasMadeDonation(remoteResult);
+      }
+    };
+
+    verifyDonationStatus();
+
+    const handleDonationEvent = () => {
+      verifyDonationStatus();
+    };
+
+    window.addEventListener('sanctuaire-donation-updated', handleDonationEvent);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('sanctuaire-donation-updated', handleDonationEvent);
+    };
+  }, [currentUser, isDonationOpen]);
+
+  const canAccessLibrary = Boolean(currentUser && hasMadeDonation);
+
   // Prayer time adjustments
   const [prayerOffsets, setPrayerOffsets] = useState<PrayerOffsets>(() => {
     try {
@@ -171,13 +222,25 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // Automatically synchronize active currentUser to Cloud SQL profiles table & local registry
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    syncConnectedAccountToBackend({
+      email: currentUser.email,
+      fullName: currentUser.name,
+      firstName: currentUser.firstName,
+      lastName: currentUser.lastName,
+      avatarUrl: currentUser.avatarUrl,
+    });
+  }, [currentUser]);
+
   // Supabase session listener for magic links, email verification redirects, and OAuth
   useEffect(() => {
     if (!supabase) return;
 
     // Check if coming back from an email verification link or saved session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user && !currentUser) {
+      if (session?.user) {
         const user = session.user;
         const meta = (user.user_metadata || {}) as Record<string, any>;
         const fullName = meta.full_name || user.email?.split('@')[0] || 'Fidèle';
@@ -191,11 +254,21 @@ export default function App() {
           lastName,
         };
 
-        handleLoginSuccess(profile, false);
+        setCurrentUser((prev) => {
+          if (prev && prev.email === profile.email) return prev;
+          try {
+            localStorage.setItem('sanctuaire_user', JSON.stringify(profile));
+            localStorage.setItem('sanctuaire_has_registered', 'true');
+            localStorage.removeItem('sanctuaire_logged_out');
+          } catch {
+            // ignore
+          }
+          return profile;
+        });
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
         const user = session.user;
         const meta = (user.user_metadata || {}) as Record<string, any>;
@@ -210,7 +283,17 @@ export default function App() {
           lastName,
         };
 
-        handleLoginSuccess(profile, false);
+        setCurrentUser((prev) => {
+          if (prev && prev.email === profile.email) return prev;
+          try {
+            localStorage.setItem('sanctuaire_user', JSON.stringify(profile));
+            localStorage.setItem('sanctuaire_has_registered', 'true');
+            localStorage.removeItem('sanctuaire_logged_out');
+          } catch {
+            // ignore
+          }
+          return profile;
+        });
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
       }
@@ -219,7 +302,7 @@ export default function App() {
     return () => {
       authListener?.subscription?.unsubscribe();
     };
-  }, [currentUser]);
+  }, []);
 
   const handleOpenPrayerGuide = (prayerKey?: 'F' | 'D' | 'A' | 'M' | 'I') => {
     if (prayerKey) {
@@ -348,7 +431,7 @@ export default function App() {
           <FastingPage
             selectedCity={selectedCity}
             onBackToHome={() => setCurrentView('home')}
-            onOpenBookReader={(bookId) => handleOpenLibrary(bookId)}
+            onOpenBookReader={canAccessLibrary ? (bookId) => handleOpenLibrary(bookId) : undefined}
           />
         );
 
@@ -356,11 +439,46 @@ export default function App() {
         return (
           <FaithPage
             onBackToHome={() => setCurrentView('home')}
-            onOpenBookReader={(bookId) => handleOpenLibrary(bookId)}
+            onOpenBookReader={canAccessLibrary ? (bookId) => handleOpenLibrary(bookId) : undefined}
           />
         );
 
       case 'library':
+        if (!canAccessLibrary) {
+          return (
+            <div className="min-h-screen flex items-center justify-center p-6 bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-white">
+              <div className="max-w-md w-full rounded-3xl bg-white dark:bg-[#183022] border border-emerald-500/30 p-7 text-center space-y-4 shadow-xl">
+                <h2 className="text-xl font-extrabold">Accès réservé aux Membres Bienfaiteurs</h2>
+                <p className="text-xs sm:text-sm text-neutral-600 dark:text-emerald-100/80 leading-relaxed">
+                  La Bibliothèque & les Livres du Vendredi apparaissent uniquement lorsque vous possédez un compte connecté et avez effectué au moins un don de soutien au Sanctuaire.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                  {!currentUser ? (
+                    <button
+                      onClick={() => setCurrentView('login')}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold cursor-pointer"
+                    >
+                      Créer un compte / Connexion
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsDonationOpen(true)}
+                      className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 text-xs font-bold cursor-pointer"
+                    >
+                      Faire un don (Sadaqah)
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setCurrentView('home')}
+                    className="py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-emerald-950/60 text-neutral-700 dark:text-emerald-200 text-xs font-semibold cursor-pointer"
+                  >
+                    Retour
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <LibraryPage
             onBackToHome={() => setCurrentView('home')}
@@ -420,7 +538,7 @@ export default function App() {
               onOpenDhikr={() => setIsDhikrOpen(true)}
               onOpenFasting={handleOpenFasting}
               onOpenFaith={handleOpenFaith}
-              onOpenLibrary={handleOpenLibrary}
+              onOpenLibrary={canAccessLibrary ? () => handleOpenLibrary() : undefined}
             />
             <MonthlyPrayerCalendarView
               currentUser={currentUser}
@@ -445,7 +563,7 @@ export default function App() {
               onOpenDhikr={() => setIsDhikrOpen(true)}
               onOpenFasting={handleOpenFasting}
               onOpenFaith={handleOpenFaith}
-              onOpenLibrary={handleOpenLibrary}
+              onOpenLibrary={canAccessLibrary ? () => handleOpenLibrary() : undefined}
             />
 
             <HomePage
@@ -466,7 +584,7 @@ export default function App() {
               onOpenDhikr={() => setIsDhikrOpen(true)}
               onOpenFasting={handleOpenFasting}
               onOpenFaith={handleOpenFaith}
-              onOpenLibrary={handleOpenLibrary}
+              onOpenLibrary={canAccessLibrary ? handleOpenLibrary : undefined}
               onOpenDonations={() => setIsDonationOpen(true)}
               isDarkMode={isDarkMode}
               onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
@@ -524,7 +642,7 @@ export default function App() {
                   onOpenQuran={() => handleOpenQuranPage()}
                   onOpenFasting={handleOpenFasting}
                   onOpenFaith={handleOpenFaith}
-                  onOpenLibrary={handleOpenLibrary}
+                  onOpenLibrary={canAccessLibrary ? () => handleOpenLibrary() : undefined}
                   onOpenDonations={() => setIsDonationOpen(true)}
                   onOpenAuth={() => setCurrentView('login')}
                   currentUser={currentUser}
@@ -619,7 +737,7 @@ export default function App() {
           onOpenDhikr={() => setIsDhikrOpen(true)}
           onOpenFasting={() => setCurrentView('fasting')}
           onOpenFaith={() => setCurrentView('faith')}
-          onOpenLibrary={() => setCurrentView('library')}
+          onOpenLibrary={canAccessLibrary ? () => setCurrentView('library') : undefined}
           onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
           isDarkMode={isDarkMode}
           onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
@@ -629,7 +747,11 @@ export default function App() {
       {/* Two Floating Draggable Interactive Widgets (Dons & Histoires écrites par l'auteur) - Présents sur mobile et desktop */}
       <AnimatePresence>
         {(currentView === 'home' || currentView === 'landing') && (
-          <FloatingInteractiveWidgets onOpenLibrary={handleOpenLibrary} />
+          <FloatingInteractiveWidgets
+            onOpenLibrary={canAccessLibrary ? () => handleOpenLibrary() : undefined}
+            userEmail={currentUser?.email}
+            userName={currentUser?.name}
+          />
         )}
       </AnimatePresence>
 

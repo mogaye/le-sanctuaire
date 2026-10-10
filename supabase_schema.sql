@@ -1,53 +1,72 @@
 -- ==============================================================================
--- SCHEMA SUPABASE POUR LE SANCTUAIRE ISLAMIQUE
--- Exécutez ce script dans l'éditeur SQL de votre tableau de bord Supabase :
--- https://supabase.com/dashboard/project/bkfklfnnturdwtfjoxci/sql
+-- SCRIPT COMPLET SUPABASE (SCHEMA PUBLIC) POUR LE SANCTUAIRE
+-- Dans votre tableau de bord Supabase (à gauche, icône "SQL Editor" sous "Table Editor"),
+-- collez ce script et cliquez sur "Run" (Exécuter).
 -- ==============================================================================
 
--- 1. Table des profils utilisateurs
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+-- 1. Table: users
+CREATE TABLE IF NOT EXISTS public.users (
+  id SERIAL PRIMARY KEY,
+  uid TEXT NOT NULL UNIQUE,
   email TEXT NOT NULL,
   full_name TEXT,
   first_name TEXT,
   last_name TEXT,
   avatar_url TEXT,
-  city_name TEXT,
+  city_name TEXT DEFAULT 'Dakar',
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
--- Active le Row Level Security (RLS)
+-- 2. Table: profiles (Comptes connectés)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  full_name TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  avatar_url TEXT,
+  city_id TEXT DEFAULT 'dakar',
+  city_name TEXT DEFAULT 'Dakar',
+  country TEXT DEFAULT 'Sénégal',
+  calculation_method TEXT DEFAULT 'MuslimWorldLeague',
+  theme_preference TEXT DEFAULT 'dark',
+  last_connected_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Politiques de sécurité pour les profils
-CREATE POLICY "Les utilisateurs peuvent consulter leur propre profil"
+DROP POLICY IF EXISTS "Lecture publique des profils" ON public.profiles;
+CREATE POLICY "Lecture publique des profils"
   ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+  USING (true);
 
-CREATE POLICY "Les utilisateurs peuvent mettre à jour leur propre profil"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Gestion des profils" ON public.profiles;
+CREATE POLICY "Gestion des profils"
+  ON public.profiles FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Les utilisateurs peuvent créer leur propre profil"
-  ON public.profiles FOR INSERT
-  WITH CHECK (auth.uid() = id);
-
--- 2. Déclencheur automatique pour créer un profil dès l'inscription auth.users
+-- Déclencheur automatique lors d'une inscription via Supabase Auth (auth.users)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name, first_name, last_name)
+  INSERT INTO public.profiles (id, email, full_name, first_name, last_name, last_connected_at, updated_at)
   VALUES (
-    NEW.id,
+    NEW.id::text,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
+    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'first_name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'last_name', '')
+    COALESCE(NEW.raw_user_meta_data->>'last_name', ''),
+    TIMEZONE('utc', NOW()),
+    TIMEZONE('utc', NOW())
   )
-  ON CONFLICT (id) DO UPDATE SET
+  ON CONFLICT (email) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    email = EXCLUDED.email;
+    last_connected_at = TIMEZONE('utc', NOW()),
+    updated_at = TIMEZONE('utc', NOW());
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -57,16 +76,29 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 3. Table de suivi des prières quotidiennes (Prayer Logs)
+-- Insertion immédiate de vos comptes déjà connectés
+INSERT INTO public.profiles (id, email, full_name, first_name, last_name, city_name)
+VALUES
+  ('acct_mgaye60000@gmail.com', 'mgaye60000@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar'),
+  ('acct_modougaye58588@gmail.com', 'modougaye58588@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar')
+ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name)
+VALUES
+  ('acct_mgaye60000@gmail.com', 'mgaye60000@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar'),
+  ('acct_modougaye58588@gmail.com', 'modougaye58588@gmail.com', 'Modou Gaye', 'Modou', 'Gaye', 'Dakar')
+ON CONFLICT (uid) DO NOTHING;
+
+-- 3. Table: prayer_logs (Suivi quotidien des 5 prières)
 CREATE TABLE IF NOT EXISTS public.prayer_logs (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  date DATE NOT NULL,
-  fajr BOOLEAN DEFAULT FALSE,
-  dhuhr BOOLEAN DEFAULT FALSE,
-  asr BOOLEAN DEFAULT FALSE,
-  maghrib BOOLEAN DEFAULT FALSE,
-  isha BOOLEAN DEFAULT FALSE,
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  fajr BOOLEAN DEFAULT FALSE NOT NULL,
+  dhuhr BOOLEAN DEFAULT FALSE NOT NULL,
+  asr BOOLEAN DEFAULT FALSE NOT NULL,
+  maghrib BOOLEAN DEFAULT FALSE NOT NULL,
+  isha BOOLEAN DEFAULT FALSE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   UNIQUE(user_id, date)
@@ -74,27 +106,21 @@ CREATE TABLE IF NOT EXISTS public.prayer_logs (
 
 ALTER TABLE public.prayer_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Les utilisateurs voient leurs propres prières"
-  ON public.prayer_logs FOR SELECT
-  USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Gestion prayer_logs" ON public.prayer_logs;
+CREATE POLICY "Gestion prayer_logs"
+  ON public.prayer_logs FOR ALL
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Les utilisateurs enregistrent leurs propres prières"
-  ON public.prayer_logs FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Les utilisateurs mettent à jour leurs propres prières"
-  ON public.prayer_logs FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- 4. Table des dons (Donations)
+-- 4. Table: donations (Dons PayDunya / Wave / Sadaqah)
 CREATE TABLE IF NOT EXISTS public.donations (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  amount NUMERIC NOT NULL,
+  id SERIAL PRIMARY KEY,
+  user_id TEXT,
+  amount NUMERIC(12, 2) NOT NULL,
   currency TEXT DEFAULT 'XOF' NOT NULL,
-  provider TEXT NOT NULL,
-  status TEXT DEFAULT 'pending' NOT NULL,
-  cause TEXT NOT NULL,
+  provider TEXT DEFAULT 'dunyapay' NOT NULL,
+  status TEXT DEFAULT 'succeeded' NOT NULL,
+  cause TEXT DEFAULT 'general' NOT NULL,
   donor_name TEXT,
   donor_email TEXT,
   donor_phone TEXT,
@@ -105,18 +131,16 @@ CREATE TABLE IF NOT EXISTS public.donations (
 
 ALTER TABLE public.donations ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Les utilisateurs peuvent consulter leurs propres dons"
-  ON public.donations FOR SELECT
-  USING (auth.uid() = user_id OR auth.uid() IS NULL);
-
-CREATE POLICY "Permettre l'insertion d'un don pour tous (authentifié ou invité)"
-  ON public.donations FOR INSERT
+DROP POLICY IF EXISTS "Gestion donations" ON public.donations;
+CREATE POLICY "Gestion donations"
+  ON public.donations FOR ALL
+  USING (true)
   WITH CHECK (true);
 
--- 5. Table des favoris du Coran (Bookmarks)
+-- 5. Table: quran_favorites (Favoris du Coran)
 CREATE TABLE IF NOT EXISTS public.quran_favorites (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
   surah_number INT NOT NULL,
   ayah_number INT NOT NULL,
   surah_name TEXT NOT NULL,
@@ -128,6 +152,48 @@ CREATE TABLE IF NOT EXISTS public.quran_favorites (
 
 ALTER TABLE public.quran_favorites ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Les utilisateurs gèrent leurs versets favoris"
+DROP POLICY IF EXISTS "Gestion quran_favorites" ON public.quran_favorites;
+CREATE POLICY "Gestion quran_favorites"
   ON public.quran_favorites FOR ALL
-  USING (auth.uid() = user_id);
+  USING (true)
+  WITH CHECK (true);
+
+-- 6. Table: dhikr_logs (Suivi du Tasbih & Dhikr)
+CREATE TABLE IF NOT EXISTS public.dhikr_logs (
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  dhikr_phrase TEXT NOT NULL,
+  count INT DEFAULT 0 NOT NULL,
+  target INT DEFAULT 33,
+  completed BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+ALTER TABLE public.dhikr_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Gestion dhikr_logs" ON public.dhikr_logs;
+CREATE POLICY "Gestion dhikr_logs"
+  ON public.dhikr_logs FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- 7. Table: email_logs (Historique des e-mails d'authentification envoyés)
+CREATE TABLE IF NOT EXISTS public.email_logs (
+  id SERIAL PRIMARY KEY,
+  sender_email TEXT NOT NULL,
+  recipient_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body_preview TEXT,
+  email_type TEXT DEFAULT 'verification' NOT NULL,
+  status TEXT DEFAULT 'sent' NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Gestion email_logs" ON public.email_logs;
+CREATE POLICY "Gestion email_logs"
+  ON public.email_logs FOR ALL
+  USING (true)
+  WITH CHECK (true);

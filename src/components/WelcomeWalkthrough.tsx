@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 export interface WelcomeWalkthroughProps {
   user: UserProfile | null;
@@ -105,6 +106,14 @@ export const WelcomeWalkthrough: React.FC<WelcomeWalkthroughProps> = ({
         onTouchEnd={handleTouchEnd}
         className="relative w-full max-w-[800px] rounded-[28px] sm:rounded-[36px] bg-gradient-to-b from-[#0B1E15]/95 via-[#081810]/95 to-[#040E09]/98 border border-emerald-500/25 shadow-[0_25px_80px_rgba(0,0,0,0.7)] p-4 sm:p-9 md:p-11 text-white overflow-hidden cursor-pointer select-none transition-all max-h-[90vh] overflow-y-auto"
       >
+        {/* Background Image */}
+        <img
+          src={portraitSereinVertBg}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-25 pointer-events-none select-none"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0B1E15]/85 via-[#081810]/85 to-[#040E09]/92 pointer-events-none" />
+
         {/* Subtle decorative Islamic arch geometric outline */}
         <div className="absolute top-0 right-0 w-72 h-72 opacity-[0.035] pointer-events-none">
           <svg viewBox="0 0 200 200" fill="currentColor" className="w-full h-full text-amber-200">

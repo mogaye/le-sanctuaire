@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 import { getAyahAudioUrl, getSurahAudioUrl, formatAudioSeconds } from '../utils/quranAudioUtils';
 import { CityData, Method, Reciter, PrayerTime, UserProfile } from '../types';
 import { CITIES, METHODS, RECITERS, PRAYERS } from '../data/islamicData';
@@ -679,7 +680,19 @@ export const HomePage: React.FC<HomePageProps> = ({
                   </button>
                 </div>
 
-                <div className="pt-1 border-t border-emerald-800/40">
+                <div className="pt-1 border-t border-emerald-800/40 space-y-0.5">
+                  {onOpenAuth && (
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onOpenAuth();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-300 hover:bg-emerald-950/50 text-left font-semibold cursor-pointer"
+                    >
+                      <LogIn className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Comptes connectés & E-mail</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
@@ -713,6 +726,14 @@ export const HomePage: React.FC<HomePageProps> = ({
               'radial-gradient(120% 120% at 15% 10%, #173E28 0%, #102B1D 45%, #0A1B12 100%)',
           }}
         >
+          {/* Background Image */}
+          <img
+            src={portraitSereinVertBg}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-30 pointer-events-none select-none"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0A1B12]/85 via-[#102B1D]/75 to-[#0A1B12]/80 pointer-events-none" />
+
           {/* Multi-layered Warm & Luminous Ambient Glows */}
           <div className="absolute -top-24 -left-16 w-96 h-96 bg-amber-400/15 rounded-full blur-[90px] pointer-events-none" />
           <div className="absolute top-1/4 left-1/3 -translate-x-1/2 w-[480px] h-[340px] bg-emerald-400/20 rounded-full blur-[110px] pointer-events-none" />
@@ -1735,34 +1756,36 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
 
-          {/* Card 6: Bibliothèque Numérique — Le Puits de Nour */}
-          <div
-            onClick={() => onOpenLibrary && onOpenLibrary('le-puits-de-nour')}
-            className="group bg-white/95 hover:bg-amber-50/70 dark:bg-[#193226]/90 dark:hover:bg-[#1E3B2E] rounded-[24px] p-5 border border-amber-300/90 dark:border-amber-500/35 hover:border-amber-500/70 transition-all cursor-pointer shadow-sm flex flex-col justify-between text-neutral-900 dark:text-neutral-100"
-          >
-            <div className="flex items-center justify-between">
-              <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
-                <Library className="w-5 h-5" />
+          {/* Card 6: Bibliothèque Numérique — Le Puits de Nour (Visible uniquement si l'utilisateur a un compte et a fait au moins un don) */}
+          {onOpenLibrary && (
+            <div
+              onClick={() => onOpenLibrary('le-puits-de-nour')}
+              className="group bg-white/95 hover:bg-amber-50/70 dark:bg-[#193226]/90 dark:hover:bg-[#1E3B2E] rounded-[24px] p-5 border border-amber-300/90 dark:border-amber-500/35 hover:border-amber-500/70 transition-all cursor-pointer shadow-sm flex flex-col justify-between text-neutral-900 dark:text-neutral-100"
+            >
+              <div className="flex items-center justify-between">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 flex items-center justify-center text-amber-700 dark:text-amber-300 group-hover:scale-105 transition-transform">
+                  <Library className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 px-2.5 py-1 rounded-full">
+                  Livre du Jour • Nouveau
+                </span>
               </div>
-              <span className="text-xs font-bold text-amber-900 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/80 border border-amber-300/80 dark:border-amber-500/30 px-2.5 py-1 rounded-full">
-                Livre du Jour • Nouveau
-              </span>
-            </div>
 
-            <div className="mt-4">
-              <h4 className="font-semibold text-sm text-neutral-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-200">
-                Le Puits de Nour (Bibliothèque)
-              </h4>
-              <p className="text-xs text-neutral-600 dark:text-emerald-200/70 mt-0.5">
-                Texte intégral (4 chapitres & épilogue) et fiches latérales illustrées des 19 personnages.
-              </p>
-            </div>
+              <div className="mt-4">
+                <h4 className="font-semibold text-sm text-neutral-900 dark:text-white group-hover:text-amber-700 dark:group-hover:text-amber-200">
+                  Le Puits de Nour (Bibliothèque)
+                </h4>
+                <p className="text-xs text-neutral-600 dark:text-emerald-200/70 mt-0.5">
+                  Texte intégral (4 chapitres & épilogue) et fiches latérales illustrées des 19 personnages.
+                </p>
+              </div>
 
-            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-emerald-800/40 flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-300">
-              <span>Lire Le Puits de Nour</span>
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-emerald-800/40 flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <span>Lire Le Puits de Nour</span>
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
-          </div>
+          )}
 
         </section>
 

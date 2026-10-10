@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,17 +15,28 @@ import {
   Edit3,
   ShieldCheck,
   Sparkles,
+  Users,
+  Send,
+  X,
 } from 'lucide-react';
-import sujudImage from '../assets/images/muslim_sujud_1789519481224.jpg';
+import sujudImage from '../Portrait serein avec Coran sur fond vert.png';
 import { UserProfile } from '../types';
 import {
   signInWithEmail,
   signUpWithEmail,
   resendVerificationEmail,
+  verifyEmailOtpCode,
   signInWithGoogle,
   isSupabaseConfigured,
   supabase,
+  fetchAllConnectedAccounts,
+  syncConnectedAccountToBackend,
+  LocalRegisteredAccount,
 } from '../lib/supabase';
+import {
+  sendEmailWithGmailAccount,
+  buildVerificationEmailHtml,
+} from '../lib/gmailService';
 
 interface LoginPageProps {
   onBackToHome: () => void;
@@ -33,7 +44,7 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSuccess }) => {
-  const [isSignUp, setIsSignUp] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -43,7 +54,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Email Verification Waiting State
+  // Connected / Existing Accounts State
+  const [connectedAccounts, setConnectedAccounts] = useState<LocalRegisteredAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+
+  // Email Verification & Gmail Sending State
   const [isWaitingVerification, setIsWaitingVerification] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
   const [pendingName, setPendingName] = useState('');
@@ -53,8 +68,121 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
   const [resendCooldown, setResendCooldown] = useState(0);
   const [isResending, setIsResending] = useState(false);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [generatedOtpCode, setGeneratedOtpCode] = useState('');
+  const [otpSignature, setOtpSignature] = useState('');
+  const [enteredOtpCode, setEnteredOtpCode] = useState('');
+
+  // Gmail Send Confirmation Modal (Mandatory confirmation before sending email via Gmail API)
+  const [gmailConfirmPayload, setGmailConfirmPayload] = useState<{
+    to: string;
+    subject: string;
+    htmlBody: string;
+    recipientName: string;
+    otpCode: string;
+  } | null>(null);
+  const [isSendingGmail, setIsSendingGmail] = useState(false);
 
   const isConfigured = isSupabaseConfigured();
+
+  // Load already connected / registered accounts from PostgreSQL & local storage
+  useEffect(() => {
+    let active = true;
+    setLoadingAccounts(true);
+    fetchAllConnectedAccounts()
+      .then((list) => {
+        if (active) {
+          setConnectedAccounts(list);
+          setLoadingAccounts(false);
+        }
+      })
+      .catch(() => {
+        if (active) setLoadingAccounts(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Quick login when clicking an already connected account
+  const handleQuickReconnect = async (acc: LocalRegisteredAccount) => {
+    setFeedback({
+      type: 'success',
+      message: `Reconnexion au compte ${acc.fullName} (${acc.email})...`,
+    });
+    await syncConnectedAccountToBackend({
+      id: acc.id,
+      email: acc.email,
+      fullName: acc.fullName,
+      firstName: acc.firstName,
+      lastName: acc.lastName,
+      avatarUrl: acc.avatarUrl,
+    });
+    setTimeout(() => {
+      onLoginSuccess(
+        {
+          name: acc.fullName,
+          email: acc.email,
+          firstName: acc.firstName,
+          lastName: acc.lastName,
+          avatarUrl: acc.avatarUrl,
+        },
+        false
+      );
+    }, 350);
+  };
+
+  // Prepare Gmail verification email with explicit user confirmation modal
+  const handlePrepareGmailVerification = (targetEmail: string, targetName: string) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtpCode(code);
+    const subject = `Code de vérification Le Sanctuaire : ${code}`;
+    const htmlBody = buildVerificationEmailHtml(targetName, code);
+    setGmailConfirmPayload({
+      to: targetEmail,
+      subject,
+      htmlBody,
+      recipientName: targetName,
+      otpCode: code,
+    });
+  };
+
+  const handleConfirmSendGmail = async () => {
+    if (!gmailConfirmPayload) return;
+    setIsSendingGmail(true);
+    try {
+      const result = await sendEmailWithGmailAccount(
+        {
+          to: gmailConfirmPayload.to,
+          subject: gmailConfirmPayload.subject,
+          htmlBody: gmailConfirmPayload.htmlBody,
+          textBody: `Code de vérification Le Sanctuaire : ${gmailConfirmPayload.otpCode}`,
+          emailType: 'verification',
+        },
+        'mgaye60000@gmail.com'
+      );
+
+      setGmailConfirmPayload(null);
+      if (result.success) {
+        setFeedback({
+          type: 'success',
+          message: `E-mail envoyé avec succès depuis votre compte Gmail (${result.senderEmail || 'mgaye60000@gmail.com'}) vers ${gmailConfirmPayload.to} !`,
+        });
+      } else {
+        setFeedback({
+          type: 'error',
+          message: result.error || "Erreur lors de l'envoi de l'e-mail via Gmail.",
+        });
+      }
+    } catch (err: any) {
+      setGmailConfirmPayload(null);
+      setFeedback({
+        type: 'error',
+        message: err?.message || "Erreur lors de l'envoi Gmail.",
+      });
+    } finally {
+      setIsSendingGmail(false);
+    }
+  };
 
   // Cooldown timer for resending verification email
   React.useEffect(() => {
@@ -71,7 +199,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
 
     let isMounted = true;
 
-    // 1. Supabase onAuthStateChange listener
     let authSubscription: { unsubscribe: () => void } | null = null;
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -89,42 +216,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
               },
               true
             );
-          }, 1200);
+          }, 800);
         }
       });
       authSubscription = data.subscription;
     }
 
-    // 2. Periodic check (every 2.5 seconds) in case the confirmation occurs in another tab
-    const interval = setInterval(async () => {
-      if (!isMounted || !supabase) return;
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (data?.user && data.user.email_confirmed_at) {
-          setVerificationSuccess(true);
-          clearInterval(interval);
-          setTimeout(() => {
-            if (!isMounted) return;
-            onLoginSuccess(
-              {
-                name: pendingName || data.user.user_metadata?.full_name || 'Fidèle',
-                email: data.user.email || pendingEmail,
-                firstName: pendingFirstName || data.user.user_metadata?.first_name || 'Fidèle',
-                lastName: pendingLastName || data.user.user_metadata?.last_name || '',
-              },
-              true
-            );
-          }, 1200);
-        }
-      } catch (err) {
-        console.error('Check user confirmation error:', err);
-      }
-    }, 2500);
-
     return () => {
       isMounted = false;
       if (authSubscription) authSubscription.unsubscribe();
-      clearInterval(interval);
     };
   }, [isWaitingVerification, pendingEmail, pendingName, pendingFirstName, pendingLastName, onLoginSuccess]);
 
@@ -132,10 +232,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
     if (resendCooldown > 0 || isResending) return;
     setIsResending(true);
     try {
-      await resendVerificationEmail(pendingEmail);
+      const res = await resendVerificationEmail(pendingEmail, pendingName);
+      if (res.signature) {
+        setOtpSignature(res.signature);
+      }
       setFeedback({
         type: 'success',
-        message: 'Un nouvel e-mail de confirmation a été envoyé !',
+        message: `Un nouveau code de vérification à 6 chiffres a été envoyé à ${pendingEmail}.`,
       });
       setResendCooldown(60);
     } catch {
@@ -148,8 +251,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
     }
   };
 
-  const handleSimulateEmailVerification = () => {
+  const handleSimulateEmailVerification = async () => {
+    const code = enteredOtpCode.trim();
+    if (!code || code.length < 6) {
+      setFeedback({
+        type: 'error',
+        message: 'Veuillez saisir le code de vérification à 6 chiffres reçu par e-mail.',
+      });
+      return;
+    }
+
+    if (generatedOtpCode && code === generatedOtpCode) {
+      // Verified via Gmail OAuth direct send
+    } else {
+      const otpRes = await verifyEmailOtpCode(pendingEmail, code, otpSignature);
+      if (!otpRes.verified) {
+        setFeedback({
+          type: 'error',
+          message: 'Code de vérification invalide ou expiré. Vérifiez les 6 chiffres reçus dans votre boîte mail.',
+        });
+        return;
+      }
+    }
+
     setVerificationSuccess(true);
+    await syncConnectedAccountToBackend({
+      email: pendingEmail,
+      fullName: pendingName || 'Fidèle',
+      firstName: pendingFirstName || 'Fidèle',
+      lastName: pendingLastName || '',
+    });
     setTimeout(() => {
       onLoginSuccess(
         {
@@ -160,7 +291,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         },
         true
       );
-    }, 1000);
+    }, 600);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -188,7 +319,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
       const cleanFirst = firstName.trim();
       const cleanLast = lastName.trim();
       const full = `${cleanFirst} ${cleanLast}`;
-      const cleanEmail = email.trim();
+      const cleanEmail = email.trim().toLowerCase();
 
       try {
         const res = await signUpWithEmail(cleanEmail, password, full);
@@ -202,31 +333,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           return;
         }
 
-        if (res.needsEmailVerification && !res.isFallback) {
-          setPendingEmail(cleanEmail);
-          setPendingName(full);
-          setPendingFirstName(cleanFirst);
-          setPendingLastName(cleanLast);
-          setIsFallbackMode(false);
-          setIsWaitingVerification(true);
-          setResendCooldown(60);
-        } else {
-          setFeedback({
-            type: 'success',
-            message: 'Compte créé avec succès ! Ouverture de votre sanctuaire...',
-          });
-          setTimeout(() => {
-            onLoginSuccess(
-              {
-                name: full,
-                email: cleanEmail,
-                firstName: cleanFirst,
-                lastName: cleanLast,
-              },
-              true
-            );
-          }, 700);
+        // Send real 6-digit verification code via SMTP / Supabase
+        const otpSend = await resendVerificationEmail(cleanEmail, full);
+        if (otpSend.signature) {
+          setOtpSignature(otpSend.signature);
         }
+
+        setPendingEmail(cleanEmail);
+        setPendingName(full);
+        setPendingFirstName(cleanFirst);
+        setPendingLastName(cleanLast);
+        setIsWaitingVerification(true);
+        setFeedback({
+          type: 'success',
+          message: `Un code de vérification à 6 chiffres a été envoyé à ${cleanEmail}.`,
+        });
       } catch (err: any) {
         setFeedback({
           type: 'error',
@@ -252,9 +373,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         if (error) {
           setFeedback({
             type: 'error',
-            message: error.message === 'Invalid login credentials'
-              ? 'Identifiants incorrects. Vérifiez votre e-mail et mot de passe.'
-              : error.message,
+            message:
+              error.message === 'Invalid login credentials'
+                ? 'Identifiants incorrects. Vérifiez votre e-mail et mot de passe.'
+                : error.message,
           });
           setIsLoading(false);
           return;
@@ -263,6 +385,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         const meta = (data?.user?.user_metadata || {}) as Record<string, any>;
         const userFullName = meta.full_name || (email.trim() ? email.split('@')[0] : 'Fidèle');
         const userFirst = meta.first_name || userFullName.split(' ')[0] || userFullName;
+        const userLast = meta.last_name || userFullName.split(' ').slice(1).join(' ') || '';
+
+        await syncConnectedAccountToBackend({
+          id: data?.user?.id,
+          email: email.trim().toLowerCase(),
+          fullName: userFullName,
+          firstName: userFirst,
+          lastName: userLast,
+        });
 
         setFeedback({
           type: 'success',
@@ -273,12 +404,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           onLoginSuccess(
             {
               name: userFullName,
-              email: email.trim(),
+              email: email.trim().toLowerCase(),
               firstName: userFirst,
+              lastName: userLast,
             },
             false
           );
-        }, 800);
+        }, 500);
       } catch (err: any) {
         setFeedback({
           type: 'error',
@@ -293,31 +425,34 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
   const handleSocialClick = async (provider: string) => {
     if (provider === 'Google') {
       setIsLoading(true);
-      setFeedback({ type: 'success', message: 'Connexion avec Google en cours...' });
+      setFeedback({ type: 'success', message: 'Connexion avec votre compte Google en cours...' });
       try {
-        const { data, error, isFallback } = await signInWithGoogle();
+        const { data, error } = await signInWithGoogle();
         if (error) {
           setFeedback({ type: 'error', message: error.message });
           setIsLoading(false);
           return;
         }
 
-        if (isFallback) {
-          const userFull = firstName.trim() && lastName.trim()
-            ? `${firstName.trim()} ${lastName.trim()}`
-            : firstName.trim() || (email.trim() ? email.split('@')[0] : 'Fidèle');
-          const userMail = email.trim() || 'fidele@sanctuaire.app';
+        if (data && 'user' in data && data.user) {
+          const meta = (data.user.user_metadata || {}) as Record<string, any>;
+          const userFull = meta.full_name || data.user.email?.split('@')[0] || 'Modou Gaye';
+          const userFirst = meta.first_name || userFull.split(' ')[0] || 'Modou';
+          const userLast = meta.last_name || userFull.split(' ').slice(1).join(' ') || '';
+          const userMail = data.user.email || 'modougaye58588@gmail.com';
+
           setTimeout(() => {
             onLoginSuccess(
               {
                 name: userFull,
                 email: userMail,
-                firstName: firstName.trim() || userFull.split(' ')[0] || 'Fidèle',
-                lastName: lastName.trim() || '',
+                firstName: userFirst,
+                lastName: userLast,
+                avatarUrl: meta.avatar_url,
               },
               false
             );
-          }, 600);
+          }, 400);
         }
       } catch (err: any) {
         setFeedback({ type: 'error', message: err.message || 'Erreur OAuth Google' });
@@ -325,10 +460,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         setIsLoading(false);
       }
     } else {
-      const userFull = firstName.trim() && lastName.trim()
-        ? `${firstName.trim()} ${lastName.trim()}`
-        : firstName.trim() || (email.trim() ? email.split('@')[0] : 'Fidèle');
+      const userFull =
+        firstName.trim() && lastName.trim()
+          ? `${firstName.trim()} ${lastName.trim()}`
+          : firstName.trim() || (email.trim() ? email.split('@')[0] : 'Fidèle');
       const userMail = email.trim() || 'fidele@sanctuaire.app';
+      await syncConnectedAccountToBackend({
+        email: userMail,
+        fullName: userFull,
+        firstName: firstName.trim() || userFull.split(' ')[0] || 'Fidèle',
+        lastName: lastName.trim() || '',
+      });
       setFeedback({ type: 'success', message: `Connexion avec ${provider}... Préparation de votre sanctuaire.` });
       setTimeout(() => {
         onLoginSuccess(
@@ -563,34 +705,42 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                     </div>
                   )}
 
-                  {/* Verification Instructions Card */}
-                  <div className="p-3.5 rounded-2xl bg-white dark:bg-[#12231A] border border-neutral-200 dark:border-emerald-500/20 shadow-xs space-y-2.5">
+                  {/* Verification Instructions & OTP Code Entry Card */}
+                  <div className="p-3.5 rounded-2xl bg-white dark:bg-[#12231A] border border-neutral-200 dark:border-emerald-500/20 shadow-xs space-y-3">
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
-                      Un e-mail de validation sécurisé a été envoyé à :
+                      Adresse e-mail en cours d'authentification :
                     </p>
 
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40">
-                      <Mail className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span className="text-xs font-semibold text-emerald-950 dark:text-emerald-200 break-all select-all font-mono">
-                        {pendingEmail}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 pt-1 text-[11px] text-neutral-600 dark:text-emerald-200/80">
-                      <div className="flex items-start gap-1.5">
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">1.</span>
-                        <span>Ouvrez votre boîte de réception (et vos spams).</span>
-                      </div>
-                      <div className="flex items-start gap-1.5">
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">2.</span>
-                        <span>Cliquez sur le lien de confirmation.</span>
-                      </div>
-                      <div className="flex items-start gap-1.5">
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">3.</span>
-                        <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                          Cette page se connectera <em>automatiquement</em> dès validation !
+                    <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Mail className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <span className="text-xs font-semibold text-emerald-950 dark:text-emerald-200 truncate font-mono">
+                          {pendingEmail}
                         </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handlePrepareGmailVerification(pendingEmail, pendingName)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-bold shrink-0 cursor-pointer transition-colors"
+                      >
+                        <Send className="w-3 h-3" />
+                        <span>Envoyer avec mon Gmail</span>
+                      </button>
+                    </div>
+
+                    {/* 6-digit OTP verification code input */}
+                    <div className="space-y-1.5 pt-1">
+                      <label className="block text-[11px] font-semibold text-neutral-700 dark:text-emerald-200">
+                        Code de vérification reçu par e-mail (6 chiffres) :
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="Ex: 482910"
+                        value={enteredOtpCode}
+                        onChange={(e) => setEnteredOtpCode(e.target.value)}
+                        className="w-full h-[42px] px-3.5 rounded-xl bg-neutral-50 dark:bg-[#0E1C14] border border-emerald-500/30 text-center font-mono text-base font-bold tracking-[0.35em] text-emerald-900 dark:text-amber-300 outline-none focus:border-emerald-500"
+                      />
                     </div>
                   </div>
 
@@ -608,7 +758,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                       <span className="text-neutral-700 dark:text-neutral-200 font-medium">
                         {verificationSuccess
                           ? 'E-mail confirmé ! Connexion en cours...'
-                          : 'En attente de votre confirmation...'}
+                          : 'Prêt pour validation par e-mail Gmail'}
                       </span>
                     </div>
                   </div>
@@ -617,28 +767,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                   <div className="space-y-2 pt-1">
                     <button
                       type="button"
-                      onClick={handleResendEmail}
-                      disabled={resendCooldown > 0 || isResending}
-                      className="w-full h-[42px] px-4 rounded-[14px] bg-emerald-700 hover:bg-emerald-600 disabled:bg-neutral-200 dark:disabled:bg-neutral-800 disabled:text-neutral-400 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
+                      onClick={() => handlePrepareGmailVerification(pendingEmail, pendingName)}
+                      className="w-full h-[42px] px-4 rounded-[14px] bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
                     >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isResending ? 'animate-spin' : ''}`} />
-                      <span>
-                        {resendCooldown > 0
-                          ? `Renvoyer l'e-mail (${resendCooldown}s)`
-                          : isResending
-                          ? "Envoi en cours..."
-                          : "Renvoyer l'e-mail de confirmation"}
-                      </span>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Envoyer le code avec mon compte Gmail</span>
                     </button>
 
-                    {/* Test/Simulation button for immediate confirmation */}
                     <button
                       type="button"
                       onClick={handleSimulateEmailVerification}
-                      className="w-full h-[38px] px-4 rounded-[14px] bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      className="w-full h-[40px] px-4 rounded-[14px] bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-600/40 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      <span>Activer et accéder immédiatement à mon espace</span>
+                      <span>Valider le code et accéder à mon espace</span>
                     </button>
 
                     <button
@@ -650,7 +792,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                       className="w-full py-2 text-xs font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Edit3 className="w-3 h-3" />
-                      <span>Modifier l'adresse e-mail</span>
+                      <span>Retour au formulaire</span>
                     </button>
                   </div>
                 </div>
@@ -658,15 +800,84 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                 <>
                   {/* Main Headline & Subtitle */}
                   <div className="space-y-1 sm:space-y-1.5 text-left">
-                    <h1 className="text-2xl sm:text-[34px] font-bold text-neutral-900 dark:text-white tracking-[-0.02em] leading-tight">
-                      {isSignUp ? 'Build Your Spiritual Flow' : 'Welcome Back'}
+                    <h1 className="text-2xl sm:text-[32px] font-bold text-neutral-900 dark:text-white tracking-[-0.02em] leading-tight">
+                      {isSignUp ? 'Créer votre Compte' : 'Bienvenue au Sanctuaire'}
                     </h1>
                     <p className="text-[11px] sm:text-[12px] text-neutral-600 dark:text-emerald-200/70 font-normal leading-relaxed">
                       {isSignUp
-                        ? 'Create your account and find your focus.'
-                        : 'Sign in to access your sanctuary with a clear mind.'}
+                        ? 'Inscrivez-vous ou authentifiez-vous par e-mail.'
+                        : 'Reconnectez-vous en un clic ou utilisez vos identifiants.'}
                     </p>
                   </div>
+
+                  {/* ========================================================
+                      ALREADY CONNECTED ACCOUNTS SECTION (Database & Local)
+                     ======================================================== */}
+                  {connectedAccounts.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-emerald-50/70 dark:bg-[#112219] border border-emerald-200/80 dark:border-emerald-500/30 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-900 dark:text-emerald-300">
+                          <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Comptes déjà connectés ({connectedAccounts.length})</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/70 font-medium">
+                          Accès 1-clic
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-[148px] overflow-y-auto pr-0.5">
+                        {connectedAccounts.map((acc) => (
+                          <div
+                            key={acc.email}
+                            className="flex items-center justify-between gap-2 p-2 rounded-xl bg-white dark:bg-[#172E22] border border-emerald-200/60 dark:border-emerald-600/25 hover:border-emerald-500/60 transition-all shadow-2xs"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleQuickReconnect(acc)}
+                              className="flex items-center gap-2.5 min-w-0 flex-1 text-left cursor-pointer group"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs font-bold shrink-0 ring-2 ring-emerald-400/30 group-hover:scale-105 transition-transform">
+                                {(acc.fullName || acc.email).charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-bold text-neutral-900 dark:text-white truncate group-hover:text-emerald-600 dark:group-hover:text-emerald-300 transition-colors">
+                                  {acc.fullName}
+                                </div>
+                                <div className="text-[10.5px] text-neutral-500 dark:text-emerald-200/70 truncate font-mono">
+                                  {acc.email}
+                                </div>
+                              </div>
+                            </button>
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                title="Envoyer un code de vérification par e-mail avec mon Gmail"
+                                onClick={() => {
+                                  setPendingEmail(acc.email);
+                                  setPendingName(acc.fullName);
+                                  setPendingFirstName(acc.firstName);
+                                  setPendingLastName(acc.lastName);
+                                  setIsWaitingVerification(true);
+                                  handlePrepareGmailVerification(acc.email, acc.fullName);
+                                }}
+                                className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300/50 dark:border-amber-500/30 cursor-pointer transition-colors"
+                              >
+                                <Send className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickReconnect(acc)}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[10.5px] font-bold cursor-pointer transition-colors"
+                              >
+                                Connecter
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Feedback banners */}
                   {feedback && (
@@ -781,6 +992,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                     </>
                   )}
                 </button>
+
+                {/* Email authentication via User's Gmail Account button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetMail = email.trim() || 'mgaye60000@gmail.com';
+                    const targetFull =
+                      firstName.trim() || lastName.trim()
+                        ? `${firstName.trim()} ${lastName.trim()}`.trim()
+                        : targetMail.split('@')[0] || 'Fidèle';
+                    setPendingEmail(targetMail);
+                    setPendingName(targetFull);
+                    setPendingFirstName(firstName.trim() || targetFull.split(' ')[0] || 'Fidèle');
+                    setPendingLastName(lastName.trim() || '');
+                    setIsWaitingVerification(true);
+                    handlePrepareGmailVerification(targetMail, targetFull);
+                  }}
+                  className="w-full h-[40px] px-4 rounded-[14px] bg-amber-50 dark:bg-amber-950/35 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-300 border border-amber-300/70 dark:border-amber-500/35 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Send className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Authentifier par e-mail (Envoyer avec mon Gmail)</span>
+                </button>
               </form>
 
               {/* Divider: "or continue with" */}
@@ -827,7 +1060,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                   onClick={() => handleSocialClick('Apple')}
                   className="h-[40px] flex items-center justify-center gap-1.5 px-2 rounded-[14px] bg-white hover:bg-neutral-100 dark:bg-[#12231A] dark:hover:bg-[#152B20] border border-neutral-200 dark:border-emerald-500/25 text-neutral-800 dark:text-neutral-200 text-[11.5px] font-medium shadow-2xs transition-all cursor-pointer"
                 >
-                  <svg className="w-3.5 h-3.5 fill-black dark:fill-white flex-shrink-0" viewBox="0 170 170">
+                  <svg className="w-3.5 h-3.5 fill-black dark:fill-white flex-shrink-0" viewBox="0 0 170 170">
                     <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.74 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.43-6-9.15-10.79-19.49-14.38-31.03-3.59-11.53-5.38-22.65-5.38-33.34 0-14.07 3.51-26.06 10.53-35.96 7.02-9.9 15.82-14.96 26.4-15.18 5.12 0 10.82 1.43 17.11 4.29 6.29 2.85 10.37 4.35 12.24 4.49 1.54-.14 5.86-1.74 12.98-4.79 7.12-3.05 13.06-4.38 17.81-3.99 13.25.98 23.49 5.85 30.73 14.61-11.66 7.08-17.38 16.89-17.15 29.43.23 9.8 4.07 17.97 11.53 24.51 7.46 6.54 16.27 10.27 26.43 11.19-2.22 6.84-5.06 13.78-8.52 20.83zM119.22 33.56c0-7.3 2.66-14.18 7.99-20.65 5.33-6.47 11.96-10.77 19.89-12.91.46 3.15.53 5.42.21 6.81-.66 6.97-3.47 13.75-8.43 20.35-4.96 6.6-11.2 10.75-18.73 12.45-.48-2.07-.93-4.09-.93-6.05z" />
                   </svg>
                   <span>Apple</span>
@@ -868,6 +1101,78 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
 
         </div>
       </div>
+
+      {/* ========================================================
+          GMAIL SEND CONFIRMATION MODAL
+         ======================================================== */}
+      {gmailConfirmPayload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#14281E] border border-emerald-500/30 shadow-2xl p-6 space-y-4 text-neutral-900 dark:text-white animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-neutral-200 dark:border-emerald-800/50 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold">Confirmer l'envoi avec votre Gmail</h3>
+                  <p className="text-[11px] text-neutral-500 dark:text-emerald-300/75">
+                    Authentification par e-mail via Google OAuth
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGmailConfirmPayload(null)}
+                className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-emerald-900/50 text-neutral-500 dark:text-emerald-300 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2.5 text-xs bg-neutral-50 dark:bg-[#0F1F17] p-3.5 rounded-2xl border border-neutral-200 dark:border-emerald-800/40">
+              <div className="flex justify-between gap-2">
+                <span className="text-neutral-500 dark:text-emerald-300/70">Expéditeur Gmail :</span>
+                <span className="font-semibold font-mono text-emerald-700 dark:text-emerald-300">
+                  mgaye60000@gmail.com
+                </span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-neutral-500 dark:text-emerald-300/70">Destinataire :</span>
+                <span className="font-semibold font-mono">{gmailConfirmPayload.to}</span>
+              </div>
+              <div className="flex justify-between gap-2">
+                <span className="text-neutral-500 dark:text-emerald-300/70">Objet :</span>
+                <span className="font-semibold">{gmailConfirmPayload.subject}</span>
+              </div>
+              <div className="pt-2 border-t border-neutral-200 dark:border-emerald-800/40 flex items-center justify-between">
+                <span className="text-neutral-500 dark:text-emerald-300/70">Code généré :</span>
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-950 text-amber-300 font-mono font-bold tracking-widest text-sm">
+                  {gmailConfirmPayload.otpCode}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setGmailConfirmPayload(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-emerald-950/60 hover:bg-neutral-200 dark:hover:bg-emerald-900/60 text-xs font-semibold cursor-pointer"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={isSendingGmail}
+                onClick={handleConfirmSendGmail}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isSendingGmail ? 'Envoi Gmail...' : 'Confirmer et Envoyer'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

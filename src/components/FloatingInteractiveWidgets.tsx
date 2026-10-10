@@ -25,9 +25,15 @@ import { DonationModal } from './DonationModal';
 
 interface FloatingInteractiveWidgetsProps {
   onOpenLibrary?: () => void;
+  userEmail?: string;
+  userName?: string;
 }
 
-export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProps> = ({ onOpenLibrary }) => {
+export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProps> = ({
+  onOpenLibrary,
+  userEmail,
+  userName,
+}) => {
   // Modal states
   const [activeModal, setActiveModal] = useState<'donation' | 'stories' | null>(null);
   const [selectedStory, setSelectedStory] = useState<IslamicStory | null>(null);
@@ -44,68 +50,70 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
 
   return (
     <>
-      {/* 1. FLOTTANT HISTOIRES ISLAMIQUES / COIN DE L'AUTEUR (En haut de la colonne) */}
-      <motion.div
-        drag
-        dragMomentum={false}
-        dragElastic={0.1}
-        onDragStart={() => {
-          isDraggingStoriesRef.current = true;
-        }}
-        onDragEnd={() => {
-          setTimeout(() => {
-            isDraggingStoriesRef.current = false;
-          }, 200);
-        }}
-        whileDrag={{ scale: 1.05, cursor: 'grabbing', zIndex: 60 }}
-        initial={{ opacity: 0, scale: 0.8, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.8, y: 10 }}
-        transition={{ duration: 0.3 }}
-        className="fixed z-50 bottom-[148px] right-2 sm:bottom-34 sm:right-6 cursor-grab select-none touch-none group"
-      >
-        <div className="relative flex items-center">
-          {/* Bulle info dépliante au survol (hover uniquement sur grand écran) */}
-          <div className="hidden sm:block absolute right-full mr-2.5 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto translate-x-1.5 group-hover:translate-x-0 transition-all duration-300 ease-out whitespace-nowrap z-50">
-            <div className="bg-[#0B1E13]/95 backdrop-blur-md text-white px-3 py-1.5 rounded-xl border border-emerald-400/30 shadow-[0_6px_20px_rgba(0,0,0,0.35)] flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <div>
-                <p className="text-[11px] font-bold text-emerald-200">Bibliothèque & Livres du Vendredi</p>
-                <p className="text-[9px] text-emerald-100/70">Un nouvel ouvrage chaque vendredi à 21h</p>
+      {/* 1. FLOTTANT HISTOIRES ISLAMIQUES / COIN DE L'AUTEUR (En haut de la colonne — visible uniquement si l'utilisateur a un compte et a fait au moins un don) */}
+      {onOpenLibrary && (
+        <motion.div
+          drag
+          dragMomentum={false}
+          dragElastic={0.1}
+          onDragStart={() => {
+            isDraggingStoriesRef.current = true;
+          }}
+          onDragEnd={() => {
+            setTimeout(() => {
+              isDraggingStoriesRef.current = false;
+            }, 200);
+          }}
+          whileDrag={{ scale: 1.05, cursor: 'grabbing', zIndex: 60 }}
+          initial={{ opacity: 0, scale: 0.8, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.8, y: 10 }}
+          transition={{ duration: 0.3 }}
+          className="fixed z-50 bottom-[148px] right-2 sm:bottom-34 sm:right-6 cursor-grab select-none touch-none group"
+        >
+          <div className="relative flex items-center">
+            {/* Bulle info dépliante au survol (hover uniquement sur grand écran) */}
+            <div className="hidden sm:block absolute right-full mr-2.5 pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto translate-x-1.5 group-hover:translate-x-0 transition-all duration-300 ease-out whitespace-nowrap z-50">
+              <div className="bg-[#0B1E13]/95 backdrop-blur-md text-white px-3 py-1.5 rounded-xl border border-emerald-400/30 shadow-[0_6px_20px_rgba(0,0,0,0.35)] flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <div>
+                  <p className="text-[11px] font-bold text-emerald-200">Bibliothèque & Livres du Vendredi</p>
+                  <p className="text-[9px] text-emerald-100/70">Un nouvel ouvrage chaque vendredi à 21h</p>
+                </div>
               </div>
             </div>
+
+            {/* Bouton d'icône principal (Histoires / Plume & Livre) */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => {
+                if (isDraggingStoriesRef.current) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return;
+                }
+                if (onOpenLibrary) {
+                  onOpenLibrary();
+                }
+              }}
+              className="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 text-neutral-950 p-[1px] sm:p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(16,185,129,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100 sm:opacity-100"
+              aria-label="Accéder à la bibliothèque et aux livres du vendredi"
+            >
+              {/* Pulsation lumineuse subtile */}
+              <span className="hidden sm:block absolute inset-0 rounded-full bg-emerald-400/30 animate-ping pointer-events-none opacity-20" />
+
+              <div className="w-full h-full rounded-full bg-gradient-to-br from-[#0F301F] via-[#082014] to-[#04120B] flex items-center justify-center border border-emerald-400/40">
+                <BookOpen className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-emerald-300 stroke-[1.8] group-hover:scale-110 group-hover:text-emerald-200 transition-transform" />
+              </div>
+
+              {/* Plume d'auteur badge */}
+              <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-r from-emerald-300 to-teal-200 text-[#092214] text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white">
+                <Feather className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+              </span>
+            </motion.button>
           </div>
-
-          {/* Bouton d'icône principal (Histoires / Plume & Livre) */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={(e) => {
-              if (isDraggingStoriesRef.current) {
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-              }
-              if (onOpenLibrary) {
-                onOpenLibrary();
-              }
-            }}
-            className="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-700 text-neutral-950 p-[1px] sm:p-[1.5px] shadow-md sm:shadow-[0_4px_16px_rgba(16,185,129,0.45),0_0_0_1px_rgba(255,255,255,0.25)] hover:shadow-[0_6px_22px_rgba(16,185,129,0.6)] hover:scale-105 active:scale-95 transition-transform flex items-center justify-center cursor-pointer opacity-90 hover:opacity-100 sm:opacity-100"
-            aria-label="Accéder à la bibliothèque et aux livres du vendredi"
-          >
-            {/* Pulsation lumineuse subtile */}
-            <span className="hidden sm:block absolute inset-0 rounded-full bg-emerald-400/30 animate-ping pointer-events-none opacity-20" />
-
-            <div className="w-full h-full rounded-full bg-gradient-to-br from-[#0F301F] via-[#082014] to-[#04120B] flex items-center justify-center border border-emerald-400/40">
-              <BookOpen className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-emerald-300 stroke-[1.8] group-hover:scale-110 group-hover:text-emerald-200 transition-transform" />
-            </div>
-
-            {/* Plume d'auteur badge */}
-            <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-r from-emerald-300 to-teal-200 text-[#092214] text-[7px] sm:text-[8px] font-black flex items-center justify-center shadow-xs border border-white">
-              <Feather className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
-            </span>
-          </motion.button>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* 2. FLOTTANT DONS / SOUTIEN */}
       <motion.div
@@ -175,6 +183,8 @@ export const FloatingInteractiveWidgets: React.FC<FloatingInteractiveWidgetsProp
       <DonationModal
         isOpen={activeModal === 'donation'}
         onClose={() => setActiveModal(null)}
+        userEmail={userEmail}
+        userName={userName}
       />
 
       {/* 4. MODAL DES HISTOIRES ISLAMIQUES (Écrites par l'auteur) */}

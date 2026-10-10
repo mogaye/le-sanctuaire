@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Monitor, Smartphone, Volume2, Sparkles, Compass, BookOpen, Clock, Check, ArrowRight } from 'lucide-react';
 import { CityData } from '../types';
 import { PRAYERS } from '../data/islamicData';
+import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface AppPreviewSectionProps {
   selectedCity: CityData;
@@ -27,7 +28,7 @@ export const AppPreviewSection: React.FC<AppPreviewSectionProps> = ({
       {/* Background Image behind the entire Preview Section */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         <img
-          src="/images/backgrounds/preview_arch_bg.jpg"
+          src={portraitSereinVertBg}
           alt="Arrière-plan sanctuaire et arcades"
           className="w-full h-full object-cover object-center opacity-10 dark:opacity-25"
         />
