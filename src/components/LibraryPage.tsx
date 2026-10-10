@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -9,10 +9,21 @@ import {
   Check,
   ShieldCheck,
   Users,
+  Search,
+  Compass,
+  Award,
+  ChevronRight,
 } from 'lucide-react';
 import { PuitsDeNourReader } from './PuitsDeNourReader';
+import { IslamicPersonBookReader } from './IslamicPersonBookReader';
 import { PUITS_DE_NOUR_HERO_IMAGE, PUITS_DE_NOUR_CHARACTERS } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS } from '../data/puitsDeNourText';
+import {
+  ISLAMIC_PEOPLE_BOOKS,
+  ISLAMIC_PERSON_CATEGORIES,
+  IslamicPersonBook,
+  IslamicPersonCategory,
+} from '../data/islamicPeopleHistoryData';
 import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface LibraryPageProps {
@@ -71,6 +82,9 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
   const [countdown, setCountdown] = useState<CountdownState>(calculateFridayCountdown);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isReadingPuitsDeNour, setIsReadingPuitsDeNour] = useState(false);
+  const [selectedPersonBook, setSelectedPersonBook] = useState<IslamicPersonBook | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<'all' | IslamicPersonCategory>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Mise à jour continue du chronomètre chaque seconde
   useEffect(() => {
@@ -80,12 +94,28 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
     return () => clearInterval(timer);
   }, []);
 
+  const filteredPersonBooks = useMemo(() => {
+    return ISLAMIC_PEOPLE_BOOKS.filter((book) => {
+      const matchesCat = selectedCategory === 'all' || book.category === selectedCategory;
+      if (!matchesCat) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        book.name.toLowerCase().includes(q) ||
+        book.title.toLowerCase().includes(q) ||
+        book.shortSummary.toLowerCase().includes(q) ||
+        book.era.toLowerCase().includes(q) ||
+        book.virtues.some((v) => v.toLowerCase().includes(q))
+      );
+    });
+  }, [selectedCategory, searchQuery]);
+
   const handleShare = () => {
     if (navigator.share) {
       navigator
         .share({
-          title: 'Le Sanctuaire - Bibliothèque du Vendredi',
-          text: 'Découvrez la Bibliothèque du Sanctuaire : un nouveau livre spirituel sort chaque vendredi à 21h00 !',
+          title: 'Le Sanctuaire - Bibliothèque & Histoire des Personnalités Islamiques',
+          text: 'Découvrez la Bibliothèque du Sanctuaire et le catalogue des grandes personnalités de l’Islam !',
           url: window.location.href,
         })
         .catch(() => {});
@@ -97,6 +127,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
   };
 
   const formatNumber = (n: number) => n.toString().padStart(2, '0');
+
+  const isReadingAnyBook = isReadingPuitsDeNour || selectedPersonBook !== null;
 
   return (
     <div className="min-h-screen bg-[#F2EFE9] dark:bg-[#12241A] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-300">
@@ -112,15 +144,18 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
               if (isReadingPuitsDeNour) {
                 setIsReadingPuitsDeNour(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else if (selectedPersonBook) {
+                setSelectedPersonBook(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
               } else {
                 onBackToHome();
               }
             }}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-[#14281E] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-neutral-100 text-xs sm:text-sm font-bold transition-all cursor-pointer border border-neutral-200/80 dark:border-emerald-500/30 hover:border-emerald-500/50 active:scale-95 shrink-0"
-            title={isReadingPuitsDeNour ? 'Retour au catalogue' : "Retour à l'accueil"}
+            title={isReadingAnyBook ? 'Retour au catalogue' : "Retour à l'accueil"}
           >
             <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>{isReadingPuitsDeNour ? 'Retour au Catalogue' : 'Retour au Sanctuaire'}</span>
+            <span>{isReadingAnyBook ? 'Retour au Catalogue' : 'Retour au Sanctuaire'}</span>
           </button>
 
           {/* Titre & Identité */}
@@ -133,7 +168,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
                 Bibliothèque du Sanctuaire
               </h1>
               <p className="text-[10px] sm:text-[11px] text-emerald-700 dark:text-emerald-300/90 font-medium">
-                Un livre chaque vendredi à 21h00
+                Ouvrages & Histoire des Personnalités Islamiques
               </p>
             </div>
           </div>
@@ -165,6 +200,19 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-1 w-full space-y-8 sm:space-y-12">
         {isReadingPuitsDeNour ? (
           <PuitsDeNourReader onClose={() => setIsReadingPuitsDeNour(false)} />
+        ) : selectedPersonBook ? (
+          <IslamicPersonBookReader
+            book={selectedPersonBook}
+            onClose={() => {
+              setSelectedPersonBook(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onSelectOtherBook={(other) => {
+              setSelectedPersonBook(other);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            allBooks={ISLAMIC_PEOPLE_BOOKS}
+          />
         ) : (
           <>
             {/* BANNIÈRE HÉRO & ANNONCE PRINCIPALE AVEC CHRONOMÈTRE */}
@@ -364,6 +412,200 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
             </section>
 
             {/* ========================================================
+                CATALOGUE : HISTOIRE DES PERSONNALITÉS ISLAMIQUES
+               ======================================================== */}
+            <section className="space-y-6 pt-4 border-t border-stone-200/80 dark:border-emerald-500/20">
+              {/* En-tête du Catalogue */}
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-950/70 border border-amber-300/70 dark:border-amber-400/30 text-amber-900 dark:text-amber-300 text-xs font-bold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Collection Biographique & Spirituelle</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2.5">
+                    <span>Catalogue : Histoire des Personnalités Islamiques</span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-neutral-600 dark:text-emerald-200/80 max-w-2xl leading-relaxed">
+                    Découvrez la vie, les épreuves et les enseignements lumineux des Prophètes, des Compagnons, des Femmes illustres et des grands Sages de l&apos;Islam à travers des récits complets en chapitres.
+                  </p>
+                </div>
+
+                {/* Barre de recherche dans le catalogue */}
+                <div className="relative w-full md:w-72 shrink-0">
+                  <Search className="w-4 h-4 text-neutral-400 dark:text-emerald-400/70 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Rechercher une personnalité, vertu..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/30 text-xs sm:text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-emerald-200/50 focus:outline-none focus:border-emerald-600 dark:focus:border-amber-400 transition"
+                  />
+                </div>
+              </div>
+
+              {/* Filtres par catégorie */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {ISLAMIC_PERSON_CATEGORIES.map((cat) => {
+                  const isActive = selectedCategory === cat.id;
+                  const count =
+                    cat.id === 'all'
+                      ? ISLAMIC_PEOPLE_BOOKS.length
+                      : ISLAMIC_PEOPLE_BOOKS.filter((b) => b.category === cat.id).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition cursor-pointer border ${
+                        isActive
+                          ? 'bg-emerald-700 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white dark:bg-[#183022] text-neutral-700 dark:text-emerald-100 border-stone-200 dark:border-emerald-500/25 hover:border-emerald-500/50'
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                          isActive
+                            ? 'bg-amber-400 text-neutral-950'
+                            : 'bg-neutral-100 dark:bg-[#12241A] text-emerald-700 dark:text-amber-300'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Grille des ouvrages biographiques */}
+              {filteredPersonBooks.length === 0 ? (
+                <div className="rounded-3xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/25 p-8 text-center space-y-2">
+                  <p className="text-sm font-bold text-neutral-800 dark:text-white">
+                    Aucune personnalité ne correspond à votre recherche « {searchQuery} ».
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('all');
+                    }}
+                    className="text-xs font-bold text-emerald-700 dark:text-amber-300 underline cursor-pointer"
+                  >
+                    Réinitialiser les filtres
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {filteredPersonBooks.map((personBook) => (
+                    <div
+                      key={personBook.id}
+                      onClick={() => {
+                        setSelectedPersonBook(personBook);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="rounded-3xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/25 hover:border-emerald-600/60 dark:hover:border-amber-400/50 p-5 sm:p-6 shadow-xs hover:shadow-xl transition-all flex flex-col justify-between gap-5 cursor-pointer group"
+                    >
+                      <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+                        {/* Couverture du Livre Biographique */}
+                        <div
+                          className={`w-36 sm:w-36 h-48 sm:h-52 rounded-2xl bg-gradient-to-br ${personBook.coverGradient} border-2 border-amber-400/50 shadow-lg flex flex-col items-center justify-between p-4 text-center relative overflow-hidden shrink-0 group-hover:scale-[1.02] transition-transform`}
+                        >
+                          <div className="w-full flex items-center justify-between text-[10px] font-bold text-amber-300/90">
+                            <span>Sîrah & Vie</span>
+                            <BookOpen className="w-3.5 h-3.5" />
+                          </div>
+
+                          <div className="space-y-1.5 my-auto">
+                            <div
+                              className="font-serif text-amber-300 text-xs leading-snug line-clamp-2"
+                              dir="rtl"
+                            >
+                              {personBook.arabicName}
+                            </div>
+                            <div className="w-8 h-0.5 bg-amber-400/50 mx-auto rounded-full" />
+                            <h4 className="text-white font-black text-sm leading-tight font-serif">
+                              {personBook.name}
+                            </h4>
+                            <span className="block text-[11px] text-amber-200 font-serif">
+                              {personBook.honorific}
+                            </span>
+                          </div>
+
+                          <div className="text-[10px] font-bold text-emerald-200 bg-black/40 px-2.5 py-1 rounded-full border border-white/15 w-full truncate">
+                            {personBook.chapters.length} Chapitres
+                          </div>
+                        </div>
+
+                        {/* Détails de la personnalité */}
+                        <div className="flex-1 space-y-2.5 text-center sm:text-left">
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                            <span className="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/90 text-emerald-800 dark:text-amber-300 border border-emerald-300/50 dark:border-emerald-500/30">
+                              {personBook.categoryLabel}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-500 dark:text-emerald-300/80">
+                              <Clock className="w-3 h-3" />
+                              {personBook.readTime}
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="text-lg sm:text-xl font-black text-neutral-900 dark:text-white group-hover:text-emerald-700 dark:group-hover:text-amber-300 transition leading-snug">
+                              {personBook.name}{' '}
+                              <span className="text-amber-600 dark:text-amber-300 font-serif font-normal">
+                                {personBook.honorific}
+                              </span>
+                            </h4>
+                            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
+                              {personBook.title}
+                            </p>
+                          </div>
+
+                          <p className="text-xs text-neutral-600 dark:text-emerald-100/80 line-clamp-3 leading-relaxed">
+                            {personBook.shortSummary}
+                          </p>
+
+                          <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[11px] text-neutral-500 dark:text-emerald-300/75 pt-0.5">
+                            <Compass className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <span className="truncate">{personBook.era}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Pied de carte : Vertus & Bouton Lire */}
+                      <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                          {personBook.virtues.slice(0, 2).map((virtue) => (
+                            <span
+                              key={virtue}
+                              className="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-neutral-100 dark:bg-[#12241A] text-neutral-700 dark:text-emerald-200 border border-neutral-200/80 dark:border-emerald-500/20"
+                            >
+                              {virtue}
+                            </span>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPersonBook(personBook);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer ml-auto"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Lire l&apos;histoire</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ========================================================
                 GUIDE : COMMENT FONCTIONNE LA BIBLIOTHÈQUE ?
                ======================================================== */}
             <section className="space-y-4 pt-4">
@@ -391,10 +633,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
                     2
                   </div>
                   <h4 className="font-bold text-sm text-neutral-900 dark:text-white">
-                    Lecture en ligne & Personnages
+                    Histoire des Personnalités Islamiques
                   </h4>
                   <p className="text-xs text-neutral-600 dark:text-emerald-200/75 leading-relaxed">
-                    Feuilletez le livre directement dans votre navigateur sur smartphone et ordinateur et explorez les fiches latérales des personnages.
+                    Explorez le catalogue biographique des Prophètes, Compagnons, Femmes illustres et Savants avec lecture par chapitre et écoute audio.
                   </p>
                 </div>
 
@@ -418,3 +660,4 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
     </div>
   );
 };
+
