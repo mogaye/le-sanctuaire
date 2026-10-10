@@ -75,11 +75,11 @@ export const PrayerPage: React.FC<PrayerPageProps> = ({
           STICKY TOP NAVBAR
          ======================================================== */}
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#193226]/95 backdrop-blur-md border-b border-neutral-200 dark:border-emerald-500/25 shadow-2xs transition-colors">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 md:h-16 flex items-center justify-between gap-2 sm:gap-3">
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 h-15 md:h-16 flex items-center justify-between gap-2.5 sm:gap-3">
           {/* Back button */}
           <button
             onClick={onBackToHome}
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#14281E] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-neutral-200 text-xs font-bold transition-all cursor-pointer border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-400/40 active:scale-95 shrink-0"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-xl sm:rounded-2xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#14281E] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-neutral-200 text-xs sm:text-sm font-bold transition-all cursor-pointer border border-neutral-200 dark:border-emerald-500/20 hover:border-emerald-400/40 active:scale-95 shrink-0"
           >
             <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-300" />
             <span className="hidden sm:inline">Retour au Sanctuaire</span>
@@ -88,14 +88,14 @@ export const PrayerPage: React.FC<PrayerPageProps> = ({
 
           {/* Title in navbar */}
           <div className="flex items-center gap-2 text-left sm:text-center truncate min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-100 dark:bg-gradient-to-br dark:from-emerald-800 dark:to-emerald-950 text-emerald-800 dark:text-amber-200 border border-emerald-300 dark:border-emerald-500/30 flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-gradient-to-br dark:from-emerald-800 dark:to-emerald-950 text-emerald-800 dark:text-amber-200 border border-emerald-300 dark:border-emerald-500/30 flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
               ص
             </div>
             <div className="min-w-0 truncate">
-              <h1 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white leading-tight truncate">
+              <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white leading-tight truncate">
                 {PRAYER_GUIDE_METADATA.title}
               </h1>
-              <p className="text-[10px] text-emerald-700 dark:text-emerald-300/80 font-medium truncate">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-300/80 font-medium truncate">
                 {PRAYER_GUIDE_METADATA.author}
               </p>
             </div>

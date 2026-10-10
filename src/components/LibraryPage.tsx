@@ -29,6 +29,7 @@ import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.pn
 interface LibraryPageProps {
   onBackToHome: () => void;
   initialBookId?: string;
+  onReadingStateChange?: (isReading: boolean) => void;
 }
 
 interface CountdownState {
@@ -78,11 +79,20 @@ function calculateFridayCountdown(): CountdownState {
   };
 }
 
-export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
+export const LibraryPage: React.FC<LibraryPageProps> = ({
+  onBackToHome,
+  initialBookId,
+  onReadingStateChange,
+}) => {
   const [countdown, setCountdown] = useState<CountdownState>(calculateFridayCountdown);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [isReadingPuitsDeNour, setIsReadingPuitsDeNour] = useState(false);
-  const [selectedPersonBook, setSelectedPersonBook] = useState<IslamicPersonBook | null>(null);
+  const [isReadingPuitsDeNour, setIsReadingPuitsDeNour] = useState<boolean>(() => {
+    return initialBookId === 'puits-de-nour';
+  });
+  const [selectedPersonBook, setSelectedPersonBook] = useState<IslamicPersonBook | null>(() => {
+    if (!initialBookId || initialBookId === 'puits-de-nour') return null;
+    return ISLAMIC_PEOPLE_BOOKS.find((b) => b.id === initialBookId && b.isAvailable !== false) || null;
+  });
   const [selectedCategory, setSelectedCategory] = useState<'all' | IslamicPersonCategory>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -93,6 +103,15 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  const isReadingAnyBook = isReadingPuitsDeNour || selectedPersonBook !== null;
+
+  useEffect(() => {
+    onReadingStateChange?.(isReadingAnyBook);
+    return () => {
+      onReadingStateChange?.(false);
+    };
+  }, [isReadingAnyBook, onReadingStateChange]);
 
   const filteredPersonBooks = useMemo(() => {
     return ISLAMIC_PEOPLE_BOOKS.filter((book) => {
@@ -128,16 +147,14 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
 
   const formatNumber = (n: number) => n.toString().padStart(2, '0');
 
-  const isReadingAnyBook = isReadingPuitsDeNour || selectedPersonBook !== null;
-
   return (
-    <div className="min-h-screen bg-[#F2EFE9] dark:bg-[#12241A] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-[#F2EFE9] dark:bg-[#12241A] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans pb-24 md:pb-12 transition-colors duration-300">
       
       {/* ========================================================
           BARRE DE NAVIGATION SUPÉRIEURE (PROPRE & NORMALE)
          ======================================================== */}
       <header className="sticky top-0 z-40 bg-[#F7F4EE]/95 dark:bg-[#183022]/95 backdrop-blur-md border-b border-stone-200/90 dark:border-emerald-600/30 shadow-2xs transition-colors">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 h-15 sm:h-16 flex items-center justify-between gap-2.5 sm:gap-3">
           {/* Bouton Retour */}
           <button
             onClick={() => {
@@ -151,23 +168,24 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({ onBackToHome }) => {
                 onBackToHome();
               }
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-[#14281E] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-neutral-100 text-xs sm:text-sm font-bold transition-all cursor-pointer border border-neutral-200/80 dark:border-emerald-500/30 hover:border-emerald-500/50 active:scale-95 shrink-0"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-[#14281E] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-neutral-100 text-xs sm:text-sm font-bold transition-all cursor-pointer border border-neutral-200/80 dark:border-emerald-500/30 hover:border-emerald-500/50 active:scale-95 shrink-0"
             title={isReadingAnyBook ? 'Retour au catalogue' : "Retour à l'accueil"}
           >
             <ArrowLeft className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>{isReadingAnyBook ? 'Retour au Catalogue' : 'Retour au Sanctuaire'}</span>
+            <span className="hidden sm:inline">{isReadingAnyBook ? 'Retour au Catalogue' : 'Retour au Sanctuaire'}</span>
+            <span className="sm:hidden">{isReadingAnyBook ? 'Catalogue' : 'Accueil'}</span>
           </button>
 
           {/* Titre & Identité */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-amber-300 flex items-center justify-center font-bold text-xs shadow-xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-amber-300 flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
               <BookOpen className="w-4 h-4 text-emerald-700 dark:text-amber-300" />
             </div>
-            <div className="text-left">
-              <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white leading-tight">
+            <div className="text-left min-w-0">
+              <h1 className="text-sm sm:text-base font-extrabold text-neutral-900 dark:text-white leading-tight truncate">
                 Bibliothèque du Sanctuaire
               </h1>
-              <p className="text-[10px] sm:text-[11px] text-emerald-700 dark:text-emerald-300/90 font-medium">
+              <p className="text-[11px] sm:text-xs text-emerald-700 dark:text-emerald-300/90 font-medium truncate">
                 Ouvrages & Histoire des Personnalités Islamiques
               </p>
             </div>

@@ -106,6 +106,7 @@ export default function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
   const [selectedSurahForPage, setSelectedSurahForPage] = useState<number>(1);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
+  const [isReadingBook, setIsReadingBook] = useState<boolean>(false);
 
   // User Authentication State
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
@@ -482,8 +483,12 @@ export default function App() {
         }
         return (
           <LibraryPage
-            onBackToHome={() => setCurrentView('home')}
+            onBackToHome={() => {
+              setIsReadingBook(false);
+              setCurrentView('home');
+            }}
             initialBookId={selectedBookIdForReader}
+            onReadingStateChange={setIsReadingBook}
           />
         );
 
@@ -730,26 +735,31 @@ export default function App() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Floating Capsule Bottom Navigation Bar (Visible in app views, STRICTLY HIDDEN on landing and login) */}
-      {currentView !== 'login' && currentView !== 'landing' && (
-        <MobileBottomNav
-          currentView={currentView}
-          onGoToHome={() => {
-            setCurrentView('home');
-          }}
-          onOpenQuran={() => handleOpenQuranPage()}
-          onOpenPrayerGuide={() => handleOpenPrayerGuide()}
-          onOpenCalendar={() => setCurrentView('calendar')}
-          onOpenQibla={() => setIsQiblaOpen(true)}
-          onOpenDhikr={() => setIsDhikrOpen(true)}
-          onOpenFasting={() => setCurrentView('fasting')}
-          onOpenFaith={() => setCurrentView('faith')}
-          onOpenLibrary={canAccessLibrary ? () => setCurrentView('library') : undefined}
-          onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-        />
-      )}
+      {/* Floating Curved Bottom Navigation Bar (Visible in app views, STRICTLY HIDDEN on landing, login, quran, and reading pages) */}
+      {currentView !== 'login' &&
+        currentView !== 'landing' &&
+        currentView !== 'quran' &&
+        !isReadingBook &&
+        !isQuranOpen && (
+          <MobileBottomNav
+            currentView={currentView}
+            onGoToHome={() => {
+              setIsReadingBook(false);
+              setCurrentView('home');
+            }}
+            onOpenQuran={() => handleOpenQuranPage()}
+            onOpenPrayerGuide={() => handleOpenPrayerGuide()}
+            onOpenCalendar={() => setCurrentView('calendar')}
+            onOpenQibla={() => setIsQiblaOpen(true)}
+            onOpenDhikr={() => setIsDhikrOpen(true)}
+            onOpenFasting={() => setCurrentView('fasting')}
+            onOpenFaith={() => setCurrentView('faith')}
+            onOpenLibrary={canAccessLibrary ? () => setCurrentView('library') : undefined}
+            onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+          />
+        )}
 
       {/* Two Floating Draggable Interactive Widgets (Dons & Histoires écrites par l'auteur) - Présents sur mobile et desktop */}
       <AnimatePresence>
@@ -775,9 +785,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Theme Button (Bouton circulaire du même type avec badge) sur toutes les pages sauf le Coran */}
+      {/* Floating Theme Button (Bouton circulaire du même type avec badge) sur toutes les pages sauf le Coran et les pages de lecture */}
       <AnimatePresence>
-        {currentView !== 'quran' && (
+        {currentView !== 'quran' && !isReadingBook && (
           <FloatingThemeButton
             isDarkMode={isDarkMode}
             onToggle={() => setIsDarkMode((prev) => !prev)}
