@@ -1,3 +1,5 @@
+import { PROPHETE_MUHAMMAD_TEN_CHAPTERS } from './propheteMuhammadChapters';
+
 export type IslamicPersonCategory =
   | 'prophetes'
   | 'compagnons'
@@ -54,74 +56,32 @@ export const ISLAMIC_PERSON_CATEGORIES: {
 export const ISLAMIC_PEOPLE_BOOKS: IslamicPersonBook[] = [
   {
     id: 'prophete-muhammad-sira',
-    name: 'Le Prophète Muhammad',
+    name: 'La Vie du Prophète Muhammad',
     honorific: 'ﷺ',
-    arabicName: 'مُحَمَّدٌ رَسُولُ اللَّهِ ﷺ',
-    title: "L'Envoyé de la Miséricorde pour les Mondes",
+    arabicName: 'السِّيرَةُ النَّبَوِيَّةُ — مُحَمَّدٌ ﷺ',
+    title: 'Récit historique en dix chapitres — À la lumière du Coran, de la Sîra et des recueils authentiques',
     category: 'prophetes',
     categoryLabel: 'Prophètes & Messagers',
-    era: '570 – 632 apr. J.-C. (An 11 de l’Hégire)',
-    region: 'La Mecque & Médine (Hedjaz)',
-    readTime: '18 min',
+    era: 'v. 570 – 632 apr. J.-C. (An 11 de l’Hégire)',
+    region: 'La Mecque & Médine (Péninsule Arabique)',
+    readTime: '10 chapitres (Texte intégral)',
     coverGradient: 'from-emerald-800 via-emerald-950 to-[#07150E]',
     badgeColor: 'emerald',
     shortSummary:
-      "Le récit lumineux du Sceau des Prophètes : de son enfance d'orphelin à La Mecque sous le surnom d'Al-Amîn (le Digne de confiance) jusqu'à la Révélation du Noble Coran, sa patience face à l'adversité et la fondation d'une communauté fraternelle.",
-    virtues: ['Miséricorde universelle', 'Véracité (Al-Amîn)', 'Douceur & Pardon', 'Constance dans la foi'],
+      "Biographie complète en 10 chapitres suivant le parcours du prophète Muhammad ﷺ : de l'Arabie ancienne et sa naissance à La Mecque jusqu'à la Révélation, les épreuves mecquoises, l'Hégire, la fondation de la communauté médinoise, Hudaybiyya, l'ouverture de La Mecque et le pèlerinage d'adieu.",
+    virtues: ['Véracité & Confiance (Al-Amîn)', 'Patience & Constance', 'Justice & Miséricorde', 'Fidélité au Message'],
     arabicQuote: 'وَمَا أَرْسَلْنَاكَ إِلَّا رَحْمَةً لِّلْعَالَمِينَ',
     frenchQuote: '« Et Nous ne t’avons envoyé qu’en miséricorde pour l’univers. »',
     quoteSource: 'Sourate Al-Anbiya (21), Verset 107',
     milestones: [
-      { period: '570 (Année de l’Éléphant)', event: 'Naissance à La Mecque, orphelin de son père Abdullah.' },
-      { period: '595 (25 ans)', event: 'Mariage béni avec Khadija bint Khuwaylid, renommé Al-Amîn pour son intégrité.' },
-      { period: '610 (40 ans)', event: 'Première révélation dans la grotte de Hira : « Lis, au nom de ton Seigneur ! »' },
-      { period: '622 (An 1 H.)', event: 'L’Hégire vers Médine et établissement du pacte de fraternité.' },
-      { period: '630 (An 8 H.)', event: 'Retour pacifique à La Mecque et pardon général accordé aux Mecquois.' },
+      { period: 'Chapitres 1 & 2 (v. 570 – 595)', event: 'L’Arabie ancienne, naissance à La Mecque, enfance d’orphelin, jeunesse, commerce et mariage avec Khadîja.' },
+      { period: 'Chapitres 3 à 5 (v. 610 – 622)', event: 'Première révélation à Hira, premiers croyants, prédication publique, persécutions, Abyssinie et préparation de l’Hégire.' },
+      { period: 'Chapitres 6 & 7 (622 – 627)', event: 'L’Hégire vers Médine, construction de la mosquée, fraternisation, batailles de Badr, Uhud et du Fossé.' },
+      { period: 'Chapitres 8 à 10 (628 – 632)', event: 'Pacte de Hudaybiyya, conquête pacifique de La Mecque, pèlerinage d’adieu et achèvement de la mission.' },
     ],
-    chapters: [
-      {
-        number: 'Chapitre I',
-        title: "L'Orphelin de La Mecque et l'Homme Digne de Confiance",
-        subtitle: 'Une jeunesse préservée par la Providence divine',
-        paragraphs: [
-          "Au cœur de la vallée aride de La Mecque, près du sanctuaire antique de la Kaaba bâti jadis par Ibrahim et Ismaël, naquit Muhammad fils d'Abdullah. Orphelin de père avant même de voir le jour, il fut confié selon la coutume des nobles mecquois à la nourrice Halima As-Sa'diyya dans le désert pur des Banu Sa'd, où sa demeure fut aussitôt enveloppée d'une bénédiction singulière.",
-          "Très tôt éprouvé par la disparition de sa mère Amina, puis de son grand-père Abdul-Muttalib, il grandit sous la protection bienveillante de son oncle Abou Talib. Malgré la dureté de la vie d'orphelin, jamais il ne s'inclina devant les idoles de pierre ni ne participa aux frivolités de son époque. Berger dans sa jeunesse, puis commerçant d'une probité absolue, il gagna le cœur de tous les habitants de La Mecque qui le surnommèrent d'une seule voix : « As-Sâdiq Al-Amîn » — le Véridique, le Digne de confiance.",
-          "À l'âge de trente-cinq ans, lorsque les tribus de Quraysh faillirent s'entre-déchirer pour l'honneur de replacer la Pierre Noire lors de la reconstruction de la Kaaba, c'est lui qu'elles choisirent comme arbitre. Il étendit son manteau sur le sol, y déposa la pierre et invita un représentant de chaque clan à soulever un coin de l'étoffe, éteignant ainsi la discorde par une sagesse qui unissait les cœurs."
-        ],
-      },
-      {
-        number: 'Chapitre II',
-        title: 'La Lumière de la Grotte de Hira',
-        subtitle: 'La descente de la Parole divine durant le mois de Ramadan',
-        paragraphs: [
-          "À mesure qu'il approchait de la quarantaine, son âme aspirait à la méditation et au silence. Il prenait quelques provisions et se retirait dans la grotte de Hira, au sommet du mont An-Nour (la Montagne de la Lumière), contemplant l'immensité du ciel étoilé et méditant sur le Créateur unique de l'univers.",
-          "Durant une nuit bénie du mois de Ramadan, l'Ange Jibrîl (Gabriel) se présenta à lui et lui dit : « Lis ! (Iqra') ». Le Prophète ﷺ répondit humblement : « Je ne sais pas lire. » L'Ange le serra contre lui à trois reprises avant de réciter les premiers versets révélés du Coran : « Lis, au nom de ton Seigneur qui a créé, qui a créé l'homme d'une adhérence. Lis ! Ton Seigneur est le Très Noble, qui a enseigné par la plume. »",
-          "Tremblant sous le poids de cette rencontre céleste, il redescendit vers son épouse Khadija en disant : « Couvrez-moi, couvrez-moi ! » Elle l'apaisa par des paroles devenues immortelles : « Jamais ! Par Allah, Dieu ne t'humiliera jamais, car tu maintiens les liens de parenté, tu portes le fardeau du faible, tu donnes à celui qui est démuni, tu honores l'hôte et tu secours les gens frappés par les épreuves de la vérité. »"
-        ],
-      },
-      {
-        number: 'Chapitre III',
-        title: "La Patience dans l'Épreuve et l'Hégire vers Médine",
-        subtitle: 'Treize années d’appel pacifique suivies de la fraternité médinoise',
-        paragraphs: [
-          "Pendant treize ans à La Mecque, l'appel à l'Unicité divine (Tawhid), à la justice sociale et à l'affranchissement des opprimés rencontra l'hostilité féroce des notables attachés à leurs privilèges. Ses compagnons les plus vulnérables subirent la torture, et son clan fut soumis pendant trois longues années à un blocus impitoyable dans le ravin d'Abou Talib.",
-          "Pourtant, le Messager d'Allah ﷺ ne répondit jamais à l'injure par l'injure. Lorsqu'il fut autorisé à émigrer vers Yathrib — qui devint Al-Madînah Al-Munawwarah (la Ville Illuminée) — son premier souci fut de laisser Ali ibn Abi Talib à La Mecque afin de restituer intégralement les dépôts que ses propres persécuteurs continuaient de lui confier, tant ils avaient foi en son honnêteté.",
-          "À Médine, il bâtit la mosquée de ses propres mains aux côtés des croyants, établit la fraternité sacrée entre les Émigrés (Muhâjirûn) et les Auxiliaires (Ansâr), et rédigea la Charte de Médine garantissant la justice, l'entraide et le respect mutuel entre toutes les composantes de la cité."
-        ],
-      },
-      {
-        number: 'Chapitre IV',
-        title: "Le Grand Pardon et l'Héritage Éternel",
-        subtitle: '« Allez, vous êtes libres ! »',
-        paragraphs: [
-          "En l'an 8 de l'Hégire, lorsqu'il entra à La Mecque à la tête de dix mille croyants, il ne leva pas la tête avec orgueil, mais courba son front si bas sur sa monture que sa barbe touchait presque la selle, en signe d'humilité et de gratitude envers Allah.",
-          "Face aux chefs de Quraysh qui l'avaient combattu, chassé et persécuté pendant vingt ans, il leur demanda : « Ô gens de Quraysh, que pensez-vous que je vais faire de vous ? » Ils répondirent : « Du bien, car tu es un frère généreux, fils d'un frère généreux. » Il leur dit alors les mots mêmes du prophète Youssouf : « Point de reproche contre vous aujourd'hui ! Qu'Allah vous pardonne, Il est le plus Miséricordieux des miséricordieux. Allez, vous êtes libres ! »",
-          "Toute sa vie demeura d'une simplicité bouleversante : il reprisa ses propres vêtements, aida sa famille dans les tâches domestiques, salua les enfants sur son passage et ne s'endormit jamais le ventre plein tandis qu'un voisin avait faim. Son exemple demeure une lampe vivante pour quiconque espère en Allah et au Jour dernier."
-        ],
-      },
-    ],
+    chapters: PROPHETE_MUHAMMAD_TEN_CHAPTERS,
     spiritualLesson:
-      "La véritable noblesse prophétique unit la fermeté dans la vérité à la douceur infinie envers les créatures : pardonner quand on a le pouvoir de punir est le sommet de la grandeur morale.",
+      "Raconter et méditer la vie du Prophète ﷺ, c'est suivre le passage d'un prédicateur vulnérable à La Mecque à un guide de communauté à Médine, en gardant au cœur le message de foi en Dieu seul, de responsabilité morale, de justice et de clémence.",
   },
   {
     id: 'ibrahim-khalil-allah',
