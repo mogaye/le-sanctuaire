@@ -45,7 +45,8 @@ import { BismillahCalligraphy } from './BismillahCalligraphy';
 import { SurahHeaderBanner } from './SurahHeaderBanner';
 import { SidebarAudioControl } from './SidebarAudioControl';
 import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
-import { pushSettingToCloud } from '../utils/prayerTrackerUtils';
+import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUtils';
+import { toggleQuranFavorite } from '../lib/supabase';
 
 interface AyahData {
   num: number;
@@ -624,10 +625,11 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     return bookmarkedVerses.filter((k) => k.startsWith(prefix)).length;
   }, [bookmarkedVerses, selectedSurahNumber]);
 
-  // Toggle Verse Bookmark
+  // Toggle Verse Bookmark & Register in Supabase public.quran_favorites
   const toggleBookmark = (ayahNum: number) => {
     const key = `${selectedSurahNumber}:${ayahNum}`;
-    const updated = bookmarkedVerses.includes(key)
+    const isCurrentlyBookmarked = bookmarkedVerses.includes(key);
+    const updated = isCurrentlyBookmarked
       ? bookmarkedVerses.filter((k) => k !== key)
       : [...bookmarkedVerses, key];
 
@@ -637,6 +639,23 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       localStorage.setItem('quran_bookmarked_verses', serialized);
       pushSettingToCloud('quran_bookmarked_verses', serialized);
     } catch {}
+
+    const ayahObj = currentSurahData?.ayahs?.find((a) => a.num === ayahNum);
+    const activeUserId = currentUser?.email || getActiveUserEmail();
+    toggleQuranFavorite(
+      activeUserId,
+      {
+        surahNumber: selectedSurahNumber,
+        ayahNumber: ayahNum,
+        surahName: currentSurahMeta.name,
+        ayahText: ayahObj?.ar || currentSurahMeta.openingAyahArabic || `Verset ${selectedSurahNumber}:${ayahNum}`,
+        ayahTranslation:
+          ayahObj?.fr ||
+          currentSurahMeta.openingAyahFrench ||
+          `${currentSurahMeta.frenchTranslation} (${selectedSurahNumber}:${ayahNum})`,
+      },
+      !isCurrentlyBookmarked
+    );
   };
 
   // Copy Single Ayah

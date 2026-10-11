@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import {
   parseRequestBody,
+  supabaseSelect,
   supabaseUpsert,
   upsertUserAndProfileInSupabase,
 } from './_supabase.js';
@@ -131,11 +132,16 @@ export async function sendDonorThankYouEmail({ donorEmail, donorName, provider, 
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  if (req.method === 'GET') {
+    const donations = await supabaseSelect('donations', 'select=*&order=created_at.desc&limit=100');
+    return res.status(200).json({ donations });
   }
 
   if (req.method !== 'POST') {
@@ -145,43 +151,85 @@ export default async function handler(req, res) {
   try {
     const body = await parseRequestBody(req);
     const cleanEmail = body.donorEmail ? String(body.donorEmail).trim().toLowerCase() : null;
-    const resolvedId =
-      body.userId ||
-      (cleanEmail === 'mgaye60000@gmail.com'
-        ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4'
-        : cleanEmail
-          ? `acct_${cleanEmail}`
-          : null);
+    const safeAmount = Number(body.amount) > 0 ? Number(body.amount) : 5000;
+    const safeRef =
+      body.transactionReference ||
+      `DON-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Resolve user ID from existing profile/user in Supabase if email is present
+    let resolvedId = body.userId || null;
     if (cleanEmail && cleanEmail.includes('@')) {
+      const existingProfile = await supabaseSelect(
+        'profiles',
+        `email=ilike.${encodeURIComponent(cleanEmail)}&limit=1`
+      );
+      if (existingProfile.length > 0 && existingProfile[0]?.id) {
+        resolvedId = existingProfile[0].id;
+      } else if (!resolvedId) {
+        resolvedId = `acct_${cleanEmail}`;
+      }
+
       await upsertUserAndProfileInSupabase({
         id: resolvedId,
         email: cleanEmail,
         fullName: body.donorName || cleanEmail.split('@')[0],
       });
+    } else if (!resolvedId) {
+      resolvedId = `guest_${safeRef}`;
     }
+
+    // Avoid duplicate insert if this exact transaction_reference already exists
+    const existingDonation = await supabaseSelect(
+      'donations',
+      `transaction_reference=eq.${encodeURIComponent(safeRef)}&limit=1`
+    );
+    if (existingDonation.length > 0) {
+      return res.status(200).json({
+        donation: existingDonation[0],
+        supabaseSaved: true,
+        emailSent: false,
+      });
+    }
+
+    const resolvedDonorName =
+      body.donorName || (cleanEmail ? cleanEmail.split('@')[0] : 'Donateur Sadaqah');
 
     const donationPayload = {
       user_id: resolvedId,
-      amount: Number(body.amount || 5000),
+      amount: safeAmount,
       currency: body.currency || 'XOF',
       provider: body.provider || 'wave',
       status: body.status || 'succeeded',
       cause: body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
-      donor_name: body.donorName || (cleanEmail ? cleanEmail.split('@')[0] : 'Donateur Sadaqah'),
+      donor_name: resolvedDonorName,
       donor_email: cleanEmail,
       donor_phone: body.donorPhone || null,
       is_anonymous: Boolean(body.isAnonymous),
-      transaction_reference: body.transactionReference || null,
+      transaction_reference: safeRef,
     };
 
-    const insertRes = await supabaseUpsert('donations', donationPayload);
+    // Attempt 1: Full payload with user_id
+    let insertRes = await supabaseUpsert('donations', donationPayload);
+
+    // Attempt 2: Retry without user_id (if foreign key to auth.users blocks non-auth UUIDs) and compatible provider
     if (!insertRes.ok) {
-      // Retry without user_id if foreign key is strict UUID
       const { user_id, ...withoutUid } = donationPayload;
-      await supabaseUpsert('donations', {
+      insertRes = await supabaseUpsert('donations', {
         ...withoutUid,
-        provider: withoutUid.provider === 'orange_money' ? 'direct_transfer' : withoutUid.provider,
+        provider: withoutUid.provider === 'orange_money' ? 'direct_transfer' : withoutUid.provider || 'wave',
+      });
+    }
+
+    // Attempt 3: Minimal core columns in case optional columns are missing
+    if (!insertRes.ok) {
+      insertRes = await supabaseUpsert('donations', {
+        amount: safeAmount,
+        currency: body.currency || 'XOF',
+        provider: body.provider === 'orange_money' ? 'direct_transfer' : body.provider || 'wave',
+        status: body.status || 'succeeded',
+        cause: body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+        donor_name: resolvedDonorName,
+        donor_email: cleanEmail,
       });
     }
 
@@ -190,14 +238,16 @@ export default async function handler(req, res) {
       const origin = req.headers.origin || 'https://le-sanctuaire.vercel.app';
       emailResult = await sendDonorThankYouEmail({
         donorEmail: cleanEmail,
-        donorName: body.donorName,
+        donorName: resolvedDonorName,
         provider: body.provider,
         appOrigin: origin,
       });
     }
 
     return res.status(200).json({
-      donation: donationPayload,
+      donation: insertRes.data?.[0] || donationPayload,
+      supabaseSaved: Boolean(insertRes.ok),
+      supabaseError: insertRes.ok ? undefined : insertRes.error,
       emailSent: emailResult.sent,
       emailReason: emailResult.reason,
     });

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, RotateCcw, Sparkles, Check } from 'lucide-react';
 import { DHIKR_LIST } from '../data/islamicData';
 import { DhikrItem } from '../types';
+import { recordDhikrLogInSupabase } from '../lib/supabase';
+import { getActiveUserEmail, formatDateKey } from '../utils/prayerTrackerUtils';
 
 interface DhikrModalProps {
   isOpen: boolean;
@@ -16,9 +18,20 @@ export const DhikrModal: React.FC<DhikrModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   const handleIncrement = () => {
+    const todayStr = formatDateKey(new Date());
+    const userId = getActiveUserEmail();
+
     if (count + 1 >= selectedDhikr.targetCount) {
       setCount(0);
       setTotalCompleted((prev) => prev + 1);
+      recordDhikrLogInSupabase({
+        userId,
+        date: todayStr,
+        dhikrPhrase: selectedDhikr.transliteration,
+        count: selectedDhikr.targetCount,
+        target: selectedDhikr.targetCount,
+        completed: true,
+      });
       try {
         const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
         const osc = audioCtx.createOscillator();
@@ -34,12 +47,29 @@ export const DhikrModal: React.FC<DhikrModalProps> = ({ isOpen, onClose }) => {
         // audio context ignored if blocked
       }
     } else {
-      setCount((prev) => prev + 1);
+      const nextCount = count + 1;
+      setCount(nextCount);
+      recordDhikrLogInSupabase({
+        userId,
+        date: todayStr,
+        dhikrPhrase: selectedDhikr.transliteration,
+        count: nextCount,
+        target: selectedDhikr.targetCount,
+        completed: false,
+      });
     }
   };
 
   const handleReset = () => {
     setCount(0);
+    recordDhikrLogInSupabase({
+      userId: getActiveUserEmail(),
+      date: formatDateKey(new Date()),
+      dhikrPhrase: selectedDhikr.transliteration,
+      count: 0,
+      target: selectedDhikr.targetCount,
+      completed: false,
+    });
   };
 
   return (

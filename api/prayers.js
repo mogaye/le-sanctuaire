@@ -1,4 +1,4 @@
-import { parseRequestBody, supabaseUpsert } from './_supabase.js';
+import { parseRequestBody, supabaseSelect, supabasePatch, supabaseUpsert } from './_supabase.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -21,18 +21,30 @@ export default async function handler(req, res) {
     }
 
     const cleanId = String(userId).trim().toLowerCase();
-    const result = await supabaseUpsert(
-      'prayer_logs',
-      {
-        user_id: cleanId,
-        date,
-        [prayerKey]: Boolean(completed),
-        updated_at: new Date().toISOString(),
-      },
-      'user_id,date'
-    );
+    const nowIso = new Date().toISOString();
+    const payload = {
+      user_id: cleanId,
+      date,
+      [prayerKey]: Boolean(completed),
+      updated_at: nowIso,
+    };
 
-    return res.status(200).json({ log: result.data?.[0] || { userId: cleanId, date, [prayerKey]: Boolean(completed) } });
+    let result = await supabaseUpsert('prayer_logs', payload, 'user_id,date');
+    if (!result.ok) {
+      const existing = await supabaseSelect(
+        'prayer_logs',
+        `user_id=eq.${encodeURIComponent(cleanId)}&date=eq.${encodeURIComponent(date)}&limit=1`
+      );
+      if (existing.length > 0 && existing[0]?.id) {
+        result = await supabasePatch('prayer_logs', `id=eq.${existing[0].id}`, payload);
+      } else {
+        result = await supabaseUpsert('prayer_logs', payload);
+      }
+    }
+
+    return res.status(200).json({
+      log: result.data?.[0] || { userId: cleanId, date, [prayerKey]: Boolean(completed) },
+    });
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Failed to update prayer log' });
   }

@@ -41,12 +41,12 @@ export async function processWaveDonation(req: PaymentRequest): Promise<PaymentR
   const checkoutUrl = WAVE_MERCHANT_BASE_URL;
 
   const donationData: DonationRecord = {
-    amount: req.amount || 0,
+    amount: req.amount && req.amount > 0 ? req.amount : 5000,
     currency: req.currency || 'XOF',
     provider: req.provider,
     status: 'succeeded',
-    cause: req.cause,
-    donorName: req.isAnonymous ? 'Donateur Anonyme (Sadaqah)' : req.donorName,
+    cause: req.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+    donorName: req.isAnonymous ? 'Donateur Anonyme (Sadaqah)' : req.donorName || 'Donateur Sadaqah',
     donorEmail: req.donorEmail,
     donorPhone: req.donorPhone,
     isAnonymous: req.isAnonymous,
@@ -54,11 +54,11 @@ export async function processWaveDonation(req: PaymentRequest): Promise<PaymentR
     userId: req.userId,
   };
 
-  // Non-blocking save in Supabase (waits at most 350ms so action is immediate)
+  // Non-blocking save in Supabase (continues in background even if UI proceeds after 450ms)
   try {
     await Promise.race([
       recordDonationInSupabase(donationData),
-      new Promise((resolve) => setTimeout(resolve, 350)),
+      new Promise((resolve) => setTimeout(resolve, 450)),
     ]);
   } catch {
     // Ignore Supabase logging errors so payment action never fails

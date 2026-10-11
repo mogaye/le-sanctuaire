@@ -61,7 +61,9 @@ import {
   formatDateKey,
   logToKeyMap,
   pushSettingToCloud,
+  getActiveUserEmail,
 } from '../utils/prayerTrackerUtils';
+import { recordDhikrLogInSupabase } from '../lib/supabase';
 import { getDailyHadith, getDailyReflection } from '../utils/dailyRenewal';
 
 import fajrImg from '../assets/images/prayer_fajr_1789521106165.jpg';
@@ -468,9 +470,18 @@ export const HomePage: React.FC<HomePageProps> = ({
     setIsTasbihRippling(true);
     setTimeout(() => setIsTasbihRippling(false), 200);
     setTasbihCount((prev) => {
-      const currentTarget = dhikrOptions[selectedDhikrIndex].target;
+      const activeDhikr = dhikrOptions[selectedDhikrIndex] || dhikrOptions[0];
+      const currentTarget = activeDhikr.target;
       const next = prev + 1 >= currentTarget ? currentTarget : prev + 1;
       pushSettingToCloud('sanctuaire_tasbih_count', String(next));
+      recordDhikrLogInSupabase({
+        userId: currentUser?.email || getActiveUserEmail(),
+        date: formatDateKey(new Date()),
+        dhikrPhrase: activeDhikr.label,
+        count: next,
+        target: currentTarget,
+        completed: next >= currentTarget,
+      });
       return next;
     });
   };
@@ -478,6 +489,15 @@ export const HomePage: React.FC<HomePageProps> = ({
   const resetTasbih = () => {
     setTasbihCount(0);
     pushSettingToCloud('sanctuaire_tasbih_count', '0');
+    const activeDhikr = dhikrOptions[selectedDhikrIndex] || dhikrOptions[0];
+    recordDhikrLogInSupabase({
+      userId: currentUser?.email || getActiveUserEmail(),
+      date: formatDateKey(new Date()),
+      dhikrPhrase: activeDhikr.label,
+      count: 0,
+      target: activeDhikr.target,
+      completed: false,
+    });
   };
 
   const completedCount = Object.values(completedPrayers).filter(Boolean).length;

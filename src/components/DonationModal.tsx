@@ -32,10 +32,52 @@ export const DonationModal: React.FC<DonationModalProps> = ({
   const [copiedOrange, setCopiedOrange] = useState<boolean>(false);
   const hasRecordedInModalRef = React.useRef<boolean>(false);
 
-  // Resolve active user account from props or localStorage (sanctuaire_user or latest sanctuaire_registered_accounts)
+  const [sessionAccount, setSessionAccount] = useState<{
+    id?: string;
+    email?: string;
+    name?: string;
+  } | null>(null);
+
+  React.useEffect(() => {
+    let mounted = true;
+    import('../lib/supabase')
+      .then(({ supabase }) => {
+        if (!supabase) return;
+        supabase.auth.getSession().then(({ data }) => {
+          const u = data?.session?.user;
+          if (mounted && u) {
+            setSessionAccount({
+              id: u.id,
+              email: u.email,
+              name:
+                u.user_metadata?.full_name ||
+                u.user_metadata?.name ||
+                (u.email ? u.email.split('@')[0] : undefined),
+            });
+          }
+        });
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
+
+  // Resolve active user account from props, Supabase session, or localStorage
   const resolvedAccount = React.useMemo(() => {
     if (userEmail) {
-      return { email: userEmail.trim(), name: (userName || userEmail.split('@')[0]).trim() };
+      return {
+        id: sessionAccount?.id,
+        email: userEmail.trim(),
+        name: (userName || sessionAccount?.name || userEmail.split('@')[0]).trim(),
+      };
+    }
+    if (sessionAccount?.email) {
+      return {
+        id: sessionAccount.id,
+        email: sessionAccount.email.trim(),
+        name: (sessionAccount.name || sessionAccount.email.split('@')[0]).trim(),
+      };
     }
     try {
       const saved = localStorage.getItem('sanctuaire_user');
@@ -43,6 +85,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({
         const parsed = JSON.parse(saved);
         if (parsed?.email) {
           return {
+            id: parsed.id ? String(parsed.id) : undefined,
             email: String(parsed.email).trim(),
             name: String(parsed.name || parsed.firstName || parsed.email.split('@')[0]).trim(),
           };
@@ -53,6 +96,7 @@ export const DonationModal: React.FC<DonationModalProps> = ({
         const regList = JSON.parse(regRaw);
         if (Array.isArray(regList) && regList.length > 0 && regList[0]?.email) {
           return {
+            id: regList[0].id ? String(regList[0].id) : undefined,
             email: String(regList[0].email).trim(),
             name: String(regList[0].fullName || regList[0].firstName || regList[0].email.split('@')[0]).trim(),
           };
@@ -62,36 +106,36 @@ export const DonationModal: React.FC<DonationModalProps> = ({
       // ignore
     }
     return null;
-  }, [userEmail, userName, isOpen]);
+  }, [userEmail, userName, sessionAccount, isOpen]);
 
   const triggerDonorGratitudeFlow = React.useCallback(
     (provider: 'wave' | 'orange_money') => {
       if (hasRecordedInModalRef.current) return;
       hasRecordedInModalRef.current = true;
       processWaveDonation({
+        amount: 5000,
         currency: 'XOF',
         provider,
         cause: 'Sadaqah Jariyah - Le Sanctuaire',
-        donorName: resolvedAccount?.name || userName || undefined,
+        userId: resolvedAccount?.id || undefined,
+        donorName: resolvedAccount?.name || userName || 'Donateur Sadaqah',
         donorEmail: resolvedAccount?.email || userEmail || undefined,
       }).catch(() => {});
     },
     [resolvedAccount, userName, userEmail]
   );
 
-  // Reset deduplication flag when modal closes; if user scans QR code directly while modal is open for >2s, record automatically
+  // Record every donor automatically when modal opens (QR scan) or when switching payment provider
   React.useEffect(() => {
     if (!isOpen) {
       hasRecordedInModalRef.current = false;
       return;
     }
     const timer = setTimeout(() => {
-      if (resolvedAccount?.email) {
-        triggerDonorGratitudeFlow(activeTab);
-      }
-    }, 1800);
+      triggerDonorGratitudeFlow(activeTab);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [isOpen, activeTab, resolvedAccount, triggerDonorGratitudeFlow]);
+  }, [isOpen, activeTab, triggerDonorGratitudeFlow]);
 
   if (!isOpen) return null;
 

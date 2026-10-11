@@ -95,6 +95,11 @@ export async function syncConnectedAccountToBackend(account: {
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
+  cityId?: string;
+  cityName?: string;
+  country?: string;
+  calculationMethod?: string;
+  themePreference?: string;
 }) {
   const cleanEmail = account.email.trim().toLowerCase();
   if (!cleanEmail) return;
@@ -103,6 +108,32 @@ export async function syncConnectedAccountToBackend(account: {
   const fullName = account.fullName || cleanEmail.split('@')[0] || 'Fidèle';
   const firstName = account.firstName || fullName.split(' ')[0] || 'Fidèle';
   const lastName = account.lastName || fullName.split(' ').slice(1).join(' ') || '';
+
+  let cityId = account.cityId || 'dakar';
+  let cityName = account.cityName || 'Dakar';
+  let country = account.country || 'Sénégal';
+  let calculationMethod = account.calculationMethod || 'MuslimWorldLeague';
+  let themePreference = account.themePreference || 'dark';
+
+  try {
+    const savedCity = localStorage.getItem('sanctuaire_selected_city');
+    if (savedCity && !account.cityName) {
+      const parsedCity = JSON.parse(savedCity);
+      if (parsedCity?.id) cityId = String(parsedCity.id);
+      if (parsedCity?.name) cityName = String(parsedCity.name);
+      if (parsedCity?.country) country = String(parsedCity.country);
+    }
+    const savedMethod = localStorage.getItem('sanctuaire_selected_method');
+    if (savedMethod && !account.calculationMethod) {
+      calculationMethod = savedMethod;
+    }
+    const savedDark = localStorage.getItem('sanctuaire_dark_mode');
+    if (savedDark !== null && !account.themePreference) {
+      themePreference = savedDark === 'false' ? 'light' : 'dark';
+    }
+  } catch {
+    // ignore
+  }
 
   saveLocalAccount({
     id: resolvedId,
@@ -115,10 +146,11 @@ export async function syncConnectedAccountToBackend(account: {
     lastConnectedAt: new Date().toISOString(),
   });
 
-  // 1. Synchronize to Backend PostgreSQL (/api/accounts/sync -> users & profiles)
+  // 1. Synchronize to Backend PostgreSQL & Supabase REST (/api/accounts/sync -> users & profiles)
   try {
     await fetch('/api/accounts/sync', {
       method: 'POST',
+      keepalive: true,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: resolvedId,
@@ -127,6 +159,11 @@ export async function syncConnectedAccountToBackend(account: {
         firstName,
         lastName,
         avatarUrl: account.avatarUrl,
+        cityId,
+        cityName,
+        country,
+        calculationMethod,
+        themePreference,
       }),
     });
   } catch {
@@ -152,7 +189,7 @@ export async function syncConnectedAccountToBackend(account: {
             first_name: firstName,
             last_name: lastName,
             avatar_url: account.avatarUrl || null,
-            city_name: 'Dakar',
+            city_name: cityName,
             updated_at: nowIso,
           })
           .ilike('email', cleanEmail);
@@ -165,7 +202,7 @@ export async function syncConnectedAccountToBackend(account: {
             first_name: firstName,
             last_name: lastName,
             avatar_url: account.avatarUrl || null,
-            city_name: 'Dakar',
+            city_name: cityName,
             updated_at: nowIso,
           },
           { onConflict: 'uid' }
@@ -178,7 +215,7 @@ export async function syncConnectedAccountToBackend(account: {
             first_name: firstName,
             last_name: lastName,
             avatar_url: account.avatarUrl || null,
-            city_name: 'Dakar',
+            city_name: cityName,
           });
         }
       }
@@ -202,7 +239,11 @@ export async function syncConnectedAccountToBackend(account: {
             first_name: firstName,
             last_name: lastName,
             avatar_url: account.avatarUrl || null,
-            city_name: 'Dakar',
+            city_id: cityId,
+            city_name: cityName,
+            country,
+            calculation_method: calculationMethod,
+            theme_preference: themePreference,
             last_connected_at: nowIso,
             updated_at: nowIso,
           })
@@ -217,7 +258,7 @@ export async function syncConnectedAccountToBackend(account: {
               first_name: firstName,
               last_name: lastName,
               avatar_url: account.avatarUrl || null,
-              city_name: 'Dakar',
+              city_name: cityName,
               updated_at: nowIso,
             })
             .ilike('email', cleanEmail);
@@ -231,7 +272,11 @@ export async function syncConnectedAccountToBackend(account: {
             first_name: firstName,
             last_name: lastName,
             avatar_url: account.avatarUrl || null,
-            city_name: 'Dakar',
+            city_id: cityId,
+            city_name: cityName,
+            country,
+            calculation_method: calculationMethod,
+            theme_preference: themePreference,
             last_connected_at: nowIso,
             updated_at: nowIso,
           },
@@ -246,7 +291,7 @@ export async function syncConnectedAccountToBackend(account: {
               first_name: firstName,
               last_name: lastName,
               avatar_url: account.avatarUrl || null,
-              city_name: 'Dakar',
+              city_name: cityName,
               updated_at: nowIso,
             },
             { onConflict: 'id' }
@@ -272,17 +317,6 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
   const local = getLocalAccounts();
   const map = new Map<string, LocalRegisteredAccount>();
 
-  // Always include Mamadou Gaye's primary verified account so 1-click access is always available
-  map.set('mgaye60000@gmail.com', {
-    id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
-    email: 'mgaye60000@gmail.com',
-    fullName: 'Mamadou Gaye',
-    firstName: 'Mamadou',
-    lastName: 'Gaye',
-    createdAt: '2026-09-17T23:01:43.333Z',
-    lastConnectedAt: new Date().toISOString(),
-  });
-
   // Always check active sanctuaire_user in localStorage as well
   try {
     const currentRaw = localStorage.getItem('sanctuaire_user');
@@ -291,11 +325,11 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
       if (parsed?.email) {
         const emailLower = parsed.email.trim().toLowerCase();
         map.set(emailLower, {
-          id: emailLower === 'mgaye60000@gmail.com' ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4' : `acct_${emailLower}`,
+          id: parsed.id || `acct_${emailLower}`,
           email: emailLower,
-          fullName: parsed.name || (emailLower === 'mgaye60000@gmail.com' ? 'Mamadou Gaye' : emailLower.split('@')[0]),
-          firstName: parsed.firstName || (parsed.name || '').split(' ')[0] || 'Mamadou',
-          lastName: parsed.lastName || 'Gaye',
+          fullName: parsed.name || emailLower.split('@')[0],
+          firstName: parsed.firstName || (parsed.name || '').split(' ')[0] || 'Fidèle',
+          lastName: parsed.lastName || '',
           avatarUrl: parsed.avatarUrl,
           createdAt: new Date().toISOString(),
           lastConnectedAt: new Date().toISOString(),
@@ -1422,6 +1456,7 @@ export async function checkUserHasDonated(
 }
 
 export async function recordDonationInSupabase(donation: DonationRecord) {
+  let accountId = donation.userId || '';
   let accountEmail = donation.donorEmail || '';
   let accountName = donation.donorName || '';
 
@@ -1430,6 +1465,9 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
     const savedUserStr = localStorage.getItem('sanctuaire_user');
     if (savedUserStr) {
       const savedUser = JSON.parse(savedUserStr);
+      if (!accountId && savedUser?.id) {
+        accountId = String(savedUser.id);
+      }
       if (!accountEmail && savedUser?.email) {
         accountEmail = savedUser.email;
       }
@@ -1451,12 +1489,49 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
     if (accountEmail && donation.status !== 'failed') {
       localStorage.setItem(`sanctuaire_user_donated_${accountEmail.trim().toLowerCase()}`, 'true');
     }
+  } catch {
+    // ignore
+  }
 
+  // Also check active Supabase Auth session if email/id not yet resolved
+  if (supabase && (!accountEmail || !accountId)) {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sUser = sessionData?.session?.user;
+      if (sUser) {
+        if (!accountId && sUser.id) accountId = sUser.id;
+        if (!accountEmail && sUser.email) accountEmail = sUser.email;
+        if (!accountName) {
+          accountName =
+            sUser.user_metadata?.full_name ||
+            sUser.user_metadata?.name ||
+            (sUser.email ? sUser.email.split('@')[0] : '');
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const safeAmount = Number(donation.amount) > 0 ? Number(donation.amount) : 5000;
+  const safeRef =
+    donation.transactionReference ||
+    `DON-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+  const resolvedDonorName =
+    donation.isAnonymous
+      ? 'Donateur Anonyme (Sadaqah)'
+      : donation.donorName || accountName || (accountEmail ? accountEmail.split('@')[0] : 'Donateur Sadaqah');
+  const resolvedDonorEmail = (donation.donorEmail || accountEmail || '').trim().toLowerCase() || null;
+
+  try {
     const history = JSON.parse(localStorage.getItem('sanctuaire_donations') || '[]');
     history.push({
       ...donation,
-      donorEmail: donation.donorEmail || accountEmail || undefined,
-      accountEmail: accountEmail || undefined,
+      amount: safeAmount,
+      donorName: resolvedDonorName,
+      donorEmail: resolvedDonorEmail || undefined,
+      accountEmail: resolvedDonorEmail || undefined,
+      transactionReference: safeRef,
       date: new Date().toISOString(),
     });
     localStorage.setItem('sanctuaire_donations', JSON.stringify(history));
@@ -1464,91 +1539,171 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('sanctuaire-donation-updated'));
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
 
-  // Persist in Cloud SQL PostgreSQL backend (which also automatically sends the thank-you + encouragement + review request email if donorEmail is present)
+  // Persist via /api/donations (serverless route on Vercel + Express in dev) with keepalive so navigation never aborts it
   let emailSent = false;
+  let savedViaApi = false;
   try {
     const res = await fetch('/api/donations', {
       method: 'POST',
+      keepalive: true,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: donation.userId || null,
-        amount: donation.amount,
-        currency: donation.currency,
-        provider: donation.provider,
-        status: donation.status,
-        cause: donation.cause,
-        donorName: donation.donorName || accountName || null,
-        donorEmail: donation.donorEmail || accountEmail || null,
+        userId: accountId || null,
+        amount: safeAmount,
+        currency: donation.currency || 'XOF',
+        provider: donation.provider || 'wave',
+        status: donation.status || 'succeeded',
+        cause: donation.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+        donorName: resolvedDonorName,
+        donorEmail: resolvedDonorEmail,
         donorPhone: donation.donorPhone || null,
         isAnonymous: !!donation.isAnonymous,
-        transactionReference: donation.transactionReference || null,
+        transactionReference: safeRef,
       }),
     });
     if (res.ok) {
       const json = await res.json();
       emailSent = Boolean(json?.emailSent);
+      savedViaApi = Boolean(json?.supabaseSaved);
     }
   } catch {
     // ignore offline/network error
   }
 
   if (!supabase) {
-    return { success: true, localOnly: true, emailSent };
+    return { success: true, localOnly: !savedViaApi, emailSent };
   }
 
   try {
-    if (accountEmail) {
+    if (resolvedDonorEmail) {
       await syncConnectedAccountToBackend({
-        email: accountEmail,
-        fullName: accountName || accountEmail.split('@')[0],
+        id: accountId || undefined,
+        email: resolvedDonorEmail,
+        fullName: resolvedDonorName,
       });
     }
 
+    if (savedViaApi) {
+      return { success: true, emailSent };
+    }
+
+    const candidateUid =
+      accountId ||
+      (resolvedDonorEmail ? `acct_${resolvedDonorEmail}` : `guest_${safeRef}`);
+
     const { data, error } = await withTimeout(
       supabase.from('donations').insert({
-        amount: donation.amount,
-        currency: donation.currency,
-        provider: donation.provider,
-        status: donation.status,
-        cause: donation.cause,
-        donor_name: donation.donorName || accountName || null,
-        donor_email: donation.donorEmail || accountEmail || null,
+        amount: safeAmount,
+        currency: donation.currency || 'XOF',
+        provider: donation.provider || 'wave',
+        status: donation.status || 'succeeded',
+        cause: donation.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+        donor_name: resolvedDonorName,
+        donor_email: resolvedDonorEmail,
         donor_phone: donation.donorPhone || null,
         is_anonymous: !!donation.isAnonymous,
-        transaction_reference: donation.transactionReference || null,
-        user_id: donation.userId || (accountEmail ? `acct_${accountEmail.trim().toLowerCase()}` : null),
+        transaction_reference: safeRef,
+        user_id: candidateUid,
       }),
       4000
     );
 
     if (error) {
-      // Retry without user_id in case public.donations.user_id is a strict UUID foreign key
-      const retry = await withTimeout(
+      // Retry 1: without user_id (in case donations.user_id has a foreign key to auth.users) and compatible provider
+      const retry1 = await withTimeout(
         supabase.from('donations').insert({
-          amount: donation.amount,
-          currency: donation.currency,
-          provider: donation.provider === 'orange_money' ? 'direct_transfer' : donation.provider,
-          status: donation.status,
-          cause: donation.cause,
-          donor_name: donation.donorName || accountName || null,
-          donor_email: donation.donorEmail || accountEmail || null,
+          amount: safeAmount,
+          currency: donation.currency || 'XOF',
+          provider:
+            donation.provider === 'orange_money' ? 'direct_transfer' : donation.provider || 'wave',
+          status: donation.status || 'succeeded',
+          cause: donation.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+          donor_name: resolvedDonorName,
+          donor_email: resolvedDonorEmail,
           donor_phone: donation.donorPhone || null,
           is_anonymous: !!donation.isAnonymous,
-          transaction_reference: donation.transactionReference || null,
+          transaction_reference: safeRef,
         }),
         4000
       );
-      if (retry.error) throw retry.error;
-      return { success: true, data: retry.data, emailSent };
+      if (!retry1.error) {
+        return { success: true, data: retry1.data, emailSent };
+      }
+
+      // Retry 2: minimal core columns in case optional columns do not exist
+      const retry2 = await withTimeout(
+        supabase.from('donations').insert({
+          amount: safeAmount,
+          currency: donation.currency || 'XOF',
+          provider:
+            donation.provider === 'orange_money' ? 'direct_transfer' : donation.provider || 'wave',
+          status: donation.status || 'succeeded',
+          cause: donation.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+          donor_name: resolvedDonorName,
+          donor_email: resolvedDonorEmail,
+        }),
+        4000
+      );
+      if (retry2.error) throw retry2.error;
+      return { success: true, data: retry2.data, emailSent };
     }
     return { success: true, data, emailSent };
   } catch (e) {
     console.error('Error saving donation to Supabase:', e);
     return { success: false, error: e, emailSent };
+  }
+}
+
+// Synchronize any locally recorded donations from this browser to Supabase public.donations
+export async function syncLocalDonationsToSupabase(
+  user?: { id?: string; email?: string; name?: string } | null
+): Promise<void> {
+  try {
+    const rawHistory = localStorage.getItem('sanctuaire_donations');
+    const history: any[] = rawHistory ? JSON.parse(rawHistory) : [];
+    const syncedRefsRaw = localStorage.getItem('sanctuaire_synced_donation_refs');
+    const syncedRefs = new Set<string>(syncedRefsRaw ? JSON.parse(syncedRefsRaw) : []);
+
+    for (const item of history) {
+      const ref =
+        item.transactionReference ||
+        item.transaction_reference ||
+        `DON-SYNC-${(item.donorEmail || item.accountEmail || user?.email || 'guest').toLowerCase()}`;
+      if (syncedRefs.has(ref)) continue;
+
+      const res = await fetch('/api/donations', {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: item.userId || user?.id || null,
+          amount: Number(item.amount) > 0 ? Number(item.amount) : 5000,
+          currency: item.currency || 'XOF',
+          provider: item.provider || 'wave',
+          status: item.status || 'succeeded',
+          cause: item.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+          donorName: item.donorName || user?.name || 'Donateur Sadaqah',
+          donorEmail: item.donorEmail || item.accountEmail || user?.email || null,
+          donorPhone: item.donorPhone || null,
+          isAnonymous: !!item.isAnonymous,
+          transactionReference: ref,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.supabaseSaved) {
+          syncedRefs.add(ref);
+        }
+      }
+    }
+
+    localStorage.setItem('sanctuaire_synced_donation_refs', JSON.stringify(Array.from(syncedRefs)));
+  } catch {
+    // ignore
   }
 }
 
@@ -1599,40 +1754,84 @@ export async function toggleQuranFavorite(
   record: QuranFavoriteRecord,
   isFavorite: boolean
 ) {
-  if (!supabase) {
-    try {
-      const local = JSON.parse(localStorage.getItem(`quran_favs_${userId}`) || '[]');
-      let updated;
-      if (isFavorite) {
-        updated = [...local, record];
-      } else {
-        updated = local.filter(
+  const cleanUserId = (userId || '').trim().toLowerCase() || 'visiteur_anonyme';
+  try {
+    const local = JSON.parse(localStorage.getItem(`quran_favs_${cleanUserId}`) || '[]');
+    let updated;
+    if (isFavorite) {
+      updated = [
+        ...local.filter(
           (f: QuranFavoriteRecord) =>
             !(f.surahNumber === record.surahNumber && f.ayahNumber === record.ayahNumber)
-        );
-      }
-      localStorage.setItem(`quran_favs_${userId}`, JSON.stringify(updated));
-    } catch {
-      // ignore
+        ),
+        record,
+      ];
+    } else {
+      updated = local.filter(
+        (f: QuranFavoriteRecord) =>
+          !(f.surahNumber === record.surahNumber && f.ayahNumber === record.ayahNumber)
+      );
     }
-    return;
+    localStorage.setItem(`quran_favs_${cleanUserId}`, JSON.stringify(updated));
+  } catch {
+    // ignore
   }
+
+  // 1. Sync via backend /api/sync/[email] -> public.quran_favorites
+  try {
+    await fetch(`/api/sync/${encodeURIComponent(cleanUserId)}`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'push',
+        quranFavorites: [
+          {
+            surahNumber: record.surahNumber,
+            ayahNumber: record.ayahNumber,
+            surahName: record.surahName,
+            ayahText: record.ayahText,
+            ayahTranslation: record.ayahTranslation,
+            remove: !isFavorite,
+          },
+        ],
+      }),
+    });
+  } catch {
+    // ignore
+  }
+
+  // 2. Also sync directly via Supabase client if configured
+  if (!supabase) return;
 
   try {
     if (isFavorite) {
-      await supabase.from('quran_favorites').upsert({
-        user_id: userId,
-        surah_number: record.surahNumber,
-        ayah_number: record.ayahNumber,
-        surah_name: record.surahName,
-        ayah_text: record.ayahText,
-        ayah_translation: record.ayahTranslation,
-      });
+      const { error } = await supabase.from('quran_favorites').upsert(
+        {
+          user_id: cleanUserId,
+          surah_number: record.surahNumber,
+          ayah_number: record.ayahNumber,
+          surah_name: record.surahName,
+          ayah_text: record.ayahText,
+          ayah_translation: record.ayahTranslation,
+        },
+        { onConflict: 'user_id,surah_number,ayah_number' }
+      );
+      if (error) {
+        await supabase.from('quran_favorites').insert({
+          user_id: cleanUserId,
+          surah_number: record.surahNumber,
+          ayah_number: record.ayahNumber,
+          surah_name: record.surahName,
+          ayah_text: record.ayahText,
+          ayah_translation: record.ayahTranslation,
+        });
+      }
     } else {
       await supabase
         .from('quran_favorites')
         .delete()
-        .eq('user_id', userId)
+        .eq('user_id', cleanUserId)
         .eq('surah_number', record.surahNumber)
         .eq('ayah_number', record.ayahNumber);
     }
@@ -1640,4 +1839,224 @@ export async function toggleQuranFavorite(
     console.error('Error updating Quran favorite in Supabase:', err);
   }
 }
+
+// Record Dhikr / Tasbih progress in Supabase public.dhikr_logs & backend API
+export async function recordDhikrLogInSupabase(params: {
+  userId?: string;
+  date?: string;
+  dhikrPhrase: string;
+  count: number;
+  target: number;
+  completed?: boolean;
+}) {
+  let cleanUserId = (params.userId || '').trim().toLowerCase();
+  if (!cleanUserId) {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem('sanctuaire_user') || '{}');
+      cleanUserId =
+        (savedUser?.email || savedUser?.id || '').trim().toLowerCase() ||
+        localStorage.getItem('sanctuaire_visitor_id') ||
+        'visiteur_anonyme';
+    } catch {
+      cleanUserId = 'visiteur_anonyme';
+    }
+  }
+
+  const dateStr = params.date || new Date().toISOString().slice(0, 10);
+  const phrase = params.dhikrPhrase.trim() || 'SubhanAllah';
+  const countVal = Math.max(0, Number(params.count) || 0);
+  const targetVal = Math.max(1, Number(params.target) || 33);
+  const completedVal = Boolean(params.completed ?? countVal >= targetVal);
+
+  // 1. Save locally for offline sync
+  try {
+    const rawLogs = localStorage.getItem('sanctuaire_dhikr_logs');
+    const logs: Record<string, any> = rawLogs ? JSON.parse(rawLogs) : {};
+    logs[`${dateStr}::${phrase}`] = {
+      userId: cleanUserId,
+      date: dateStr,
+      dhikrPhrase: phrase,
+      count: countVal,
+      target: targetVal,
+      completed: completedVal,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem('sanctuaire_dhikr_logs', JSON.stringify(logs));
+  } catch {
+    // ignore
+  }
+
+  // 2. Push to backend /api/sync/[email] -> public.dhikr_logs
+  try {
+    await fetch(`/api/sync/${encodeURIComponent(cleanUserId)}`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'push',
+        dhikrLogs: [
+          {
+            date: dateStr,
+            dhikrPhrase: phrase,
+            count: countVal,
+            target: targetVal,
+            completed: completedVal,
+          },
+        ],
+      }),
+    });
+  } catch {
+    // ignore
+  }
+
+  // 3. Also upsert directly in Supabase public.dhikr_logs if configured
+  if (!supabase) return;
+  try {
+    const { data: existing } = await supabase
+      .from('dhikr_logs')
+      .select('id')
+      .eq('user_id', cleanUserId)
+      .eq('date', dateStr)
+      .eq('dhikr_phrase', phrase)
+      .limit(1);
+
+    if (existing && existing.length > 0 && existing[0]?.id) {
+      await supabase
+        .from('dhikr_logs')
+        .update({
+          count: countVal,
+          target: targetVal,
+          completed: completedVal,
+        })
+        .eq('id', existing[0].id);
+    } else {
+      await supabase.from('dhikr_logs').insert({
+        user_id: cleanUserId,
+        date: dateStr,
+        dhikr_phrase: phrase,
+        count: countVal,
+        target: targetVal,
+        completed: completedVal,
+      });
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Synchronize all local Quran favorites and Dhikr logs to Supabase on app load / login
+export async function syncAllLocalTablesToSupabase(
+  user?: { id?: string; email?: string; name?: string } | null
+): Promise<void> {
+  let cleanUserId = (user?.email || user?.id || '').trim().toLowerCase();
+  if (!cleanUserId) {
+    try {
+      const savedUser = JSON.parse(localStorage.getItem('sanctuaire_user') || '{}');
+      cleanUserId =
+        (savedUser?.email || savedUser?.id || '').trim().toLowerCase() ||
+        localStorage.getItem('sanctuaire_visitor_id') ||
+        '';
+    } catch {
+      // ignore
+    }
+  }
+  if (!cleanUserId) return;
+
+  // 1. Sync donations
+  await syncLocalDonationsToSupabase(user);
+
+  // 2. Sync Quran bookmarked verses (quran_bookmarked_verses + quran_favs_*)
+  try {
+    const quranFavoritesBatch: any[] = [];
+    const rawBookmarks = localStorage.getItem('quran_bookmarked_verses');
+    if (rawBookmarks) {
+      const parsed: string[] = JSON.parse(rawBookmarks);
+      if (Array.isArray(parsed)) {
+        for (const key of parsed) {
+          const [sStr, aStr] = String(key).split(':');
+          const sNum = parseInt(sStr, 10);
+          const aNum = parseInt(aStr, 10);
+          if (sNum >= 1 && sNum <= 114 && aNum >= 1) {
+            quranFavoritesBatch.push({
+              surahNumber: sNum,
+              ayahNumber: aNum,
+              surahName: `Sourate ${sNum}`,
+              ayahText: `Verset ${sNum}:${aNum}`,
+              ayahTranslation: `Marque-page Coran (${sNum}:${aNum})`,
+            });
+          }
+        }
+      }
+    }
+
+    const rawFavs = localStorage.getItem(`quran_favs_${cleanUserId}`);
+    if (rawFavs) {
+      const parsedFavs = JSON.parse(rawFavs);
+      if (Array.isArray(parsedFavs)) {
+        for (const f of parsedFavs) {
+          if (f?.surahNumber && f?.ayahNumber) {
+            quranFavoritesBatch.push({
+              surahNumber: Number(f.surahNumber),
+              ayahNumber: Number(f.ayahNumber),
+              surahName: f.surahName || `Sourate ${f.surahNumber}`,
+              ayahText: f.ayahText || '',
+              ayahTranslation: f.ayahTranslation || '',
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Sync Dhikr / Tasbih logs
+    const dhikrLogsBatch: any[] = [];
+    const rawDhikrLogs = localStorage.getItem('sanctuaire_dhikr_logs');
+    if (rawDhikrLogs) {
+      const parsedLogs = JSON.parse(rawDhikrLogs);
+      if (parsedLogs && typeof parsedLogs === 'object') {
+        for (const entry of Object.values(parsedLogs) as any[]) {
+          if (entry && entry.dhikrPhrase && Number(entry.count) > 0) {
+            dhikrLogsBatch.push({
+              date: entry.date || new Date().toISOString().slice(0, 10),
+              dhikrPhrase: entry.dhikrPhrase,
+              count: Number(entry.count),
+              target: Number(entry.target) || 33,
+              completed: Boolean(entry.completed),
+            });
+          }
+        }
+      }
+    }
+
+    const savedTasbihCount = parseInt(localStorage.getItem('sanctuaire_tasbih_count') || '0', 10);
+    if (savedTasbihCount > 0 && dhikrLogsBatch.length === 0) {
+      const dhikrNames = ['SubhanAllah', 'Alhamdulillah', 'Allahu Akbar', 'Astaghfirullah'];
+      const idx = parseInt(localStorage.getItem('sanctuaire_selected_dhikr_index') || '0', 10) || 0;
+      const phrase = dhikrNames[idx] || 'SubhanAllah';
+      const target = idx === 2 ? 34 : idx === 3 ? 100 : 33;
+      dhikrLogsBatch.push({
+        date: new Date().toISOString().slice(0, 10),
+        dhikrPhrase: phrase,
+        count: savedTasbihCount,
+        target,
+        completed: savedTasbihCount >= target,
+      });
+    }
+
+    if (quranFavoritesBatch.length > 0 || dhikrLogsBatch.length > 0) {
+      await fetch(`/api/sync/${encodeURIComponent(cleanUserId)}`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'push',
+          quranFavorites: quranFavoritesBatch,
+          dhikrLogs: dhikrLogsBatch,
+        }),
+      });
+    }
+  } catch {
+    // ignore
+  }
+}
+
 

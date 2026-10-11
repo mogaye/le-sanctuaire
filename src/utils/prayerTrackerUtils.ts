@@ -47,16 +47,17 @@ export function formatDateKey(date: Date): string {
 }
 
 /**
- * Resolves the currently logged-in user's normalized email from localStorage
+ * Resolves the currently logged-in user's normalized email or a unique visitor ID from localStorage
  */
-export function getActiveUserEmail(): string | null {
+export function getActiveUserEmail(): string {
   try {
-    if (typeof localStorage === 'undefined') return null;
+    if (typeof localStorage === 'undefined') return 'visiteur_anonyme';
     const raw = localStorage.getItem('sanctuaire_user');
     if (raw) {
       const parsed = JSON.parse(raw);
       const email = (parsed?.email || '').trim().toLowerCase();
       if (email && email.includes('@')) return email;
+      if (parsed?.id) return String(parsed.id).trim().toLowerCase();
     }
     if (localStorage.getItem('sanctuaire_logged_out') !== 'true') {
       const regRaw = localStorage.getItem('sanctuaire_registered_accounts');
@@ -67,11 +68,15 @@ export function getActiveUserEmail(): string | null {
           if (fallbackEmail.includes('@')) return fallbackEmail;
         }
       }
-      return 'mgaye60000@gmail.com';
     }
-    return null;
+    let visitorId = localStorage.getItem('sanctuaire_visitor_id');
+    if (!visitorId) {
+      visitorId = `visiteur_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+      localStorage.setItem('sanctuaire_visitor_id', visitorId);
+    }
+    return visitorId;
   } catch {
-    return 'mgaye60000@gmail.com';
+    return 'visiteur_anonyme';
   }
 }
 

@@ -404,14 +404,14 @@ async function startServer() {
     table: string,
     payload: Record<string, any>,
     onConflict?: string
-  ) => {
+  ): Promise<boolean> => {
     const creds = getServerSupabaseCreds();
-    if (!creds) return;
+    if (!creds) return false;
     try {
       const endpoint = onConflict
         ? `${creds.url}/rest/v1/${table}?on_conflict=${encodeURIComponent(onConflict)}`
         : `${creds.url}/rest/v1/${table}`;
-      await fetch(endpoint, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -421,8 +421,9 @@ async function startServer() {
         },
         body: JSON.stringify(payload),
       });
+      return res.ok;
     } catch {
-      // non-fatal
+      return false;
     }
   };
 
@@ -529,7 +530,18 @@ async function startServer() {
       if (!userId || !date || !prayerKey) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
-      const log = await upsertPrayerLogInDb(userId, date, prayerKey, Boolean(completed));
+      const cleanId = String(userId).trim().toLowerCase();
+      const log = await upsertPrayerLogInDb(cleanId, date, prayerKey, Boolean(completed));
+      await mirrorToSupabaseRest(
+        'prayer_logs',
+        {
+          user_id: cleanId,
+          date,
+          [prayerKey]: Boolean(completed),
+          updated_at: new Date().toISOString(),
+        },
+        'user_id,date'
+      );
       res.json({ log });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to update prayer log' });
@@ -629,6 +641,62 @@ async function startServer() {
           }
         }
 
+        // Mirror Quran favorites to Supabase public.quran_favorites if provided
+        if (Array.isArray(incoming.quranFavorites)) {
+          for (const fav of incoming.quranFavorites) {
+            if (!fav || !fav.surahNumber || !fav.ayahNumber) continue;
+            const sNum = Number(fav.surahNumber);
+            const aNum = Number(fav.ayahNumber);
+            if (!fav.remove) {
+              const qPayload = {
+                user_id: rawEmail,
+                surah_number: sNum,
+                ayah_number: aNum,
+                surah_name: String(fav.surahName || `Sourate ${sNum}`),
+                ayah_text: String(fav.ayahText || ''),
+                ayah_translation: String(fav.ayahTranslation || ''),
+              };
+              const ok = await mirrorToSupabaseRest(
+                'quran_favorites',
+                qPayload,
+                'user_id,surah_number,ayah_number'
+              );
+              if (!ok) {
+                await mirrorToSupabaseRest('quran_favorites', qPayload);
+              }
+            }
+          }
+        }
+
+        // Mirror Dhikr / Tasbih logs to Supabase public.dhikr_logs if provided
+        if (Array.isArray(incoming.dhikrLogs)) {
+          for (const dLog of incoming.dhikrLogs) {
+            if (!dLog || !dLog.dhikrPhrase) continue;
+            const dateKey = String(dLog.date || new Date().toISOString().slice(0, 10));
+            const phrase = String(dLog.dhikrPhrase).trim();
+            const countVal = Math.max(0, Number(dLog.count) || 0);
+            const targetVal = Math.max(1, Number(dLog.target) || 33);
+            const completedVal = Boolean(dLog.completed || countVal >= targetVal);
+
+            const dPayload = {
+              user_id: rawEmail,
+              date: dateKey,
+              dhikr_phrase: phrase,
+              count: countVal,
+              target: targetVal,
+              completed: completedVal,
+            };
+            const ok = await mirrorToSupabaseRest(
+              'dhikr_logs',
+              dPayload,
+              'user_id,date,dhikr_phrase'
+            );
+            if (!ok) {
+              await mirrorToSupabaseRest('dhikr_logs', dPayload);
+            }
+          }
+        }
+
         if (hasChanges) {
           current.lastUpdatedAt = serverNow;
           const aliases = await getSyncAliasesAsync(rawEmail);
@@ -643,20 +711,20 @@ async function startServer() {
             if (dayLog) {
               for (const alias of aliases) {
                 await upsertFullPrayerLogInDb(alias, date, dayLog);
-                await mirrorToSupabaseRest(
-                  'prayer_logs',
-                  {
-                    user_id: alias,
-                    date,
-                    fajr: Boolean(dayLog.fajr),
-                    dhuhr: Boolean(dayLog.dhuhr),
-                    asr: Boolean(dayLog.asr),
-                    maghrib: Boolean(dayLog.maghrib),
-                    isha: Boolean(dayLog.isha),
-                    updated_at: new Date().toISOString(),
-                  },
-                  'user_id,date'
-                );
+                const pPayload = {
+                  user_id: alias,
+                  date,
+                  fajr: Boolean(dayLog.fajr),
+                  dhuhr: Boolean(dayLog.dhuhr),
+                  asr: Boolean(dayLog.asr),
+                  maghrib: Boolean(dayLog.maghrib),
+                  isha: Boolean(dayLog.isha),
+                  updated_at: new Date().toISOString(),
+                };
+                const ok = await mirrorToSupabaseRest('prayer_logs', pPayload, 'user_id,date');
+                if (!ok) {
+                  await mirrorToSupabaseRest('prayer_logs', pPayload);
+                }
               }
             }
           }
@@ -680,56 +748,90 @@ async function startServer() {
   app.post('/api/donations', async (req, res) => {
     try {
       const body = req.body || {};
+      const safeAmount = Number(body.amount) > 0 ? Number(body.amount) : 5000;
+      const cleanEmail = body.donorEmail ? String(body.donorEmail).trim().toLowerCase() : null;
+      const safeRef =
+        body.transactionReference ||
+        `DON-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+      const resolvedDonorName =
+        body.donorName || (cleanEmail ? cleanEmail.split('@')[0] : 'Donateur Sadaqah');
+
       let record = null;
+      let supabaseSaved = false;
       try {
         record = await insertDonationInDb({
-          userId: body.userId,
-          amount: String(body.amount || 5000),
+          userId: body.userId || (cleanEmail ? `acct_${cleanEmail}` : `guest_${safeRef}`),
+          amount: String(safeAmount),
           currency: body.currency || 'XOF',
           provider: body.provider || 'wave',
           status: body.status || 'succeeded',
           cause: body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
-          donorName: body.donorName,
-          donorEmail: body.donorEmail,
+          donorName: resolvedDonorName,
+          donorEmail: cleanEmail || undefined,
           donorPhone: body.donorPhone,
           isAnonymous: body.isAnonymous,
-          transactionReference: body.transactionReference,
+          transactionReference: safeRef,
         });
 
-        await mirrorToSupabaseRest('donations', {
-          user_id: record?.userId || body.userId || null,
-          amount: Number(record?.amount || body.amount || 5000),
+        const basePayload = {
+          user_id: record?.userId || body.userId || (cleanEmail ? `acct_${cleanEmail}` : null),
+          amount: Number(record?.amount || safeAmount),
           currency: record?.currency || body.currency || 'XOF',
           provider: record?.provider || body.provider || 'wave',
           status: record?.status || body.status || 'succeeded',
           cause: record?.cause || body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
-          donor_name: record?.donorName || body.donorName || null,
-          donor_email:
-            record?.donorEmail ||
-            (body.donorEmail ? String(body.donorEmail).trim().toLowerCase() : null),
+          donor_name: record?.donorName || resolvedDonorName,
+          donor_email: record?.donorEmail || cleanEmail,
           donor_phone: record?.donorPhone || body.donorPhone || null,
           is_anonymous: Boolean(body.isAnonymous),
-          transaction_reference: record?.transactionReference || body.transactionReference || null,
-        });
+          transaction_reference: record?.transactionReference || safeRef,
+        };
+
+        supabaseSaved = await mirrorToSupabaseRest('donations', basePayload);
+        if (!supabaseSaved) {
+          const { user_id, ...withoutUid } = basePayload;
+          supabaseSaved = await mirrorToSupabaseRest('donations', {
+            ...withoutUid,
+            provider:
+              withoutUid.provider === 'orange_money' ? 'direct_transfer' : withoutUid.provider || 'wave',
+          });
+        }
+        if (!supabaseSaved) {
+          supabaseSaved = await mirrorToSupabaseRest('donations', {
+            amount: Number(record?.amount || safeAmount),
+            currency: record?.currency || body.currency || 'XOF',
+            provider:
+              basePayload.provider === 'orange_money' ? 'direct_transfer' : basePayload.provider || 'wave',
+            status: record?.status || body.status || 'succeeded',
+            cause: record?.cause || body.cause || 'Sadaqah Jariyah - Le Sanctuaire',
+            donor_name: record?.donorName || resolvedDonorName,
+            donor_email: record?.donorEmail || cleanEmail,
+          });
+        }
       } catch (dbErr) {
         console.warn('Non-fatal DB error recording donation:', dbErr);
       }
 
       // If the donor has an account (donorEmail is present), automatically send thank-you, straight path encouragement & review request email
       let emailResult: { sent: boolean; reason?: string } = { sent: false };
-      if (body.donorEmail && String(body.donorEmail).includes('@')) {
+      if (cleanEmail && cleanEmail.includes('@')) {
         const origin =
           (typeof req.headers.origin === 'string' && req.headers.origin) ||
           `${req.protocol}://${req.get('host')}`;
         emailResult = await sendDonorThankYouAndReviewEmail({
-          donorEmail: String(body.donorEmail),
-          donorName: body.donorName,
+          donorEmail: cleanEmail,
+          donorName: resolvedDonorName,
           provider: body.provider,
           appOrigin: origin,
         });
       }
 
-      res.json({ donation: record, emailSent: emailResult.sent, emailReason: emailResult.reason });
+      res.json({
+        donation: record,
+        supabaseSaved,
+        emailSent: emailResult.sent,
+        emailReason: emailResult.reason,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'Failed to record donation' });
     }

@@ -3,9 +3,8 @@ import {
   supabaseSelect,
   supabaseUpsert,
   supabasePatch,
+  supabaseDelete,
 } from '../_supabase.js';
-
-const OWNER_EMAIL_ALIASES = ['mgaye60000@gmail.com', 'modougaye58588@gmail.com'];
 
 const memorySyncCache = new Map();
 let lastServerTs = 0;
@@ -17,23 +16,8 @@ function getNextServerTime() {
 }
 
 async function getSyncAliases(rawEmail) {
-  const clean = String(rawEmail || '').trim().toLowerCase();
-  const aliasSet = new Set(OWNER_EMAIL_ALIASES);
-  if (clean) aliasSet.add(clean);
-
-  try {
-    const profiles = await supabaseSelect('profiles', 'select=email&limit=10');
-    if (Array.isArray(profiles) && profiles.length <= 10) {
-      for (const p of profiles) {
-        const em = String(p?.email || '').trim().toLowerCase();
-        if (em && em.includes('@')) aliasSet.add(em);
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  return Array.from(aliasSet);
+  const clean = String(rawEmail || '').trim().toLowerCase() || 'visiteur_anonyme';
+  return [clean];
 }
 
 async function loadStateFromSupabase(rawEmail) {
@@ -105,7 +89,8 @@ async function loadStateFromSupabase(rawEmail) {
     }
   }
 
-  const cached = memorySyncCache.get('canonical');
+  const cacheKey = aliases[0];
+  const cached = memorySyncCache.get(cacheKey);
   if (cached) {
     for (const [date, pVal] of Object.entries(cached.prayers || {})) {
       const current = mergedPrayers[date];
@@ -127,7 +112,7 @@ async function loadStateFromSupabase(rawEmail) {
     lastUpdatedAt: cached?.lastUpdatedAt || getNextServerTime(),
   };
 
-  memorySyncCache.set('canonical', finalState);
+  memorySyncCache.set(cacheKey, finalState);
   return { state: finalState, aliases };
 }
 
@@ -163,7 +148,8 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  const rawEmail = decodeURIComponent(req.query?.email || '').trim().toLowerCase() || 'mgaye60000@gmail.com';
+  const rawEmail =
+    decodeURIComponent(req.query?.email || '').trim().toLowerCase() || 'visiteur_anonyme';
 
   try {
     if (req.method === 'GET') {
@@ -233,29 +219,111 @@ export default async function handler(req, res) {
         }
       }
 
+      // 1. Automatically persist Quran favorites into public.quran_favorites if provided
+      if (Array.isArray(incoming.quranFavorites)) {
+        for (const fav of incoming.quranFavorites) {
+          if (!fav || !fav.surahNumber || !fav.ayahNumber) continue;
+          const sNum = Number(fav.surahNumber);
+          const aNum = Number(fav.ayahNumber);
+          if (fav.remove) {
+            await supabaseDelete(
+              'quran_favorites',
+              `user_id=eq.${encodeURIComponent(rawEmail)}&surah_number=eq.${sNum}&ayah_number=eq.${aNum}`
+            );
+          } else {
+            const payload = {
+              user_id: rawEmail,
+              surah_number: sNum,
+              ayah_number: aNum,
+              surah_name: String(fav.surahName || `Sourate ${sNum}`),
+              ayah_text: String(fav.ayahText || ''),
+              ayah_translation: String(fav.ayahTranslation || ''),
+            };
+            const upRes = await supabaseUpsert(
+              'quran_favorites',
+              payload,
+              'user_id,surah_number,ayah_number'
+            );
+            if (!upRes.ok) {
+              await supabaseUpsert('quran_favorites', payload);
+            }
+          }
+        }
+      }
+
+      // 2. Automatically persist Dhikr / Tasbih logs into public.dhikr_logs if provided
+      if (Array.isArray(incoming.dhikrLogs)) {
+        for (const dLog of incoming.dhikrLogs) {
+          if (!dLog || !dLog.dhikrPhrase) continue;
+          const dateKey = String(dLog.date || new Date().toISOString().slice(0, 10));
+          const phrase = String(dLog.dhikrPhrase).trim();
+          const countVal = Math.max(0, Number(dLog.count) || 0);
+          const targetVal = Math.max(1, Number(dLog.target) || 33);
+          const completedVal = Boolean(dLog.completed || countVal >= targetVal);
+
+          const payload = {
+            user_id: rawEmail,
+            date: dateKey,
+            dhikr_phrase: phrase,
+            count: countVal,
+            target: targetVal,
+            completed: completedVal,
+          };
+
+          const existingDhikr = await supabaseSelect(
+            'dhikr_logs',
+            `user_id=eq.${encodeURIComponent(rawEmail)}&date=eq.${encodeURIComponent(dateKey)}&dhikr_phrase=eq.${encodeURIComponent(phrase)}&limit=1`
+          );
+          if (existingDhikr.length > 0 && existingDhikr[0]?.id) {
+            await supabasePatch('dhikr_logs', `id=eq.${existingDhikr[0].id}`, {
+              count: countVal,
+              target: targetVal,
+              completed: completedVal,
+            });
+          } else {
+            const upDhikr = await supabaseUpsert(
+              'dhikr_logs',
+              payload,
+              'user_id,date,dhikr_phrase'
+            );
+            if (!upDhikr.ok) {
+              await supabaseUpsert('dhikr_logs', payload);
+            }
+          }
+        }
+      }
+
       if (hasChanges) {
         current.lastUpdatedAt = serverNow;
-        memorySyncCache.set('canonical', current);
+        memorySyncCache.set(aliases[0], current);
 
         const nowIso = new Date().toISOString();
         for (const date of datesToPersist) {
           const dayLog = current.prayers[date];
           if (dayLog) {
             for (const alias of aliases) {
-              await supabaseUpsert(
-                'prayer_logs',
-                {
-                  user_id: alias,
-                  date,
-                  fajr: Boolean(dayLog.fajr),
-                  dhuhr: Boolean(dayLog.dhuhr),
-                  asr: Boolean(dayLog.asr),
-                  maghrib: Boolean(dayLog.maghrib),
-                  isha: Boolean(dayLog.isha),
-                  updated_at: nowIso,
-                },
-                'user_id,date'
-              );
+              const pPayload = {
+                user_id: alias,
+                date,
+                fajr: Boolean(dayLog.fajr),
+                dhuhr: Boolean(dayLog.dhuhr),
+                asr: Boolean(dayLog.asr),
+                maghrib: Boolean(dayLog.maghrib),
+                isha: Boolean(dayLog.isha),
+                updated_at: nowIso,
+              };
+              const upPrayer = await supabaseUpsert('prayer_logs', pPayload, 'user_id,date');
+              if (!upPrayer.ok) {
+                const existingPrayer = await supabaseSelect(
+                  'prayer_logs',
+                  `user_id=eq.${encodeURIComponent(alias)}&date=eq.${encodeURIComponent(date)}&limit=1`
+                );
+                if (existingPrayer.length > 0 && existingPrayer[0]?.id) {
+                  await supabasePatch('prayer_logs', `id=eq.${existingPrayer[0].id}`, pPayload);
+                } else {
+                  await supabaseUpsert('prayer_logs', pPayload);
+                }
+              }
             }
           }
         }

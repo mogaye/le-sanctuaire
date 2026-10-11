@@ -138,6 +138,27 @@ export async function supabasePatch(table, filterQuery, payload) {
   }
 }
 
+export async function supabaseDelete(table, filterQuery) {
+  const creds = getSupabaseCreds();
+  if (!creds) return { ok: false, reason: 'missing_supabase_key' };
+  try {
+    const res = await fetch(`${creds.url}/rest/v1/${table}?${filterQuery}`, {
+      method: 'DELETE',
+      headers: {
+        apikey: creds.key,
+        Authorization: `Bearer ${creds.key}`,
+      },
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      return { ok: false, status: res.status, error: errText };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
+
 export async function upsertUserAndProfileInSupabase({
   id,
   email,
@@ -145,15 +166,16 @@ export async function upsertUserAndProfileInSupabase({
   firstName,
   lastName,
   avatarUrl,
+  cityId = 'dakar',
   cityName = 'Dakar',
+  country = 'Sénégal',
+  calculationMethod = 'MuslimWorldLeague',
+  themePreference = 'dark',
 }) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (!cleanEmail) return null;
 
-  const resolvedId =
-    cleanEmail === 'mgaye60000@gmail.com'
-      ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4'
-      : id || `acct_${cleanEmail}`;
+  const resolvedId = id || `acct_${cleanEmail}`;
   const resolvedFull = fullName || cleanEmail.split('@')[0] || 'Fidèle';
   const resolvedFirst = firstName || resolvedFull.split(' ')[0] || 'Fidèle';
   const resolvedLast = lastName || resolvedFull.split(' ').slice(1).join(' ') || '';
@@ -215,7 +237,12 @@ export async function upsertUserAndProfileInSupabase({
       first_name: resolvedFirst,
       last_name: resolvedLast,
       avatar_url: avatarUrl || existingProfiles[0].avatar_url || null,
+      city_id: cityId || existingProfiles[0].city_id || 'dakar',
       city_name: cityName || existingProfiles[0].city_name || 'Dakar',
+      country: country || existingProfiles[0].country || 'Sénégal',
+      calculation_method:
+        calculationMethod || existingProfiles[0].calculation_method || 'MuslimWorldLeague',
+      theme_preference: themePreference || existingProfiles[0].theme_preference || 'dark',
       last_connected_at: nowIso,
       updated_at: nowIso,
     });
@@ -229,14 +256,17 @@ export async function upsertUserAndProfileInSupabase({
         first_name: resolvedFirst,
         last_name: resolvedLast,
         avatar_url: avatarUrl || null,
+        city_id: cityId || 'dakar',
         city_name: cityName || 'Dakar',
+        country: country || 'Sénégal',
+        calculation_method: calculationMethod || 'MuslimWorldLeague',
+        theme_preference: themePreference || 'dark',
         last_connected_at: nowIso,
         updated_at: nowIso,
       },
       'email'
     );
     if (!profRes.ok) {
-      // Fallback if profiles(id) is the primary key or if last_connected_at doesn't exist
       const fallbackRes = await supabaseUpsert(
         'profiles',
         {

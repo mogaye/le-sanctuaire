@@ -15,7 +15,19 @@ export default async function handler(req, res) {
 
   try {
     const body = await parseRequestBody(req);
-    const { id, email, fullName, firstName, lastName, avatarUrl, cityName } = body || {};
+    const {
+      id,
+      email,
+      fullName,
+      firstName,
+      lastName,
+      avatarUrl,
+      cityId,
+      cityName,
+      country,
+      calculationMethod,
+      themePreference,
+    } = body || {};
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -28,7 +40,11 @@ export default async function handler(req, res) {
       firstName,
       lastName,
       avatarUrl,
+      cityId,
       cityName,
+      country,
+      calculationMethod,
+      themePreference,
     });
 
     return res.status(200).json({ profile });

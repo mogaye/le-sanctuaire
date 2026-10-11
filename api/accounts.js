@@ -17,18 +17,6 @@ export default async function handler(req, res) {
 
     const map = new Map();
 
-    // Always include primary owner account
-    map.set('mgaye60000@gmail.com', {
-      id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
-      email: 'mgaye60000@gmail.com',
-      fullName: 'Mamadou Gaye',
-      firstName: 'Mamadou',
-      lastName: 'Gaye',
-      cityName: 'Dakar',
-      createdAt: '2026-09-17T23:01:43.333Z',
-      lastConnectedAt: new Date().toISOString(),
-    });
-
     for (const u of users) {
       if (!u?.email) continue;
       const key = String(u.email).trim().toLowerCase();
@@ -70,16 +58,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ accounts: Array.from(map.values()) });
   } catch (err) {
     return res.status(200).json({
-      accounts: [
-        {
-          id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
-          email: 'mgaye60000@gmail.com',
-          fullName: 'Mamadou Gaye',
-          firstName: 'Mamadou',
-          lastName: 'Gaye',
-          cityName: 'Dakar',
-        },
-      ],
+      accounts: [],
       error: err?.message,
     });
   }

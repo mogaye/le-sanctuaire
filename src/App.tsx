@@ -34,6 +34,7 @@ import {
   hasUserDonatedLocally,
   checkUserHasDonated,
   syncConnectedAccountToBackend,
+  syncAllLocalTablesToSupabase,
 } from './lib/supabase';
 import { CITIES, METHODS, RECITERS } from './data/islamicData';
 import { CityData, Method, Reciter, UserProfile } from './types';
@@ -327,7 +328,7 @@ export default function App() {
       .catch(() => {});
   }, [currentUser?.email]);
 
-  // Automatically synchronize active currentUser to Cloud SQL profiles table & start real-time PC <-> Mobile sync
+  // Automatically synchronize active currentUser & all local tables to Supabase & start real-time PC <-> Mobile sync
   useEffect(() => {
     if (currentUser?.email) {
       syncConnectedAccountToBackend({
@@ -336,8 +337,14 @@ export default function App() {
         firstName: currentUser.firstName,
         lastName: currentUser.lastName,
         avatarUrl: currentUser.avatarUrl,
+        cityId: selectedCity.id,
+        cityName: selectedCity.name,
+        country: selectedCity.country,
+        calculationMethod: selectedMethod.id,
+        themePreference: isDarkMode ? 'dark' : 'light',
       });
     }
+    syncAllLocalTablesToSupabase(currentUser);
 
     // Initial seed & pull immediately upon login / app start
     pullAndMergeCloudSync(true);
