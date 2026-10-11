@@ -5,6 +5,34 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/accounts/sync",
+      "destination": "/api/accounts?action=sync"
+    },
+    {
+      "source": "/api/auth/send-code",
+      "destination": "/api/auth?action=send-code"
+    },
+    {
+      "source": "/api/auth/verify-code",
+      "destination": "/api/auth?action=verify-code"
+    },
+    {
+      "source": "/api/donations/check",
+      "destination": "/api/donations?action=check"
+    },
+    {
+      "source": "/api/donations/thank-you",
+      "destination": "/api/donations?action=thank-you"
+    },
+    {
+      "source": "/api/emails/log",
+      "destination": "/api/emails?action=log"
+    },
+    {
+      "source": "/api/prayers/:userId/:date",
+      "destination": "/api/prayers?userId=:userId&date=:date"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

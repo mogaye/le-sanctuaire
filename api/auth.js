@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import { parseRequestBody, supabaseUpsert } from './_supabase.js';
 
 const OTP_SECRET =
   process.env.OTP_SECRET ||
@@ -14,6 +15,19 @@ function createOtpSignature(email, code, expiresAt) {
   return `${expiresAt}.${hmac}`;
 }
 
+function verifyOtpSignature(email, code, signature) {
+  if (!signature || !signature.includes('.')) return false;
+  const [expiresAtStr, expectedHmac] = signature.split('.');
+  const expiresAt = Number(expiresAtStr);
+  if (!expiresAt || Date.now() > expiresAt) {
+    return false;
+  }
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const payload = `${cleanEmail}:${String(code || '').trim()}:${expiresAt}`;
+  const actualHmac = crypto.createHmac('sha256', OTP_SECRET).update(payload).digest('hex');
+  return actualHmac === expectedHmac;
+}
+
 function buildEmailHtml(recipientName, code, recipientEmail) {
   return `
 <div style="font-family: 'Plus Jakarta Sans', Arial, sans-serif; max-width: 560px; margin: 0 auto; background-color: #0F261A; color: #FFFFFF; border-radius: 20px; overflow: hidden; border: 1px solid #22543D;">
@@ -23,7 +37,7 @@ function buildEmailHtml(recipientName, code, recipientEmail) {
     <p style="margin: 4px 0 0 0; font-size: 12px; color: #A7F3D0;">Authentification &amp; Code de Vérification</p>
   </div>
   <div style="padding: 28px 24px; background-color: #122B1E; text-align: center;">
-    <p style="font-size: 15px; line-height: 1.6; color: #E2E8F0; margin-top: 0;">
+    <p style="font-size: 15px; line-height: 1.6; color: #F8FAFC; margin-top: 0;">
       As-salāmu 'alaykum <strong>${recipientName || 'Cher croyant'}</strong>,
     </p>
     <p style="font-size: 13px; line-height: 1.6; color: #CBD5E1;">
@@ -58,7 +72,34 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : req.body || {};
+    const body = await parseRequestBody(req);
+    const action = String(req.query?.action || '').trim();
+    const isVerify =
+      action === 'verify-code' ||
+      String(req.url || '').includes('verify-code') ||
+      (body.code !== undefined && body.signature !== undefined);
+
+    if (isVerify) {
+      const email = String(body.email || '').trim().toLowerCase();
+      const code = String(body.code || '').trim();
+      const signature = String(body.signature || '').trim();
+
+      if (!email || !code) {
+        return res.status(400).json({ verified: false, error: 'E-mail et code requis.' });
+      }
+
+      const isValid = verifyOtpSignature(email, code, signature);
+      if (!isValid) {
+        return res.status(400).json({
+          verified: false,
+          error: 'Code de vérification invalide ou expiré.',
+        });
+      }
+
+      return res.status(200).json({ verified: true });
+    }
+
+    // Default: send-code
     const email = String(body.email || '').trim().toLowerCase();
     const fullName = String(body.fullName || email.split('@')[0] || 'Fidèle').trim();
 
@@ -67,7 +108,7 @@ export default async function handler(req, res) {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const expiresAt = Date.now() + 15 * 60 * 1000;
     const signature = createOtpSignature(email, code, expiresAt);
 
     const smtpHost = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
@@ -100,6 +141,15 @@ export default async function handler(req, res) {
           html: buildEmailHtml(fullName, code, email),
         });
 
+        await supabaseUpsert('email_logs', {
+          sender_email: smtpUser,
+          recipient_email: email,
+          subject: `Code de vérification Le Sanctuaire : ${code}`,
+          body_preview: `Code OTP envoyé à ${email}`,
+          email_type: 'verification',
+          status: 'sent',
+        });
+
         return res.status(200).json({
           success: true,
           provider: 'smtp',
@@ -110,7 +160,6 @@ export default async function handler(req, res) {
           message: `Un vrai code de vérification à 6 chiffres a été envoyé à ${email}.`,
         });
       } catch (smtpError) {
-        console.error('SMTP error in /api/auth/send-code:', smtpError);
         return res.status(200).json({
           success: true,
           provider: 'smtp_error',
@@ -132,10 +181,9 @@ export default async function handler(req, res) {
       message: 'Envoi délégué à Gmail OAuth / Supabase.',
     });
   } catch (error) {
-    console.error('Error in /api/auth/send-code:', error);
     return res.status(500).json({
       success: false,
-      error: error?.message || "Erreur lors de l'envoi du code de vérification par SMTP.",
+      error: error?.message || "Erreur lors de l'authentification.",
     });
   }
 }

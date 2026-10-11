@@ -1,17 +1,44 @@
 -- ==============================================================================
--- SCRIPT COMPLET SUPABASE (SCHEMA PUBLIC) POUR LE SANCTUAIRE (TOUTES LES 7 TABLES)
--- Dans votre tableau de bord Supabase (à gauche, icône "SQL Editor" sous "Table Editor"),
--- collez l'intégralité de ce script et cliquez sur "Run" (Exécuter).
--- Aucun compte ni donneur n'est codé en dur : chaque utilisateur, donneur, prière,
--- favori du Coran, Tasbih/Dhikr et e-mail est enregistré et lié automatiquement.
+-- SCRIPT COMPLET SUPABASE (SCHEMA PUBLIC) SANS ERREUR POUR LES 7 TABLES
+-- Dans votre tableau de bord Supabase (à gauche : "SQL Editor"), collez ce script
+-- et cliquez sur "Run" (Exécuter).
 -- ==============================================================================
+
+-- 0. NETTOYAGE PRÉALABLE DES ANCIENNES POLITIQUES RLS & CLÉS ÉTRANGÈRES BLOQUANTES
+-- (Évite l'erreur PostgreSQL "cannot alter type of a column used in a policy definition"
+--  et l'erreur "invalid input syntax for type uuid")
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  -- Supprimer toutes les politiques RLS existantes sur les 7 tables avant de modifier les types de colonnes
+  FOR r IN (
+    SELECT policyname, tablename
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename IN ('users', 'profiles', 'prayer_logs', 'donations', 'quran_favorites', 'dhikr_logs', 'email_logs')
+  ) LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', r.policyname, r.tablename);
+  END LOOP;
+
+  -- Supprimer toutes les contraintes de clés étrangères (FOREIGN KEY) sur ces tables
+  FOR r IN (
+    SELECT tc.constraint_name, tc.table_name
+    FROM information_schema.table_constraints tc
+    WHERE tc.constraint_schema = 'public'
+      AND tc.constraint_type = 'FOREIGN KEY'
+      AND tc.table_name IN ('users', 'profiles', 'prayer_logs', 'donations', 'quran_favorites', 'dhikr_logs', 'email_logs')
+  ) LOOP
+    EXECUTE format('ALTER TABLE public.%I DROP CONSTRAINT IF EXISTS %I', r.table_name, r.constraint_name);
+  END LOOP;
+END $$;
 
 -- ==============================================================================
 -- 1. TABLE : public.users (Tous les comptes utilisateurs)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.users (
   id SERIAL PRIMARY KEY,
-  uid TEXT NOT NULL UNIQUE,
+  uid TEXT NOT NULL,
   email TEXT NOT NULL,
   full_name TEXT,
   first_name TEXT,
@@ -22,12 +49,23 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
+ALTER TABLE public.users ALTER COLUMN uid TYPE TEXT USING uid::text;
+ALTER TABLE public.users ALTER COLUMN email TYPE TEXT USING LOWER(TRIM(email::text));
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city_name TEXT DEFAULT 'Dakar';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+
+-- Dédoublonner public.users sur uid avant de créer l'index unique
+DELETE FROM public.users a USING public.users b
+WHERE a.ctid < b.ctid AND a.uid = b.uid;
+
 CREATE UNIQUE INDEX IF NOT EXISTS users_uid_unique_idx ON public.users (uid);
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Lecture publique des users" ON public.users;
-DROP POLICY IF EXISTS "Gestion des users" ON public.users;
 CREATE POLICY "Gestion des users"
   ON public.users FOR ALL
   USING (true)
@@ -38,7 +76,7 @@ CREATE POLICY "Gestion des users"
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
   full_name TEXT,
   first_name TEXT,
   last_name TEXT,
@@ -53,22 +91,29 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
+ALTER TABLE public.profiles ALTER COLUMN id TYPE TEXT USING id::text;
+ALTER TABLE public.profiles ALTER COLUMN email TYPE TEXT USING LOWER(TRIM(email::text));
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS city_id TEXT DEFAULT 'dakar';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS city_name TEXT DEFAULT 'Dakar';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'Sénégal';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS calculation_method TEXT DEFAULT 'MuslimWorldLeague';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS theme_preference TEXT DEFAULT 'dark';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+
+-- Normaliser et dédoublonner public.profiles sur email avant de créer l'index unique
+UPDATE public.profiles SET email = LOWER(TRIM(email)) WHERE email IS NOT NULL;
+DELETE FROM public.profiles a USING public.profiles b
+WHERE a.ctid < b.ctid AND a.email = b.email;
 
 CREATE UNIQUE INDEX IF NOT EXISTS profiles_email_unique_idx ON public.profiles (email);
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Les profils sont visibles par leur propriétaire" ON public.profiles;
-DROP POLICY IF EXISTS "Les utilisateurs peuvent mettre à jour leur propre profil" ON public.profiles;
-DROP POLICY IF EXISTS "Insertion automatique de profil" ON public.profiles;
-DROP POLICY IF EXISTS "Lecture publique des profils" ON public.profiles;
-DROP POLICY IF EXISTS "Gestion des profils" ON public.profiles;
 CREATE POLICY "Gestion des profils"
   ON public.profiles FOR ALL
   USING (true)
@@ -159,7 +204,7 @@ CREATE TRIGGER on_profile_sync_to_users
   AFTER INSERT OR UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.sync_profile_to_users();
 
--- Synchronisation dynamique des comptes déjà présents dans auth.users (sans aucun e-mail codé en dur)
+-- Synchronisation dynamique des comptes déjà présents dans auth.users
 INSERT INTO public.profiles (id, email, full_name, first_name, last_name, city_name)
 SELECT
   id::text,
@@ -174,7 +219,7 @@ ON CONFLICT (email) DO NOTHING;
 
 INSERT INTO public.users (uid, email, full_name, first_name, last_name, city_name)
 SELECT
-  id,
+  id::text,
   LOWER(TRIM(email)),
   full_name,
   first_name,
@@ -197,20 +242,19 @@ CREATE TABLE IF NOT EXISTS public.prayer_logs (
   maghrib BOOLEAN DEFAULT FALSE NOT NULL,
   isha BOOLEAN DEFAULT FALSE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
-  UNIQUE(user_id, date)
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
-ALTER TABLE public.prayer_logs DROP CONSTRAINT IF EXISTS prayer_logs_user_id_fkey;
-ALTER TABLE public.prayer_logs ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+ALTER TABLE public.prayer_logs ALTER COLUMN user_id TYPE TEXT USING LOWER(TRIM(user_id::text));
+ALTER TABLE public.prayer_logs ALTER COLUMN date TYPE TEXT USING date::text;
+
+-- Dédoublonner public.prayer_logs sur (user_id, date) avant de créer l'index unique
+DELETE FROM public.prayer_logs a USING public.prayer_logs b
+WHERE a.ctid < b.ctid AND a.user_id = b.user_id AND a.date = b.date;
+
 CREATE UNIQUE INDEX IF NOT EXISTS prayer_logs_user_id_date_idx ON public.prayer_logs (user_id, date);
 
 ALTER TABLE public.prayer_logs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "L'utilisateur consulte ses propres journaux de prière" ON public.prayer_logs;
-DROP POLICY IF EXISTS "L'utilisateur insère son journal de prière" ON public.prayer_logs;
-DROP POLICY IF EXISTS "L'utilisateur met à jour son journal de prière" ON public.prayer_logs;
-DROP POLICY IF EXISTS "Gestion prayer_logs" ON public.prayer_logs;
 CREATE POLICY "Gestion prayer_logs"
   ON public.prayer_logs FOR ALL
   USING (true)
@@ -257,21 +301,20 @@ CREATE TABLE IF NOT EXISTS public.donations (
   created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
-ALTER TABLE public.donations DROP CONSTRAINT IF EXISTS donations_user_id_fkey;
 ALTER TABLE public.donations DROP CONSTRAINT IF EXISTS donations_provider_check;
 ALTER TABLE public.donations DROP CONSTRAINT IF EXISTS donations_amount_check;
 ALTER TABLE public.donations DROP CONSTRAINT IF EXISTS donations_currency_check;
 ALTER TABLE public.donations DROP CONSTRAINT IF EXISTS donations_status_check;
 ALTER TABLE public.donations ALTER COLUMN user_id TYPE TEXT USING user_id::text;
 ALTER TABLE public.donations ALTER COLUMN amount SET DEFAULT 5000;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS donor_name TEXT;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS donor_email TEXT;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS donor_phone TEXT;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS transaction_reference TEXT;
+ALTER TABLE public.donations ADD COLUMN IF NOT EXISTS cause TEXT DEFAULT 'Sadaqah Jariyah - Le Sanctuaire';
 
 ALTER TABLE public.donations ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "L'utilisateur consulte ses propres dons" ON public.donations;
-DROP POLICY IF EXISTS "Tout le monde peut créer un enregistrement de don" ON public.donations;
-DROP POLICY IF EXISTS "Donations publiques en lecture (stats globales)" ON public.donations;
-DROP POLICY IF EXISTS "Tout le monde peut enregistrer une intention de don" ON public.donations;
-DROP POLICY IF EXISTS "Gestion donations" ON public.donations;
 CREATE POLICY "Gestion donations"
   ON public.donations FOR ALL
   USING (true)
@@ -342,18 +385,22 @@ CREATE TABLE IF NOT EXISTS public.quran_favorites (
   surah_name TEXT NOT NULL,
   ayah_text TEXT NOT NULL,
   ayah_translation TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
-  UNIQUE(user_id, surah_number, ayah_number)
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
-ALTER TABLE public.quran_favorites DROP CONSTRAINT IF EXISTS quran_favorites_user_id_fkey;
-ALTER TABLE public.quran_favorites ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+ALTER TABLE public.quran_favorites ALTER COLUMN user_id TYPE TEXT USING LOWER(TRIM(user_id::text));
+
+-- Dédoublonner public.quran_favorites avant de créer l'index unique
+DELETE FROM public.quran_favorites a USING public.quran_favorites b
+WHERE a.ctid < b.ctid
+  AND a.user_id = b.user_id
+  AND a.surah_number = b.surah_number
+  AND a.ayah_number = b.ayah_number;
+
 CREATE UNIQUE INDEX IF NOT EXISTS quran_favorites_user_surah_ayah_idx
   ON public.quran_favorites (user_id, surah_number, ayah_number);
 
 ALTER TABLE public.quran_favorites ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Gestion quran_favorites" ON public.quran_favorites;
 CREATE POLICY "Gestion quran_favorites"
   ON public.quran_favorites FOR ALL
   USING (true)
@@ -389,19 +436,23 @@ CREATE TABLE IF NOT EXISTS public.dhikr_logs (
   count INT DEFAULT 0 NOT NULL,
   target INT DEFAULT 33,
   completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
-  UNIQUE(user_id, date, dhikr_phrase)
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
 
-ALTER TABLE public.dhikr_logs DROP CONSTRAINT IF EXISTS dhikr_logs_user_id_fkey;
-ALTER TABLE public.dhikr_logs ALTER COLUMN user_id TYPE TEXT USING user_id::text;
+ALTER TABLE public.dhikr_logs ALTER COLUMN user_id TYPE TEXT USING LOWER(TRIM(user_id::text));
+ALTER TABLE public.dhikr_logs ALTER COLUMN date TYPE TEXT USING date::text;
+
+-- Dédoublonner public.dhikr_logs avant de créer l'index unique
+DELETE FROM public.dhikr_logs a USING public.dhikr_logs b
+WHERE a.ctid < b.ctid
+  AND a.user_id = b.user_id
+  AND a.date = b.date
+  AND a.dhikr_phrase = b.dhikr_phrase;
+
 CREATE UNIQUE INDEX IF NOT EXISTS dhikr_logs_user_date_phrase_idx
   ON public.dhikr_logs (user_id, date, dhikr_phrase);
 
 ALTER TABLE public.dhikr_logs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "L'utilisateur gère son Dhikr" ON public.dhikr_logs;
-DROP POLICY IF EXISTS "Gestion dhikr_logs" ON public.dhikr_logs;
 CREATE POLICY "Gestion dhikr_logs"
   ON public.dhikr_logs FOR ALL
   USING (true)
@@ -443,8 +494,6 @@ CREATE TABLE IF NOT EXISTS public.email_logs (
 );
 
 ALTER TABLE public.email_logs ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Gestion email_logs" ON public.email_logs;
 CREATE POLICY "Gestion email_logs"
   ON public.email_logs FOR ALL
   USING (true)

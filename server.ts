@@ -75,34 +75,14 @@ async function withSyncLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const OWNER_EMAIL_ALIASES = ['mgaye60000@gmail.com', 'modougaye58588@gmail.com'];
-
 async function getSyncAliasesAsync(rawEmail: string): Promise<string[]> {
-  const clean = rawEmail.trim().toLowerCase();
-  const aliasSet = new Set<string>(OWNER_EMAIL_ALIASES);
-  if (clean) aliasSet.add(clean);
-  try {
-    const profiles = await getAllConnectedProfiles();
-    if (Array.isArray(profiles) && profiles.length <= 10) {
-      for (const p of profiles) {
-        const pEmail = (p?.email || '').trim().toLowerCase();
-        if (pEmail && pEmail.includes('@')) {
-          aliasSet.add(pEmail);
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return Array.from(aliasSet);
+  const clean = rawEmail.trim().toLowerCase() || 'visiteur_anonyme';
+  return [clean];
 }
 
 function getCanonicalSyncEmail(rawEmail: string): string {
   const clean = rawEmail.trim().toLowerCase();
-  if (!clean || OWNER_EMAIL_ALIASES.includes(clean)) {
-    return 'mgaye60000@gmail.com';
-  }
-  return 'mgaye60000@gmail.com';
+  return clean || 'visiteur_anonyme';
 }
 
 async function loadMergedUserSyncState(rawEmail: string): Promise<UserCloudSyncState> {

@@ -139,6 +139,48 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
+  const action = String(req.query?.action || '').trim();
+  const urlStr = String(req.url || '');
+
+  // GET /api/donations/check
+  if (
+    req.method === 'GET' &&
+    (action === 'check' ||
+      urlStr.includes('/check') ||
+      req.query?.email !== undefined ||
+      req.query?.userId !== undefined)
+  ) {
+    try {
+      const email = String(req.query?.email || '').trim().toLowerCase();
+      const userId = String(req.query?.userId || '').trim();
+
+      if (email) {
+        const rows = await supabaseSelect(
+          'donations',
+          `donor_email=ilike.${encodeURIComponent(email)}&status=neq.failed&limit=1`
+        );
+        if (rows.length > 0) {
+          return res.status(200).json({ hasDonated: true });
+        }
+      }
+
+      if (userId) {
+        const rows = await supabaseSelect(
+          'donations',
+          `user_id=eq.${encodeURIComponent(userId)}&status=neq.failed&limit=1`
+        );
+        if (rows.length > 0) {
+          return res.status(200).json({ hasDonated: true });
+        }
+      }
+
+      return res.status(200).json({ hasDonated: false });
+    } catch {
+      return res.status(200).json({ hasDonated: false });
+    }
+  }
+
+  // GET /api/donations
   if (req.method === 'GET') {
     const donations = await supabaseSelect('donations', 'select=*&order=created_at.desc&limit=100');
     return res.status(200).json({ donations });
@@ -150,13 +192,34 @@ export default async function handler(req, res) {
 
   try {
     const body = await parseRequestBody(req);
+
+    // POST /api/donations/thank-you
+    if (
+      action === 'thank-you' ||
+      urlStr.includes('/thank-you') ||
+      (body.email && !body.amount && !body.donorEmail)
+    ) {
+      const { email, name, provider } = body || {};
+      if (!email || !String(email).includes('@')) {
+        return res.status(400).json({ sent: false, error: 'E-mail du compte requis.' });
+      }
+      const origin = req.headers.origin || 'https://le-sanctuaire.vercel.app';
+      const result = await sendDonorThankYouEmail({
+        donorEmail: String(email),
+        donorName: name,
+        provider,
+        appOrigin: origin,
+      });
+      return res.status(200).json(result);
+    }
+
+    // POST /api/donations (Record donation & donor in Supabase)
     const cleanEmail = body.donorEmail ? String(body.donorEmail).trim().toLowerCase() : null;
     const safeAmount = Number(body.amount) > 0 ? Number(body.amount) : 5000;
     const safeRef =
       body.transactionReference ||
       `DON-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
 
-    // Resolve user ID from existing profile/user in Supabase if email is present
     let resolvedId = body.userId || null;
     if (cleanEmail && cleanEmail.includes('@')) {
       const existingProfile = await supabaseSelect(
@@ -178,7 +241,6 @@ export default async function handler(req, res) {
       resolvedId = `guest_${safeRef}`;
     }
 
-    // Avoid duplicate insert if this exact transaction_reference already exists
     const existingDonation = await supabaseSelect(
       'donations',
       `transaction_reference=eq.${encodeURIComponent(safeRef)}&limit=1`
@@ -208,19 +270,17 @@ export default async function handler(req, res) {
       transaction_reference: safeRef,
     };
 
-    // Attempt 1: Full payload with user_id
     let insertRes = await supabaseUpsert('donations', donationPayload);
 
-    // Attempt 2: Retry without user_id (if foreign key to auth.users blocks non-auth UUIDs) and compatible provider
     if (!insertRes.ok) {
       const { user_id, ...withoutUid } = donationPayload;
       insertRes = await supabaseUpsert('donations', {
         ...withoutUid,
-        provider: withoutUid.provider === 'orange_money' ? 'direct_transfer' : withoutUid.provider || 'wave',
+        provider:
+          withoutUid.provider === 'orange_money' ? 'direct_transfer' : withoutUid.provider || 'wave',
       });
     }
 
-    // Attempt 3: Minimal core columns in case optional columns are missing
     if (!insertRes.ok) {
       insertRes = await supabaseUpsert('donations', {
         amount: safeAmount,
