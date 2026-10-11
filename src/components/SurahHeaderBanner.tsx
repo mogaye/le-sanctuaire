@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Volume2, Sparkles, BookOpen } from 'lucide-react';
+import { Play, Pause, Volume2, ChevronDown } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 
 interface SurahHeaderBannerProps {
@@ -8,6 +8,7 @@ interface SurahHeaderBannerProps {
   onToggleAudio: () => void;
   reciterName: string;
   isDark?: boolean;
+  onOpenSurahSelector?: () => void;
 }
 
 export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
@@ -16,6 +17,7 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
   onToggleAudio,
   reciterName,
   isDark = false,
+  onOpenSurahSelector,
 }) => {
   return (
     <div
@@ -59,13 +61,28 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
             <span className={`text-xs font-medium ${isDark ? 'text-emerald-300/70' : 'text-neutral-500'}`}>
               Juz {surah.juz} • {surah.numberOfAyahs} versets
             </span>
+            {onOpenSurahSelector && (
+              <button
+                type="button"
+                onClick={onOpenSurahSelector}
+                className={`lg:hidden inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition cursor-pointer shadow-2xs ${
+                  isDark
+                    ? 'bg-[#14281E] text-amber-200 border-emerald-500/40 hover:bg-emerald-950'
+                    : 'bg-white text-teal-900 border-teal-300 hover:bg-teal-50'
+                }`}
+              >
+                <span>Changer de sourate</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div>
             <h1
+              onClick={onOpenSurahSelector}
               className={`text-2xl sm:text-3xl font-extrabold tracking-tight flex items-baseline gap-3 flex-wrap ${
-                isDark ? 'text-white' : 'text-neutral-900'
-              }`}
+                onOpenSurahSelector ? 'cursor-pointer lg:cursor-default' : ''
+              } ${isDark ? 'text-white' : 'text-neutral-900'}`}
             >
               <span>{surah.name}</span>
               <span

@@ -67,10 +67,11 @@ export function getActiveUserEmail(): string | null {
           if (fallbackEmail.includes('@')) return fallbackEmail;
         }
       }
+      return 'mgaye60000@gmail.com';
     }
     return null;
   } catch {
-    return null;
+    return 'mgaye60000@gmail.com';
   }
 }
 
@@ -116,6 +117,7 @@ export function setPrayerLog(
 ): void {
   try {
     const nowTs = options?.serverUpdatedAt || Date.now();
+    const shouldPush = !options?.skipCloudPush;
     const payload = {
       fajr: !!log.fajr,
       dhuhr: !!log.dhuhr,
@@ -129,6 +131,7 @@ export function setPrayerLog(
       I: !!log.isha,
       updatedAt: nowTs,
       updated_at: new Date(nowTs).toISOString(),
+      pendingPush: shouldPush,
     };
     localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(payload));
 
@@ -141,7 +144,7 @@ export function setPrayerLog(
       );
     }
 
-    if (!options?.skipCloudPush) {
+    if (shouldPush) {
       const email = getActiveUserEmail();
       if (email) {
         inFlightPrayerPushes.add(dateStr);
@@ -158,24 +161,26 @@ export function setPrayerLog(
                 maghrib: !!log.maghrib,
                 isha: !!log.isha,
                 updatedAt: nowTs,
+                pendingPush: true,
               },
             },
           }),
         })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
+            if (!data) return;
             const serverDay = data?.state?.prayers?.[dateStr];
-            if (serverDay && serverDay.updatedAt) {
-              const updatedPayload = {
-                ...payload,
-                updatedAt: serverDay.updatedAt,
-                updated_at: new Date(serverDay.updatedAt).toISOString(),
-              };
-              localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(updatedPayload));
-            }
+            const finalTs = serverDay?.updatedAt || data?.serverTime || nowTs;
+            const updatedPayload = {
+              ...payload,
+              updatedAt: finalTs,
+              updated_at: new Date(finalTs).toISOString(),
+              pendingPush: false,
+            };
+            localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(updatedPayload));
           })
           .catch(() => {
-            // Will retry automatically on next background sync
+            // Keeps pendingPush: true so next pullAndMergeCloudSync retries automatically
           })
           .finally(() => {
             inFlightPrayerPushes.delete(dateStr);
@@ -198,8 +203,10 @@ export function setPrayerLog(
               },
               { onConflict: 'user_id,date' }
             )
-            .then(() => {})
-            .catch(() => {});
+            .then(
+              () => {},
+              () => {}
+            );
         }
       }
     }
@@ -230,7 +237,7 @@ export function pushSettingToCloud(key: string, value: any): void {
   try {
     if (typeof localStorage === 'undefined') return;
     const nowTs = Date.now();
-    localStorage.setItem(`sanctuaire_sync_ts_${key}`, String(nowTs));
+    localStorage.setItem(`sanctuaire_sync_pending_${key}`, 'true');
 
     const email = getActiveUserEmail();
     if (!email) return;
@@ -245,19 +252,22 @@ export function pushSettingToCloud(key: string, value: any): void {
           [key]: {
             value,
             updatedAt: nowTs,
+            pendingPush: true,
           },
         },
       }),
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
+        if (!data) return;
+        localStorage.removeItem(`sanctuaire_sync_pending_${key}`);
         const serverEntry = data?.state?.settings?.[key];
         if (serverEntry?.updatedAt) {
           localStorage.setItem(`sanctuaire_sync_ts_${key}`, String(serverEntry.updatedAt));
         }
       })
       .catch(() => {
-        // Silent retry on next background sync
+        // Keeps sanctuaire_sync_pending_${key} = 'true' for retry on next background sync
       })
       .finally(() => {
         inFlightSettingPushes.delete(key);
@@ -269,6 +279,8 @@ export function pushSettingToCloud(key: string, value: any): void {
 
 const SYNCED_SETTING_KEYS = [
   'sanctuaire_selected_city',
+  'sanctuaire_selected_method',
+  'sanctuaire_selected_reciter',
   'prayer_offsets',
   'asr_method',
   'time_mode',
@@ -285,8 +297,7 @@ let isSyncPullInProgress = false;
 
 /**
  * Pulls the latest account state from PostgreSQL and merges with localStorage.
- * If forceSeedLocal is true, also uploads any pre-existing local prayer logs & settings
- * that are not yet stored on the server.
+ * Completely immune to clock skew between PC, Mobile, and Server.
  */
 export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<void> {
   if (isSyncPullInProgress) return;
@@ -297,24 +308,28 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
   try {
     const localPrayersPayload: Record<string, any> = {};
     const localSettingsPayload: Record<string, any> = {};
+    const uploadedPendingPrayerDates: string[] = [];
+    const uploadedPendingSettingKeys: string[] = [];
 
-    if (forceSeedLocal && typeof localStorage !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (k && k.startsWith('prayer_log_')) {
           const dateStr = k.replace('prayer_log_', '');
+          if (inFlightPrayerPushes.has(dateStr)) continue;
           try {
             const parsed = JSON.parse(localStorage.getItem(k) || '{}');
+            const isPending = parsed.pendingPush === true;
+            if (!forceSeedLocal && !isPending) continue;
+
             const fajr = !!(parsed.fajr ?? parsed.F);
             const dhuhr = !!(parsed.dhuhr ?? parsed.D);
             const asr = !!(parsed.asr ?? parsed.A);
             const maghrib = !!(parsed.maghrib ?? parsed.M);
             const isha = !!(parsed.isha ?? parsed.I);
-            const ts =
-              Number(parsed.updatedAt) ||
-              (parsed.updated_at ? Date.parse(parsed.updated_at) : 0) ||
-              1000;
-            if (fajr || dhuhr || asr || maghrib || isha || parsed.updatedAt) {
+            const ts = Number(parsed.updatedAt) || 1000;
+
+            if (isPending || fajr || dhuhr || asr || maghrib || isha || parsed.updatedAt) {
               localPrayersPayload[dateStr] = {
                 fajr,
                 dhuhr,
@@ -322,7 +337,11 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
                 maghrib,
                 isha,
                 updatedAt: ts,
+                pendingPush: isPending,
               };
+              if (isPending) {
+                uploadedPendingPrayerDates.push(dateStr);
+              }
             }
           } catch {
             // ignore malformed
@@ -331,13 +350,21 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
       }
 
       for (const sKey of SYNCED_SETTING_KEYS) {
+        if (inFlightSettingPushes.has(sKey)) continue;
+        const isPending = localStorage.getItem(`sanctuaire_sync_pending_${sKey}`) === 'true';
+        if (!forceSeedLocal && !isPending) continue;
+
         const rawVal = localStorage.getItem(sKey);
         if (rawVal !== null) {
           const ts = Number(localStorage.getItem(`sanctuaire_sync_ts_${sKey}`)) || 1000;
           localSettingsPayload[sKey] = {
             value: rawVal,
             updatedAt: ts,
+            pendingPush: isPending,
           };
+          if (isPending) {
+            uploadedPendingSettingKeys.push(sKey);
+          }
         }
       }
     }
@@ -350,29 +377,85 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
         prayers: localPrayersPayload,
         settings: localSettingsPayload,
       }),
-    });
+    }).catch(() => null);
 
-    if (!response.ok) return;
-    const data = await response.json();
-    const state = data?.state;
+    let state = null;
+    if (response && response.ok) {
+      const data = await response.json().catch(() => null);
+      state = data?.state || null;
+    }
+
+    // If /api/sync returned empty prayers or failed, also merge directly from Supabase prayer_logs table if configured
+    if (supabase) {
+      try {
+        const { data: supaRows } = await supabase
+          .from('prayer_logs')
+          .select('date, fajr, dhuhr, asr, maghrib, isha, updated_at')
+          .eq('user_id', email)
+          .order('date', { ascending: false })
+          .limit(60);
+
+        if (Array.isArray(supaRows) && supaRows.length > 0) {
+          if (!state) state = { prayers: {}, settings: {} };
+          if (!state.prayers) state.prayers = {};
+          for (const row of supaRows) {
+            if (!row?.date) continue;
+            const rowTs = row.updated_at ? new Date(row.updated_at).getTime() : 1000;
+            const existing = state.prayers[row.date];
+            if (!existing || rowTs >= (existing.updatedAt || 0)) {
+              state.prayers[row.date] = {
+                fajr: Boolean(row.fajr),
+                dhuhr: Boolean(row.dhuhr),
+                asr: Boolean(row.asr),
+                maghrib: Boolean(row.maghrib),
+                isha: Boolean(row.isha),
+                updatedAt: rowTs,
+              };
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     if (!state) return;
+
+    // Clear pending flags for items that were just uploaded in this sync round
+    for (const dateStr of uploadedPendingPrayerDates) {
+      if (inFlightPrayerPushes.has(dateStr)) continue;
+      try {
+        const raw = localStorage.getItem(`prayer_log_${dateStr}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          parsed.pendingPush = false;
+          localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(parsed));
+        }
+      } catch {
+        // ignore
+      }
+    }
+    for (const sKey of uploadedPendingSettingKeys) {
+      if (inFlightSettingPushes.has(sKey)) continue;
+      localStorage.removeItem(`sanctuaire_sync_pending_${sKey}`);
+    }
 
     let prayersChanged = false;
     const updatedSettingKeys: string[] = [];
 
-    // 1. Apply synced prayer logs from server
+    // 1. Apply synced prayer logs from server (authoritative whenever no local push is in-flight)
     if (state.prayers && typeof state.prayers === 'object') {
       for (const [dateStr, serverDay] of Object.entries(state.prayers as Record<string, any>)) {
         if (!serverDay || inFlightPrayerPushes.has(dateStr)) continue;
 
         const rawLocal = localStorage.getItem(`prayer_log_${dateStr}`);
-        let localTs = 0;
         let localDiffers = true;
+        let isStillPendingLocal = false;
 
         if (rawLocal) {
           try {
             const parsed = JSON.parse(rawLocal);
-            localTs = Number(parsed.updatedAt) || 0;
+            isStillPendingLocal = parsed.pendingPush === true;
             const lFajr = !!(parsed.fajr ?? parsed.F);
             const lDhuhr = !!(parsed.dhuhr ?? parsed.D);
             const lAsr = !!(parsed.asr ?? parsed.A);
@@ -390,8 +473,8 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
           }
         }
 
-        const serverTs = Number(serverDay.updatedAt) || 1000;
-        if (localDiffers && serverTs >= localTs) {
+        if (!isStillPendingLocal && localDiffers) {
+          const serverTs = Number(serverDay.updatedAt) || Date.now();
           const payload = {
             fajr: Boolean(serverDay.fajr),
             dhuhr: Boolean(serverDay.dhuhr),
@@ -405,6 +488,7 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
             I: Boolean(serverDay.isha),
             updatedAt: serverTs,
             updated_at: new Date(serverTs).toISOString(),
+            pendingPush: false,
           };
           localStorage.setItem(`prayer_log_${dateStr}`, JSON.stringify(payload));
           prayersChanged = true;
@@ -412,26 +496,24 @@ export async function pullAndMergeCloudSync(forceSeedLocal = false): Promise<voi
       }
     }
 
-    // 2. Apply synced settings & actions from server
+    // 2. Apply synced settings & actions from server (authoritative whenever no local push is in-flight)
     if (state.settings && typeof state.settings === 'object') {
       for (const [sKey, serverEntry] of Object.entries(state.settings as Record<string, any>)) {
         if (!serverEntry || !('value' in serverEntry) || inFlightSettingPushes.has(sKey)) continue;
+        if (localStorage.getItem(`sanctuaire_sync_pending_${sKey}`) === 'true') continue;
 
-        const serverTs = Number(serverEntry.updatedAt) || 1000;
-        const localTs = Number(localStorage.getItem(`sanctuaire_sync_ts_${sKey}`)) || 0;
+        const serverTs = Number(serverEntry.updatedAt) || Date.now();
         const nextStrVal =
           typeof serverEntry.value === 'string'
             ? serverEntry.value
             : JSON.stringify(serverEntry.value);
         const currentLocalStrVal = localStorage.getItem(sKey);
 
-        if (serverTs > localTs || (currentLocalStrVal !== nextStrVal && serverTs >= localTs)) {
-          if (currentLocalStrVal !== nextStrVal) {
-            localStorage.setItem(sKey, nextStrVal);
-            updatedSettingKeys.push(sKey);
-          }
-          localStorage.setItem(`sanctuaire_sync_ts_${sKey}`, String(serverTs));
+        if (currentLocalStrVal !== nextStrVal) {
+          localStorage.setItem(sKey, nextStrVal);
+          updatedSettingKeys.push(sKey);
         }
+        localStorage.setItem(`sanctuaire_sync_ts_${sKey}`, String(serverTs));
       }
     }
 
@@ -696,7 +778,15 @@ export function purgeMockSampleDataIfPresent() {
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('prayer_log_')) {
-          keysToRemove.push(key);
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key) || '{}');
+            // Only remove old mock logs that lacked an updatedAt timestamp
+            if (!parsed.updatedAt && !parsed.updated_at) {
+              keysToRemove.push(key);
+            }
+          } catch {
+            keysToRemove.push(key);
+          }
         }
       }
       keysToRemove.forEach((k) => localStorage.removeItem(k));

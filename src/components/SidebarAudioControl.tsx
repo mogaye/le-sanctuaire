@@ -81,10 +81,14 @@ export const SidebarAudioControl: React.FC<SidebarAudioControlProps> = ({
           {/* Reciter Dropdown */}
           {isOpenReciters && (
             <div
-              className={`absolute top-full left-0 right-0 mt-1 z-30 rounded-xl shadow-xl p-1 space-y-0.5 max-h-48 overflow-y-auto border ${
+              style={{
+                backgroundColor: isDark ? '#193226' : '#FFFFFF',
+                opacity: 1,
+              }}
+              className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-xl shadow-2xl p-1 space-y-0.5 max-h-48 overflow-y-auto border ${
                 isDark
-                  ? 'bg-[#193226] border-emerald-500/30 shadow-emerald-950/60'
-                  : 'bg-white border-neutral-200 shadow-lg'
+                  ? 'bg-[#193226] border-emerald-500/40 shadow-black/80'
+                  : 'bg-white border-neutral-300 shadow-xl'
               }`}
             >
               {RECITERS.map((r) => (

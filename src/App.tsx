@@ -71,8 +71,52 @@ export default function App() {
       // ignore
     }
   };
-  const [selectedMethod, setSelectedMethod] = useState<Method>(METHODS[0]); // Muslim
-  const [selectedReciter, setSelectedReciter] = useState<Reciter>(RECITERS[0]); // Mishary
+  const [selectedMethod, setSelectedMethod] = useState<Method>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_selected_method');
+      if (saved) {
+        const found = METHODS.find((m) => m.id === saved);
+        if (found) return found;
+      }
+    } catch {
+      // ignore
+    }
+    return METHODS[0];
+  });
+
+  const handleSelectMethod = (method: Method) => {
+    setSelectedMethod(method);
+    try {
+      localStorage.setItem('sanctuaire_selected_method', method.id);
+      pushSettingToCloud('sanctuaire_selected_method', method.id);
+    } catch {
+      // ignore
+    }
+  };
+
+  const [selectedReciter, setSelectedReciter] = useState<Reciter>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_selected_reciter');
+      if (saved) {
+        const found = RECITERS.find((r) => r.id === saved);
+        if (found) return found;
+      }
+    } catch {
+      // ignore
+    }
+    return RECITERS[0];
+  });
+
+  const handleSelectReciter = (reciter: Reciter) => {
+    setSelectedReciter(reciter);
+    try {
+      localStorage.setItem('sanctuaire_selected_reciter', reciter.id);
+      pushSettingToCloud('sanctuaire_selected_reciter', reciter.id);
+    } catch {
+      // ignore
+    }
+  };
+
   const [activePrayerKey, setActivePrayerKey] = useState<'F' | 'D' | 'A' | 'M' | 'I'>('A');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     try {
@@ -83,6 +127,19 @@ export default function App() {
       return true;
     }
   });
+
+  const handleToggleDarkMode = () => {
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_dark_mode', String(next));
+        pushSettingToCloud('sanctuaire_dark_mode', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
   const [heroBgIndex, setHeroBgIndex] = useState<number>(0);
   const [prevHeroBgId, setPrevHeroBgId] = useState<string | null>(null);
 
@@ -107,7 +164,7 @@ export default function App() {
 
   // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', or 'calendar'
   const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
-  const [selectedSurahForPage, setSelectedSurahForPage] = useState<number>(1);
+  const [selectedSurahForPage, setSelectedSurahForPage] = useState<number | undefined>(undefined);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
   const [isReadingBook, setIsReadingBook] = useState<boolean>(false);
 
@@ -235,24 +292,60 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  // Auto-restore connected account from backend if user hasn't explicitly logged out
+  useEffect(() => {
+    if (currentUser?.email) return;
+    if (localStorage.getItem('sanctuaire_logged_out') === 'true') return;
+
+    fetch('/api/accounts')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const list = data?.accounts;
+        if (Array.isArray(list) && list.length > 0) {
+          const primary = list[0];
+          if (primary?.email) {
+            const restored: UserProfile = {
+              id: primary.id,
+              name: primary.fullName || primary.firstName || primary.email.split('@')[0],
+              firstName: primary.firstName || primary.fullName?.split(' ')[0] || 'Fidèle',
+              lastName: primary.lastName || '',
+              email: primary.email,
+              avatarUrl: primary.avatarUrl,
+            };
+            setCurrentUser((prev) => {
+              if (prev?.email) return prev;
+              try {
+                localStorage.setItem('sanctuaire_user', JSON.stringify(restored));
+              } catch {
+                // ignore
+              }
+              return restored;
+            });
+          }
+        }
+      })
+      .catch(() => {});
+  }, [currentUser?.email]);
+
   // Automatically synchronize active currentUser to Cloud SQL profiles table & start real-time PC <-> Mobile sync
   useEffect(() => {
-    if (!currentUser?.email) return;
-    syncConnectedAccountToBackend({
-      email: currentUser.email,
-      fullName: currentUser.name,
-      firstName: currentUser.firstName,
-      lastName: currentUser.lastName,
-      avatarUrl: currentUser.avatarUrl,
-    });
+    if (currentUser?.email) {
+      syncConnectedAccountToBackend({
+        email: currentUser.email,
+        fullName: currentUser.name,
+        firstName: currentUser.firstName,
+        lastName: currentUser.lastName,
+        avatarUrl: currentUser.avatarUrl,
+      });
+    }
 
     // Initial seed & pull immediately upon login / app start
     pullAndMergeCloudSync(true);
 
-    // Real-time background sync every 2.5 seconds across PC and Mobile
+    // Real-time background sync every 1.5 seconds across PC and Mobile
     const syncInterval = setInterval(() => {
       pullAndMergeCloudSync(false);
-    }, 2500);
+    }, 1500);
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
@@ -268,7 +361,7 @@ export default function App() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [currentUser]);
+  }, [currentUser?.email]);
 
   // Listen for cloud-synced setting updates so App state updates live without reload
   useEffect(() => {
@@ -281,6 +374,16 @@ export default function App() {
             (c) => c.id === parsed.id || (c.name === parsed.name && c.country === parsed.country)
           );
           if (found) setSelectedCity(found);
+        }
+        const savedMethod = localStorage.getItem('sanctuaire_selected_method');
+        if (savedMethod) {
+          const foundM = METHODS.find((m) => m.id === savedMethod);
+          if (foundM) setSelectedMethod(foundM);
+        }
+        const savedReciter = localStorage.getItem('sanctuaire_selected_reciter');
+        if (savedReciter) {
+          const foundR = RECITERS.find((r) => r.id === savedReciter);
+          if (foundR) setSelectedReciter(foundR);
         }
         const savedOffsets = localStorage.getItem('prayer_offsets');
         if (savedOffsets) {
@@ -383,9 +486,7 @@ export default function App() {
   };
 
   const handleOpenQuranPage = (surahNumber?: number) => {
-    if (surahNumber) {
-      setSelectedSurahForPage(surahNumber);
-    }
+    setSelectedSurahForPage(surahNumber);
     setCurrentView('quran');
   };
 
@@ -567,11 +668,11 @@ export default function App() {
             currentUser={currentUser}
             onBackToHome={() => setCurrentView('home')}
             selectedReciter={selectedReciter}
-            onSelectReciter={setSelectedReciter}
+            onSelectReciter={handleSelectReciter}
             initialSurahNumber={selectedSurahForPage}
             onOpenPrayerPage={() => handleOpenPrayerGuide()}
             isDarkMode={isDarkMode}
-            onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
+            onToggleDarkMode={handleToggleDarkMode}
           />
         );
 
@@ -605,7 +706,7 @@ export default function App() {
             <VerticalDock
               activeSection="calendar"
               isDarkMode={isDarkMode}
-              onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
+              onToggleDarkMode={handleToggleDarkMode}
               onOpenPrayerTimes={() => handleOpenPrayerGuide()}
               onOpenCalendar={() => setCurrentView('calendar')}
               onOpenQuran={() => handleOpenQuranPage()}
@@ -630,7 +731,7 @@ export default function App() {
             <VerticalDock
               activeSection="home"
               isDarkMode={isDarkMode}
-              onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
+              onToggleDarkMode={handleToggleDarkMode}
               onOpenPrayerTimes={() => handleOpenPrayerGuide()}
               onOpenCalendar={() => setCurrentView('calendar')}
               onOpenQuran={() => handleOpenQuranPage()}
@@ -649,9 +750,9 @@ export default function App() {
               selectedCity={selectedCity}
               onSelectCity={handleSelectCity}
               selectedMethod={selectedMethod}
-              onSelectMethod={setSelectedMethod}
+              onSelectMethod={handleSelectMethod}
               selectedReciter={selectedReciter}
-              onSelectReciter={setSelectedReciter}
+              onSelectReciter={handleSelectReciter}
               onOpenPrayerGuide={handleOpenPrayerGuide}
               onOpenCalendar={() => setCurrentView('calendar')}
               onOpenQuran={() => handleOpenQuranPage()}
@@ -662,7 +763,7 @@ export default function App() {
               onOpenLibrary={canAccessLibrary ? handleOpenLibrary : undefined}
               onOpenDonations={() => setIsDonationOpen(true)}
               isDarkMode={isDarkMode}
-              onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
+              onToggleDarkMode={handleToggleDarkMode}
             />
           </div>
         );
@@ -710,9 +811,9 @@ export default function App() {
                   selectedCity={selectedCity}
                   onSelectCity={handleSelectCity}
                   selectedMethod={selectedMethod}
-                  onSelectMethod={setSelectedMethod}
+                  onSelectMethod={handleSelectMethod}
                   selectedReciter={selectedReciter}
-                  onSelectReciter={setSelectedReciter}
+                  onSelectReciter={handleSelectReciter}
                   onOpenPrayerGuide={() => handleOpenPrayerGuide()}
                   onOpenQuran={() => handleOpenQuranPage()}
                   onOpenFasting={handleOpenFasting}
@@ -728,7 +829,7 @@ export default function App() {
                   isDarkMode={isDarkMode}
                   onToggleDarkMode={() => {
                     setPrevHeroBgId(currentHeroBg.id);
-                    setIsDarkMode((prev) => !prev);
+                    handleToggleDarkMode();
                   }}
                 />
 
@@ -826,7 +927,7 @@ export default function App() {
             onOpenLibrary={canAccessLibrary ? () => setCurrentView('library') : undefined}
             onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
             isDarkMode={isDarkMode}
-            onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+            onToggleDarkMode={handleToggleDarkMode}
           />
         )}
 
@@ -859,7 +960,7 @@ export default function App() {
         {currentView !== 'quran' && !isReadingBook && (
           <FloatingThemeButton
             isDarkMode={isDarkMode}
-            onToggle={() => setIsDarkMode((prev) => !prev)}
+            onToggle={handleToggleDarkMode}
           />
         )}
       </AnimatePresence>
@@ -897,7 +998,7 @@ export default function App() {
         onClose={() => setIsPrayerSettingsOpen(false)}
         selectedCity={selectedCity}
         selectedMethod={selectedMethod}
-        onSelectMethod={setSelectedMethod}
+        onSelectMethod={handleSelectMethod}
         offsets={prayerOffsets}
         onSaveOffsets={handleSavePrayerOffsets}
         currentAsrMethod={asrMethod}

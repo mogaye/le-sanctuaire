@@ -1522,8 +1522,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   key={item.label}
                   onClick={() => {
-                    setSelectedDhikrIndex(idx);
-                    setTasbihCount(0);
+                    handleSelectDhikrIndex(idx);
+                    resetTasbih();
                   }}
                   className={`text-[11px] py-1.5 px-2 rounded-xl font-medium transition-all cursor-pointer truncate ${
                     selectedDhikrIndex === idx

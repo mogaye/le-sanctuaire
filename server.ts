@@ -51,61 +51,121 @@ export interface UserCloudSyncState {
 }
 
 const memoryUserSyncCache = new Map<string, UserCloudSyncState>();
+const syncLocks = new Map<string, Promise<any>>();
+let lastServerSyncTs = 0;
+
+function getNextServerSyncTime(): number {
+  const now = Date.now();
+  lastServerSyncTs = Math.max(now, lastServerSyncTs + 1);
+  return lastServerSyncTs;
+}
+
+async function withSyncLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = syncLocks.get(key) || Promise.resolve();
+  let release!: () => void;
+  const nextLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  syncLocks.set(key, prev.then(() => nextLock));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+const OWNER_EMAIL_ALIASES = ['mgaye60000@gmail.com', 'modougaye58588@gmail.com'];
+
+async function getSyncAliasesAsync(rawEmail: string): Promise<string[]> {
+  const clean = rawEmail.trim().toLowerCase();
+  const aliasSet = new Set<string>(OWNER_EMAIL_ALIASES);
+  if (clean) aliasSet.add(clean);
+  try {
+    const profiles = await getAllConnectedProfiles();
+    if (Array.isArray(profiles) && profiles.length <= 10) {
+      for (const p of profiles) {
+        const pEmail = (p?.email || '').trim().toLowerCase();
+        if (pEmail && pEmail.includes('@')) {
+          aliasSet.add(pEmail);
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return Array.from(aliasSet);
+}
+
+function getCanonicalSyncEmail(rawEmail: string): string {
+  const clean = rawEmail.trim().toLowerCase();
+  if (!clean || OWNER_EMAIL_ALIASES.includes(clean)) {
+    return 'mgaye60000@gmail.com';
+  }
+  return 'mgaye60000@gmail.com';
+}
 
 async function loadMergedUserSyncState(rawEmail: string): Promise<UserCloudSyncState> {
-  const cleanEmail = rawEmail.trim().toLowerCase();
-  const cached = memoryUserSyncCache.get(cleanEmail);
-
-  const dbStateRaw = await getUserSyncStateFromDb(cleanEmail);
-  const dbPrayerRows = await getAllPrayerLogsForUserFromDb(cleanEmail);
+  const canonicalEmail = getCanonicalSyncEmail(rawEmail);
+  const aliases = await getSyncAliasesAsync(rawEmail);
+  const cached = memoryUserSyncCache.get(canonicalEmail);
 
   const mergedPrayers: Record<string, SyncedPrayerDay> = {};
   const mergedSettings: Record<string, SyncedSettingEntry> = {};
 
-  // 1. Seed from DB prayer_logs table
-  for (const row of dbPrayerRows) {
-    const rowTime = row.updatedAt ? new Date(row.updatedAt).getTime() : 1000;
-    mergedPrayers[row.date] = {
-      fajr: Boolean(row.fajr),
-      dhuhr: Boolean(row.dhuhr),
-      asr: Boolean(row.asr),
-      maghrib: Boolean(row.maghrib),
-      isha: Boolean(row.isha),
-      updatedAt: rowTime,
-    };
-  }
-
-  // 2. Merge from DB JSON state
-  if (dbStateRaw && typeof dbStateRaw === 'object') {
-    if (dbStateRaw.prayers && typeof dbStateRaw.prayers === 'object') {
-      for (const [date, pVal] of Object.entries(dbStateRaw.prayers as Record<string, any>)) {
-        if (!pVal || typeof pVal !== 'object') continue;
-        const incomingTs = Number(pVal.updatedAt) || 1000;
-        const current = mergedPrayers[date];
-        if (!current || incomingTs >= current.updatedAt) {
-          mergedPrayers[date] = {
-            fajr: Boolean(pVal.fajr),
-            dhuhr: Boolean(pVal.dhuhr),
-            asr: Boolean(pVal.asr),
-            maghrib: Boolean(pVal.maghrib),
-            isha: Boolean(pVal.isha),
-            updatedAt: incomingTs,
-          };
-        }
-      }
-    }
-    if (dbStateRaw.settings && typeof dbStateRaw.settings === 'object') {
-      for (const [sKey, sVal] of Object.entries(dbStateRaw.settings as Record<string, any>)) {
-        if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
-        mergedSettings[sKey] = {
-          value: sVal.value,
-          updatedAt: Number(sVal.updatedAt) || 1000,
+  for (const alias of aliases) {
+    const dbPrayerRows = await getAllPrayerLogsForUserFromDb(alias);
+    for (const row of dbPrayerRows) {
+      const rowTime = row.updatedAt ? new Date(row.updatedAt).getTime() : 1000;
+      const current = mergedPrayers[row.date];
+      if (!current || rowTime >= current.updatedAt) {
+        mergedPrayers[row.date] = {
+          fajr: Boolean(row.fajr),
+          dhuhr: Boolean(row.dhuhr),
+          asr: Boolean(row.asr),
+          maghrib: Boolean(row.maghrib),
+          isha: Boolean(row.isha),
+          updatedAt: rowTime,
         };
       }
     }
+
+    const dbStateRaw = await getUserSyncStateFromDb(alias);
+    if (dbStateRaw && typeof dbStateRaw === 'object') {
+      if (dbStateRaw.prayers && typeof dbStateRaw.prayers === 'object') {
+        for (const [date, pVal] of Object.entries(dbStateRaw.prayers as Record<string, any>)) {
+          if (!pVal || typeof pVal !== 'object') continue;
+          const incomingTs = Number(pVal.updatedAt) || 1000;
+          const current = mergedPrayers[date];
+          if (!current || incomingTs >= current.updatedAt) {
+            mergedPrayers[date] = {
+              fajr: Boolean(pVal.fajr),
+              dhuhr: Boolean(pVal.dhuhr),
+              asr: Boolean(pVal.asr),
+              maghrib: Boolean(pVal.maghrib),
+              isha: Boolean(pVal.isha),
+              updatedAt: incomingTs,
+            };
+          }
+        }
+      }
+      if (dbStateRaw.settings && typeof dbStateRaw.settings === 'object') {
+        for (const [sKey, sVal] of Object.entries(dbStateRaw.settings as Record<string, any>)) {
+          if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
+          const incomingTs = Number(sVal.updatedAt) || 1000;
+          const current = mergedSettings[sKey];
+          if (!current || incomingTs >= current.updatedAt) {
+            mergedSettings[sKey] = {
+              value: sVal.value,
+              updatedAt: incomingTs,
+            };
+          }
+        }
+      }
+    }
   }
 
-  // 3. Merge from in-memory cache if newer
+  // Merge from in-memory cache if newer
   if (cached) {
     for (const [date, pVal] of Object.entries(cached.prayers)) {
       const current = mergedPrayers[date];
@@ -124,10 +184,13 @@ async function loadMergedUserSyncState(rawEmail: string): Promise<UserCloudSyncS
   const finalState: UserCloudSyncState = {
     prayers: mergedPrayers,
     settings: mergedSettings,
-    lastUpdatedAt: Date.now(),
+    lastUpdatedAt: cached?.lastUpdatedAt || getNextServerSyncTime(),
   };
 
-  memoryUserSyncCache.set(cleanEmail, finalState);
+  memoryUserSyncCache.set(canonicalEmail, finalState);
+  for (const alias of aliases) {
+    memoryUserSyncCache.set(alias, finalState);
+  }
   return finalState;
 }
 
@@ -483,8 +546,9 @@ async function startServer() {
       if (!rawEmail) {
         return res.status(400).json({ error: 'Email is required' });
       }
-      const state = await loadMergedUserSyncState(rawEmail);
-      res.json({ email: rawEmail, state });
+      const canonicalEmail = getCanonicalSyncEmail(rawEmail);
+      const state = await withSyncLock(canonicalEmail, () => loadMergedUserSyncState(rawEmail));
+      res.json({ email: rawEmail, state, serverTime: state.lastUpdatedAt });
     } catch (error: any) {
       console.error('Error in GET /api/sync/:email:', error);
       res.status(500).json({ error: error.message || 'Failed to load sync state' });
@@ -498,100 +562,115 @@ async function startServer() {
         return res.status(400).json({ error: 'Email is required' });
       }
 
-      const incoming = req.body || {};
-      const isPushAction = incoming.mode === 'push';
-      const serverNow = Date.now();
-      const current = await loadMergedUserSyncState(rawEmail);
+      const canonicalEmail = getCanonicalSyncEmail(rawEmail);
+      const result = await withSyncLock(canonicalEmail, async () => {
+        const incoming = req.body || {};
+        const isPushAction = incoming.mode === 'push';
+        const serverNow = getNextServerSyncTime();
+        const current = await loadMergedUserSyncState(rawEmail);
 
-      let hasChanges = false;
-      const datesToPersistInDb: string[] = [];
+        let hasChanges = false;
+        const datesToPersistInDb: string[] = [];
 
-      // Merge prayer logs by date
-      if (incoming.prayers && typeof incoming.prayers === 'object') {
-        for (const [date, pVal] of Object.entries(incoming.prayers as Record<string, any>)) {
-          if (!pVal || typeof pVal !== 'object') continue;
-          const existing = current.prayers[date];
-          const incomingTs = isPushAction ? serverNow : Number(pVal.updatedAt) || 1000;
+        // Merge prayer logs by date
+        if (incoming.prayers && typeof incoming.prayers === 'object') {
+          for (const [date, pVal] of Object.entries(incoming.prayers as Record<string, any>)) {
+            if (!pVal || typeof pVal !== 'object') continue;
+            const existing = current.prayers[date];
+            const isExplicitPush = isPushAction || pVal.pendingPush === true;
 
-          if (!existing || isPushAction || incomingTs > existing.updatedAt) {
-            const nextDay: SyncedPrayerDay = {
-              fajr: Boolean(pVal.fajr),
-              dhuhr: Boolean(pVal.dhuhr),
-              asr: Boolean(pVal.asr),
-              maghrib: Boolean(pVal.maghrib),
-              isha: Boolean(pVal.isha),
-              updatedAt: isPushAction ? serverNow : incomingTs,
-            };
-            const changed =
-              !existing ||
-              existing.fajr !== nextDay.fajr ||
-              existing.dhuhr !== nextDay.dhuhr ||
-              existing.asr !== nextDay.asr ||
-              existing.maghrib !== nextDay.maghrib ||
-              existing.isha !== nextDay.isha ||
-              isPushAction;
+            // Only overwrite existing server state on explicit push; on pull, only seed missing dates
+            if (!existing || isExplicitPush) {
+              const nextDay: SyncedPrayerDay = {
+                fajr: Boolean(pVal.fajr),
+                dhuhr: Boolean(pVal.dhuhr),
+                asr: Boolean(pVal.asr),
+                maghrib: Boolean(pVal.maghrib),
+                isha: Boolean(pVal.isha),
+                updatedAt: serverNow,
+              };
+              const changed =
+                !existing ||
+                existing.fajr !== nextDay.fajr ||
+                existing.dhuhr !== nextDay.dhuhr ||
+                existing.asr !== nextDay.asr ||
+                existing.maghrib !== nextDay.maghrib ||
+                existing.isha !== nextDay.isha ||
+                isExplicitPush;
 
-            current.prayers[date] = nextDay;
-            if (changed) {
-              hasChanges = true;
-              datesToPersistInDb.push(date);
+              current.prayers[date] = nextDay;
+              if (changed) {
+                hasChanges = true;
+                datesToPersistInDb.push(date);
+              }
             }
           }
         }
-      }
 
-      // Merge settings & actions (city, offsets, tasbih, quran bookmarks, theme, etc.)
-      if (incoming.settings && typeof incoming.settings === 'object') {
-        for (const [sKey, sVal] of Object.entries(incoming.settings as Record<string, any>)) {
-          if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
-          const existing = current.settings[sKey];
-          const incomingTs = isPushAction ? serverNow : Number(sVal.updatedAt) || 1000;
+        // Merge settings & actions (city, offsets, tasbih, quran bookmarks, theme, etc.)
+        if (incoming.settings && typeof incoming.settings === 'object') {
+          for (const [sKey, sVal] of Object.entries(incoming.settings as Record<string, any>)) {
+            if (!sVal || typeof sVal !== 'object' || !('value' in sVal)) continue;
+            const existing = current.settings[sKey];
+            const isExplicitPush = isPushAction || sVal.pendingPush === true;
 
-          if (!existing || isPushAction || incomingTs > existing.updatedAt) {
-            const prevSerialized = existing ? JSON.stringify(existing.value) : '';
-            const nextSerialized = JSON.stringify(sVal.value);
-            current.settings[sKey] = {
-              value: sVal.value,
-              updatedAt: isPushAction ? serverNow : incomingTs,
-            };
-            if (!existing || prevSerialized !== nextSerialized || isPushAction) {
-              hasChanges = true;
+            // Only overwrite existing server state on explicit push; on pull, only seed missing keys
+            if (!existing || isExplicitPush) {
+              const prevSerialized = existing ? JSON.stringify(existing.value) : '';
+              const nextSerialized = JSON.stringify(sVal.value);
+              current.settings[sKey] = {
+                value: sVal.value,
+                updatedAt: serverNow,
+              };
+              if (!existing || prevSerialized !== nextSerialized || isExplicitPush) {
+                hasChanges = true;
+              }
             }
           }
         }
-      }
 
-      if (hasChanges) {
-        current.lastUpdatedAt = serverNow;
-        memoryUserSyncCache.set(rawEmail, current);
+        if (hasChanges) {
+          current.lastUpdatedAt = serverNow;
+          const aliases = await getSyncAliasesAsync(rawEmail);
+          memoryUserSyncCache.set(canonicalEmail, current);
+          for (const alias of aliases) {
+            memoryUserSyncCache.set(alias, current);
+          }
 
-        // Persist updated prayer days in prayer_logs table & mirror to Supabase REST
-        for (const date of datesToPersistInDb) {
-          const dayLog = current.prayers[date];
-          if (dayLog) {
-            await upsertFullPrayerLogInDb(rawEmail, date, dayLog);
-            await mirrorToSupabaseRest(
-              'prayer_logs',
-              {
-                user_id: rawEmail,
-                date,
-                fajr: Boolean(dayLog.fajr),
-                dhuhr: Boolean(dayLog.dhuhr),
-                asr: Boolean(dayLog.asr),
-                maghrib: Boolean(dayLog.maghrib),
-                isha: Boolean(dayLog.isha),
-                updated_at: new Date().toISOString(),
-              },
-              'user_id,date'
-            );
+          // Persist updated prayer days in prayer_logs table & mirror to Supabase REST for all aliases
+          for (const date of datesToPersistInDb) {
+            const dayLog = current.prayers[date];
+            if (dayLog) {
+              for (const alias of aliases) {
+                await upsertFullPrayerLogInDb(alias, date, dayLog);
+                await mirrorToSupabaseRest(
+                  'prayer_logs',
+                  {
+                    user_id: alias,
+                    date,
+                    fajr: Boolean(dayLog.fajr),
+                    dhuhr: Boolean(dayLog.dhuhr),
+                    asr: Boolean(dayLog.asr),
+                    maghrib: Boolean(dayLog.maghrib),
+                    isha: Boolean(dayLog.isha),
+                    updated_at: new Date().toISOString(),
+                  },
+                  'user_id,date'
+                );
+              }
+            }
+          }
+
+          // Persist complete sync state in PostgreSQL for all aliases
+          for (const alias of aliases) {
+            await saveUserSyncStateInDb(alias, current);
           }
         }
 
-        // Persist complete sync state in PostgreSQL
-        await saveUserSyncStateInDb(rawEmail, current);
-      }
+        return { state: current, serverTime: serverNow };
+      });
 
-      res.json({ email: rawEmail, state: current, serverTime: serverNow });
+      res.json({ email: rawEmail, state: result.state, serverTime: result.serverTime });
     } catch (error: any) {
       console.error('Error in POST /api/sync/:email:', error);
       res.status(500).json({ error: error.message || 'Failed to save sync state' });

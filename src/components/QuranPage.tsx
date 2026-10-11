@@ -17,6 +17,7 @@ import {
   VolumeX,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Share2,
   SlidersHorizontal,
   RotateCcw,
@@ -159,26 +160,46 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   onBackToHome,
   selectedReciter,
   onSelectReciter,
-  initialSurahNumber = 18,
+  initialSurahNumber,
   onOpenPrayerPage,
   isDarkMode,
   onToggleDarkMode,
 }) => {
+  const hasUserChangedSurahRef = useRef<boolean>(false);
+
   // Navigation & Active Surah
   const [selectedSurahNumber, setSelectedSurahNumber] = useState<number>(() => {
+    if (initialSurahNumber && initialSurahNumber >= 1 && initialSurahNumber <= 114) {
+      return initialSurahNumber;
+    }
     try {
       const savedLastRead = localStorage.getItem('quran_last_read_surah');
-      if (savedLastRead && !initialSurahNumber) {
-        return parseInt(savedLastRead, 10) || 18;
+      if (savedLastRead) {
+        const parsed = parseInt(savedLastRead, 10);
+        if (parsed >= 1 && parsed <= 114) return parsed;
       }
     } catch {}
-    return initialSurahNumber || 18;
+    return 18;
   });
+
+  const handleSelectSurah = (surahNum: number) => {
+    hasUserChangedSurahRef.current = true;
+    setSelectedSurahNumber(surahNum);
+    saveLastRead(surahNum, 1);
+  };
 
   const [sidebarTab, setSidebarTab] = useState<'Surah' | 'Verse' | 'Juz' | 'Page'>('Surah');
   const [searchQuery, setSearchQuery] = useState('');
   const [jumpAyahInput, setJumpAyahInput] = useState('');
-  const [activeAyahNum, setActiveAyahNum] = useState<number>(1);
+  const [activeAyahNum, setActiveAyahNum] = useState<number>(() => {
+    try {
+      const savedAyah = localStorage.getItem('quran_last_read_ayah');
+      if (savedAyah && !initialSurahNumber) {
+        return parseInt(savedAyah, 10) || 1;
+      }
+    } catch {}
+    return 1;
+  });
 
   // Reading Mode: 'verseByVerse' (study view) vs 'mushaf' (continuous page view)
   const [readingMode, setReadingMode] = useState<'verseByVerse' | 'mushaf'>('verseByVerse');
@@ -215,6 +236,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     setReadingTheme(theme);
     try {
       localStorage.setItem('quran_reading_theme', theme);
+      pushSettingToCloud('quran_reading_theme', theme);
     } catch {
       // ignore
     }
@@ -341,7 +363,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     } catch {}
   };
 
-  // Listen for cloud sync updates to bookmarks and last read position
+  // Listen for cloud sync updates to bookmarks, last read position, and reading theme
   useEffect(() => {
     const handleQuranCloudSync = () => {
       try {
@@ -352,7 +374,18 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         const s = localStorage.getItem('quran_last_read_surah');
         const a = localStorage.getItem('quran_last_read_ayah');
         if (s && a) {
-          setLastReadAyah({ surah: parseInt(s, 10), ayah: parseInt(a, 10) });
+          const parsedS = parseInt(s, 10);
+          const parsedA = parseInt(a, 10);
+          if (parsedS >= 1 && parsedS <= 114) {
+            setLastReadAyah({ surah: parsedS, ayah: parsedA || 1 });
+            if (!hasUserChangedSurahRef.current && !initialSurahNumber) {
+              setSelectedSurahNumber(parsedS);
+            }
+          }
+        }
+        const savedTheme = localStorage.getItem('quran_reading_theme');
+        if (savedTheme && ['emeraldDark', 'night', 'parchment', 'pureWhite'].includes(savedTheme)) {
+          setReadingTheme(savedTheme as QuranTheme);
         }
       } catch {
         // ignore
@@ -364,7 +397,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       window.removeEventListener('sanctuaire-sync-updated', handleQuranCloudSync);
       window.removeEventListener('storage', handleQuranCloudSync);
     };
-  }, []);
+  }, [initialSurahNumber]);
 
   // Stop any active audio
   const stopAudio = () => {
@@ -441,7 +474,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         if (parsed && parsed.ayahs && parsed.ayahs.length > 0) {
           setCurrentSurahData(parsed);
           setIsLoadingSurah(false);
-          saveLastRead(selectedSurahNumber, 1);
+          if (hasUserChangedSurahRef.current) {
+            saveLastRead(selectedSurahNumber, 1);
+          }
           return;
         }
       } catch (e) {}
@@ -457,7 +492,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             sessionStorage.setItem(cacheKey, JSON.stringify(localData));
             setCurrentSurahData(localData);
             setIsLoadingSurah(false);
-            saveLastRead(selectedSurahNumber, 1);
+            if (hasUserChangedSurahRef.current) {
+              saveLastRead(selectedSurahNumber, 1);
+            }
             return;
           }
         }
@@ -504,7 +541,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               sessionStorage.setItem(cacheKey, JSON.stringify(fullData));
               setCurrentSurahData(fullData);
               setIsLoadingSurah(false);
-              saveLastRead(selectedSurahNumber, 1);
+              if (hasUserChangedSurahRef.current) {
+                saveLastRead(selectedSurahNumber, 1);
+              }
               return;
             }
           }
@@ -828,13 +867,13 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   // Previous & Next Surah
   const handlePrevSurah = () => {
     if (selectedSurahNumber > 1) {
-      setSelectedSurahNumber(selectedSurahNumber - 1);
+      handleSelectSurah(selectedSurahNumber - 1);
     }
   };
 
   const handleNextSurah = () => {
     if (selectedSurahNumber < 114) {
-      setSelectedSurahNumber(selectedSurahNumber + 1);
+      handleSelectSurah(selectedSurahNumber + 1);
     }
   };
 
@@ -871,7 +910,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           tabActive: 'bg-emerald-800 text-white shadow-xs',
           tabInactive: 'text-neutral-300 hover:text-white',
           itemHover: 'hover:bg-[#14281E]',
-          itemActive: 'bg-emerald-950/90 border border-emerald-500/40 text-white font-bold',
+          itemActive: 'bg-emerald-950 border border-emerald-500/40 text-white font-bold',
           actionPill: 'bg-[#14281E] border-emerald-500/30 text-neutral-200',
           actionBtn: 'text-neutral-300 hover:text-white hover:bg-emerald-900/60',
           mushafFrame: 'border-amber-600/40 bg-[#14281E]/90 text-neutral-100',
@@ -887,7 +926,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         return {
           bg: 'bg-[#12171E]',
           text: 'text-[#E2E8F0]',
-          headerBg: 'bg-[#1A202C]/95 border-neutral-700/60',
+          headerBg: 'bg-[#1A202C] border-neutral-700/60',
           card: 'bg-[#1A202C] border-neutral-700/60',
           cardSub: 'bg-[#141A24] border-neutral-700/40',
           border: 'border-neutral-700/60',
@@ -898,7 +937,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           tabActive: 'bg-teal-700 text-white shadow-xs',
           tabInactive: 'text-neutral-400 hover:text-white',
           itemHover: 'hover:bg-[#141A24]',
-          itemActive: 'bg-teal-950/90 border border-teal-500/40 text-white font-bold',
+          itemActive: 'bg-teal-950 border border-teal-500/40 text-white font-bold',
           actionPill: 'bg-[#141A24] border-neutral-700 text-neutral-200',
           actionBtn: 'text-neutral-300 hover:text-white hover:bg-neutral-800',
           mushafFrame: 'border-neutral-700 bg-[#141A24]/90 text-neutral-100',
@@ -1056,17 +1095,25 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               )}
             </button>
 
-            {/* Mobile menu trigger button */}
+            {/* Mobile Surah dropdown / menu trigger button */}
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className={`lg:hidden p-1.5 rounded-lg cursor-pointer shrink-0 ${
+              style={{
+                backgroundColor: isDark ? '#193226' : '#FFFFFF',
+                opacity: 1,
+              }}
+              className={`lg:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold cursor-pointer shrink-0 shadow-xs ${
                 isDark
-                  ? 'bg-[#14281E] text-emerald-300 hover:bg-emerald-950'
-                  : 'bg-neutral-100 text-neutral-700'
+                  ? 'bg-[#193226] text-emerald-200 border-emerald-500/40 hover:bg-emerald-950'
+                  : 'bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-100'
               }`}
-              title="Menu des sourates"
+              title="Menu déroulant des sourates"
             >
-              <Menu className="w-4 h-4" />
+              <Menu className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+              <span className="max-w-[92px] sm:max-w-[140px] truncate">
+                {currentSurahMeta.number}. {currentSurahMeta.name}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-80" />
             </button>
 
             {/* Reading Mode Switcher Pill */}
@@ -1188,7 +1235,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           {isMobileSidebarOpen && (
             <div
               onClick={() => setIsMobileSidebarOpen(false)}
-              className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs lg:hidden transition-opacity"
+              className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm lg:hidden transition-opacity"
               aria-hidden="true"
             />
           )}
@@ -1201,20 +1248,22 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               isMobileSidebarOpen
                 ? {
                     backgroundColor: isDark ? '#12261C' : '#FFFFFF',
+                    opacity: 1,
                   }
                 : {
                     width: isSidebarCollapsed ? '0px' : `${sidebarWidth}px`,
                     minWidth: isSidebarCollapsed ? '0px' : '220px',
                     maxWidth: isSidebarCollapsed ? '0px' : '520px',
                     backgroundColor: isDark ? '#14261C' : '#FFFFFF',
+                    opacity: 1,
                   }
             }
             className={`shrink-0 border-r ${themeClasses.border} flex flex-col gap-3.5 transition-all lg:h-full lg:overflow-hidden ${
               isResizing ? 'select-none transition-none' : 'duration-200 ease-in-out'
             } ${
               isMobileSidebarOpen
-                ? `fixed inset-y-0 left-0 z-[110] w-[92vw] max-w-[380px] p-4 sm:p-5 flex flex-col overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.75)] ${
-                    isDark ? 'bg-[#12261C] text-white border-emerald-500/30' : 'bg-white text-neutral-900 border-neutral-200'
+                ? `fixed inset-y-0 left-0 z-[110] w-[92vw] max-w-[380px] p-4 sm:p-5 flex flex-col overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.9)] ${
+                    isDark ? 'bg-[#12261C] text-white border-emerald-500/40' : 'bg-white text-neutral-900 border-neutral-300'
                   }`
                 : isSidebarCollapsed
                 ? 'hidden overflow-hidden p-0 border-r-0'
@@ -1225,7 +1274,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             {isMobileSidebarOpen && (
               <div className={`lg:hidden shrink-0 flex items-center justify-between pb-3 border-b ${isDark ? 'border-emerald-500/25' : 'border-neutral-200'}`}>
                 <span className={`font-extrabold text-base tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                  Index du Noble Coran
+                  Index des 114 Sourates
                 </span>
                 <button
                   onClick={() => setIsMobileSidebarOpen(false)}
@@ -1316,7 +1365,12 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 1: Surah List (114 Surahs) */}
             {sidebarTab === 'Surah' && (
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-0.5">
+              <div
+                style={{ backgroundColor: isDark ? '#12261C' : '#FFFFFF' }}
+                className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-0.5 rounded-xl ${
+                  isDark ? 'bg-[#12261C]' : 'bg-white'
+                }`}
+              >
                 {filteredSurahsList.map((s) => {
                   const isCurrent = s.number === selectedSurahNumber;
 
@@ -1324,7 +1378,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                     <button
                       key={s.number}
                       onClick={() => {
-                        setSelectedSurahNumber(s.number);
+                        handleSelectSurah(s.number);
                         setIsMobileSidebarOpen(false);
                       }}
                       className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-left transition cursor-pointer text-xs ${
@@ -1365,7 +1419,12 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 2: Verse List for current Surah */}
             {sidebarTab === 'Verse' && (
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1">
+              <div
+                style={{ backgroundColor: isDark ? '#12261C' : '#FFFFFF' }}
+                className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-1 rounded-xl ${
+                  isDark ? 'bg-[#12261C]' : 'bg-white'
+                }`}
+              >
                 {currentSurahData?.ayahs.map((a) => (
                   <button
                     key={a.num}
@@ -1395,7 +1454,12 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 3: Juz List (1 to 30) */}
             {sidebarTab === 'Juz' && (
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-1">
+              <div
+                style={{ backgroundColor: isDark ? '#12261C' : '#FFFFFF' }}
+                className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-1 rounded-xl ${
+                  isDark ? 'bg-[#12261C]' : 'bg-white'
+                }`}
+              >
                 {Array.from({ length: 30 }, (_, i) => i + 1).map((juzNum) => {
                   const surahOfJuz = ALL_114_SURAHS.find((s) => s.juz === juzNum);
                   return (
@@ -1403,7 +1467,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                       key={juzNum}
                       onClick={() => {
                         if (surahOfJuz) {
-                          setSelectedSurahNumber(surahOfJuz.number);
+                          handleSelectSurah(surahOfJuz.number);
                         }
                         setIsMobileSidebarOpen(false);
                       }}
@@ -1423,13 +1487,18 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
             {/* Tab 4: Madinah Mushaf Pages */}
             {sidebarTab === 'Page' && (
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1 p-2 grid grid-cols-4 gap-2 text-center text-xs">
+              <div
+                style={{ backgroundColor: isDark ? '#12261C' : '#FFFFFF' }}
+                className={`flex-1 min-h-0 overflow-y-auto pr-1 p-2 grid grid-cols-4 gap-2 text-center text-xs rounded-xl ${
+                  isDark ? 'bg-[#12261C]' : 'bg-white'
+                }`}
+              >
                 {Array.from({ length: 60 }, (_, i) => (i + 1) * 10).map((pageNum) => (
                   <button
                     key={pageNum}
                     onClick={() => {
                       const approxSurah = Math.min(114, Math.max(1, Math.floor((pageNum / 604) * 114)));
-                      setSelectedSurahNumber(approxSurah);
+                      handleSelectSurah(approxSurah);
                       setIsMobileSidebarOpen(false);
                     }}
                     className={`p-2 rounded-lg border cursor-pointer font-mono ${
@@ -1499,6 +1568,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               onToggleAudio={toggleSurahAudio}
               reciterName={selectedReciter.name}
               isDark={isDark}
+              onOpenSurahSelector={() => setIsMobileSidebarOpen(true)}
             />
 
             {/* Centered Classic Bismillah Calligraphy (Shown for all except At-Tawbah 9) */}

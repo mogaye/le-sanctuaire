@@ -135,39 +135,133 @@ export async function syncConnectedAccountToBackend(account: {
 
   // 2. Also synchronize directly to Supabase public.users and public.profiles if configured
   if (supabase) {
+    const nowIso = new Date().toISOString();
     try {
-      await supabase.from('users').upsert(
-        {
-          uid: resolvedId,
-          email: cleanEmail,
-          full_name: fullName,
-          first_name: firstName,
-          last_name: lastName,
-          avatar_url: account.avatarUrl || null,
-          city_name: 'Dakar',
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'uid' }
-      );
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id, uid, email')
+        .ilike('email', cleanEmail)
+        .limit(1);
+
+      if (existingUser && existingUser.length > 0) {
+        await supabase
+          .from('users')
+          .update({
+            email: cleanEmail,
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+            avatar_url: account.avatarUrl || null,
+            city_name: 'Dakar',
+            updated_at: nowIso,
+          })
+          .ilike('email', cleanEmail);
+      } else {
+        const { error: uErr } = await supabase.from('users').upsert(
+          {
+            uid: resolvedId,
+            email: cleanEmail,
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+            avatar_url: account.avatarUrl || null,
+            city_name: 'Dakar',
+            updated_at: nowIso,
+          },
+          { onConflict: 'uid' }
+        );
+        if (uErr) {
+          await supabase.from('users').insert({
+            uid: resolvedId,
+            email: cleanEmail,
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+            avatar_url: account.avatarUrl || null,
+            city_name: 'Dakar',
+          });
+        }
+      }
     } catch {
       // ignore if RLS blocks or schema differs
     }
 
     try {
-      await supabase.from('profiles').upsert(
-        {
-          id: resolvedId,
-          email: cleanEmail,
-          full_name: fullName,
-          first_name: firstName,
-          last_name: lastName,
-          avatar_url: account.avatarUrl || null,
-          city_name: 'Dakar',
-          last_connected_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'email' }
-      );
+      const { data: existingProf } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .ilike('email', cleanEmail)
+        .limit(1);
+
+      if (existingProf && existingProf.length > 0) {
+        const { error: updErr } = await supabase
+          .from('profiles')
+          .update({
+            email: cleanEmail,
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+            avatar_url: account.avatarUrl || null,
+            city_name: 'Dakar',
+            last_connected_at: nowIso,
+            updated_at: nowIso,
+          })
+          .ilike('email', cleanEmail);
+
+        if (updErr) {
+          await supabase
+            .from('profiles')
+            .update({
+              email: cleanEmail,
+              full_name: fullName,
+              first_name: firstName,
+              last_name: lastName,
+              avatar_url: account.avatarUrl || null,
+              city_name: 'Dakar',
+              updated_at: nowIso,
+            })
+            .ilike('email', cleanEmail);
+        }
+      } else {
+        const { error: pErr } = await supabase.from('profiles').upsert(
+          {
+            id: resolvedId,
+            email: cleanEmail,
+            full_name: fullName,
+            first_name: firstName,
+            last_name: lastName,
+            avatar_url: account.avatarUrl || null,
+            city_name: 'Dakar',
+            last_connected_at: nowIso,
+            updated_at: nowIso,
+          },
+          { onConflict: 'email' }
+        );
+        if (pErr) {
+          const { error: pErr2 } = await supabase.from('profiles').upsert(
+            {
+              id: resolvedId,
+              email: cleanEmail,
+              full_name: fullName,
+              first_name: firstName,
+              last_name: lastName,
+              avatar_url: account.avatarUrl || null,
+              city_name: 'Dakar',
+              updated_at: nowIso,
+            },
+            { onConflict: 'id' }
+          );
+          if (pErr2) {
+            await supabase.from('profiles').insert({
+              id: resolvedId,
+              email: cleanEmail,
+              full_name: fullName,
+              first_name: firstName,
+              last_name: lastName,
+            });
+          }
+        }
+      }
     } catch {
       // ignore if RLS blocks or schema differs
     }
@@ -245,6 +339,66 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
     }
   } catch {
     // ignore network errors
+  }
+
+  // Also query Supabase public.profiles and public.users directly if configured
+  if (supabase) {
+    try {
+      const { data: supaUsers } = await supabase
+        .from('users')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(50);
+      if (Array.isArray(supaUsers)) {
+        for (const u of supaUsers) {
+          if (!u?.email) continue;
+          const key = String(u.email).trim().toLowerCase();
+          const existing = map.get(key);
+          map.set(key, {
+            id: u.uid || existing?.id || `acct_${key}`,
+            email: key,
+            password: existing?.password,
+            fullName: u.full_name || existing?.fullName || key.split('@')[0],
+            firstName: u.first_name || existing?.firstName || 'Fidèle',
+            lastName: u.last_name || existing?.lastName || '',
+            avatarUrl: u.avatar_url || existing?.avatarUrl,
+            createdAt: u.created_at || existing?.createdAt || new Date().toISOString(),
+            lastConnectedAt: u.updated_at || existing?.lastConnectedAt || new Date().toISOString(),
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const { data: supaProfiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(50);
+      if (Array.isArray(supaProfiles)) {
+        for (const p of supaProfiles) {
+          if (!p?.email) continue;
+          const key = String(p.email).trim().toLowerCase();
+          const existing = map.get(key);
+          map.set(key, {
+            id: p.id || existing?.id || `acct_${key}`,
+            email: key,
+            password: existing?.password,
+            fullName: p.full_name || existing?.fullName || key.split('@')[0],
+            firstName: p.first_name || existing?.firstName || 'Fidèle',
+            lastName: p.last_name || existing?.lastName || '',
+            avatarUrl: p.avatar_url || existing?.avatarUrl,
+            createdAt: p.created_at || existing?.createdAt || new Date().toISOString(),
+            lastConnectedAt:
+              p.last_connected_at || p.updated_at || existing?.lastConnectedAt || new Date().toISOString(),
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   return Array.from(map.values());
