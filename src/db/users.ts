@@ -498,6 +498,7 @@ export interface DonorReviewRecord {
   city?: string;
   rating: number;
   comment: string;
+  isDonor?: boolean;
   createdAt: string;
 }
 
@@ -507,15 +508,32 @@ export async function insertDonorReviewInDb(data: {
   city?: string;
   rating: number;
   comment: string;
+  isDonor?: boolean;
 }): Promise<DonorReviewRecord> {
-  const cleanName = (data.name || ' Membre Bienfaiteur').trim();
-  const cleanEmail = (data.email || 'donateur@sanctuaire.app').trim().toLowerCase();
+  const cleanName = (data.name || 'Membre du Sanctuaire').trim();
+  const cleanEmail = (data.email || 'membre@sanctuaire.app').trim().toLowerCase();
   const rating = Math.min(5, Math.max(1, Number(data.rating) || 5));
   const cleanComment = data.comment.trim();
+
+  let verifiedDonor = Boolean(data.isDonor);
+  if (
+    !verifiedDonor &&
+    cleanEmail &&
+    cleanEmail !== 'membre@sanctuaire.app' &&
+    cleanEmail !== 'donateur@sanctuaire.app'
+  ) {
+    try {
+      verifiedDonor = await checkDonorStatusInDb(cleanEmail);
+    } catch {
+      // ignore
+    }
+  }
+
   const metaJson = JSON.stringify({
     name: cleanName,
     city: data.city || 'Sénégal',
     rating,
+    isDonor: verifiedDonor,
   });
 
   try {
@@ -539,6 +557,7 @@ export async function insertDonorReviewInDb(data: {
       city: data.city || 'Sénégal',
       rating,
       comment: cleanComment,
+      isDonor: verifiedDonor,
       createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
     };
   } catch (error) {
@@ -550,6 +569,7 @@ export async function insertDonorReviewInDb(data: {
       city: data.city || 'Sénégal',
       rating,
       comment: cleanComment,
+      isDonor: verifiedDonor,
       createdAt: new Date().toISOString(),
     };
   }
@@ -557,27 +577,52 @@ export async function insertDonorReviewInDb(data: {
 
 export async function getDonorReviewsFromDb(): Promise<DonorReviewRecord[]> {
   try {
-    const rows = await db
-      .select()
-      .from(emailLogs)
-      .where(eq(emailLogs.emailType, 'donor_review'))
-      .orderBy(desc(emailLogs.createdAt));
+    const [rows, donationRows] = await Promise.all([
+      db
+        .select()
+        .from(emailLogs)
+        .where(eq(emailLogs.emailType, 'donor_review'))
+        .orderBy(desc(emailLogs.createdAt)),
+      db.select().from(donations),
+    ]);
+
+    const donorEmails = new Set(
+      donationRows
+        .filter((d) => d.status !== 'failed' && d.donorEmail)
+        .map((d) => String(d.donorEmail).trim().toLowerCase())
+    );
+    const donorNames = new Set(
+      donationRows
+        .filter((d) => d.status !== 'failed' && d.donorName)
+        .map((d) => String(d.donorName).trim().toLowerCase())
+    );
 
     return rows
       .map((r) => {
-        let meta: { name?: string; city?: string; rating?: number } = {};
+        let meta: { name?: string; city?: string; rating?: number; isDonor?: boolean } = {};
         try {
           meta = JSON.parse(r.subject || '{}');
         } catch {
-          meta = { name: r.subject || 'Bienfaiteur' };
+          meta = { name: r.subject || 'Membre du Sanctuaire' };
         }
+        const emailLower = (r.senderEmail || '').trim().toLowerCase();
+        const nameLower = (meta.name || '').trim().toLowerCase();
+        const isDonor = Boolean(
+          meta.isDonor ||
+            (emailLower &&
+              emailLower !== 'membre@sanctuaire.app' &&
+              emailLower !== 'donateur@sanctuaire.app' &&
+              donorEmails.has(emailLower)) ||
+            (nameLower && donorNames.has(nameLower))
+        );
         return {
           id: String(r.id),
-          name: meta.name || r.senderEmail.split('@')[0] || 'Membre Bienfaiteur',
+          name: meta.name || r.senderEmail.split('@')[0] || 'Membre du Sanctuaire',
           email: r.senderEmail,
           city: meta.city || 'Dakar',
           rating: Number(meta.rating) || 5,
           comment: r.bodyPreview || '',
+          isDonor,
           createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
         };
       })

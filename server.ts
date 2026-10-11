@@ -858,16 +858,34 @@ async function startServer() {
 
   app.post('/api/reviews', async (req, res) => {
     try {
-      const { name, email, city, rating, comment } = req.body || {};
+      const { name, email, city, rating, comment, isDonor } = req.body || {};
+      const cleanEmail = String(email || '').trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        return res.status(401).json({ error: 'Compte requis.' });
+      }
       if (!comment || !String(comment).trim()) {
         return res.status(400).json({ error: 'Veuillez écrire votre avis.' });
       }
       const saved = await insertDonorReviewInDb({
-        name: String(name || 'Membre Bienfaiteur').trim(),
-        email: email ? String(email).trim() : undefined,
+        name: String(name || cleanEmail.split('@')[0] || 'Membre du Sanctuaire').trim(),
+        email: cleanEmail,
         city: String(city || 'Dakar').trim(),
         rating: Number(rating) || 5,
         comment: String(comment).trim(),
+        isDonor: Boolean(isDonor),
+      });
+      await mirrorToSupabaseRest('email_logs', {
+        sender_email: saved.email || 'membre@sanctuaire.app',
+        recipient_email: 'landing_page_reviews',
+        subject: JSON.stringify({
+          name: saved.name,
+          city: saved.city || 'Dakar',
+          rating: saved.rating,
+          isDonor: Boolean(saved.isDonor),
+        }),
+        body_preview: saved.comment,
+        email_type: 'donor_review',
+        status: 'published',
       });
       memoryReviewsCache.unshift(saved);
       res.json({ review: saved });

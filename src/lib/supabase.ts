@@ -1216,6 +1216,7 @@ export interface DonorReviewItem {
   city?: string;
   rating: number;
   comment: string;
+  isDonor?: boolean;
   createdAt: string;
 }
 
@@ -1229,6 +1230,7 @@ export const DEFAULT_DONOR_REVIEWS: DonorReviewItem[] = [
     rating: 5,
     comment:
       "Alhamdulillah, une plateforme apaisante, sans aucune publicité, qui m'accompagne chaque jour pour les heures de prière et la lecture du Noble Coran. Qu'Allah récompense toute l'équipe.",
+    isDonor: false,
     createdAt: '2026-10-08T18:30:00.000Z',
   },
   {
@@ -1237,7 +1239,8 @@ export const DEFAULT_DONOR_REVIEWS: DonorReviewItem[] = [
     city: 'Thiès',
     rating: 5,
     comment:
-      "J'ai fait ma Sadaqah avec joie. Le rappel spirituel et la bibliothèque du vendredi sont une vraie bénédiction pour rester concentrée sur le droit chemin.",
+      "Le rappel spirituel quotidien, la boussole Qibla et le suivi des prières sont une vraie bénédiction pour rester concentrée sur le droit chemin au quotidien.",
+    isDonor: false,
     createdAt: '2026-10-09T14:15:00.000Z',
   },
   {
@@ -1246,7 +1249,8 @@ export const DEFAULT_DONOR_REVIEWS: DonorReviewItem[] = [
     city: 'Saint-Louis',
     rating: 5,
     comment:
-      "Interface très claire, récitateurs magnifiques et suivi quotidien des prières très motivant. Qu'Allah accepte cette œuvre comme une Sadaqah Jariyah.",
+      "Interface très claire, récitateurs magnifiques et suivi quotidien des prières très motivant. Qu'Allah bénisse cette belle initiative pour la communauté.",
+    isDonor: false,
     createdAt: '2026-10-09T20:45:00.000Z',
   },
 ];
@@ -1283,6 +1287,11 @@ export async function fetchDonorReviews(): Promise<DonorReviewItem[]> {
       const dedupeKey = `${(r.name || '').toLowerCase()}::${r.comment.trim().toLowerCase()}`;
       if (!mergedMap.has(dedupeKey)) {
         mergedMap.set(dedupeKey, r);
+      } else {
+        const existing = mergedMap.get(dedupeKey)!;
+        if (r.isDonor && !existing.isDonor) {
+          mergedMap.set(dedupeKey, { ...existing, isDonor: true });
+        }
       }
     }
   }
@@ -1296,14 +1305,19 @@ export async function submitDonorReview(input: {
   city?: string;
   rating: number;
   comment: string;
+  isDonor?: boolean;
 }): Promise<DonorReviewItem> {
+  const donorFlag = Boolean(
+    input.isDonor || hasUserDonatedLocally({ email: input.email, name: input.name })
+  );
   const newReview: DonorReviewItem = {
     id: 'rev_' + Date.now(),
-    name: (input.name || 'Membre Bienfaiteur').trim(),
+    name: (input.name || 'Membre du Sanctuaire').trim(),
     email: input.email?.trim(),
     city: (input.city || 'Dakar').trim(),
     rating: Math.min(5, Math.max(1, Number(input.rating) || 5)),
     comment: input.comment.trim(),
+    isDonor: donorFlag,
     createdAt: new Date().toISOString(),
   };
 
@@ -1327,7 +1341,10 @@ export async function submitDonorReview(input: {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('sanctuaire-reviews-updated'));
         }
-        return data.review;
+        return {
+          ...data.review,
+          isDonor: Boolean(data.review.isDonor ?? donorFlag),
+        };
       }
     }
   } catch {

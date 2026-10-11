@@ -73,7 +73,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
                     onClick={onOpenPrayerGuide}
                     className="w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-4 rounded-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs sm:text-base shadow-[0_8px_24px_rgba(16,185,129,0.3)] hover:shadow-[0_12px_32px_rgba(16,185,129,0.45)] transition-all transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer flex items-center justify-center gap-2 group active:scale-95"
                   >
-                    <span>Get Started</span>
+                    <span>Commencer maintenant</span>
                     <ArrowUpRight className="w-4 h-4 text-neutral-950 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </button>
 

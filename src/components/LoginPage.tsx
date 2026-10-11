@@ -304,6 +304,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
     }, 600);
   };
 
+  const translateAuthErrorToFrench = (rawMsg?: string): string => {
+    if (!rawMsg) return 'Une erreur est survenue. Veuillez réessayer.';
+    const lower = rawMsg.toLowerCase();
+    if (lower.includes('invalid login credentials') || lower.includes('invalid credentials')) {
+      return 'Identifiants incorrects. Vérifiez votre adresse e-mail et votre mot de passe.';
+    }
+    if (lower.includes('user already registered') || lower.includes('already exists')) {
+      return 'Un compte existe déjà avec cette adresse e-mail. Cliquez sur « Se connecter ».';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'Votre adresse e-mail n’est pas encore confirmée.';
+    }
+    if (lower.includes('password should be at least')) {
+      return 'Le mot de passe doit contenir au moins 6 caractères.';
+    }
+    if (lower.includes('invalid format') || lower.includes('unable to validate email')) {
+      return 'Format d’adresse e-mail invalide.';
+    }
+    if (lower.includes('rate limit') || lower.includes('too many requests')) {
+      return 'Trop de tentatives. Veuillez patienter quelques instants avant de réessayer.';
+    }
+    if (lower.includes('network') || lower.includes('fetch')) {
+      return 'Erreur de connexion réseau. Veuillez vérifier votre connexion internet.';
+    }
+    return rawMsg;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
@@ -317,7 +344,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         return;
       }
       if (!email.trim() || !password) {
-        setFeedback({ type: 'error', message: 'Veuillez saisir une adresse email et un mot de passe.' });
+        setFeedback({ type: 'error', message: 'Veuillez saisir une adresse e-mail et un mot de passe.' });
         return;
       }
       if (password.length < 6) {
@@ -337,7 +364,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         if (res.error) {
           setFeedback({
             type: 'error',
-            message: res.error.message || 'Erreur lors de la création du compte.',
+            message: translateAuthErrorToFrench(res.error.message || 'Erreur lors de la création du compte.'),
           });
           setIsLoading(false);
           return;
@@ -365,14 +392,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
       } catch (err: any) {
         setFeedback({
           type: 'error',
-          message: err.message || 'Erreur inattendue lors de la connexion.',
+          message: translateAuthErrorToFrench(err.message || 'Erreur inattendue lors de la création du compte.'),
         });
       } finally {
         setIsLoading(false);
       }
     } else {
       if (!email.trim() || !password) {
-        setFeedback({ type: 'error', message: 'Veuillez saisir votre adresse email et votre mot de passe.' });
+        setFeedback({ type: 'error', message: 'Veuillez saisir votre adresse e-mail et votre mot de passe.' });
         return;
       }
       if (password.length < 6) {
@@ -387,10 +414,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
         if (error) {
           setFeedback({
             type: 'error',
-            message:
-              error.message === 'Invalid login credentials'
-                ? 'Identifiants incorrects. Vérifiez votre e-mail et mot de passe.'
-                : error.message,
+            message: translateAuthErrorToFrench(error.message),
           });
           setIsLoading(false);
           return;
@@ -428,7 +452,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
       } catch (err: any) {
         setFeedback({
           type: 'error',
-          message: err.message || 'Erreur inattendue.',
+          message: translateAuthErrorToFrench(err.message || 'Erreur inattendue.'),
         });
       } finally {
         setIsLoading(false);
@@ -443,7 +467,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
       try {
         const { data, error } = await signInWithGoogle();
         if (error) {
-          setFeedback({ type: 'error', message: error.message });
+          setFeedback({ type: 'error', message: translateAuthErrorToFrench(error.message) });
           setIsLoading(false);
           return;
         }
@@ -469,7 +493,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           }, 400);
         }
       } catch (err: any) {
-        setFeedback({ type: 'error', message: err.message || 'Erreur OAuth Google' });
+        setFeedback({ type: 'error', message: translateAuthErrorToFrench(err.message || 'Erreur de connexion Google') });
       } finally {
         setIsLoading(false);
       }
@@ -526,14 +550,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           
           {/* ========================================================
               LEFT PANEL (VISUAL SIDE):
-              Full-bleed photo of a Muslim man praying in sujud position on a prayer mat.
              ======================================================== */}
           <div className="relative rounded-2xl sm:rounded-[34px] overflow-hidden min-h-[160px] sm:min-h-[420px] lg:min-h-[600px] bg-[#14281E] flex flex-col justify-between p-3.5 sm:p-7 border border-neutral-200 dark:border-emerald-500/20">
             
-            {/* Full-bleed photo of Muslim man praying in sujud */}
+            {/* Full-bleed photo */}
             <img
               src={sujudImage}
-              alt="Muslim man praying in humble sujud on a prayer mat"
+              alt="Fidèle en prière et recueillement sur un tapis de prière"
               referrerPolicy="no-referrer"
               className="absolute inset-0 w-full h-full object-cover object-[center_center] pointer-events-none select-none"
             />
@@ -543,7 +566,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
 
             <div /> {/* Spacer for top */}
 
-            {/* DARK GLASSMORPHISM CARD AT BOTTOM LEFT: Leaf Logo + Updated text */}
+            {/* DARK GLASSMORPHISM CARD AT BOTTOM LEFT: Leaf Logo + French text */}
             <div className="relative z-10 self-start">
               <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-black/60 backdrop-blur-md border border-emerald-500/30 text-white shadow-2xl">
                 {/* Minimalist leaf logo */}
@@ -561,10 +584,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
 
                 <div className="text-left leading-tight">
                   <div className="text-[11px] sm:text-[11.5px] font-medium text-white tracking-tight">
-                    Focus on your spiritual flow.
+                    Cultivez votre cheminement spirituel.
                   </div>
                   <div className="text-[9.5px] sm:text-[10px] text-emerald-200/70 font-normal mt-0.5">
-                    Build inner peace.
+                    Trouvez la paix intérieure.
                   </div>
                 </div>
               </div>
@@ -595,7 +618,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                 <button
                   type="button"
                   onClick={() => setActiveSlide(0)}
-                  aria-label="Slide 1"
+                  aria-label="Diapositive 1"
                   className={`transition-all rounded-full cursor-pointer ${
                     activeSlide === 0
                       ? 'w-5 h-2 bg-emerald-600 dark:bg-emerald-300 shadow-xs'
@@ -605,7 +628,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                 <button
                   type="button"
                   onClick={() => setActiveSlide(1)}
-                  aria-label="Slide 2"
+                  aria-label="Diapositive 2"
                   className={`transition-all rounded-full cursor-pointer ${
                     activeSlide === 1
                       ? 'w-5 h-2 bg-emerald-600 dark:bg-emerald-300 shadow-xs'
@@ -615,7 +638,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                 <button
                   type="button"
                   onClick={() => setActiveSlide(2)}
-                  aria-label="Slide 3"
+                  aria-label="Diapositive 3"
                   className={`transition-all rounded-full cursor-pointer ${
                     activeSlide === 2
                       ? 'w-5 h-2 bg-emerald-600 dark:bg-emerald-300 shadow-xs'
@@ -630,7 +653,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
               RIGHT PANEL (FORM SIDE):
              ======================================================== */}
           <div className="relative rounded-2xl sm:rounded-[34px] overflow-hidden p-4 sm:p-10 flex flex-col justify-between bg-neutral-50/70 dark:bg-gradient-to-br dark:from-[#14281E] dark:to-[#193226] border border-neutral-200 dark:border-emerald-500/20 shadow-inner transition-colors duration-300">
-            {/* Top right text: "Already have an account? Log In" */}
+            {/* Top right text in French */}
             <div className="flex items-center justify-end text-[11px] sm:text-xs text-neutral-600 dark:text-emerald-300/80">
               {isWaitingVerification ? (
                 <button
@@ -646,7 +669,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                 </button>
               ) : isSignUp ? (
                 <p>
-                  Already have an account?{' '}
+                  Vous avez déjà un compte ?{' '}
                   <button
                     type="button"
                     onClick={() => {
@@ -655,12 +678,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                     }}
                     className="font-bold text-emerald-700 dark:text-amber-300 hover:text-emerald-800 dark:hover:text-amber-200 hover:underline cursor-pointer ml-0.5"
                   >
-                    Log In
+                    Se connecter
                   </button>
                 </p>
               ) : (
                 <p>
-                  Don't have an account?{' '}
+                  Pas encore de compte ?{' '}
                   <button
                     type="button"
                     onClick={() => {
@@ -669,7 +692,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
                     }}
                     className="font-bold text-emerald-700 dark:text-amber-300 hover:text-emerald-800 dark:hover:text-amber-200 hover:underline cursor-pointer ml-0.5"
                   >
-                    Sign Up
+                    Créer un compte
                   </button>
                 </p>
               )}

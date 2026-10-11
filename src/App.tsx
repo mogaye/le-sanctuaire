@@ -875,6 +875,7 @@ export default function App() {
                 currentUser={currentUser}
                 hasMadeDonation={hasMadeDonation}
                 cityName={selectedCity.name}
+                onOpenAuth={() => setCurrentView('login')}
               />
 
               <FooterSection

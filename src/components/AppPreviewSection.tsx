@@ -159,7 +159,7 @@ export const AppPreviewSection: React.FC<AppPreviewSectionProps> = ({
                   <span>lavoiedelaserenite.app</span>
                 </div>
 
-                <div className="text-[10px] text-neutral-500 dark:text-emerald-300/60 font-medium">Desktop Preview</div>
+                <div className="text-[10px] text-neutral-500 dark:text-emerald-300/60 font-medium">Aperçu Ordinateur</div>
               </div>
 
               {/* Browser Inner Showcase Content */}

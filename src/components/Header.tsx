@@ -310,7 +310,7 @@ export const Header: React.FC<HeaderProps> = ({
                       className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-900 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-left font-bold cursor-pointer"
                     >
                       <Check className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
-                      <span>Mon Sanctuaire (Dashboard)</span>
+                      <span>Mon Sanctuaire (Tableau de bord)</span>
                     </button>
                   )}
                   <button
