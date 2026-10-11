@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/diagnostics",
+      "destination": "/api/accounts?action=diagnostics"
+    },
+    {
       "source": "/api/accounts/sync",
       "destination": "/api/accounts?action=sync"
     },

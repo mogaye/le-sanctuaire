@@ -490,12 +490,6 @@ export async function signInWithEmail(email: string, password: string) {
   // Direct verified credentials for Mamadou Gaye (mgaye60000@gmail.com / momo1234)
   if (cleanEmail === 'mgaye60000@gmail.com') {
     if (password === 'momo1234') {
-      try {
-        localStorage.setItem('sanctuaire_user_donated_mgaye60000@gmail.com', 'true');
-        localStorage.setItem('sanctuaire_user_donated_mamadou gaye', 'true');
-      } catch {
-        // ignore
-      }
       saveLocalAccount({
         id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
         email: 'mgaye60000@gmail.com',
@@ -1354,16 +1348,6 @@ export function hasUserDonatedLocally(user?: { email?: string; name?: string } |
 
   const emailKey = (user.email || '').trim().toLowerCase();
   const nameKey = (user.name || '').trim().toLowerCase();
-
-  // mgaye60000@gmail.com has already made a verified donation
-  if (emailKey === 'mgaye60000@gmail.com') {
-    try {
-      localStorage.setItem('sanctuaire_user_donated_mgaye60000@gmail.com', 'true');
-    } catch {
-      // ignore
-    }
-    return true;
-  }
 
   try {
     if (emailKey && localStorage.getItem(`sanctuaire_user_donated_${emailKey}`) === 'true') {

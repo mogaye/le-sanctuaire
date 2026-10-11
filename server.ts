@@ -887,6 +887,72 @@ async function startServer() {
     }
   });
 
+  app.get('/api/diagnostics', async (_req, res) => {
+    try {
+      const creds = getSupabaseRestCredentials();
+      const tables = [
+        'users',
+        'profiles',
+        'donations',
+        'prayer_logs',
+        'quran_favorites',
+        'dhikr_logs',
+        'email_logs',
+      ];
+      const tableStatuses: Record<string, any> = {};
+      const errors: string[] = [];
+
+      if (!creds) {
+        errors.push('Clé API Supabase absente des variables d’environnement.');
+      } else {
+        await Promise.all(
+          tables.map(async (table) => {
+            try {
+              const r = await fetch(`${creds.url}/rest/v1/${table}?select=*&limit=1`, {
+                headers: {
+                  apikey: creds.key,
+                  Authorization: `Bearer ${creds.key}`,
+                },
+              });
+              if (!r.ok) {
+                const t = await r.text().catch(() => '');
+                tableStatuses[table] = { ok: false, status: r.status, error: t };
+                errors.push(`Table public.${table} (${r.status}): ${t}`);
+              } else {
+                const rows = await r.json().catch(() => []);
+                tableStatuses[table] = {
+                  ok: true,
+                  status: 200,
+                  sampleCount: Array.isArray(rows) ? rows.length : 0,
+                };
+              }
+            } catch (e: any) {
+              tableStatuses[table] = { ok: false, error: e?.message || String(e) };
+              errors.push(`Table public.${table}: ${e?.message || String(e)}`);
+            }
+          })
+        );
+      }
+
+      res.json({
+        ok: Boolean(creds) && errors.length === 0,
+        timestamp: new Date().toISOString(),
+        environment: {
+          supabaseUrl: creds?.url || 'https://bkfklfnnturdwtfjoxci.supabase.co',
+          supabaseKeyConfigured: Boolean(creds),
+          hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+          hasSmtp: Boolean(process.env.SMTP_USER && process.env.SMTP_PASS),
+          serverlessFunctionsCount: 8,
+          vercelHobbyLimit: 12,
+        },
+        tables: tableStatuses,
+        errors,
+      });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error.message || 'Diagnostics error' });
+    }
+  });
+
   // ============================================================================
   // 3. EMAIL LOGS ROUTES (Outbox & Verification Email Logs)
   // ============================================================================

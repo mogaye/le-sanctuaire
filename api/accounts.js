@@ -2,6 +2,7 @@ import {
   parseRequestBody,
   supabaseSelect,
   upsertUserAndProfileInSupabase,
+  runSupabaseDiagnostics,
 } from './_supabase.js';
 
 export default async function handler(req, res) {
@@ -11,6 +12,15 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
+  }
+
+  const urlStr = String(req.url || '');
+  if (
+    req.method === 'GET' &&
+    (req.query?.action === 'diagnostics' || urlStr.includes('/diagnostics'))
+  ) {
+    const report = await runSupabaseDiagnostics();
+    return res.status(200).json(report);
   }
 
   if (req.method === 'POST') {

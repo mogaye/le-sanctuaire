@@ -304,3 +304,101 @@ export async function upsertUserAndProfileInSupabase({
     lastConnectedAt: nowIso,
   };
 }
+
+export async function runSupabaseDiagnostics() {
+  const creds = getSupabaseCreds();
+  const hasServiceRoleKey = Boolean(
+    process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim().length > 15
+  );
+  const hasAnonKey = Boolean(
+    (
+      process.env.VITE_SUPABASE_ANON_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      process.env.SUPABASE_ANON_KEY ||
+      ''
+    ).trim().length > 15
+  );
+  const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  const tables = [
+    'users',
+    'profiles',
+    'donations',
+    'prayer_logs',
+    'quran_favorites',
+    'dhikr_logs',
+    'email_logs',
+  ];
+
+  const tableStatuses = {};
+  const errors = [];
+  const advice = [];
+
+  if (!creds) {
+    errors.push(
+      'Aucune clé API Supabase détectée dans les variables d’environnement Vercel (VITE_SUPABASE_ANON_KEY ou SUPABASE_SERVICE_ROLE_KEY).'
+    );
+    advice.push(
+      'Allez sur Vercel > Settings > Environment Variables et ajoutez VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY et SUPABASE_SERVICE_ROLE_KEY, puis cliquez sur Redeploy.'
+    );
+  } else {
+    await Promise.all(
+      tables.map(async (table) => {
+        try {
+          const res = await fetch(`${creds.url}/rest/v1/${table}?select=*&limit=1`, {
+            method: 'GET',
+            headers: {
+              apikey: creds.key,
+              Authorization: `Bearer ${creds.key}`,
+              Accept: 'application/json',
+            },
+          });
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            tableStatuses[table] = { ok: false, status: res.status, error: errText };
+            errors.push(`Table public.${table} (HTTP ${res.status}): ${errText}`);
+          } else {
+            const rows = await res.json().catch(() => []);
+            tableStatuses[table] = {
+              ok: true,
+              status: 200,
+              sampleCount: Array.isArray(rows) ? rows.length : 0,
+            };
+          }
+        } catch (err) {
+          tableStatuses[table] = { ok: false, error: err?.message || String(err) };
+          errors.push(`Table public.${table}: ${err?.message || String(err)}`);
+        }
+      })
+    );
+  }
+
+  if (!hasServiceRoleKey && creds) {
+    advice.push(
+      'Conseil : Ajoutez SUPABASE_SERVICE_ROLE_KEY dans Vercel > Environment Variables pour contourner tout blocage RLS côté serveur.'
+    );
+  }
+  if (!hasSmtp) {
+    advice.push(
+      'Optionnel : Ajoutez SMTP_USER et SMTP_PASS dans Vercel > Environment Variables pour l’envoi direct des e-mails OTP et de remerciement.'
+    );
+  }
+
+  return {
+    ok: Boolean(creds) && errors.length === 0,
+    timestamp: new Date().toISOString(),
+    environment: {
+      supabaseUrl: creds?.url || DEFAULT_SUPABASE_URL,
+      supabaseKeyConfigured: Boolean(creds),
+      hasAnonKey,
+      hasServiceRoleKey,
+      hasSmtp,
+      serverlessFunctionsCount: 8,
+      vercelHobbyLimit: 12,
+    },
+    tables: tableStatuses,
+    errors,
+    advice,
+  };
+}
+
