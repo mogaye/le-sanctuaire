@@ -19,7 +19,9 @@ import {
   Send,
   X,
 } from 'lucide-react';
-import sujudImage from '../Portrait serein avec Coran sur fond vert.png';
+import muslimSujudImg from '../assets/images/muslim_sujud_1789519481224.jpg';
+import prayerFajrImg from '../assets/images/prayer_fajr_1789521106165.jpg';
+import saintCoranImg from '../assets/images/pub_saint_coran_1791599884513.jpg';
 import { UserProfile } from '../types';
 import {
   signInWithEmail,
@@ -101,6 +103,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
     return () => {
       active = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % 3);
+    }, 6000);
+    return () => clearInterval(interval);
   }, []);
 
   // Quick login when clicking an already connected account
@@ -550,48 +559,121 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onBackToHome, onLoginSucce
           
           {/* ========================================================
               LEFT PANEL (VISUAL SIDE):
+              Centered spiritual imagery + organized header, quote & feature highlights
              ======================================================== */}
-          <div className="relative rounded-2xl sm:rounded-[34px] overflow-hidden min-h-[160px] sm:min-h-[420px] lg:min-h-[600px] bg-[#14281E] flex flex-col justify-between p-3.5 sm:p-7 border border-neutral-200 dark:border-emerald-500/20">
-            
-            {/* Full-bleed photo */}
-            <img
-              src={sujudImage}
-              alt="Fidèle en prière et recueillement sur un tapis de prière"
-              referrerPolicy="no-referrer"
-              className="absolute inset-0 w-full h-full object-cover object-[center_center] pointer-events-none select-none"
-            />
+          <div className="relative rounded-2xl sm:rounded-[34px] overflow-hidden min-h-[240px] sm:min-h-[440px] lg:min-h-[600px] bg-[#0D2117] flex flex-col justify-between p-4 sm:p-7 border border-neutral-200 dark:border-emerald-500/20">
+            {[
+              {
+                src: muslimSujudImg,
+                alt: 'Fidèle en prosternation sur un tapis de prière',
+                badge: 'Sanctuaire Spirituel',
+                arabic: 'أَلَا بِذِكْرِ ٱللَّهِ تَطْمَئِنُّ ٱلْقُلُوبُ',
+                quote: '« N’est-ce point par l’évocation d’Allah que se tranquillisent les cœurs ? »',
+                ref: 'Sourate Ar-Ra’d • 13:28',
+                title: 'Cultivez votre cheminement spirituel.',
+                subtitle: 'Trouvez la paix intérieure et préservez vos prières.',
+              },
+              {
+                src: prayerFajrImg,
+                alt: 'Aube sereine et horaires de prière',
+                badge: 'Suivi des 5 Prières & Qibla',
+                arabic: 'إِنَّ ٱلصَّلَوٰةَ كَانَتْ عَلَى ٱلْمُؤْمِنِينَ كِتَٰبًا مَّوْقُوتًا',
+                quote: '« La prière demeure, pour les croyants, une prescription à des temps déterminés. »',
+                ref: 'Sourate An-Nisa • 4:103',
+                title: 'Horaires exacts & suivi quotidien.',
+                subtitle: 'Synchronisé automatiquement sur tous vos appareils.',
+              },
+              {
+                src: saintCoranImg,
+                alt: 'Lecture et écoute du Noble Coran',
+                badge: 'Noble Coran & Invocations',
+                arabic: 'وَرتِّلِ الْقُرْآنَ تَرْتِيلًا',
+                quote: '« Et récite le Coran lentement et clairement. »',
+                ref: 'Sourate Al-Muzzammil • 73:4',
+                title: '114 Sourates audio & favoris.',
+                subtitle: 'Retrouvez vos versets et votre Tasbih à tout moment.',
+              },
+            ].map((slide, idx) => {
+              const isActive = activeSlide === idx;
+              return (
+                <div
+                  key={idx}
+                  className={`absolute inset-0 transition-opacity duration-700 ${
+                    isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                  }`}
+                >
+                  <img
+                    src={slide.src}
+                    alt={slide.alt}
+                    referrerPolicy="no-referrer"
+                    className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none select-none scale-[1.02] transition-transform duration-700"
+                  />
+                  {/* Balanced atmospheric gradient so the image, top badge, and bottom card are all crisp */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#07150E]/95 via-[#0A1E14]/45 to-[#07150E]/70 pointer-events-none" />
 
-            {/* Subtle atmospheric vignette */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-black/30 pointer-events-none" />
+                  <div className="relative z-10 h-full flex flex-col justify-between p-4 sm:p-7">
+                    {/* Top Row: Brand & Slide Pill */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/45 backdrop-blur-md border border-white/15 text-white text-[11px] font-bold shadow-sm">
+                        <img
+                          src="/images/sanctuaire_logo.jpg"
+                          alt="Le Sanctuaire"
+                          className="w-4 h-4 rounded-full object-cover ring-1 ring-emerald-400/50"
+                        />
+                        <span>{slide.badge}</span>
+                      </div>
 
-            <div /> {/* Spacer for top */}
+                      <div className="flex items-center gap-1.5 lg:hidden">
+                        {[0, 1, 2].map((dotIdx) => (
+                          <button
+                            key={dotIdx}
+                            type="button"
+                            onClick={() => setActiveSlide(dotIdx)}
+                            aria-label={`Diapositive ${dotIdx + 1}`}
+                            className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                              activeSlide === dotIdx
+                                ? 'w-5 bg-emerald-400'
+                                : 'w-1.5 bg-white/40 hover:bg-white/70'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
 
-            {/* DARK GLASSMORPHISM CARD AT BOTTOM LEFT: Leaf Logo + French text */}
-            <div className="relative z-10 self-start">
-              <div className="flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-black/60 backdrop-blur-md border border-emerald-500/30 text-white shadow-2xl">
-                {/* Minimalist leaf logo */}
-                <div className="text-emerald-300 flex-shrink-0">
-                  <svg
-                    className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.8]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                  >
-                    <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
-                    <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                  </svg>
-                </div>
+                    {/* Bottom Stack: Quranic Verse + Glassmorphism Feature Card */}
+                    <div className="space-y-3 sm:space-y-4 mt-auto">
+                      <div className="p-3.5 sm:p-4 rounded-2xl bg-black/45 backdrop-blur-md border border-white/15 text-white space-y-1.5 shadow-lg">
+                        <p className="font-serif text-base sm:text-lg text-amber-300 text-right leading-relaxed">
+                          {slide.arabic}
+                        </p>
+                        <p className="text-xs sm:text-[13px] text-emerald-50/95 italic leading-relaxed">
+                          {slide.quote}
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/90">
+                          {slide.ref}
+                        </p>
+                      </div>
 
-                <div className="text-left leading-tight">
-                  <div className="text-[11px] sm:text-[11.5px] font-medium text-white tracking-tight">
-                    Cultivez votre cheminement spirituel.
+                      <div className="flex items-center justify-between gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl bg-[#0B1F16]/85 backdrop-blur-md border border-emerald-500/35 text-white shadow-2xl">
+                        <div className="flex items-center gap-2.5 sm:gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div className="text-left leading-tight">
+                            <div className="text-[11px] sm:text-xs font-bold text-white tracking-tight">
+                              {slide.title}
+                            </div>
+                            <div className="text-[10px] text-emerald-200/80 font-normal mt-0.5">
+                              {slide.subtitle}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[9.5px] sm:text-[10px] text-emerald-200/70 font-normal mt-0.5">
-                    Trouvez la paix intérieure.
-                  </div>
                 </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* ========================================================
