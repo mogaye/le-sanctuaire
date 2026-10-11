@@ -113,6 +113,20 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     };
   }, [isReadingAnyBook, onReadingStateChange]);
 
+  useEffect(() => {
+    const handleCloseBookFromBack = () => {
+      if (isReadingPuitsDeNour) {
+        setIsReadingPuitsDeNour(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (selectedPersonBook) {
+        setSelectedPersonBook(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('sanctuaire-close-book', handleCloseBookFromBack);
+    return () => window.removeEventListener('sanctuaire-close-book', handleCloseBookFromBack);
+  }, [isReadingPuitsDeNour, selectedPersonBook]);
+
   const filteredPersonBooks = useMemo(() => {
     return ISLAMIC_PEOPLE_BOOKS.filter((book) => {
       const matchesCat = selectedCategory === 'all' || book.category === selectedCategory;

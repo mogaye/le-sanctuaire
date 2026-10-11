@@ -189,6 +189,28 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
   const [isSideDrawerOpen, setIsSideDrawerOpen] = useState(false);
 
+  useEffect(() => {
+    if (isSideDrawerOpen || isCityModalOpen) {
+      try {
+        window.history.pushState({ sanctuaireOverlay: true }, '');
+      } catch {
+        // ignore
+      }
+      ;(window as any).__sanctuaireOverlayOpen = true;
+    } else {
+      ;(window as any).__sanctuaireOverlayOpen = false;
+    }
+  }, [isSideDrawerOpen, isCityModalOpen]);
+
+  useEffect(() => {
+    const handleCloseOverlays = () => {
+      if (isCityModalOpen) setIsCityModalOpen(false);
+      else if (isSideDrawerOpen) setIsSideDrawerOpen(false);
+    };
+    window.addEventListener('sanctuaire-close-overlays', handleCloseOverlays);
+    return () => window.removeEventListener('sanctuaire-close-overlays', handleCloseOverlays);
+  }, [isCityModalOpen, isSideDrawerOpen]);
+
   // Quick Mini-Tasbih State synced with Cloud & Desktop
   const [selectedDhikrIdx, setSelectedDhikrIdx] = useState<number>(() => {
     try {
@@ -206,6 +228,18 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
       return 0;
     }
   });
+  const [dhikrTarget, setDhikrTarget] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_tasbih_target');
+      const parsed = saved ? parseInt(saved, 10) : NaN;
+      return !isNaN(parsed) && parsed >= 0 ? parsed : 33;
+    } catch {
+      return 33;
+    }
+  });
+  const [customDhikrTargetInput, setCustomDhikrTargetInput] = useState<string>(() =>
+    dhikrTarget > 0 ? String(dhikrTarget) : ''
+  );
   const [syncTick, setSyncTick] = useState(0);
 
   useEffect(() => {
@@ -216,6 +250,14 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         if (savedTasbih !== null) {
           const parsed = parseInt(savedTasbih, 10);
           if (!isNaN(parsed)) setDhikrCount(parsed);
+        }
+        const savedTarget = localStorage.getItem('sanctuaire_tasbih_target');
+        if (savedTarget !== null) {
+          const parsedT = parseInt(savedTarget, 10);
+          if (!isNaN(parsedT) && parsedT >= 0) {
+            setDhikrTarget(parsedT);
+            setCustomDhikrTargetInput(parsedT > 0 ? String(parsedT) : '');
+          }
         }
         const savedIdx = localStorage.getItem('sanctuaire_selected_dhikr_index');
         if (savedIdx !== null) {
@@ -258,9 +300,24 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   const currentHadith = HADITHS[hadithIdx];
   const currentAllahName = ALLAH_NAMES[nameIdx];
 
+  const handleApplyMobileDhikrTarget = (newTarget: number) => {
+    const valid = Math.max(0, Math.min(999999, newTarget));
+    setDhikrTarget(valid);
+    setCustomDhikrTargetInput(valid > 0 ? String(valid) : '');
+    setDhikrCount(0);
+    try {
+      localStorage.setItem('sanctuaire_tasbih_target', String(valid));
+      localStorage.setItem('sanctuaire_tasbih_count', '0');
+      pushSettingToCloud('sanctuaire_tasbih_target', String(valid));
+      pushSettingToCloud('sanctuaire_tasbih_count', '0');
+    } catch {
+      // ignore
+    }
+  };
+
   const handleIncrementDhikr = () => {
     setDhikrCount((prev) => {
-      const next = prev >= currentDhikr.target ? 1 : prev + 1;
+      const next = dhikrTarget > 0 && prev >= dhikrTarget ? 1 : prev + 1;
       try {
         localStorage.setItem('sanctuaire_tasbih_count', String(next));
         pushSettingToCloud('sanctuaire_tasbih_count', String(next));
@@ -785,6 +842,57 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               ))}
             </div>
 
+            {/* Free Target Number Selector */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[33, 99, 100].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handleApplyMobileDhikrTarget(preset)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
+                    dhikrTarget === preset
+                      ? 'bg-emerald-700 text-white border-emerald-700 dark:bg-emerald-500 dark:text-neutral-950 dark:border-emerald-400'
+                      : 'bg-neutral-100 dark:bg-[#14281E] text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-emerald-500/20'
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handleApplyMobileDhikrTarget(0)}
+                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
+                  dhikrTarget === 0
+                    ? 'bg-emerald-700 text-white border-emerald-700 dark:bg-emerald-500 dark:text-neutral-950 dark:border-emerald-400'
+                    : 'bg-neutral-100 dark:bg-[#14281E] text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-emerald-500/20'
+                }`}
+              >
+                Libre (∞)
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={999999}
+                value={customDhikrTargetInput}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomDhikrTargetInput(val);
+                  const parsed = parseInt(val, 10);
+                  if (!isNaN(parsed) && parsed > 0) {
+                    setDhikrTarget(Math.min(999999, parsed));
+                    try {
+                      localStorage.setItem('sanctuaire_tasbih_target', String(Math.min(999999, parsed)));
+                      pushSettingToCloud('sanctuaire_tasbih_target', String(Math.min(999999, parsed)));
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }}
+                placeholder="Nombre libre..."
+                className="flex-1 min-w-[90px] px-2.5 py-1 rounded-xl bg-neutral-50 dark:bg-[#14281E] border border-neutral-200 dark:border-emerald-500/30 text-[11px] font-bold text-neutral-900 dark:text-white text-center focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
             {/* Interactive Dhikr Tap Counter */}
             <div className="flex items-center justify-between bg-neutral-50 dark:bg-[#14281E] rounded-xl p-3 border border-neutral-200 dark:border-emerald-500/20">
               <div className="space-y-0.5">
@@ -824,7 +932,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                 >
                   <span className="text-lg leading-none">{dhikrCount}</span>
                   <span className="text-[8px] font-sans font-bold text-emerald-100 dark:text-emerald-300 opacity-90 mt-0.5">
-                    /{currentDhikr.target}
+                    {dhikrTarget === 0 ? '∞' : `/${dhikrTarget}`}
                   </span>
                 </button>
               </div>

@@ -374,33 +374,33 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] bg-gradient-to-b from-[#0F291E] via-[#143224] to-[#0A1F16] text-white rounded-3xl sm:rounded-[36px] border border-emerald-500/30 shadow-[0_25px_70px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-3xl max-h-[92vh] sm:max-h-[88vh] bg-white dark:bg-gradient-to-b dark:from-[#0F291E] dark:via-[#143224] dark:to-[#0A1F16] text-neutral-900 dark:text-white rounded-3xl sm:rounded-[36px] border border-neutral-200 dark:border-emerald-500/30 shadow-[0_25px_70px_rgba(0,0,0,0.18)] dark:shadow-[0_25px_70px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 transition-colors"
       >
         {/* ========================================================
             MODAL TOP BAR
            ======================================================== */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-emerald-800/40 bg-[#0c2219]/90 shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-200 dark:border-emerald-800/40 bg-[#F7FAF8] dark:bg-[#0c2219]/90 shrink-0 transition-colors">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-400/20 to-emerald-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300 shrink-0 shadow-inner">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-amber-50 dark:bg-gradient-to-br dark:from-amber-400/20 dark:to-emerald-400/20 border border-amber-300 dark:border-amber-400/30 flex items-center justify-center text-amber-600 dark:text-amber-300 shrink-0 shadow-inner">
               <Compass className="w-5 h-5 animate-[spin_20s_linear_infinite]" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black tracking-tight text-white truncate">
+                <h2 className="text-base sm:text-lg font-black tracking-tight text-neutral-900 dark:text-white truncate">
                   Boussole Qibla & Horaires
                 </h2>
-                <span className="font-arabic text-xs sm:text-sm text-amber-300/90 hidden sm:inline">
+                <span className="font-arabic text-xs sm:text-sm text-amber-700 dark:text-amber-300/90 hidden sm:inline">
                   القبلة ومواقيت الصلاة
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-emerald-200/70 truncate">
+              <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-emerald-200/70 truncate">
                 <span>{selectedCity.name}, {selectedCity.country}</span>
                 <span>•</span>
-                <span className="font-mono text-[11px] font-bold text-amber-300">
+                <span className="font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
                   {formatTimeDigits(cityDate, false)}
                 </span>
                 {selectedCity.utcOffset && (
-                  <span className="text-[10px] px-1 py-0.2 rounded bg-emerald-900/60 text-emerald-300 font-mono">
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono font-semibold">
                     {selectedCity.utcOffset}
                   </span>
                 )}
@@ -414,7 +414,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               type="button"
               onClick={() => setSoundEnabled(!soundEnabled)}
               title={soundEnabled ? 'Désactiver le son d’alignement' : 'Activer le son d’alignement'}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-900/50 hover:bg-emerald-800/70 border border-emerald-700/40 flex items-center justify-center text-emerald-200 transition cursor-pointer"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:hover:bg-emerald-800/70 border border-emerald-200 dark:border-emerald-700/40 flex items-center justify-center text-emerald-700 dark:text-emerald-200 transition cursor-pointer"
             >
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4 text-neutral-400" />}
             </button>
@@ -424,7 +424,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Fermer"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white transition cursor-pointer active:scale-95 shrink-0"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-white/10 dark:hover:bg-white/20 border border-neutral-200 dark:border-white/15 flex items-center justify-center text-neutral-700 dark:text-white transition cursor-pointer active:scale-95 shrink-0"
             >
               <X className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
@@ -434,31 +434,31 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
         {/* ========================================================
             SUB-HEADER: CITY SWITCHER & VIEW TABS
            ======================================================== */}
-        <div className="px-4 sm:px-6 py-2.5 bg-black/25 border-b border-emerald-900/40 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+        <div className="px-4 sm:px-6 py-2.5 bg-neutral-50 dark:bg-black/25 border-b border-neutral-200/80 dark:border-emerald-900/40 flex items-center justify-between gap-2 shrink-0 flex-wrap transition-colors">
           {/* Clickable City Pill with Globe Icon */}
           <button
             type="button"
             onClick={() => setIsCityModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-900/50 hover:bg-emerald-800/60 border border-emerald-600/40 text-xs font-semibold text-emerald-100 transition cursor-pointer active:scale-95 group"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-emerald-50/70 dark:bg-emerald-900/50 dark:hover:bg-emerald-800/60 border border-emerald-300/80 dark:border-emerald-600/40 text-xs font-semibold text-neutral-800 dark:text-emerald-100 transition cursor-pointer active:scale-95 group shadow-2xs"
           >
-            <MapPin className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
+            <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0" />
             <span className="truncate max-w-[140px] sm:max-w-none">
               {selectedCity.name}, {selectedCity.country}
             </span>
-            <span className="text-[10px] text-amber-300 font-bold underline decoration-amber-400/50 ml-0.5">
+            <span className="text-[10px] text-emerald-700 dark:text-amber-300 font-bold underline decoration-emerald-500/50 dark:decoration-amber-400/50 ml-0.5">
               Changer
             </span>
           </button>
 
           {/* Quick View Tabs */}
-          <div className="flex items-center p-0.5 rounded-full bg-emerald-950/70 border border-emerald-800/50 text-xs">
+          <div className="flex items-center p-0.5 rounded-full bg-neutral-200/70 dark:bg-emerald-950/70 border border-neutral-300/70 dark:border-emerald-800/50 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab('compass')}
               className={`px-3 py-1 rounded-full font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'compass'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
-                  : 'text-emerald-300/80 hover:text-white'
+                  : 'text-neutral-700 dark:text-emerald-300/80 hover:text-neutral-950 dark:hover:text-white'
               }`}
             >
               <Compass className="w-3.5 h-3.5" />
@@ -470,7 +470,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               className={`px-3 py-1 rounded-full font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'prayers'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
-                  : 'text-emerald-300/80 hover:text-white'
+                  : 'text-neutral-700 dark:text-emerald-300/80 hover:text-neutral-950 dark:hover:text-white'
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
@@ -493,8 +493,8 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
               <div
                 className={`p-3.5 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-3 ${
                   isAligned
-                    ? 'bg-emerald-500/20 border-amber-400/80 text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.25)]'
-                    : 'bg-black/30 border-emerald-800/40 text-emerald-100'
+                    ? 'bg-amber-50 dark:bg-emerald-500/20 border-amber-400 text-amber-900 dark:text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.18)]'
+                    : 'bg-[#F4F8F5] dark:bg-black/30 border-emerald-200/80 dark:border-emerald-800/40 text-neutral-900 dark:text-emerald-100'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -502,28 +502,28 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                     className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                       isAligned
                         ? 'bg-amber-400 text-neutral-950 text-base shadow-lg animate-pulse'
-                        : 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50'
+                        : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50'
                     }`}
                   >
-                    {isAligned ? '🕋' : <Compass className="w-5 h-5 text-amber-300" />}
+                    {isAligned ? '🕋' : <Compass className="w-5 h-5 text-emerald-700 dark:text-amber-300" />}
                   </div>
                   <div className="min-w-0">
                     <div className="text-xs sm:text-sm font-extrabold flex items-center gap-1.5">
                       {isAligned ? (
-                        <span className="text-amber-300 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                           PARFAITEMENT ALIGNÉ AVEC LA KAABA !
                         </span>
                       ) : (
-                        <span>
+                        <span className="text-neutral-900 dark:text-white">
                           {angleDelta > 0
                             ? `Tournez de ${Math.abs(Math.round(angleDelta))}° vers la gauche`
                             : `Tournez de ${Math.abs(Math.round(angleDelta))}° vers la droite`}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-emerald-200/70 truncate">
-                      Angle Qibla : <strong className="text-white font-bold">{trueQiblaAngle}°</strong> ({cardinalDirection}) • Distance : {distanceKm.toLocaleString('fr-FR')} km
+                    <p className="text-[11px] text-neutral-600 dark:text-emerald-200/70 truncate">
+                      Angle Qibla : <strong className="text-emerald-900 dark:text-white font-bold">{trueQiblaAngle}°</strong> ({cardinalDirection}) • Distance : {distanceKm.toLocaleString('fr-FR')} km
                     </p>
                   </div>
                 </div>
@@ -536,17 +536,17 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                     setDeviceHeading(trueQiblaAngle);
                   }}
                   title="Aligner directement l'aiguille sur la Kaaba"
-                  className="px-2.5 py-1 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-300 text-[11px] font-bold shrink-0 transition cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200/80 dark:bg-amber-400/15 dark:hover:bg-amber-400/25 border border-amber-300 dark:border-amber-400/40 text-amber-800 dark:text-amber-300 text-[11px] font-bold shrink-0 transition cursor-pointer active:scale-95"
                 >
                   Aligner
                 </button>
               </div>
 
               {/* Astrolabe Digital Compass Stage */}
-              <div className="relative bg-gradient-to-b from-black/40 via-emerald-950/30 to-black/50 rounded-3xl border border-emerald-500/25 p-4 sm:p-8 flex flex-col items-center justify-center overflow-hidden">
+              <div className="relative bg-gradient-to-b from-[#F4F8F5] via-emerald-50/40 to-[#EBF3EE] dark:from-black/40 dark:via-emerald-950/30 dark:to-black/50 rounded-3xl border border-emerald-200/80 dark:border-emerald-500/25 p-4 sm:p-8 flex flex-col items-center justify-center overflow-hidden shadow-inner">
                 
                 {/* Background Decorative Rings */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.1)_0%,transparent_70%)] pointer-events-none" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.08)_0%,transparent_70%)] pointer-events-none" />
                 
                 {/* Compass Dial Container (supports touch/mouse drag for manual rotation) */}
                 <div
@@ -561,7 +561,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                     if (e.touches[0]) handleDialMove(e.touches[0].clientX, e.touches[0].clientY);
                   }}
                   onTouchEnd={handleDialEnd}
-                  className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-full select-none cursor-grab active:cursor-grabbing touch-none flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.5)] border-4 border-[#245239]/80 bg-[#0B1E16]"
+                  className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-full select-none cursor-grab active:cursor-grabbing touch-none flex items-center justify-center shadow-[0_12px_40px_rgba(6,78,59,0.12)] dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] border-4 border-emerald-600/35 dark:border-[#245239]/80 bg-white dark:bg-[#0B1E16]"
                 >
                   {/* Subtle Aligned Glow Ring */}
                   {isAligned && (
@@ -582,7 +582,8 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                         cy="150"
                         r="142"
                         fill="none"
-                        stroke="#1D4330"
+                        stroke="currentColor"
+                        className="text-emerald-200 dark:text-[#1D4330]"
                         strokeWidth="1.5"
                       />
                       <circle
@@ -590,7 +591,8 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                         cy="150"
                         r="128"
                         fill="none"
-                        stroke="#2B5F45"
+                        stroke="currentColor"
+                        className="text-emerald-300 dark:text-[#2B5F45]"
                         strokeWidth="1"
                         strokeDasharray="2,4"
                       />
@@ -616,7 +618,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                             y1={y1}
                             x2={x2}
                             y2={y2}
-                            stroke={isCardinal ? '#F59E0B' : isMajor ? '#6EE7B7' : '#2A5C43'}
+                            stroke={isCardinal ? '#D97706' : isMajor ? '#059669' : '#6EE7B7'}
                             strokeWidth={isCardinal ? 2.5 : isMajor ? 1.5 : 1}
                           />
                         );
@@ -635,9 +637,11 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                             y={y}
                             textAnchor="middle"
                             fontSize="8"
-                            fill="#86EFAC"
+                            fill="currentColor"
+                            className="text-emerald-800 dark:text-[#86EFAC]"
                             fontFamily="monospace"
-                            opacity="0.75"
+                            fontWeight="600"
+                            opacity="0.85"
                           >
                             {deg}°
                           </text>
@@ -653,22 +657,22 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                     </div>
                     {/* EAST (E) */}
                     <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
-                      <span className="text-xs font-bold text-amber-300">E</span>
+                      <span className="text-xs font-bold text-amber-600 dark:text-amber-300">E</span>
                     </div>
                     {/* SOUTH (S) */}
                     <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2">
-                      <span className="text-xs font-bold text-emerald-300">S</span>
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">S</span>
                     </div>
                     {/* WEST (O / Ouest) */}
                     <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
-                      <span className="text-xs font-bold text-emerald-300">O</span>
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">O</span>
                     </div>
 
                     {/* Intercardinals */}
-                    <span className="absolute top-9 right-9 text-[9px] font-bold text-emerald-500/70">NE</span>
-                    <span className="absolute bottom-9 right-9 text-[9px] font-bold text-emerald-500/70">SE</span>
-                    <span className="absolute bottom-9 left-9 text-[9px] font-bold text-emerald-500/70">SO</span>
-                    <span className="absolute top-9 left-9 text-[9px] font-bold text-emerald-500/70">NO</span>
+                    <span className="absolute top-9 right-9 text-[9px] font-bold text-emerald-600/80 dark:text-emerald-500/70">NE</span>
+                    <span className="absolute bottom-9 right-9 text-[9px] font-bold text-emerald-600/80 dark:text-emerald-500/70">SE</span>
+                    <span className="absolute bottom-9 left-9 text-[9px] font-bold text-emerald-600/80 dark:text-emerald-500/70">SO</span>
+                    <span className="absolute top-9 left-9 text-[9px] font-bold text-emerald-600/80 dark:text-emerald-500/70">NO</span>
 
                     {/* Fixed Qibla Target Point on the Dial (True Bearing from North) */}
                     <div
@@ -710,47 +714,47 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                       {/* Vibrant pointer arrow directed towards Kaaba */}
                       <div className="relative">
                         <Navigation
-                          className={`w-10 h-10 sm:w-12 sm:h-12 drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)] ${
+                          className={`w-10 h-10 sm:w-12 sm:h-12 drop-shadow-[0_4px_10px_rgba(0,0,0,0.25)] dark:drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)] ${
                             isAligned
-                              ? 'text-amber-400 fill-amber-400 drop-shadow-[0_0_16px_rgba(245,158,11,0.8)]'
-                              : 'text-emerald-400 fill-emerald-500'
+                              ? 'text-amber-500 dark:text-amber-400 fill-amber-400 drop-shadow-[0_0_16px_rgba(245,158,11,0.8)]'
+                              : 'text-emerald-600 dark:text-emerald-400 fill-emerald-500'
                           }`}
                         />
                       </div>
-                      <div className="w-1 sm:w-1.5 h-14 sm:h-18 bg-gradient-to-b from-amber-400 via-emerald-400 to-transparent rounded-full opacity-80" />
+                      <div className="w-1 sm:w-1.5 h-14 sm:h-18 bg-gradient-to-b from-amber-500 via-emerald-500 to-transparent rounded-full opacity-85" />
                     </div>
                   </div>
 
                   {/* 3. Center Jewel / Pivot */}
-                  <div className="absolute w-7 h-7 rounded-full bg-gradient-to-br from-amber-300 via-emerald-700 to-neutral-900 border-2 border-amber-300 shadow-lg flex items-center justify-center z-10 pointer-events-none">
+                  <div className="absolute w-7 h-7 rounded-full bg-gradient-to-br from-amber-300 via-emerald-700 to-neutral-900 border-2 border-amber-400 shadow-lg flex items-center justify-center z-10 pointer-events-none">
                     <div className="w-2 h-2 rounded-full bg-amber-200" />
                   </div>
 
                   {/* Fixed Smartphone Forward Direction Indicator (Top 12 o'clock notch) */}
-                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-3 bg-amber-400 [clip-path:polygon(50%_100%,0_0,100%_0)] pointer-events-none z-20 shadow-md" />
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-3 bg-amber-500 dark:bg-amber-400 [clip-path:polygon(50%_100%,0_0,100%_0)] pointer-events-none z-20 shadow-md" />
                 </div>
 
                 {/* Compass HUD info bar */}
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-xs">
-                  <div className="px-3 py-1 rounded-xl bg-black/40 border border-emerald-800/50 flex items-center gap-1.5">
-                    <span className="text-neutral-400 text-[11px]">Cap :</span>
-                    <span className="font-mono font-bold text-amber-300 text-sm">
+                  <div className="px-3 py-1 rounded-xl bg-white dark:bg-black/40 border border-emerald-200 dark:border-emerald-800/50 flex items-center gap-1.5 shadow-2xs">
+                    <span className="text-neutral-500 dark:text-neutral-400 text-[11px]">Cap :</span>
+                    <span className="font-mono font-bold text-amber-600 dark:text-amber-300 text-sm">
                       {deviceHeading}°
                     </span>
                   </div>
 
-                  <div className="px-3 py-1 rounded-xl bg-black/40 border border-emerald-800/50 flex items-center gap-1.5">
-                    <span className="text-neutral-400 text-[11px]">Qibla :</span>
-                    <span className="font-mono font-bold text-emerald-300 text-sm">
+                  <div className="px-3 py-1 rounded-xl bg-white dark:bg-black/40 border border-emerald-200 dark:border-emerald-800/50 flex items-center gap-1.5 shadow-2xs">
+                    <span className="text-neutral-500 dark:text-neutral-400 text-[11px]">Qibla :</span>
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 text-sm">
                       {trueQiblaAngle}°
                     </span>
                   </div>
 
-                  <div className="px-3 py-1 rounded-xl bg-black/40 border border-emerald-800/50 flex items-center gap-1.5">
-                    <span className="text-neutral-400 text-[11px]">Écart :</span>
+                  <div className="px-3 py-1 rounded-xl bg-white dark:bg-black/40 border border-emerald-200 dark:border-emerald-800/50 flex items-center gap-1.5 shadow-2xs">
+                    <span className="text-neutral-500 dark:text-neutral-400 text-[11px]">Écart :</span>
                     <span
                       className={`font-mono font-bold text-sm ${
-                        isAligned ? 'text-amber-400' : 'text-rose-400'
+                        isAligned ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
                       }`}
                     >
                       {Math.abs(Math.round(angleDelta))}°
@@ -772,22 +776,22 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                   )}
 
                   {hasSensor && !isManualMode && (
-                    <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-medium flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-300 dark:border-emerald-400/40 text-emerald-800 dark:text-emerald-300 text-[11px] font-medium flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
                       Capteur d'orientation actif
                     </span>
                   )}
 
                   {isManualMode && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-neutral-400">
+                      <span className="text-[11px] text-neutral-600 dark:text-neutral-400">
                         Mode manuel : faites glisser la boussole
                       </span>
                       {hasSensor && (
                         <button
                           type="button"
                           onClick={() => setIsManualMode(false)}
-                          className="px-2 py-0.5 rounded-md bg-emerald-800/60 hover:bg-emerald-700/70 text-[10px] text-emerald-200 cursor-pointer"
+                          className="px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-800/60 dark:hover:bg-emerald-700/70 text-[10px] text-emerald-800 dark:text-emerald-200 cursor-pointer font-semibold"
                         >
                           Repasser au capteur
                         </button>
@@ -805,13 +809,13 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
           {(activeTab === 'prayers' || true) && (
             <div className="space-y-3 pt-1">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-200 flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-amber-400" />
+                <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                   Horaires des 5 Prières d’Aujourd’hui
                 </h3>
 
                 {prayerSchedule && (
-                  <span className="text-[11px] font-bold text-amber-300 bg-amber-400/15 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                  <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-400/15 border border-amber-300 dark:border-amber-400/30 px-2.5 py-0.5 rounded-full">
                     Prochaine : {prayerSchedule.nextPrayerKey} dans {prayerSchedule.hoursRemaining}h {prayerSchedule.minutesRemaining}m
                   </span>
                 )}
@@ -829,10 +833,10 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                       key={prayer.key}
                       className={`relative p-3.5 rounded-2xl border transition-all duration-200 text-center flex flex-col justify-between ${
                         isNext
-                          ? 'bg-gradient-to-b from-amber-500/20 via-emerald-900/30 to-emerald-950/40 border-amber-400/80 shadow-[0_0_20px_rgba(245,158,11,0.2)] scale-[1.02]'
+                          ? 'bg-gradient-to-b from-amber-50 via-emerald-50/70 to-white dark:from-amber-500/20 dark:via-emerald-900/30 dark:to-emerald-950/40 border-amber-400 dark:border-amber-400/80 shadow-[0_6px_18px_rgba(245,158,11,0.14)] scale-[1.02]'
                           : isCurrent
-                          ? 'bg-emerald-900/40 border-emerald-500/50 shadow-xs'
-                          : 'bg-black/30 border-emerald-800/35 hover:border-emerald-700/60'
+                          ? 'bg-emerald-50/80 dark:bg-emerald-900/40 border-emerald-400 dark:border-emerald-500/50 shadow-xs'
+                          : 'bg-[#F8FAF9] dark:bg-black/30 border-neutral-200 dark:border-emerald-800/35 hover:border-emerald-400 dark:hover:border-emerald-700/60'
                       }`}
                     >
                       {/* Active / Next Badge */}
@@ -842,28 +846,28 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                         </div>
                       )}
                       {isCurrent && !isNext && (
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.2 rounded-full bg-emerald-500 text-black text-[9px] font-bold tracking-wider uppercase shadow-xs">
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.2 rounded-full bg-emerald-500 text-white dark:text-black text-[9px] font-bold tracking-wider uppercase shadow-xs">
                           En cours
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between text-neutral-400 mb-1">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/90">
+                      <div className="flex items-center justify-between text-neutral-500 dark:text-neutral-400 mb-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200/90">
                           {prayer.name}
                         </div>
                         {getPrayerIcon(prayer.key)}
                       </div>
 
-                      <div className="font-arabic text-sm text-amber-200/90 my-0.5">
+                      <div className="font-arabic text-sm text-amber-700 dark:text-amber-200/90 my-0.5">
                         {prayer.arabicName}
                       </div>
 
-                      <div className="text-xl sm:text-2xl font-black text-white tracking-tight my-1 font-mono">
+                      <div className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight my-1 font-mono">
                         {time}
                       </div>
 
                       <div className="mt-1 flex items-center justify-center">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-200">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100/80 dark:bg-emerald-500/15 border border-emerald-300/70 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200">
                           {prayer.rakats} Rakats
                         </span>
                       </div>
@@ -877,12 +881,12 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
           {/* ========================================================
               CALCULATION METHOD & ACCURACY FOOTER
              ======================================================== */}
-          <div className="p-3.5 rounded-2xl bg-black/30 border border-emerald-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-neutral-300">
+          <div className="p-3.5 rounded-2xl bg-[#F4F8F5] dark:bg-black/30 border border-emerald-200/70 dark:border-emerald-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-neutral-700 dark:text-neutral-300">
             <div className="flex items-center gap-2">
-              <Globe2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <Globe2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <div>
-                <span className="font-semibold text-white">Méthode de calcul :</span>{' '}
-                <span className="text-emerald-200">{selectedMethod.fullName || selectedMethod.name}</span>
+                <span className="font-semibold text-neutral-900 dark:text-white">Méthode de calcul :</span>{' '}
+                <span className="text-emerald-800 dark:text-emerald-200">{selectedMethod.fullName || selectedMethod.name}</span>
               </div>
             </div>
 
@@ -893,7 +897,7 @@ export const QiblaModal: React.FC<QiblaModalProps> = ({
                   onClose();
                   onOpenPrayerSettings();
                 }}
-                className="inline-flex items-center gap-1.5 text-amber-300 hover:text-amber-200 font-bold transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300 hover:text-amber-600 dark:hover:text-amber-200 font-bold transition cursor-pointer"
               >
                 <Settings2 className="w-3.5 h-3.5" />
                 <span>Ajuster les angles & offsets</span>

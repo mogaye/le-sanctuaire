@@ -193,6 +193,221 @@ export default function App() {
   const [isPrayerSettingsOpen, setIsPrayerSettingsOpen] = useState<boolean>(false);
   const [isDonationOpen, setIsDonationOpen] = useState<boolean>(false);
 
+  // =========================================================================
+  // MOBILE HARDWARE BACK BUTTON (popstate) & EDGE SWIPE BACK GESTURE SUPPORT
+  // Prevents the phone's back button or swipe gesture from exiting the site
+  // and instead navigates back step-by-step through modals, books, and pages.
+  // =========================================================================
+  const isHandlingPopStateRef = React.useRef<boolean>(false);
+  const lastBackActionTimeRef = React.useRef<number>(0);
+  const navStateRef = React.useRef({
+    currentView,
+    isReadingBook,
+    isPrayerGuideOpen,
+    isQuranOpen,
+    isQiblaOpen,
+    isDhikrOpen,
+    isPrayerSettingsOpen,
+    isDonationOpen,
+    showWelcomeWalkthrough,
+  });
+
+  useEffect(() => {
+    navStateRef.current = {
+      currentView,
+      isReadingBook,
+      isPrayerGuideOpen,
+      isQuranOpen,
+      isQiblaOpen,
+      isDhikrOpen,
+      isPrayerSettingsOpen,
+      isDonationOpen,
+      showWelcomeWalkthrough,
+    };
+  }, [
+    currentView,
+    isReadingBook,
+    isPrayerGuideOpen,
+    isQuranOpen,
+    isQiblaOpen,
+    isDhikrOpen,
+    isPrayerSettingsOpen,
+    isDonationOpen,
+    showWelcomeWalkthrough,
+  ]);
+
+  // Push history entry whenever user opens a view, modal, or book so phone back button stays in-app
+  useEffect(() => {
+    if (isHandlingPopStateRef.current) {
+      isHandlingPopStateRef.current = false;
+      return;
+    }
+    try {
+      window.history.pushState(
+        {
+          sanctuaire: true,
+          view: currentView,
+          isReadingBook,
+          hasModal:
+            isPrayerGuideOpen ||
+            isQuranOpen ||
+            isQiblaOpen ||
+            isDhikrOpen ||
+            isPrayerSettingsOpen ||
+            isDonationOpen ||
+            showWelcomeWalkthrough,
+        },
+        ''
+      );
+    } catch {
+      // ignore history errors in restricted frames
+    }
+  }, [
+    currentView,
+    isReadingBook,
+    isPrayerGuideOpen,
+    isQuranOpen,
+    isQiblaOpen,
+    isDhikrOpen,
+    isPrayerSettingsOpen,
+    isDonationOpen,
+    showWelcomeWalkthrough,
+  ]);
+
+  useEffect(() => {
+    // Initialize root guard state on mount so first back gesture doesn't exit the browser
+    try {
+      window.history.replaceState({ sanctuaireRoot: true, view: 'landing' }, '');
+      window.history.pushState({ sanctuaireGuard: true, view: 'landing' }, '');
+    } catch {
+      // ignore
+    }
+
+    const performInAppStepBack = (): boolean => {
+      const now = Date.now();
+      if (now - lastBackActionTimeRef.current < 180) return true;
+      lastBackActionTimeRef.current = now;
+
+      const s = navStateRef.current;
+
+      // 1. Close mobile drawers / bottom sheets first
+      if ((window as any).__sanctuaireOverlayOpen || (window as any).__sanctuaireMoreOpen) {
+        window.dispatchEvent(new Event('sanctuaire-close-overlays'));
+        return true;
+      }
+
+      // 2. Close active global modals
+      if (s.isDonationOpen) {
+        setIsDonationOpen(false);
+        return true;
+      }
+      if (s.isPrayerSettingsOpen) {
+        setIsPrayerSettingsOpen(false);
+        return true;
+      }
+      if (s.isDhikrOpen) {
+        setIsDhikrOpen(false);
+        return true;
+      }
+      if (s.isQiblaOpen) {
+        setIsQiblaOpen(false);
+        return true;
+      }
+      if (s.isQuranOpen) {
+        setIsQuranOpen(false);
+        return true;
+      }
+      if (s.isPrayerGuideOpen) {
+        setIsPrayerGuideOpen(false);
+        return true;
+      }
+      if (s.showWelcomeWalkthrough) {
+        setShowWelcomeWalkthrough(false);
+        return true;
+      }
+
+      // 3. If reading a book inside LibraryPage, return to library catalogue
+      if (s.isReadingBook) {
+        window.dispatchEvent(new Event('sanctuaire-close-book'));
+        setIsReadingBook(false);
+        return true;
+      }
+
+      // 4. If on a feature page, return to Home dashboard
+      if (
+        s.currentView === 'prayer' ||
+        s.currentView === 'quran' ||
+        s.currentView === 'fasting' ||
+        s.currentView === 'faith' ||
+        s.currentView === 'library' ||
+        s.currentView === 'calendar'
+      ) {
+        setCurrentView('home');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return true;
+      }
+
+      // 5. If on Home or Login, return to Landing page
+      if (s.currentView === 'home' || s.currentView === 'login') {
+        setCurrentView('landing');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return true;
+      }
+
+      return false;
+    };
+
+    const handlePopState = () => {
+      isHandlingPopStateRef.current = true;
+      performInAppStepBack();
+      // Keep a guard entry in history so subsequent back taps never exit the browser unexpectedly
+      try {
+        window.history.pushState(
+          { sanctuaireGuard: true, view: navStateRef.current.currentView },
+          ''
+        );
+      } catch {
+        // ignore
+      }
+    };
+
+    // Touch edge-swipe back detector (left-edge swipe right) for mobile browsers that don't fire popstate on swipe
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isEdgeTouch = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) {
+        isEdgeTouch = false;
+        return;
+      }
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      // Trigger when starting swipe near left edge (<= 32px)
+      isEdgeTouch = touchStartX <= 32;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isEdgeTouch || e.changedTouches.length !== 1) return;
+      isEdgeTouch = false;
+      const deltaX = e.changedTouches[0].clientX - touchStartX;
+      const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY);
+      if (deltaX >= 80 && deltaY < 55) {
+        performInAppStepBack();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
+
   // Track whether the logged-in user has made at least 1 donation
   const [hasMadeDonation, setHasMadeDonation] = useState<boolean>(() => {
     try {

@@ -51,6 +51,27 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const lastScrollYRef = useRef(0);
   const barContainerRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (isMoreOpen) {
+      try {
+        window.history.pushState({ sanctuaireOverlay: true }, '');
+      } catch {
+        // ignore
+      }
+      ;(window as any).__sanctuaireMoreOpen = true;
+    } else {
+      ;(window as any).__sanctuaireMoreOpen = false;
+    }
+  }, [isMoreOpen]);
+
+  useEffect(() => {
+    const handleCloseMore = () => {
+      if (isMoreOpen) setIsMoreOpen(false);
+    };
+    window.addEventListener('sanctuaire-close-overlays', handleCloseMore);
+    return () => window.removeEventListener('sanctuaire-close-overlays', handleCloseMore);
+  }, [isMoreOpen]);
+
   // Mesure exacte en pixels de la barre pour une encoche 100% circulaire sans déformation
   useEffect(() => {
     const el = barContainerRef.current;

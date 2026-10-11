@@ -119,21 +119,37 @@ export const VerticalDock: React.FC<VerticalDockProps> = ({
           <Compass className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 dark:text-amber-400 stroke-[2.2]" />
         </button>
 
-        {/* 8. Sparkles (Adhkar & Tasbih - Emerald Tint) */}
+        {/* 8. Sparkles (Invocations & Douas Quotidiennes - Matin, Soir, Après la Prière) */}
         <button
           id="dock-btn-sparkles"
-          onClick={onOpenDhikr}
-          title="Invocations & Dhikr"
+          onClick={() => {
+            try {
+              localStorage.setItem('sanctuaire_dhikr_initial_tab', 'invocations');
+              window.dispatchEvent(new CustomEvent('sanctuaire-dhikr-tab', { detail: 'invocations' }));
+            } catch {
+              // ignore
+            }
+            onOpenDhikr();
+          }}
+          title="Invocations & Douas (Matin, Soir, Après la Prière)"
           className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition cursor-pointer"
         >
           <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-emerald-600 dark:text-emerald-400 stroke-[2.2]" />
         </button>
 
-        {/* 9. Dark Circle Badge with Golden Crescent */}
+        {/* 9. Dark Circle Badge with Golden Crescent (Compteur Tasbih / Chapelet Digital) */}
         <button
           id="dock-btn-dhikr-counter"
-          onClick={onOpenDhikr}
-          title="Compteur Tasbih"
+          onClick={() => {
+            try {
+              localStorage.setItem('sanctuaire_dhikr_initial_tab', 'tasbih');
+              window.dispatchEvent(new CustomEvent('sanctuaire-dhikr-tab', { detail: 'tasbih' }));
+            } catch {
+              // ignore
+            }
+            onOpenDhikr();
+          }}
+          title="Chapelet Digital (Compteur Tasbih)"
           className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-900 dark:bg-emerald-950 text-amber-400 border border-amber-400/30 flex items-center justify-center text-[11px] font-bold tracking-wider hover:bg-neutral-800 dark:hover:bg-[#1B3829] transition cursor-pointer shadow-sm"
         >
           <span className="text-amber-400">☪</span>
