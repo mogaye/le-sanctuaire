@@ -13,9 +13,13 @@ import {
   Compass,
   Award,
   ChevronRight,
+  Download,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { PuitsDeNourReader } from './PuitsDeNourReader';
 import { IslamicPersonBookReader } from './IslamicPersonBookReader';
+import { PdfBookReader } from './PdfBookReader';
 import { PUITS_DE_NOUR_HERO_IMAGE, PUITS_DE_NOUR_CHARACTERS } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS } from '../data/puitsDeNourText';
 import {
@@ -24,6 +28,7 @@ import {
   IslamicPersonBook,
   IslamicPersonCategory,
 } from '../data/islamicPeopleHistoryData';
+import { ISLAMIC_BOOKS, IslamicBook, BOOK_CATEGORIES } from '../data/booksData';
 import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface LibraryPageProps {
@@ -93,7 +98,12 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     if (!initialBookId || initialBookId === 'puits-de-nour') return null;
     return ISLAMIC_PEOPLE_BOOKS.find((b) => b.id === initialBookId && b.isAvailable !== false) || null;
   });
+  const [selectedPdfBook, setSelectedPdfBook] = useState<IslamicBook | null>(() => {
+    if (!initialBookId || initialBookId === 'puits-de-nour') return null;
+    return ISLAMIC_BOOKS.find((b) => b.id === initialBookId && Boolean(b.pdfUrl)) || null;
+  });
   const [selectedCategory, setSelectedCategory] = useState<'all' | IslamicPersonCategory>('all');
+  const [bookFilterCategory, setBookFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Mise à jour continue du chronomètre chaque seconde
@@ -104,7 +114,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const isReadingAnyBook = isReadingPuitsDeNour || selectedPersonBook !== null;
+  const isReadingAnyBook =
+    isReadingPuitsDeNour || selectedPersonBook !== null || selectedPdfBook !== null;
 
   useEffect(() => {
     onReadingStateChange?.(isReadingAnyBook);
@@ -115,7 +126,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
 
   useEffect(() => {
     const handleCloseBookFromBack = () => {
-      if (isReadingPuitsDeNour) {
+      if (selectedPdfBook) {
+        setSelectedPdfBook(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (isReadingPuitsDeNour) {
         setIsReadingPuitsDeNour(false);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (selectedPersonBook) {
@@ -125,7 +139,23 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     };
     window.addEventListener('sanctuaire-close-book', handleCloseBookFromBack);
     return () => window.removeEventListener('sanctuaire-close-book', handleCloseBookFromBack);
-  }, [isReadingPuitsDeNour, selectedPersonBook]);
+  }, [selectedPdfBook, isReadingPuitsDeNour, selectedPersonBook]);
+
+  const filteredPdfBooks = useMemo(() => {
+    return ISLAMIC_BOOKS.filter((book) => {
+      if (!book.pdfUrl) return false;
+      const matchesCat = bookFilterCategory === 'all' || book.category === bookFilterCategory;
+      if (!matchesCat) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        book.title.toLowerCase().includes(q) ||
+        book.author.toLowerCase().includes(q) ||
+        book.description.toLowerCase().includes(q) ||
+        (book.arabicTitle && book.arabicTitle.toLowerCase().includes(q))
+      );
+    });
+  }, [bookFilterCategory, searchQuery]);
 
   const filteredPersonBooks = useMemo(() => {
     return ISLAMIC_PEOPLE_BOOKS.filter((book) => {
@@ -172,7 +202,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
           {/* Bouton Retour */}
           <button
             onClick={() => {
-              if (isReadingPuitsDeNour) {
+              if (selectedPdfBook) {
+                setSelectedPdfBook(null);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else if (isReadingPuitsDeNour) {
                 setIsReadingPuitsDeNour(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               } else if (selectedPersonBook) {
@@ -441,6 +474,146 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                   </div>
                 </div>
               </div>
+            </section>
+
+            {/* ========================================================
+                COLLECTION DES LIVRES ISLAMIQUES & ÉPÎTRES (PDF & LECTURE)
+               ======================================================== */}
+            <section className="space-y-6 pt-4 border-t border-stone-200/80 dark:border-emerald-500/20">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-500/30 text-emerald-900 dark:text-emerald-300 text-xs font-bold">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Livres & Épîtres Islamiques en PDF</span>
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white flex items-center gap-2.5">
+                    <span>Ouvrages de Référence & Traités Numérisés</span>
+                  </h3>
+                  <p className="text-xs sm:text-sm text-neutral-600 dark:text-emerald-200/80 max-w-2xl leading-relaxed">
+                    Accédez à la collection complète des livres islamiques téléchargeables et lisibles directement sur votre écran : Sîrah du Prophète ﷺ, Foi, Piété, Fiqh de la Zakat, Jeûne et sagesses spirituelles.
+                  </p>
+                </div>
+              </div>
+
+              {/* Filtres par Catégorie de Livres */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                {BOOK_CATEGORIES.map((cat) => {
+                  const isActive = bookFilterCategory === cat.id;
+                  const count =
+                    cat.id === 'all'
+                      ? ISLAMIC_BOOKS.filter((b) => Boolean(b.pdfUrl)).length
+                      : ISLAMIC_BOOKS.filter((b) => Boolean(b.pdfUrl) && b.category === cat.id).length;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setBookFilterCategory(cat.id)}
+                      className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition cursor-pointer border ${
+                        isActive
+                          ? 'bg-emerald-700 text-white border-emerald-600 shadow-sm'
+                          : 'bg-white dark:bg-[#183022] text-neutral-700 dark:text-emerald-100 border-stone-200 dark:border-emerald-500/25 hover:border-emerald-500/50'
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                          isActive
+                            ? 'bg-amber-400 text-neutral-950'
+                            : 'bg-neutral-100 dark:bg-[#12241A] text-emerald-700 dark:text-amber-300'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Grille des Livres en PDF */}
+              {filteredPdfBooks.length === 0 ? (
+                <div className="rounded-3xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/25 p-8 text-center space-y-2">
+                  <p className="text-sm font-bold text-neutral-800 dark:text-white">
+                    Aucun livre ne correspond à votre recherche « {searchQuery} ».
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setBookFilterCategory('all');
+                    }}
+                    className="text-xs font-bold text-emerald-700 dark:text-amber-300 underline cursor-pointer"
+                  >
+                    Réinitialiser les filtres
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredPdfBooks.map((book) => (
+                    <div
+                      key={book.id}
+                      className="rounded-3xl bg-white dark:bg-[#183022] border border-stone-200 dark:border-emerald-500/25 hover:border-emerald-500/60 p-5 sm:p-6 shadow-xs hover:shadow-lg transition-all flex flex-col justify-between space-y-4"
+                    >
+                      <div className="space-y-3">
+                        {/* En-tête de la carte */}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-500/30 truncate max-w-[170px]">
+                            {book.category}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 shrink-0">
+                            PDF • {book.pageEstimate ? `~${book.pageEstimate} p.` : 'Complet'}
+                          </span>
+                        </div>
+
+                        {/* Calligraphie arabe si disponible */}
+                        {book.arabicTitle && (
+                          <div className="text-right font-arabic text-sm font-bold text-amber-700 dark:text-amber-300 leading-snug line-clamp-1" dir="rtl">
+                            {book.arabicTitle}
+                          </div>
+                        )}
+
+                        <div>
+                          <h4 className="text-base font-black text-neutral-900 dark:text-white leading-snug">
+                            {book.title}
+                          </h4>
+                          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                            {book.author}
+                          </p>
+                        </div>
+
+                        <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed line-clamp-3">
+                          {book.description}
+                        </p>
+                      </div>
+
+                      {/* Boutons d'action : Lire le PDF & Télécharger */}
+                      <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPdfBook(book);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Lire l'ouvrage (PDF)</span>
+                        </button>
+
+                        {book.pdfUrl && (
+                          <a
+                            href={book.pdfUrl}
+                            download
+                            className="inline-flex items-center justify-center gap-1 p-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#12241A] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-emerald-200 border border-stone-200 dark:border-emerald-500/25 transition cursor-pointer"
+                            title="Télécharger le PDF sur votre appareil"
+                          >
+                            <Download className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* ========================================================
@@ -733,6 +906,17 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
           </>
         )}
       </main>
+
+      {/* Lecteur PDF modal intégré */}
+      {selectedPdfBook && (
+        <PdfBookReader
+          book={selectedPdfBook}
+          onClose={() => {
+            setSelectedPdfBook(null);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
     </div>
   );
 };

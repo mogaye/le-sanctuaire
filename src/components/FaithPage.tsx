@@ -20,7 +20,8 @@ import {
   PARADISE_DELIGHTS,
   HELL_WARNINGS,
 } from '../data/faithData';
-import { ISLAMIC_BOOKS } from '../data/booksData';
+import { ISLAMIC_BOOKS, IslamicBook } from '../data/booksData';
+import { PdfBookReader } from './PdfBookReader';
 import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
 
 interface FaithPageProps {
@@ -34,9 +35,15 @@ export const FaithPage: React.FC<FaithPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'resurrection' | 'paradis' | 'enfer' | 'livres'>('resurrection');
   const [selectedStageIdx, setSelectedStageIdx] = useState<number>(0);
+  const [readingPdfBook, setReadingPdfBook] = useState<IslamicBook | null>(null);
 
   const currentStage = RESURRECTION_STAGES[selectedStageIdx];
-  const faithBooks = ISLAMIC_BOOKS.filter((b) => b.category === 'foi');
+  const faithBooks = ISLAMIC_BOOKS.filter(
+    (b) =>
+      b.category === 'foi' ||
+      b.category === 'Foi & Croyance (Aqida)' ||
+      b.category === 'Spiritualité & Cœur'
+  );
 
   const playArabicAudio = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -373,17 +380,45 @@ export const FaithPage: React.FC<FaithPageProps> = ({
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                            Ouvrage Majeur • {book.pageEstimate} pages
+                            {book.pageEstimate ? `Env. ${book.pageEstimate} pages` : 'Ouvrage Majeur'}
                           </span>
-                          <span className="font-arabic text-sm font-bold text-amber-800 dark:text-amber-200">
-                            {book.arabicTitle}
-                          </span>
+                          {book.arabicTitle && (
+                            <span className="font-arabic text-sm font-bold text-amber-800 dark:text-amber-200">
+                              {book.arabicTitle}
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-base font-black text-neutral-900 dark:text-white">{book.title}</h4>
                         <p className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold">{book.author}</p>
                         <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed font-medium">
                           {book.description}
                         </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-neutral-200 dark:border-emerald-500/20 flex flex-wrap items-center justify-between gap-2.5">
+                        {book.pdfUrl ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setReadingPdfBook(book)}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" />
+                              <span>Lire l'ouvrage (PDF)</span>
+                            </button>
+                            <a
+                              href={book.pdfUrl}
+                              download
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-200/80 hover:bg-neutral-300 dark:bg-emerald-950/70 dark:hover:bg-emerald-900 text-neutral-800 dark:text-emerald-200 text-xs font-bold transition"
+                              title="Télécharger le fichier PDF sur votre appareil"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>Télécharger</span>
+                            </a>
+                          </>
+                        ) : (
+                          <span className="text-xs text-neutral-500 font-medium">Bientôt disponible</span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -405,6 +440,14 @@ export const FaithPage: React.FC<FaithPageProps> = ({
           </div>
         )}
       </main>
+
+      {/* Reader Modal for PDF books */}
+      {readingPdfBook && (
+        <PdfBookReader
+          book={readingPdfBook}
+          onClose={() => setReadingPdfBook(null)}
+        />
+      )}
     </div>
   );
 };
