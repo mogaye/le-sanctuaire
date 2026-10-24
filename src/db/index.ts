@@ -9,16 +9,16 @@ declare global {
 export const createPool = () => {
   if (!global._postgresPool) {
     global._postgresPool = new Pool({
-      host: process.env.SQL_HOST,
+      host: process.env.SQL_HOST || '127.0.0.1',
       user: process.env.SQL_USER,
       password: process.env.SQL_PASSWORD,
       database: process.env.SQL_DB_NAME,
       max: 10,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 2000,
     });
 
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      console.warn('SQL pool notice (in-memory data fallback active):', err?.message || err);
     });
   }
   return global._postgresPool;

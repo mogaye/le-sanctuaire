@@ -379,6 +379,7 @@ async function startServer() {
       !key.includes('VOTRE_CLE');
     return isValidKey ? { url, key } : null;
   };
+  const getSupabaseRestCredentials = getServerSupabaseCreds;
 
   const mirrorToSupabaseRest = async (
     table: string,
