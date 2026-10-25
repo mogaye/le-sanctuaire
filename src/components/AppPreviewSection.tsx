@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Monitor, Smartphone, Volume2, Sparkles, Compass, BookOpen, Clock, Check, ArrowRight } from 'lucide-react';
 import { CityData } from '../types';
 import { PRAYERS } from '../data/islamicData';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 interface AppPreviewSectionProps {
   selectedCity: CityData;

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Copy, Check, RotateCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export const VerseCard: React.FC = () => {
   const [copied, setCopied] = useState(false);

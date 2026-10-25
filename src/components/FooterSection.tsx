@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles } from 'lucide-react';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface FooterSectionProps {
   onOpenPrayerGuide: () => void;

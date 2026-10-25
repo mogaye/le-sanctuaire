@@ -16,7 +16,7 @@ import {
 } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS, BookChapter } from '../data/puitsDeNourText';
 import { CharacterPortrait } from './CharacterPortrait';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 interface PuitsDeNourReaderProps {
   onClose?: () => void;

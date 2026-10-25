@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface WelcomeWalkthroughProps {
   user: UserProfile | null;

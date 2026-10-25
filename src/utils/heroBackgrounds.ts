@@ -1,16 +1,16 @@
-// 5 Fonds Mode Vert (Sombre / Émeraude)
-import greenPortraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
-import greenFemmeVoileeLisantBg from '../Femme voilée lisant le Coran sur fond vert.png';
-import greenLectureEcrinVertBg from '../Lecture coranique dans un écrin vert.png';
-import greenFemmeAgeeEnPaixBg from '../Femme âgée lisant le Coran en paix.png';
-import greenLecturePaisibleVertBg from '../Lecture paisible du Coran sur fond vert.png';
+// 5 Fonds Mode Vert (Sombre / Émeraude) - Optimisés en WebP ultra-rapides
+import greenPortraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
+import greenFemmeVoileeLisantBg from '../assets/images/hero/femme_voilee_lisant_vert.webp';
+import greenLectureEcrinVertBg from '../assets/images/hero/lecture_ecrin_vert.webp';
+import greenFemmeAgeeEnPaixBg from '../assets/images/hero/femme_agee_paix_vert.webp';
+import greenLecturePaisibleVertBg from '../assets/images/hero/lecture_paisible_vert.webp';
 
-// 5 Fonds Mode Blanc (Clair / Studio Blanc)
-import whiteLectureSereineHijabBg from '../Lecture sereine du Coran en hijab.png';
-import whiteFemmeVoileeCoranOrneBg from '../Femme voilée tenant un Coran orné.png';
-import whiteLectureSereineStudioBg from '../Lecture sereine du Coran en studio.png';
-import whiteFemmeAgeeBlancBg from '../Femme âgée lisant le Coran encadrée de blanc.png';
-import whiteLecturePaisibleStudioBg from '../Lecture paisible du Coran en studio.png';
+// 5 Fonds Mode Blanc (Clair / Studio Blanc) - Optimisés en WebP ultra-rapides
+import whiteLectureSereineHijabBg from '../assets/images/hero/lecture_sereine_hijab.webp';
+import whiteFemmeVoileeCoranOrneBg from '../assets/images/hero/femme_voilee_coran_orne.webp';
+import whiteLectureSereineStudioBg from '../assets/images/hero/lecture_sereine_studio.webp';
+import whiteFemmeAgeeBlancBg from '../assets/images/hero/femme_agee_blanc.webp';
+import whiteLecturePaisibleStudioBg from '../assets/images/hero/lecture_paisible_studio.webp';
 
 export interface AnalyzedHeroBg {
   id: string;
@@ -23,12 +23,11 @@ export const DEFAULT_GIRL_HERO_BG: AnalyzedHeroBg = {
   id: 'green-1-portrait-serein-vert',
   src: greenPortraitSereinVertBg,
   mode: 'green',
-  name: 'Portrait serein avec Coran sur fond vert.png',
+  name: 'portrait_serein_vert.webp',
 };
 
 /**
- * 5 Fonds Hero pour le Mode Vert (Sombre) :
- * Commence par "Portrait serein au Coran sur fond vert" suivi des 4 autres images sur fond vert émeraude.
+ * 5 Fonds Hero pour le Mode Vert (Sombre)
  */
 export const GREEN_HERO_BACKGROUNDS: AnalyzedHeroBg[] = [
   DEFAULT_GIRL_HERO_BG,
@@ -36,62 +35,61 @@ export const GREEN_HERO_BACKGROUNDS: AnalyzedHeroBg[] = [
     id: 'green-2-femme-voilee-lisant',
     src: greenFemmeVoileeLisantBg,
     mode: 'green',
-    name: 'Femme voilée lisant le Coran sur fond vert.png',
+    name: 'femme_voilee_lisant_vert.webp',
   },
   {
     id: 'green-3-lecture-ecrin-vert',
     src: greenLectureEcrinVertBg,
     mode: 'green',
-    name: 'Lecture coranique dans un écrin vert.png',
+    name: 'lecture_ecrin_vert.webp',
   },
   {
     id: 'green-4-femme-agee-paix-vert',
     src: greenFemmeAgeeEnPaixBg,
     mode: 'green',
-    name: 'Femme âgée lisant le Coran en paix.png',
+    name: 'femme_agee_paix_vert.webp',
   },
   {
     id: 'green-5-lecture-paisible-vert',
     src: greenLecturePaisibleVertBg,
     mode: 'green',
-    name: 'Lecture paisible du Coran sur fond vert.png',
+    name: 'lecture_paisible_vert.webp',
   },
 ];
 
 /**
- * 5 Fonds Hero pour le Mode Blanc (Clair) :
- * Les 5 nouvelles images sur fond blanc pur de studio.
+ * 5 Fonds Hero pour le Mode Blanc (Clair)
  */
 export const WHITE_HERO_BACKGROUNDS: AnalyzedHeroBg[] = [
   {
     id: 'white-1-lecture-sereine-hijab',
     src: whiteLectureSereineHijabBg,
     mode: 'white',
-    name: 'Lecture sereine du Coran en hijab.png',
+    name: 'lecture_sereine_hijab.webp',
   },
   {
     id: 'white-2-femme-voilee-coran-orne',
     src: whiteFemmeVoileeCoranOrneBg,
     mode: 'white',
-    name: 'Femme voilée tenant un Coran orné.png',
+    name: 'femme_voilee_coran_orne.webp',
   },
   {
     id: 'white-3-lecture-sereine-studio',
     src: whiteLectureSereineStudioBg,
     mode: 'white',
-    name: 'Lecture sereine du Coran en studio.png',
+    name: 'lecture_sereine_studio.webp',
   },
   {
     id: 'white-4-femme-agee-blanc',
     src: whiteFemmeAgeeBlancBg,
     mode: 'white',
-    name: 'Femme âgée lisant le Coran encadrée de blanc.png',
+    name: 'femme_agee_blanc.webp',
   },
   {
     id: 'white-5-lecture-paisible-studio',
     src: whiteLecturePaisibleStudioBg,
     mode: 'white',
-    name: 'Lecture paisible du Coran en studio.png',
+    name: 'lecture_paisible_studio.webp',
   },
 ];
 

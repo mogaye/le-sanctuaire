@@ -24,7 +24,7 @@ import {
 } from '../data/fastingData';
 import { ISLAMIC_BOOKS, IslamicBook } from '../data/booksData';
 import { PdfBookReader } from './PdfBookReader';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 interface FastingPageProps {
   onBackToHome: () => void;

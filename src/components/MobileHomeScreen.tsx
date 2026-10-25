@@ -38,7 +38,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CityData } from '../types';
 import { CitySelectorModal } from './CitySelectorModal';
 import { getPrayerLog, formatDateKey, pushSettingToCloud } from '../utils/prayerTrackerUtils';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface MobileHomeScreenProps {
   currentUser: { name?: string; firstName?: string; lastName?: string; email?: string } | null;

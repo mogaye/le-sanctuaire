@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, BookOpen, Compass, Sparkles, ArrowUpRight, ChevronRight } from 'lucide-react';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 interface FeatureGridProps {
   onOpenPrayerGuide: () => void;

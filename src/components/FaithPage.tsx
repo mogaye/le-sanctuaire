@@ -22,7 +22,7 @@ import {
 } from '../data/faithData';
 import { ISLAMIC_BOOKS, IslamicBook } from '../data/booksData';
 import { PdfBookReader } from './PdfBookReader';
-import portraitSereinVertBg from '../Portrait serein avec Coran sur fond vert.png';
+import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 interface FaithPageProps {
   onBackToHome: () => void;

@@ -1005,13 +1005,16 @@ export default function App() {
                 {ALL_HERO_BACKGROUNDS.map((bgItem) => {
                   const isCurrent = bgItem.id === currentHeroBg.id;
                   const isPrev = bgItem.id === prevHeroBgId && !isCurrent;
+                  // Only render active or cross-fading background to prevent downloading multiple images at once
+                  if (!isCurrent && !isPrev) return null;
                   return (
                     <img
                       key={bgItem.id}
                       src={bgItem.src}
                       alt="Arrière-plan Sanctuaire Islamique"
-                      loading="eager"
+                      loading={isCurrent ? 'eager' : 'lazy'}
                       decoding="async"
+                      fetchPriority={isCurrent ? 'high' : 'auto'}
                       style={{
                         transition: isCurrent ? 'opacity 1800ms ease-in-out' : 'none',
                       }}
