@@ -380,7 +380,7 @@ export const FaithPage: React.FC<FaithPageProps> = ({
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                            {book.pageEstimate ? `Env. ${book.pageEstimate} pages` : 'Ouvrage Majeur'}
+                            {book.pageEstimate ? `${book.pageEstimate} pages` : 'Ouvrage Majeur'}
                           </span>
                           {book.arabicTitle && (
                             <span className="font-arabic text-sm font-bold text-amber-800 dark:text-amber-200">

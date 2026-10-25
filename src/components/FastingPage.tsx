@@ -455,7 +455,7 @@ export const FastingPage: React.FC<FastingPageProps> = ({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30">
-                            {book.pageEstimate ? `Env. ${book.pageEstimate} pages` : 'PDF'}
+                            {book.pageEstimate ? `${book.pageEstimate} pages` : 'PDF'}
                           </span>
                           <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         </div>

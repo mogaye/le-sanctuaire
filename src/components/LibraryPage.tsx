@@ -560,7 +560,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                             {book.category}
                           </span>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 shrink-0">
-                            PDF • {book.pageEstimate ? `~${book.pageEstimate} p.` : 'Complet'}
+                            PDF • {book.pageEstimate ? `${book.pageEstimate} p.` : 'Complet'}
                           </span>
                         </div>
 

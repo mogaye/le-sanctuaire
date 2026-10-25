@@ -69,7 +69,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Sîrah & Histoire',
     description:
       "Un récit complet et émouvant de la vie exemplaire du Messager d'Allah ﷺ : de sa naissance bénie à La Mecque, la révélation divine, l'émigration (Hijrah) vers Médine, l'édification de la société musulmane, jusqu'au pèlerinage d'adieu.",
-    pageEstimate: '185',
+    pageEstimate: '49',
     pdfUrl: '/livres/biographie-du-prophete.pdf',
     coverGradient: 'from-emerald-800 via-teal-900 to-[#0A1A11]',
     accentColor: 'emerald',
@@ -84,7 +84,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Spiritualité & Cœur',
     description:
       "Une étude spirituelle profonde sur le concept coranique d'At-Taqwâ (la piété et la crainte révérencielle d'Allah), ses fondements, ses manifestations concrètes dans le comportement et ses bienfaits immenses ici-bas et dans l'au-delà.",
-    pageEstimate: '64',
+    pageEstimate: '40',
     pdfUrl: '/livres/la-piete-sa-realite.pdf',
     coverGradient: 'from-teal-800 via-emerald-950 to-stone-900',
     accentColor: 'teal',
@@ -98,7 +98,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Récit & Sagesse',
     description:
       "Traité magistral sur les deux ailes indissociables de la foi : l'endurance patiente face aux épreuves (As-Sabr) et la reconnaissance sincère envers les bienfaits divins (Ash-Shoukr), avec exemples et règles spirituelles pour le croyant.",
-    pageEstimate: '44',
+    pageEstimate: '41',
     pdfUrl: '/livres/regle-dans-la-patience-et-le-remerciement.pdf',
     coverGradient: 'from-amber-800 via-amber-950 to-stone-950',
     accentColor: 'amber',
@@ -113,7 +113,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Fiqh & Piliers',
     description:
       "Manuel pratique, clair et complet pour comprendre et calculer correctement le troisième pilier de l'Islam : Zakat Al-Mal (épargne, or, argent, biens commerciaux), calcul du Nisab, bénéficiaires coraniques et Zakat Al-Fitr de fin de Ramadan.",
-    pageEstimate: '96',
+    pageEstimate: '56',
     pdfUrl: '/livres/guide-pratique-zakat.pdf',
     coverGradient: 'from-emerald-900 via-green-950 to-neutral-900',
     accentColor: 'emerald',
@@ -128,10 +128,11 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Spiritualité & Cœur',
     description:
       "Commentaire détaillé du précieux testament prophétique enseigné à Mou'adh Ibn Jabal : la vigilance divine en secret comme en public, faire suivre la mauvaise action par une bonne qui l'efface, et se comporter avec autrui avec les plus nobles vertus.",
-    pageEstimate: '52',
+    pageEstimate: '31',
     pdfUrl: '/livres/crains-allah-ou-que-tu-sois.pdf',
     coverGradient: 'from-indigo-900 via-blue-950 to-neutral-950',
     accentColor: 'indigo',
+    featured: true,
     publishedAt: 'Rappels & Sagesses',
   },
   {
@@ -142,10 +143,11 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Spiritualité & Cœur',
     description:
       "Guide d'éducation spirituelle sur le Jihad An-Nafs (la lutte contre les passions égocentriques, l'orgueil, la paresse et les désirs illicites) afin de faire triompher la raison, la foi et d'accéder à l'âme apaisée (An-Nafs Al-Moutma'innah).",
-    pageEstimate: '48',
+    pageEstimate: '14',
     pdfUrl: '/livres/lutte-contre-les-penchants-de-lame.pdf',
     coverGradient: 'from-purple-900 via-neutral-950 to-stone-950',
     accentColor: 'purple',
+    featured: true,
     publishedAt: 'Purification & Sagesse',
   },
   {
@@ -156,10 +158,11 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Foi & Croyance (Aqida)',
     description:
       "Épître apportant des repères essentiels sur la préservation de l'unité des croyants, la vigilance face aux polémiques et discordes (fitan), et la fidélité constante aux fondements purs du Coran et de la tradition prophétique.",
-    pageEstimate: '68',
+    pageEstimate: '236',
     pdfUrl: '/livres/livret-devoilement-de-la-fitnah.pdf',
     coverGradient: 'from-slate-800 via-stone-900 to-neutral-950',
     accentColor: 'slate',
+    featured: true,
     publishedAt: 'Éclaircissements',
   },
   {
@@ -170,7 +173,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Foi & Croyance (Aqida)',
     description:
       "Ouvrage de référence mondial exhaustif basé sur le Coran et les Hadiths authentiques décrivant avec minutie les délices, rangs et portes du Paradis promis aux pieux, ainsi que les avertissements et châtiments de l'Enfer.",
-    pageEstimate: '248',
+    pageEstimate: '272',
     pdfUrl: '/livres/la-foi-islamique-paradis-et-enfer.pdf',
     coverGradient: 'from-emerald-950 via-teal-900 to-stone-950',
     accentColor: 'emerald',
@@ -185,7 +188,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Foi & Croyance (Aqida)',
     description:
       "Étude doctrinale majeure sur les événements grandioses du Jour Dernier : le souffle dans la Trompe, la Résurrection, le Rassemblement de l'humanité, l'exposition des actes, la Balance (Al-Mizan), le Bassin (Al-Hawd) et la traversée du Pont (As-Sirat).",
-    pageEstimate: '216',
+    pageEstimate: '464',
     pdfUrl: '/livres/la-resurrection.pdf',
     coverGradient: 'from-cyan-900 via-sky-950 to-neutral-950',
     accentColor: 'cyan',
@@ -200,7 +203,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Jeûne & Ramadan',
     description:
       "Recueil complet des réponses juridiques indispensables sur les règles du jeûne de Ramadan : confirmation du croissant lunaire, conditions obligatoires, actes autorisés ou annulatifs, et dispositions spécifiques pour les malades, personnes âgées et voyageurs.",
-    pageEstimate: '94',
+    pageEstimate: '34',
     pdfUrl: '/livres/livre-du-jeune-ibn-baz.pdf',
     coverGradient: 'from-emerald-900 via-green-950 to-stone-950',
     accentColor: 'emerald',
@@ -215,7 +218,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Jeûne & Ramadan',
     description:
       "Guide clair et synthétique récapitulant les piliers fondamentaux, les conditions d'exigibilité et de validité du jeûne, les comportements recommandés au Suhour et à l'Iftar, ainsi que les erreurs courantes à éviter.",
-    pageEstimate: '36',
+    pageEstimate: '22',
     pdfUrl: '/livres/conditions-du-jeune.pdf',
     coverGradient: 'from-teal-900 via-emerald-950 to-neutral-900',
     accentColor: 'teal',
@@ -229,7 +232,7 @@ export const ISLAMIC_BOOKS: IslamicBook[] = [
     category: 'Jeûne & Ramadan',
     description:
       "Ouvrage complet pour vivre pleinement le mois béni de Ramadan : les immenses mérites spirituels du jeûne, l'assiduité à la récitation coranique, la prière de Tarawih, la générosité, la quête de la Nuit du Destin (Laylat Al-Qadr) et l'I'tikaf.",
-    pageEstimate: '142',
+    pageEstimate: '28',
     pdfUrl: '/livres/le-jeune-de-ramadan.pdf',
     coverGradient: 'from-amber-900 via-yellow-950 to-stone-950',
     accentColor: 'amber',
