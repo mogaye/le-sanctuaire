@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Maximize2,
   Minimize2,
   Play,
   Pause,
@@ -14,10 +13,16 @@ import {
   ChevronRight,
   Palette,
   Check,
+  Video,
+  HelpCircle,
+  X,
+  BookOpen,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
 import { RECITERS } from '../data/islamicData';
+import { TajweedText, TAJWEED_RULES_EXPLANATIONS } from '../utils/tajweedColorizer';
+import { QuranVideoRecorderModal } from './QuranVideoRecorderModal';
 
 interface AyahData {
   num: number;
@@ -287,6 +292,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   });
   const [isThemePickerOpen, setIsThemePickerOpen] = useState<boolean>(false);
 
+  // Tajweed Coloring & Guide state
+  const [isTajweedEnabled, setIsTajweedEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_tajweed_enabled');
+      if (saved === 'false') return false;
+      return true;
+    } catch {
+      return true;
+    }
+  });
+  const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
+
+  // Video Generator Studio Modal state
+  const [isVideoRecorderOpen, setIsVideoRecorderOpen] = useState<boolean>(false);
+
   // Font Size levels: 0 (Compact), 1 (Standard), 2 (Grand), 3 (Monumental)
   const [fontSizeLevel, setFontSizeLevel] = useState<number>(1);
 
@@ -324,7 +344,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           await document.documentElement.requestFullscreen();
         }
       } catch (e) {
-        // Fullscreen might be restricted by browser policy; continue smoothly
+        // ignore
       }
     };
 
@@ -341,7 +361,18 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     };
   }, []);
 
-  // Save selected theme
+  const handleToggleTajweed = () => {
+    setIsTajweedEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_tajweed_enabled', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const handleSelectTheme = (themeId: CinematicThemeId) => {
     setTheme(themeId);
     try {
@@ -352,7 +383,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     setIsThemePickerOpen(false);
   };
 
-  // Exit fullscreen and close
   const handleExit = () => {
     if (audioRef.current) {
       audioRef.current.pause();
@@ -363,10 +393,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     onClose();
   };
 
-  // Auto-hide HUD logic:
-  // When audio is playing: auto-hide quickly (2.5 seconds) so everything disappears:
-  // top bar, bottom bar, mouse cursor, and the two side chevrons!
-  // When paused: keep visible longer (6 seconds) or until user interaction.
   const resetHudTimer = (forceShow: boolean = true) => {
     if (forceShow) {
       setIsHudVisible(true);
@@ -400,11 +426,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     };
   }, [isOpen, isPlayingAudio]);
 
-  // Verses array
   const ayahs = surahData?.ayahs || [];
   const currentAyah = ayahs[currentAyahIndex] || ayahs[0];
 
-  // Play audio for a specific verse
   const playVerseAudio = (verseIdx: number) => {
     if (!surahData || !ayahs[verseIdx]) return;
     const ayah = ayahs[verseIdx];
@@ -419,7 +443,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     audioRef.current = audio;
 
     audio.onended = () => {
-      // Auto advance to next verse
       if (verseIdx < ayahs.length - 1) {
         const nextIdx = verseIdx + 1;
         setCurrentAyahIndex(nextIdx);
@@ -439,7 +462,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       .play()
       .then(() => {
         setIsPlayingAudio(true);
-        // "quand on tape le son tout les bare bas comme haut disparet automatiquement de meme que la souris et aussi les deux crochet"
         setIsHudVisible(false);
         setIsThemePickerOpen(false);
       })
@@ -458,7 +480,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       setIsHudVisible(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     } else {
-      // Immediately fade out controls on play tap
       setIsHudVisible(false);
       setIsThemePickerOpen(false);
       playVerseAudio(currentAyahIndex);
@@ -503,8 +524,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isThemePickerOpen) {
+        if (isTajweedGuideOpen) {
+          setIsTajweedGuideOpen(false);
+        } else if (isThemePickerOpen) {
           setIsThemePickerOpen(false);
+        } else if (isVideoRecorderOpen) {
+          setIsVideoRecorderOpen(false);
         } else {
           handleExit();
         }
@@ -537,16 +562,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentAyahIndex, ayahs.length, isPlayingAudio, isThemePickerOpen]);
+  }, [
+    isOpen,
+    currentAyahIndex,
+    ayahs.length,
+    isPlayingAudio,
+    isThemePickerOpen,
+    isTajweedGuideOpen,
+    isVideoRecorderOpen,
+  ]);
 
   if (!isOpen) return null;
 
   const currentTheme = CINEMATIC_THEMES[theme] || CINEMATIC_THEMES.emerald;
 
-  // =========================================================================
-  // DYNAMIC TEXT ADAPTATION: NEVER OVERFLOW OR CLIP REGARDLESS OF TEXT SIZE
-  // Calculates an intelligent fluid size proportional to verse length & user level
-  // =========================================================================
+  // Responsive fluid typography calculator
   const getDynamicArabicStyle = (arText: string) => {
     const len = arText?.length || 0;
     let minPx = 26;
@@ -682,7 +712,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </select>
         </div>
 
-        {/* Right: Quick Options (Theme, Font Size, Exit) */}
+        {/* Right: Quick Options (Theme, Tajweed, Video, Font Size, Exit) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Display Mode: Focus vs Continuous */}
           <div className="hidden sm:flex items-center p-1 bg-black/40 rounded-xl border border-white/10 text-xs">
@@ -710,6 +740,45 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             </button>
           </div>
 
+          {/* Tajweed Toggle & Guide Button */}
+          <div className="flex items-center bg-black/40 rounded-xl border border-white/15 p-0.5">
+            <button
+              onClick={handleToggleTajweed}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                isTajweedEnabled
+                  ? 'bg-gradient-to-r from-emerald-500/30 to-amber-500/30 text-amber-300 border border-amber-400/30'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+              title="Activer/Désactiver le coloriage Tajweed des lettres"
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-emerald-400 to-amber-400 inline-block" />
+              <span>Tajweed</span>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTajweedGuideOpen(true);
+              }}
+              className="p-1.5 text-neutral-400 hover:text-amber-300 transition cursor-pointer"
+              title="Comprendre les couleurs et règles du Tajweed"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Video Studio Generator Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsVideoRecorderOpen(true);
+            }}
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-400/20 to-amber-500/30 hover:from-amber-400/30 hover:to-amber-500/40 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-amber-400/30 shadow-xs"
+            title="Enregistrer et exporter en vidéo avec le son et le logo officiel Le Sanctuaire"
+          >
+            <Video className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">Créer Vidéo</span>
+          </button>
+
           {/* Theme Palette Button with Swatch preview */}
           <div className="relative">
             <button
@@ -725,7 +794,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                 style={{ backgroundColor: currentTheme.swatch }}
               />
               <Palette className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">{currentTheme.name}</span>
+              <span className="hidden lg:inline">{currentTheme.name}</span>
             </button>
 
             {/* 10 Themes Selection Popover */}
@@ -816,7 +885,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               <span>Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}</span>
             </div>
 
-            {/* GIANT ARABIC SCRIPT - Clean without trailing raw numbers */}
+            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (No trailing raw numbers) */}
             <div
               dir="rtl"
               className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-300 px-2 sm:px-4 break-words [word-break:keep-all]`}
@@ -825,7 +894,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                 ...getDynamicArabicStyle(currentAyah?.ar || ''),
               }}
             >
-              {currentAyah?.ar}
+              <TajweedText text={currentAyah?.ar || ''} enabled={isTajweedEnabled} />
               {/* Clean traditional Ayah ornament separator WITHOUT numbers */}
               <span className="inline-block text-amber-400/90 mx-2 text-2xl md:text-3xl align-middle select-none">
                 ۝
@@ -925,7 +994,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     </button>
                   </div>
 
-                  {/* Clean Arabic verse without trailing raw numbers */}
+                  {/* Clean Arabic verse with Tajweed coloring */}
                   <div
                     dir="rtl"
                     className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
@@ -934,7 +1003,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                       ...getDynamicArabicStyle(ayah.ar),
                     }}
                   >
-                    {ayah.ar}
+                    <TajweedText text={ayah.ar} enabled={isTajweedEnabled} />
                     <span className="inline-block text-amber-400/90 mx-2 text-xl md:text-2xl align-middle select-none">
                       ۝
                     </span>
@@ -1035,7 +1104,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </button>
         </div>
 
-        {/* Right: Translation & Phonetics Toggles + Mute */}
+        {/* Right: Translation, Phonetics, Video & Mute */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowTranslation((v) => !v)}
@@ -1062,6 +1131,17 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </button>
 
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsVideoRecorderOpen(true);
+            }}
+            className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-amber-300 transition cursor-pointer border border-white/10"
+            title="Exporter une séquence en vidéo"
+          >
+            <Video className="w-4 h-4" />
+          </button>
+
+          <button
             onClick={() => {
               if (audioRef.current) {
                 audioRef.current.muted = !isAudioMuted;
@@ -1075,6 +1155,118 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </button>
         </div>
       </footer>
+
+      {/* ========================================================
+          TAJWEED RULES EXPLANATION MODAL
+         ======================================================== */}
+      {isTajweedGuideOpen && (
+        <div
+          onClick={() => setIsTajweedGuideOpen(false)}
+          className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-neutral-900 border border-white/20 rounded-3xl p-6 shadow-2xl space-y-5 text-white max-h-[85vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-white">
+                    Guide des Couleurs du Tajweed (تجويد)
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    Comprendre l'utilité et les règles de récitation des lettres colorées
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsTajweedGuideOpen(false)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/20 text-xs sm:text-sm text-neutral-200 leading-relaxed">
+              <strong className="text-amber-300 font-bold">À quoi sert le Tajweed ?</strong>
+              <p className="mt-1 text-neutral-300">
+                Le Tajweed est la science de la récitation coranique. Le coloriage a été conçu par les savants
+                pour guider visuellement vos yeux : chaque couleur vous indique instantanément comment prononcer la
+                lettre (allonger, faire résonner dans le nez, faire rebondir ou ne pas prononcer) sans avoir
+                besoin de maîtriser par cœur les règles grammaticales complexes !
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {TAJWEED_RULES_EXPLANATIONS.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="p-3.5 sm:p-4 rounded-2xl border transition-all"
+                  style={{ backgroundColor: rule.bgColor, borderColor: rule.borderColor }}
+                >
+                  <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: rule.color }}
+                      />
+                      <span className="font-bold text-sm text-white">{rule.name}</span>
+                      <span className="text-xs font-arabic opacity-75 font-semibold" dir="rtl">
+                        {rule.arabicName}
+                      </span>
+                    </div>
+                    <span
+                      className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                      style={{
+                        backgroundColor: rule.color,
+                        color: rule.id === 'silent' ? '#000000' : '#051A10',
+                      }}
+                    >
+                      {rule.duration}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-200 mt-1 leading-relaxed">
+                    {rule.description}
+                  </p>
+                  <div className="mt-2 text-xs font-arabic text-right tracking-wide text-amber-200" dir="rtl">
+                    Exemple : <span className="font-bold underline">{rule.example}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setIsTajweedGuideOpen(false)}
+                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs transition cursor-pointer shadow-md"
+              >
+                J'ai compris
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          VIDEO RECORDER / EXPORT STUDIO MODAL
+         ======================================================== */}
+      {isVideoRecorderOpen && (
+        <QuranVideoRecorderModal
+          isOpen={isVideoRecorderOpen}
+          onClose={() => setIsVideoRecorderOpen(false)}
+          surahNum={currentSurahMeta.number}
+          surahName={currentSurahMeta.name}
+          totalAyahs={currentSurahMeta.numberOfAyahs}
+          currentAyahNum={currentAyah?.num || 1}
+          ayahs={ayahs}
+          selectedReciter={selectedReciter}
+          getAyahAudioUrl={getAyahAudioUrl}
+          themeId={theme}
+        />
+      )}
     </div>
   );
 };
