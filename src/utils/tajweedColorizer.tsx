@@ -88,6 +88,21 @@ const SHADDAH = 'ّ';
 // Tanween marks
 const TANWEEN_CHARS = new Set(['ً', 'ٍ', 'ٌ']);
 
+/**
+ * Cleans Arabic verse text for immaculate typography:
+ * - Strips ARABIC SMALL LOW MEEM (\u06ED) which Tanzil adds after tanween and renders as a rogue floating 'م' underneath words
+ * - Binds waqf stop marks (\u06DA, \u06D6, \u06D7, \u06D8, \u06DB, \u06DC) to preceding words with non-breaking space
+ * - Removes any dangling trailing waqf at the end of single ayah
+ */
+export function cleanAyahArabic(ar: string): string {
+  if (!ar) return '';
+  return ar
+    .replace(/\u06ED/g, '') // remove small low meem rogue character
+    .replace(/\s+([ۚۖۗۘۛۜ])/g, '\u00A0$1') // glue waqf mark to preceding word
+    .replace(/\s*[ۚۖۗۘۛۜ]\s*$/, '') // remove trailing waqf mark at end of verse
+    .trim();
+}
+
 interface TajweedToken {
   text: string;
   type: 'madd' | 'ghunnah' | 'qalqalah' | 'tafkhim' | 'silent' | 'normal';
@@ -99,8 +114,9 @@ interface TajweedToken {
 export function parseTajweedTokens(arabicText: string): TajweedToken[] {
   if (!arabicText) return [];
 
+  const cleaned = cleanAyahArabic(arabicText);
   const tokens: TajweedToken[] = [];
-  const chars = Array.from(arabicText);
+  const chars = Array.from(cleaned);
   let i = 0;
 
   while (i < chars.length) {
@@ -220,92 +236,108 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
   className = '',
   style = {},
 }) => {
-  if (!enabled || !text) {
+  const sanitized = cleanAyahArabic(text);
+
+  if (!enabled || !sanitized) {
     return (
       <span className={className} style={style}>
-        {text}
+        {sanitized || text}
       </span>
     );
   }
 
-  const tokens = parseTajweedTokens(text);
+  // Split into words and whitespace so each Arabic word stays unbroken on a single line
+  const parts = sanitized.split(/(\s+)/);
 
   return (
     <span className={className} style={style}>
-      {tokens.map((token, index) => {
-        if (token.type === 'madd') {
-          return (
-            <span
-              key={index}
-              style={{
-                color: '#FF6B6B',
-                fontWeight: 600,
-                textShadow: '0 0 14px rgba(255, 107, 107, 0.45)',
-              }}
-              title="Madd : Prolongation 4 à 6 temps"
-            >
-              {token.text}
-            </span>
-          );
+      {parts.map((part, pIdx) => {
+        if (/^\s+$/.test(part)) {
+          return <span key={pIdx}>{part}</span>;
         }
-        if (token.type === 'ghunnah') {
-          return (
-            <span
-              key={index}
-              style={{
-                color: '#34D399',
-                fontWeight: 600,
-                textShadow: '0 0 14px rgba(52, 211, 153, 0.45)',
-              }}
-              title="Ghunnah : Nasalisation 2 temps"
-            >
-              {token.text}
-            </span>
-          );
-        }
-        if (token.type === 'qalqalah') {
-          return (
-            <span
-              key={index}
-              style={{
-                color: '#38BDF8',
-                fontWeight: 600,
-                textShadow: '0 0 14px rgba(56, 189, 248, 0.45)',
-              }}
-              title="Qalqalah : Rebond sonore sur lettre avec sukoon"
-            >
-              {token.text}
-            </span>
-          );
-        }
-        if (token.type === 'tafkhim') {
-          return (
-            <span
-              key={index}
-              style={{
-                color: '#FBBF24',
-                fontWeight: 600,
-                textShadow: '0 0 14px rgba(251, 191, 36, 0.45)',
-              }}
-              title="Tafkhîm : Lettre emphatique prononcée pleine bouche"
-            >
-              {token.text}
-            </span>
-          );
-        }
-        if (token.type === 'silent') {
-          return (
-            <span
-              key={index}
-              style={{ opacity: 0.5, color: '#94A3B8' }}
-              title="Lettre muette / assimilée"
-            >
-              {token.text}
-            </span>
-          );
-        }
-        return <span key={index}>{token.text}</span>;
+
+        const tokens = parseTajweedTokens(part);
+
+        return (
+          <span key={pIdx} className="inline-block whitespace-nowrap">
+            {tokens.map((token, index) => {
+              if (token.type === 'madd') {
+                return (
+                  <span
+                    key={index}
+                    style={{
+                      color: '#FF6B6B',
+                      fontWeight: 600,
+                      textShadow: '0 0 14px rgba(255, 107, 107, 0.45)',
+                    }}
+                    title="Madd : Prolongation 4 à 6 temps"
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
+              if (token.type === 'ghunnah') {
+                return (
+                  <span
+                    key={index}
+                    style={{
+                      color: '#34D399',
+                      fontWeight: 600,
+                      textShadow: '0 0 14px rgba(52, 211, 153, 0.45)',
+                    }}
+                    title="Ghunnah : Nasalisation 2 temps"
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
+              if (token.type === 'qalqalah') {
+                return (
+                  <span
+                    key={index}
+                    style={{
+                      color: '#38BDF8',
+                      fontWeight: 600,
+                      textShadow: '0 0 14px rgba(56, 189, 248, 0.45)',
+                    }}
+                    title="Qalqalah : Rebond sonore sur lettre avec sukoon"
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
+              if (token.type === 'tafkhim') {
+                return (
+                  <span
+                    key={index}
+                    style={{
+                      color: '#FBBF24',
+                      fontWeight: 600,
+                      textShadow: '0 0 14px rgba(251, 191, 36, 0.45)',
+                    }}
+                    title="Tafkhîm : Lettre emphatique prononcée pleine bouche"
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
+              if (token.type === 'silent') {
+                return (
+                  <span
+                    key={index}
+                    style={{ opacity: 0.5, color: '#94A3B8' }}
+                    title="Lettre muette / assimilée"
+                  >
+                    {token.text}
+                  </span>
+                );
+              }
+              return <span key={index}>{token.text}</span>;
+            })}
+          </span>
+        );
       })}
     </span>
   );
 };
+

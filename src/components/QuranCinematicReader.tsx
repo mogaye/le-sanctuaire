@@ -21,7 +21,7 @@ import {
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
 import { RECITERS } from '../data/islamicData';
-import { TajweedText, TAJWEED_RULES_EXPLANATIONS } from '../utils/tajweedColorizer';
+import { TajweedText, TAJWEED_RULES_EXPLANATIONS, cleanAyahArabic } from '../utils/tajweedColorizer';
 import { QuranVideoRecorderModal } from './QuranVideoRecorderModal';
 
 interface AyahData {
@@ -430,6 +430,43 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const ayahs = surahData?.ayahs || [];
   const currentAyah = ayahs[currentAyahIndex] || ayahs[0];
 
+  // Smooth, discreet, meditative verse transition (zero layout jump, silky soft dissolve)
+  const transitionToVerse = (nextIdx: number, andPlayAudio: boolean = false) => {
+    if (!surahData || !ayahs || ayahs.length === 0) return;
+    if (nextIdx < 0 || nextIdx >= ayahs.length) return;
+    if (nextIdx === currentAyahIndex) {
+      if (andPlayAudio) playVerseAudio(nextIdx);
+      return;
+    }
+
+    // 1. Soft dissolve (never goes pitch-black or jumps vertically)
+    setIsVerseFading(true);
+
+    setTimeout(() => {
+      // 2. Switch verse index
+      setCurrentAyahIndex(nextIdx);
+
+      if (displayMode === 'continuous') {
+        const el = document.getElementById(`cinematic-ayah-${nextIdx}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // 3. Allow DOM to paint new verse, then bloom softly into full clarity
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsVerseFading(false);
+        });
+      });
+
+      // 4. Meditative natural breath interval before next recitation begins
+      if (andPlayAudio) {
+        setTimeout(() => {
+          playVerseAudio(nextIdx);
+        }, 260);
+      }
+    }, 200);
+  };
+
   const playVerseAudio = (verseIdx: number) => {
     if (!surahData || !ayahs[verseIdx]) return;
     const ayah = ayahs[verseIdx];
@@ -446,21 +483,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     audio.onended = () => {
       if (verseIdx < ayahs.length - 1) {
         const nextIdx = verseIdx + 1;
-        // 1. Gently fade out the finished verse
-        setIsVerseFading(true);
-        setTimeout(() => {
-          // 2. Change ayah index and scroll if continuous
-          setCurrentAyahIndex(nextIdx);
-          setIsVerseFading(false);
-          if (displayMode === 'continuous') {
-            const el = document.getElementById(`cinematic-ayah-${nextIdx}`);
-            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-          // 3. Natural breathing pause of 350ms before the Qari starts reciting next verse
-          setTimeout(() => {
-            playVerseAudio(nextIdx);
-          }, 350);
-        }, 260);
+        transitionToVerse(nextIdx, true);
       } else {
         setIsPlayingAudio(false);
         setIsHudVisible(true);
@@ -503,19 +526,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const handleNextVerse = () => {
     if (isVerseFading) return;
     if (currentAyahIndex < ayahs.length - 1) {
-      const nextIdx = currentAyahIndex + 1;
-      setIsVerseFading(true);
-      setTimeout(() => {
-        setCurrentAyahIndex(nextIdx);
-        setIsVerseFading(false);
-        if (isPlayingAudio) {
-          playVerseAudio(nextIdx);
-        }
-      }, 250);
-      if (displayMode === 'continuous') {
-        const el = document.getElementById(`cinematic-ayah-${nextIdx}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      transitionToVerse(currentAyahIndex + 1, isPlayingAudio);
     } else if (currentSurahMeta.number < 114) {
       onSelectSurah(currentSurahMeta.number + 1);
     }
@@ -524,19 +535,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const handlePrevVerse = () => {
     if (isVerseFading) return;
     if (currentAyahIndex > 0) {
-      const prevIdx = currentAyahIndex - 1;
-      setIsVerseFading(true);
-      setTimeout(() => {
-        setCurrentAyahIndex(prevIdx);
-        setIsVerseFading(false);
-        if (isPlayingAudio) {
-          playVerseAudio(prevIdx);
-        }
-      }, 250);
-      if (displayMode === 'continuous') {
-        const el = document.getElementById(`cinematic-ayah-${prevIdx}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      transitionToVerse(currentAyahIndex - 1, isPlayingAudio);
     } else if (currentSurahMeta.number > 1) {
       onSelectSurah(currentSurahMeta.number - 1);
     }
@@ -600,61 +599,85 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
   const currentTheme = CINEMATIC_THEMES[theme] || CINEMATIC_THEMES.emerald;
 
-  // Responsive fluid typography calculator
+  // Responsive fluid typography calculator: adapts to BOTH viewport width AND height
+  // so text never overflows the frame, regardless of screen aspect ratio or verse length
   const getDynamicArabicStyle = (arText: string) => {
     const len = arText?.length || 0;
-    let minPx = 26;
-    let preferredVw = 4.2;
-    let maxPx = 64;
+    let minPx = 20;
+    let preferredVw = 4.0;
+    let preferredVh = 6.2;
+    let maxPx = 56;
+    let lineHt = 1.8;
 
     if (len > 350) {
-      minPx = 18;
-      preferredVw = 2.4;
-      maxPx = 30;
+      // Extremely long verses (e.g. Ayat ad-Dayn, Ayat al-Kursi)
+      minPx = 14;
+      preferredVw = 2.0;
+      preferredVh = 3.2;
+      maxPx = 26;
+      lineHt = 1.65;
     } else if (len > 220) {
-      minPx = 20;
-      preferredVw = 2.9;
-      maxPx = 38;
+      // Long verses
+      minPx = 16;
+      preferredVw = 2.5;
+      preferredVh = 3.8;
+      maxPx = 32;
+      lineHt = 1.7;
     } else if (len > 130) {
-      minPx = 23;
-      preferredVw = 3.5;
-      maxPx = 48;
+      // Medium-long verses
+      minPx = 18;
+      preferredVw = 3.0;
+      preferredVh = 4.6;
+      maxPx = 40;
+      lineHt = 1.75;
     } else if (len > 60) {
-      minPx = 26;
-      preferredVw = 4.2;
-      maxPx = 58;
+      // Medium verses (e.g. Al-Kahf 5)
+      minPx = 20;
+      preferredVw = 3.6;
+      preferredVh = 5.4;
+      maxPx = 48;
+      lineHt = 1.8;
     } else {
-      minPx = 30;
-      preferredVw = 5.2;
-      maxPx = 72;
+      // Short verses (e.g. Al-Kahf 4)
+      minPx = 22;
+      preferredVw = 4.4;
+      preferredVh = 6.6;
+      maxPx = 58;
+      lineHt = 1.85;
     }
 
     const multipliers = [0.85, 1.0, 1.15, 1.3];
     const m = multipliers[fontSizeLevel] || 1.0;
 
     const finalMin = Math.round(minPx * m);
-    const finalVw = (preferredVw * m).toFixed(1);
+    const finalVw = (preferredVw * m).toFixed(2);
+    const finalVh = (preferredVh * m).toFixed(2);
     const finalMax = Math.round(maxPx * m);
 
     return {
-      fontSize: `clamp(${finalMin}px, ${finalVw}vw, ${finalMax}px)`,
-      lineHeight: len > 180 ? 1.85 : 2.05,
+      fontSize: `clamp(${finalMin}px, min(${finalVw}vw, ${finalVh}vh), ${finalMax}px)`,
+      lineHeight: lineHt,
     };
   };
 
   const getDynamicTranslationStyle = (len: number) => {
     const multipliers = [0.85, 1.0, 1.15, 1.3];
     const m = multipliers[fontSizeLevel] || 1.0;
-    let minPx = 14;
-    let preferredVw = 1.4;
-    let maxPx = 19;
+    let minPx = 12.5;
+    let preferredVw = 1.3;
+    let preferredVh = 2.2;
+    let maxPx = 18;
+
     if (len > 280) {
-      minPx = 12.5;
-      preferredVw = 1.25;
-      maxPx = 16.5;
+      minPx = 11;
+      preferredVw = 1.1;
+      preferredVh = 1.8;
+      maxPx = 15;
     }
+
     return {
-      fontSize: `clamp(${Math.round(minPx * m)}px, ${(preferredVw * m).toFixed(1)}vw, ${Math.round(maxPx * m)}px)`,
+      fontSize: `clamp(${Math.round(minPx * m)}px, min(${(preferredVw * m).toFixed(2)}vw, ${(preferredVh * m).toFixed(2)}vh), ${Math.round(maxPx * m)}px)`,
+      lineHeight: 1.5,
     };
   };
 
@@ -889,45 +912,55 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           CENTER CONTENT: CINEMATIC READING CANVAS
           Adapted with fluid auto-scaling so that NOTHING overflows or clips
          ======================================================== */}
-      <main className="relative z-10 flex-1 w-full overflow-y-auto px-4 sm:px-8 md:px-14 py-4 md:py-6 flex flex-col justify-center items-center no-scrollbar">
+      <main className="relative z-10 flex-1 w-full overflow-y-auto px-4 sm:px-8 md:px-12 py-3 sm:py-5 flex flex-col items-center no-scrollbar">
         {displayMode === 'focus' ? (
           /* ========================================================
-             1. FOCUS MODE: PURE CLEAN ELEVATED TYPOGRAPHY (MATCHING IMAGE 2)
+             1. FOCUS MODE: PURE CLEAN ELEVATED TYPOGRAPHY (ANCHORED & SERENE)
              ======================================================== */
-          <div
-            className={`w-full max-w-4xl mx-auto flex flex-col items-center justify-center text-center space-y-6 sm:space-y-8 my-auto max-h-full py-4 transition-all duration-350 ease-out ${
-              isVerseFading
-                ? 'opacity-0 scale-[0.98] -translate-y-2'
-                : 'opacity-100 scale-100 translate-y-0'
-            }`}
-          >
-            {/* Top Verse Badge pill (exact look from image 2) */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-medium tracking-wider select-none shadow-xs">
-              <span>Sourate {currentSurahMeta.name}</span>
-              <span className="opacity-40">•</span>
-              <span>Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}</span>
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2">
+            {/* Top Verse Badge pill - Stably anchored, does not jump */}
+            <div className="shrink-0 mb-3 sm:mb-4 select-none">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-medium tracking-wider shadow-xs">
+                <span>Sourate {currentSurahMeta.name}</span>
+                <span className="opacity-40">•</span>
+                <span className="tabular-nums">
+                  Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}
+                </span>
+              </div>
             </div>
 
-            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (Pure & borderless) */}
-            <div
-              dir="rtl"
-              className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-300 px-2 sm:px-6 break-words [word-break:keep-all]`}
-              style={{
-                fontFamily: "'Amiri', 'Traditional Arabic', serif",
-                ...getDynamicArabicStyle(currentAyah?.ar || ''),
-              }}
-            >
-              <TajweedText text={currentAyah?.ar || ''} enabled={isTajweedEnabled} />
+            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (Flexible stage, clean rendering without rogue characters) */}
+            <div className="w-full flex items-center justify-center px-2 sm:px-4 my-1.5 sm:my-2.5">
+              <div
+                dir="rtl"
+                className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-500 ease-out break-words [word-break:keep-all] ${
+                  isVerseFading ? 'opacity-30 blur-[0.5px]' : 'opacity-100 blur-0'
+                }`}
+                style={{
+                  fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                  ...getDynamicArabicStyle(cleanAyahArabic(currentAyah?.ar || '')),
+                }}
+              >
+                <TajweedText text={cleanAyahArabic(currentAyah?.ar || '')} enabled={isTajweedEnabled} />
+              </div>
             </div>
 
-            {/* Thin subtle horizontal divider line (exact look from image 2) */}
+            {/* Thin subtle horizontal divider line */}
             {(showPhonetics || showTranslation) && (
-              <div className="w-full max-w-3xl border-t border-white/15 my-2" />
+              <div
+                className={`w-full max-w-lg border-t border-white/15 my-2 sm:my-2.5 transition-opacity duration-500 ease-out ${
+                  isVerseFading ? 'opacity-20' : 'opacity-100'
+                }`}
+              />
             )}
 
-            {/* Phonetics & French Translation - Pure text without any boxes (exact look from image 2) */}
+            {/* Phonetics & French Translation - Pure text without any boxes, smooth dissolve */}
             {(showPhonetics || showTranslation) && (
-              <div className="w-full max-w-3xl space-y-3 px-3">
+              <div
+                className={`w-full max-w-3xl space-y-2 sm:space-y-2.5 px-3 transition-all duration-500 ease-out ${
+                  isVerseFading ? 'opacity-30 blur-[0.4px]' : 'opacity-100 blur-0'
+                }`}
+              >
                 {showPhonetics && currentAyah?.tr && (
                   <p
                     className={`italic font-serif ${currentTheme.textTr} leading-relaxed text-center`}
@@ -939,7 +972,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
                 {showTranslation && currentAyah?.fr && (
                   <p
-                    className="font-normal text-white/95 leading-relaxed text-center text-base sm:text-lg md:text-xl tracking-normal"
+                    className="font-normal text-white/95 leading-relaxed text-center tracking-normal"
                     style={getDynamicTranslationStyle(currentAyah.fr.length)}
                   >
                     {currentAyah.fr}
@@ -992,8 +1025,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   key={ayah.num}
                   id={`cinematic-ayah-${idx}`}
                   onClick={() => {
-                    setCurrentAyahIndex(idx);
-                    if (isPlayingAudio) playVerseAudio(idx);
+                    transitionToVerse(idx, isPlayingAudio);
                   }}
                   className={`p-5 sm:p-7 rounded-3xl transition-all duration-300 cursor-pointer ${
                     isCurrent
@@ -1008,8 +1040,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setCurrentAyahIndex(idx);
-                        playVerseAudio(idx);
+                        transitionToVerse(idx, true);
                       }}
                       className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white transition"
                       title="Écouter ce verset"
@@ -1024,10 +1055,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
                     style={{
                       fontFamily: "'Amiri', 'Traditional Arabic', serif",
-                      ...getDynamicArabicStyle(ayah.ar),
+                      ...getDynamicArabicStyle(cleanAyahArabic(ayah.ar)),
                     }}
                   >
-                    <TajweedText text={ayah.ar} enabled={isTajweedEnabled} />
+                    <TajweedText text={cleanAyahArabic(ayah.ar)} enabled={isTajweedEnabled} />
                   </div>
 
                   {(showPhonetics || showTranslation) && (
