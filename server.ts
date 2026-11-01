@@ -1150,6 +1150,33 @@ async function startServer() {
   });
 
   // ============================================================================
+  // 3.5. AUTOMATED WEEKLY PRAYER TIMES ENGINE (Exact astronomical calculation per city/region)
+  // ============================================================================
+
+  app.get('/api/prayer-times/weekly', async (req, res) => {
+    try {
+      const { getWeeklyAutomatedPrayers } = await import('./src/services/automatedPrayerService.ts');
+      const city = String(req.query.city || 'dakar');
+      const method = String(req.query.method || 'muslim');
+      const asr = String(req.query.asr || 'standard');
+      const dateParam = req.query.date ? new Date(String(req.query.date)) : new Date();
+
+      const schedule = getWeeklyAutomatedPrayers(city, method, asr, dateParam);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      return res.json({
+        success: true,
+        data: schedule,
+      });
+    } catch (error: any) {
+      console.error('Error computing automated prayer times:', error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || 'Erreur lors du calcul des horaires.',
+      });
+    }
+  });
+
+  // ============================================================================
   // 4. PAYDUNYA INVOICE CREATION ROUTE
   // ============================================================================
 

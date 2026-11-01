@@ -20,8 +20,10 @@ import {
   Sunrise,
   ShieldCheck,
   Filter,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { CityData, Method, UserProfile } from '../types';
+import { PrayerShareCardModal } from './PrayerShareCardModal';
 import {
   MonthCalendarDay,
   DailyPrayerLog,
@@ -56,6 +58,7 @@ export const MonthlyPrayerCalendarView: React.FC<MonthlyPrayerCalendarViewProps>
 
   // Selected day for the detailed view
   const [selectedDayStr, setSelectedDayStr] = useState<string>(() => formatDateKey(today));
+  const [isSharePosterOpen, setIsSharePosterOpen] = useState(false);
 
   // Local refresh trigger when user toggles a prayer or when cloud sync arrives
   const [refreshTick, setRefreshTick] = useState(0);
@@ -198,12 +201,21 @@ export const MonthlyPrayerCalendarView: React.FC<MonthlyPrayerCalendarViewProps>
             </button>
           </div>
 
-          {/* City Badge & Print */}
+          {/* City Badge & Export / Print */}
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-[#12281D] border border-emerald-200 dark:border-emerald-700/40 text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
               <MapPin className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>{selectedCity.name}</span>
             </div>
+
+            <button
+              onClick={() => setIsSharePosterOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs shadow-xs transition cursor-pointer active:scale-95"
+              title="Exporter l'affiche illustrée Makkah (Image HD)"
+            >
+              <ImageIcon className="w-4 h-4" />
+              <span className="hidden sm:inline">Affiche Prières (Image HD)</span>
+            </button>
 
             <button
               onClick={() => window.print()}
@@ -836,6 +848,14 @@ export const MonthlyPrayerCalendarView: React.FC<MonthlyPrayerCalendarViewProps>
           </div>
         )}
       </main>
+
+      {/* Modal Affiche Prières personnalisée Makkah */}
+      <PrayerShareCardModal
+        isOpen={isSharePosterOpen}
+        onClose={() => setIsSharePosterOpen(false)}
+        selectedCity={selectedCity}
+        selectedMethod={selectedMethod}
+      />
     </div>
   );
 };

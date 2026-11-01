@@ -26,10 +26,13 @@ import {
   Sun,
   Award,
   Library,
+  Image as ImageIcon,
+  Share2,
 } from 'lucide-react';
 import { Header } from './Header';
 import { MobileHomeScreen } from './MobileHomeScreen';
 import { PrayerTimeSettingsModal, PrayerOffsets, adjustTime } from './PrayerTimeSettingsModal';
+import { PrayerShareCardModal } from './PrayerShareCardModal';
 import { CITIES, PRAYERS, computeDynamicCityPrayers } from '../data/islamicData';
 import { SPIRITUAL_VERSES } from '../data/spiritualVerses';
 import { CityData, Method, Reciter, UserProfile } from '../types';
@@ -134,6 +137,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const [cityNow, setCityNow] = useState<Date>(() => getCityCurrentDate(selectedCity.timezone));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSharePosterOpen, setIsSharePosterOpen] = useState(false);
 
   // Prayer Offsets
   const [prayerOffsets, setPrayerOffsets] = useState<PrayerOffsets>(() => {
@@ -454,6 +458,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           onOpenLibrary={onOpenLibrary ? () => onOpenLibrary() : undefined}
           onOpenPrayerSettings={() => setIsSettingsOpen(true)}
           onOpenCalendar={onOpenCalendar}
+          onOpenSharePoster={() => setIsSharePosterOpen(true)}
           onOpenAuth={onOpenAuth}
           onLogout={onLogout}
           onGoToLanding={onGoToLanding}
@@ -536,8 +541,16 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                 <div className="flex items-center gap-2.5">
                   <button
+                    onClick={() => setIsSharePosterOpen(true)}
+                    className="px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                    title="Télécharger l'affiche illustrée des horaires de prière"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Affiche & Image</span>
+                  </button>
+                  <button
                     onClick={() => onOpenPrayerGuide(nextPrayerInfo.key)}
-                    className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md"
+                    className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"
                   >
                     <span>Guide de prière</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -545,7 +558,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <button
                     onClick={() => setIsSettingsOpen(true)}
                     title="Ajuster les horaires"
-                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition cursor-pointer"
+                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white transition cursor-pointer active:scale-95"
                   >
                     <SlidersHorizontal className="w-4 h-4" />
                   </button>
@@ -1018,6 +1031,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         offsets={prayerOffsets}
         onSaveOffsets={handleSaveOffsets}
         currentAsrMethod={asrMethod}
+      />
+
+      {/* Creative Mecca Clock Prayer Poster Export Modal */}
+      <PrayerShareCardModal
+        isOpen={isSharePosterOpen}
+        onClose={() => setIsSharePosterOpen(false)}
+        selectedCity={selectedCity}
+        selectedMethod={selectedMethod}
       />
     </div>
   );

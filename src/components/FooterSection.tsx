@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles, QrCode } from 'lucide-react';
 import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface FooterSectionProps {
@@ -7,6 +7,7 @@ export interface FooterSectionProps {
   onOpenQuran: () => void;
   onOpenQibla: () => void;
   onOpenDhikr: () => void;
+  onOpenQrCode?: () => void;
   showCta?: boolean;
 }
 
@@ -15,6 +16,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
   onOpenQuran,
   onOpenQibla,
   onOpenDhikr,
+  onOpenQrCode,
   showCta = true,
 }) => {
   const scrollToTop = () => {
@@ -181,6 +183,17 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
                     Invocations & Tasbih Interactif
                   </button>
                 </li>
+                {onOpenQrCode && (
+                  <li>
+                    <button
+                      onClick={onOpenQrCode}
+                      className="hover:text-emerald-200 transition-colors cursor-pointer flex items-center gap-1.5 text-left text-amber-300 hover:text-amber-200 font-bold"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                      QR Code d'Accès au Site
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
 

@@ -21,6 +21,7 @@ import {
   SunMedium,
   Sunset,
   Library,
+  Image as ImageIcon,
   ArrowRight,
   ArrowUp,
   Heart,
@@ -79,6 +80,7 @@ export interface MobileHomeScreenProps {
   onOpenLibrary?: () => void;
   onOpenPrayerSettings: () => void;
   onOpenCalendar?: () => void;
+  onOpenSharePoster?: () => void;
   onOpenAuth?: () => void;
   onLogout: () => void;
   onGoToLanding: () => void;
@@ -179,6 +181,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   onOpenLibrary,
   onOpenPrayerSettings,
   onOpenCalendar,
+  onOpenSharePoster,
   onOpenAuth,
   onLogout,
   onGoToLanding,
@@ -726,17 +729,30 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             })}
           </div>
 
-          {/* Quick button to open full monthly prayer calendar & stats */}
-          {onOpenCalendar && (
-            <button
-              type="button"
-              onClick={onOpenCalendar}
-              className="w-full py-2.5 px-4 rounded-2xl bg-emerald-50 dark:bg-[#12271D] hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-700/50 text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs active:scale-98"
-            >
-              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Consulter le Calendrier & Suivi Mensuel</span>
-            </button>
-          )}
+          {/* Buttons: Exporter l'affiche illustrée & Calendrier */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            {onOpenSharePoster && (
+              <button
+                type="button"
+                onClick={onOpenSharePoster}
+                className="flex-1 py-2.5 px-4 rounded-2xl bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-black flex items-center justify-center gap-2 transition cursor-pointer shadow-sm active:scale-98"
+              >
+                <ImageIcon className="w-4 h-4 stroke-[2.5]" />
+                <span>Affiche Prières (Image HD)</span>
+              </button>
+            )}
+
+            {onOpenCalendar && (
+              <button
+                type="button"
+                onClick={onOpenCalendar}
+                className="flex-1 py-2.5 px-4 rounded-2xl bg-emerald-50 dark:bg-[#12271D] hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200/80 dark:border-emerald-700/50 text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs active:scale-98"
+              >
+                <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Calendrier Mensuel</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ========================================================
