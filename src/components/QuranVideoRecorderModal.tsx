@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Reciter } from '../types';
 import { CINEMATIC_THEMES, CinematicThemeId } from './QuranCinematicReader';
-import { parseTajweedTokens } from '../utils/tajweedColorizer';
+import { parseTajweedTokens, cleanAyahArabic } from '../utils/tajweedColorizer';
 
 interface QuranVideoRecorderModalProps {
   isOpen: boolean;
@@ -273,7 +273,8 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
 
-    const words = ayah.ar.split(' ');
+    const cleanAr = cleanAyahArabic(ayah.ar);
+    const words = cleanAr.split(' ');
     const lines: string[] = [];
     let currentLine = '';
 

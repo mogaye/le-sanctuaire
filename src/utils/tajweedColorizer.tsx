@@ -91,6 +91,7 @@ const TANWEEN_CHARS = new Set(['ً', 'ٍ', 'ٌ']);
 /**
  * Cleans Arabic verse text for immaculate typography:
  * - Strips ARABIC SMALL LOW MEEM (\u06ED) which Tanzil adds after tanween and renders as a rogue floating 'م' underneath words
+ * - Removes misplaced small meem after tanween
  * - Binds waqf stop marks (\u06DA, \u06D6, \u06D7, \u06D8, \u06DB, \u06DC) to preceding words with non-breaking space
  * - Removes any dangling trailing waqf at the end of single ayah
  */
@@ -98,8 +99,10 @@ export function cleanAyahArabic(ar: string): string {
   if (!ar) return '';
   return ar
     .replace(/\u06ED/g, '') // remove small low meem rogue character
-    .replace(/\s+([ۚۖۗۘۛۜ])/g, '\u00A0$1') // glue waqf mark to preceding word
-    .replace(/\s*[ۚۖۗۘۛۜ]\s*$/, '') // remove trailing waqf mark at end of verse
+    .replace(/([ًٌٍ])[\u06ED\u06E2]/g, '$1') // remove misplaced small meem after tanween
+    .replace(/\s*[ۣۚۖۗۘۛۜۢ]\s*$/, '') // remove trailing waqf mark at end of verse
+    .replace(/\s+([ۚۖۗۘۛۜۢ])/g, '\u00A0$1') // glue waqf mark to preceding word so it never wraps alone
+    .replace(/\s+[ۭۘ]\s*/g, ' ') // remove standalone floating waqf marks
     .trim();
 }
 
@@ -168,9 +171,19 @@ export function parseTajweedTokens(arabicText: string): TajweedToken[] {
       continue;
     }
 
-    // 5. Tanween -> Ghunnah
+    // 5. Tanween -> Ghunnah (bind with preceding base character so combining mark never floats alone in a span)
     if (TANWEEN_CHARS.has(char)) {
-      tokens.push({ text: char, type: 'ghunnah' });
+      const lastToken = tokens[tokens.length - 1];
+      if (lastToken && lastToken.type === 'normal' && lastToken.text.length > 0) {
+        const baseChar = lastToken.text.slice(-1);
+        lastToken.text = lastToken.text.slice(0, -1);
+        if (lastToken.text.length === 0) {
+          tokens.pop();
+        }
+        tokens.push({ text: baseChar + char, type: 'ghunnah' });
+      } else {
+        tokens.push({ text: char, type: 'ghunnah' });
+      }
       i++;
       continue;
     }

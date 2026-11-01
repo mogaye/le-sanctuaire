@@ -48,6 +48,7 @@ import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
 import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUtils';
 import { toggleQuranFavorite } from '../lib/supabase';
 import { QuranCinematicReader } from './QuranCinematicReader';
+import { cleanAyahArabic } from '../utils/tajweedColorizer';
 
 interface AyahData {
   num: number;
@@ -471,13 +472,20 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     setActiveAyahNum(1);
 
     // Cache key for session
-    const cacheKey = `quran_surah_full_v3_${selectedSurahNumber}`;
+    const cacheKey = `quran_surah_full_v4_${selectedSurahNumber}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (parsed && parsed.ayahs && parsed.ayahs.length > 0) {
-          setCurrentSurahData(parsed);
+          const sanitized: FullSurahData = {
+            ...parsed,
+            ayahs: parsed.ayahs.map((a: AyahData) => ({
+              ...a,
+              ar: cleanAyahArabic(a.ar),
+            })),
+          };
+          setCurrentSurahData(sanitized);
           setIsLoadingSurah(false);
           if (hasUserChangedSurahRef.current) {
             saveLastRead(selectedSurahNumber, 1);
@@ -494,8 +502,15 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         if (localRes.ok) {
           const localData: FullSurahData = await localRes.json();
           if (isMounted && localData && localData.ayahs && localData.ayahs.length > 0) {
-            sessionStorage.setItem(cacheKey, JSON.stringify(localData));
-            setCurrentSurahData(localData);
+            const sanitized: FullSurahData = {
+              ...localData,
+              ayahs: localData.ayahs.map((a: AyahData) => ({
+                ...a,
+                ar: cleanAyahArabic(a.ar),
+              })),
+            };
+            sessionStorage.setItem(cacheKey, JSON.stringify(sanitized));
+            setCurrentSurahData(sanitized);
             setIsLoadingSurah(false);
             if (hasUserChangedSurahRef.current) {
               saveLastRead(selectedSurahNumber, 1);
@@ -526,7 +541,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             const formattedAyahs: AyahData[] = arAyahs.map((item: any, idx: number) => ({
               num: item.numberInSurah || idx + 1,
               globalNum: item.number,
-              ar: item.text,
+              ar: cleanAyahArabic(item.text),
               tr: trAyahs[idx]?.text || '',
               fr: frAyahs[idx]?.text || '',
               en: enAyahs[idx]?.text || '',

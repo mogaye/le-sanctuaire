@@ -427,7 +427,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     };
   }, [isOpen, isPlayingAudio]);
 
-  const ayahs = surahData?.ayahs || [];
+  const ayahs = (surahData?.ayahs || []).map((a) => ({
+    ...a,
+    ar: cleanAyahArabic(a.ar),
+  }));
   const currentAyah = ayahs[currentAyahIndex] || ayahs[0];
 
   // Smooth, discreet, meditative verse transition (zero layout jump, silky soft dissolve)
@@ -603,47 +606,47 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   // so text never overflows the frame, regardless of screen aspect ratio or verse length
   const getDynamicArabicStyle = (arText: string) => {
     const len = arText?.length || 0;
-    let minPx = 20;
-    let preferredVw = 4.0;
-    let preferredVh = 6.2;
-    let maxPx = 56;
-    let lineHt = 1.8;
+    let minPx = 18;
+    let preferredVw = 3.6;
+    let preferredVh = 4.8;
+    let maxPx = 48;
+    let lineHt = 1.75;
 
     if (len > 350) {
       // Extremely long verses (e.g. Ayat ad-Dayn, Ayat al-Kursi)
-      minPx = 14;
-      preferredVw = 2.0;
-      preferredVh = 3.2;
-      maxPx = 26;
-      lineHt = 1.65;
+      minPx = 13;
+      preferredVw = 1.8;
+      preferredVh = 2.8;
+      maxPx = 24;
+      lineHt = 1.55;
     } else if (len > 220) {
       // Long verses
-      minPx = 16;
-      preferredVw = 2.5;
-      preferredVh = 3.8;
-      maxPx = 32;
-      lineHt = 1.7;
+      minPx = 15;
+      preferredVw = 2.2;
+      preferredVh = 3.3;
+      maxPx = 28;
+      lineHt = 1.6;
     } else if (len > 130) {
-      // Medium-long verses
+      // Medium-long verses (e.g. Al-Kahf 5 has ~137 chars)
+      minPx = 16;
+      preferredVw = 2.6;
+      preferredVh = 3.8;
+      maxPx = 34;
+      lineHt = 1.65;
+    } else if (len > 60) {
+      // Medium verses
       minPx = 18;
       preferredVw = 3.0;
-      preferredVh = 4.6;
+      preferredVh = 4.4;
       maxPx = 40;
-      lineHt = 1.75;
-    } else if (len > 60) {
-      // Medium verses (e.g. Al-Kahf 5)
-      minPx = 20;
-      preferredVw = 3.6;
-      preferredVh = 5.4;
-      maxPx = 48;
-      lineHt = 1.8;
+      lineHt = 1.7;
     } else {
       // Short verses (e.g. Al-Kahf 4)
-      minPx = 22;
-      preferredVw = 4.4;
-      preferredVh = 6.6;
-      maxPx = 58;
-      lineHt = 1.85;
+      minPx = 20;
+      preferredVw = 3.8;
+      preferredVh = 5.2;
+      maxPx = 50;
+      lineHt = 1.75;
     }
 
     const multipliers = [0.85, 1.0, 1.15, 1.3];
@@ -663,21 +666,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const getDynamicTranslationStyle = (len: number) => {
     const multipliers = [0.85, 1.0, 1.15, 1.3];
     const m = multipliers[fontSizeLevel] || 1.0;
-    let minPx = 12.5;
-    let preferredVw = 1.3;
-    let preferredVh = 2.2;
-    let maxPx = 18;
+    let minPx = 12;
+    let preferredVw = 1.2;
+    let preferredVh = 1.9;
+    let maxPx = 16;
 
     if (len > 280) {
-      minPx = 11;
-      preferredVw = 1.1;
-      preferredVh = 1.8;
-      maxPx = 15;
+      minPx = 10.5;
+      preferredVw = 1.0;
+      preferredVh = 1.5;
+      maxPx = 13.5;
     }
 
     return {
       fontSize: `clamp(${Math.round(minPx * m)}px, min(${(preferredVw * m).toFixed(2)}vw, ${(preferredVh * m).toFixed(2)}vh), ${Math.round(maxPx * m)}px)`,
-      lineHeight: 1.5,
+      lineHeight: 1.45,
     };
   };
 
@@ -710,7 +713,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           TOP CINEMATIC HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <header
-        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
+        className={`absolute top-0 left-0 right-0 z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
           isHudVisible
             ? 'opacity-100 translate-y-0 shadow-lg'
             : 'opacity-0 -translate-y-full pointer-events-none'
@@ -912,14 +915,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           CENTER CONTENT: CINEMATIC READING CANVAS
           Adapted with fluid auto-scaling so that NOTHING overflows or clips
          ======================================================== */}
-      <main className="relative z-10 flex-1 w-full overflow-y-auto px-4 sm:px-8 md:px-12 py-3 sm:py-5 flex flex-col items-center no-scrollbar">
+      <main className="relative z-10 flex-1 w-full h-full overflow-y-auto px-4 sm:px-8 md:px-12 py-14 sm:py-16 flex flex-col items-center justify-center no-scrollbar">
         {displayMode === 'focus' ? (
           /* ========================================================
              1. FOCUS MODE: PURE CLEAN ELEVATED TYPOGRAPHY (ANCHORED & SERENE)
              ======================================================== */
-          <div className="w-full max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2">
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0">
             {/* Top Verse Badge pill - Stably anchored, does not jump */}
-            <div className="shrink-0 mb-3 sm:mb-4 select-none">
+            <div className="shrink-0 mb-2.5 sm:mb-3 select-none">
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-medium tracking-wider shadow-xs">
                 <span>Sourate {currentSurahMeta.name}</span>
                 <span className="opacity-40">•</span>
@@ -930,7 +933,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             </div>
 
             {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (Flexible stage, clean rendering without rogue characters) */}
-            <div className="w-full flex items-center justify-center px-2 sm:px-4 my-1.5 sm:my-2.5">
+            <div className="w-full flex items-center justify-center px-2 sm:px-4 my-1 sm:my-2">
               <div
                 dir="rtl"
                 className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-500 ease-out break-words [word-break:keep-all] ${
@@ -948,7 +951,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* Thin subtle horizontal divider line */}
             {(showPhonetics || showTranslation) && (
               <div
-                className={`w-full max-w-lg border-t border-white/15 my-2 sm:my-2.5 transition-opacity duration-500 ease-out ${
+                className={`w-full max-w-sm border-t border-white/15 my-1.5 sm:my-2 transition-opacity duration-500 ease-out ${
                   isVerseFading ? 'opacity-20' : 'opacity-100'
                 }`}
               />
@@ -957,7 +960,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* Phonetics & French Translation - Pure text without any boxes, smooth dissolve */}
             {(showPhonetics || showTranslation) && (
               <div
-                className={`w-full max-w-3xl space-y-2 sm:space-y-2.5 px-3 transition-all duration-500 ease-out ${
+                className={`w-full max-w-3xl space-y-1.5 sm:space-y-2 px-3 transition-all duration-500 ease-out ${
                   isVerseFading ? 'opacity-30 blur-[0.4px]' : 'opacity-100 blur-0'
                 }`}
               >
@@ -1011,7 +1014,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           /* ========================================================
              2. CONTINUOUS SCROLL MODE: ALL VERSES IN GIANT TYPE
              ======================================================== */
-          <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-8 py-8">
+          <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-8 pt-20 pb-28">
             {currentSurahMeta.number !== 9 && (
               <div className="text-center text-amber-200/80 font-arabic text-2xl sm:text-3xl pb-4">
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
@@ -1092,7 +1095,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           BOTTOM CINEMATIC FLOATING HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <footer
-        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-md ${
+        className={`absolute bottom-0 left-0 right-0 z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-md ${
           isHudVisible
             ? 'opacity-100 translate-y-0 shadow-lg'
             : 'opacity-0 translate-y-full pointer-events-none'
