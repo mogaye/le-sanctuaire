@@ -61,7 +61,25 @@
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
 }
 
-/* Hide scrollbars across Chrome, Safari, Firefox, Edge */
+/* ========================================================
+   MASQUAGE DE LA BARRE DE DÉFILEMENT NATIVE DU NAVIGATEUR
+   Supprime l'ascenseur gris/blanc Windows avec flèches tout en
+   conservant un défilement 100% fluide à la molette et au tactile.
+   ======================================================== */
+html,
+body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE et Edge */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge, Opera */
+  width: 0px;
+  height: 0px;
+}
+
+/* Hide scrollbars for specific overflow elements */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
   width: 0;
