@@ -47,6 +47,7 @@ import { SidebarAudioControl } from './SidebarAudioControl';
 import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
 import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUtils';
 import { toggleQuranFavorite } from '../lib/supabase';
+import { QuranCinematicReader } from './QuranCinematicReader';
 
 interface AyahData {
   num: number;
@@ -337,6 +338,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     } catch {}
     return null;
   });
+
+  // Immersive Cinematic Fullscreen Reader State
+  const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(false);
 
   // Active surah metadata from 114 catalog
   const currentSurahMeta: CompleteSurahItem = useMemo(() => {
@@ -1176,6 +1180,17 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 <span className="sm:hidden">Mushaf</span>
               </button>
             </div>
+
+            {/* Cinematic Fullscreen Trigger */}
+            <button
+              onClick={() => setIsCinematicReaderOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Activer le mode de lecture plein écran immersif et cinématique (sans onglets ni barres)"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Plein Écran Cinématique</span>
+              <span className="md:hidden">Cinéma</span>
+            </button>
           </div>
 
           {/* Right: Quick Controls, Bookmarks, Dark Mode Adapter, Settings */}
@@ -1588,6 +1603,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               reciterName={selectedReciter.name}
               isDark={isDark}
               onOpenSurahSelector={() => setIsMobileSidebarOpen(true)}
+              onOpenCinematic={() => setIsCinematicReaderOpen(true)}
             />
 
             {/* Centered Classic Bismillah Calligraphy (Shown for all except At-Tawbah 9) */}
@@ -2555,6 +2571,20 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Immersive Fullscreen Cinematic Quran Reader */}
+      <QuranCinematicReader
+        isOpen={isCinematicReaderOpen}
+        onClose={() => setIsCinematicReaderOpen(false)}
+        surahData={currentSurahData}
+        currentSurahMeta={currentSurahMeta}
+        allSurahs={ALL_114_SURAHS}
+        initialAyahNum={activeAyahNum}
+        selectedReciter={selectedReciter}
+        onSelectReciter={onSelectReciter}
+        onSelectSurah={(num) => handleSelectSurah(num)}
+        getAyahAudioUrl={getAyahAudioUrl}
+      />
     </div>
   );
 };

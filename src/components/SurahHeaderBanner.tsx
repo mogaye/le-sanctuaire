@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Volume2, ChevronDown } from 'lucide-react';
+import { Play, Pause, Volume2, ChevronDown, Maximize2, Sparkles } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 
 interface SurahHeaderBannerProps {
@@ -9,6 +9,7 @@ interface SurahHeaderBannerProps {
   reciterName: string;
   isDark?: boolean;
   onOpenSurahSelector?: () => void;
+  onOpenCinematic?: () => void;
 }
 
 export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
@@ -18,6 +19,7 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
   reciterName,
   isDark = false,
   onOpenSurahSelector,
+  onOpenCinematic,
 }) => {
   return (
     <div
@@ -61,6 +63,17 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
             <span className={`text-xs font-medium ${isDark ? 'text-emerald-300/70' : 'text-neutral-500'}`}>
               Juz {surah.juz} • {surah.numberOfAyahs} versets
             </span>
+            {onOpenCinematic && (
+              <button
+                type="button"
+                onClick={onOpenCinematic}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95"
+                title="Lire en mode plein écran immersif et cinématique"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Plein Écran Cinématique</span>
+              </button>
+            )}
             {onOpenSurahSelector && (
               <button
                 type="button"
