@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Minimize2,
   Play,
@@ -104,8 +105,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(251,191,36,0.18)]',
     accent: '#34D399',
     swatch: '#06281b',
-    glow1: 'rgba(251, 191, 36, 0.06)',
-    glow2: 'rgba(16, 185, 129, 0.08)',
+    glow1: 'rgba(251, 191, 36, 0.08)',
+    glow2: 'rgba(16, 185, 129, 0.1)',
   },
   midnight: {
     id: 'midnight',
@@ -121,8 +122,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-sky-400/80 shadow-[0_0_40px_rgba(56,189,248,0.2)]',
     accent: '#38BDF8',
     swatch: '#0b1e36',
-    glow1: 'rgba(56, 189, 248, 0.08)',
-    glow2: 'rgba(99, 102, 241, 0.06)',
+    glow1: 'rgba(56, 189, 248, 0.09)',
+    glow2: 'rgba(99, 102, 241, 0.08)',
   },
   oled: {
     id: 'oled',
@@ -138,8 +139,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-white/80 shadow-[0_0_40px_rgba(255,255,255,0.15)]',
     accent: '#FFFFFF',
     swatch: '#000000',
-    glow1: 'rgba(255, 255, 255, 0.04)',
-    glow2: 'rgba(255, 255, 255, 0.03)',
+    glow1: 'rgba(255, 255, 255, 0.05)',
+    glow2: 'rgba(255, 255, 255, 0.04)',
   },
   amber: {
     id: 'amber',
@@ -155,8 +156,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(245,158,11,0.2)]',
     accent: '#F59E0B',
     swatch: '#2a1808',
-    glow1: 'rgba(245, 158, 11, 0.08)',
-    glow2: 'rgba(217, 119, 6, 0.06)',
+    glow1: 'rgba(245, 158, 11, 0.09)',
+    glow2: 'rgba(217, 119, 6, 0.08)',
   },
   amethyst: {
     id: 'amethyst',
@@ -172,8 +173,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-purple-400/80 shadow-[0_0_40px_rgba(192,132,252,0.2)]',
     accent: '#C084FC',
     swatch: '#220e36',
-    glow1: 'rgba(192, 132, 252, 0.08)',
-    glow2: 'rgba(168, 85, 247, 0.06)',
+    glow1: 'rgba(192, 132, 252, 0.09)',
+    glow2: 'rgba(168, 85, 247, 0.08)',
   },
   ocean: {
     id: 'ocean',
@@ -189,8 +190,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-teal-400/80 shadow-[0_0_40px_rgba(45,212,191,0.2)]',
     accent: '#2DD4BF',
     swatch: '#082930',
-    glow1: 'rgba(45, 212, 191, 0.08)',
-    glow2: 'rgba(20, 184, 166, 0.06)',
+    glow1: 'rgba(45, 212, 191, 0.09)',
+    glow2: 'rgba(20, 184, 166, 0.08)',
   },
   ruby: {
     id: 'ruby',
@@ -206,8 +207,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-rose-400/80 shadow-[0_0_40px_rgba(251,113,133,0.2)]',
     accent: '#FB7185',
     swatch: '#2e0d16',
-    glow1: 'rgba(251, 113, 133, 0.08)',
-    glow2: 'rgba(244, 63, 94, 0.06)',
+    glow1: 'rgba(251, 113, 133, 0.09)',
+    glow2: 'rgba(244, 63, 94, 0.08)',
   },
   forest: {
     id: 'forest',
@@ -223,8 +224,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-lime-400/80 shadow-[0_0_40px_rgba(163,230,53,0.2)]',
     accent: '#A3E635',
     swatch: '#15260f',
-    glow1: 'rgba(163, 230, 53, 0.08)',
-    glow2: 'rgba(132, 204, 22, 0.06)',
+    glow1: 'rgba(163, 230, 53, 0.09)',
+    glow2: 'rgba(132, 204, 22, 0.08)',
   },
   slate: {
     id: 'slate',
@@ -240,8 +241,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-slate-400/80 shadow-[0_0_40px_rgba(148,163,184,0.2)]',
     accent: '#94A3B8',
     swatch: '#1c2430',
-    glow1: 'rgba(148, 163, 184, 0.08)',
-    glow2: 'rgba(100, 116, 139, 0.06)',
+    glow1: 'rgba(148, 163, 184, 0.09)',
+    glow2: 'rgba(100, 116, 139, 0.08)',
   },
   sepia: {
     id: 'sepia',
@@ -257,8 +258,8 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(217,119,6,0.2)]',
     accent: '#D97706',
     swatch: '#262018',
-    glow1: 'rgba(217, 119, 6, 0.08)',
-    glow2: 'rgba(180, 83, 9, 0.06)',
+    glow1: 'rgba(217, 119, 6, 0.09)',
+    glow2: 'rgba(180, 83, 9, 0.08)',
   },
 };
 
@@ -351,12 +352,17 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     enterFullscreen();
   }, [isOpen]);
 
+  const transitionTimerRef = useRef<any>(null);
+
   // Stop audio on close or unmount
   useEffect(() => {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current = null;
+      }
+      if (transitionTimerRef.current) {
+        clearTimeout(transitionTimerRef.current);
       }
     };
   }, []);
@@ -384,6 +390,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const handleExit = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+    }
     if (audioRef.current) {
       audioRef.current.pause();
     }
@@ -423,6 +432,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('touchstart', handleTouchStart);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
     };
   }, [isOpen, isPlayingAudio]);
 
@@ -445,8 +455,24 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     audio.onended = () => {
       if (verseIdx < ayahs.length - 1) {
         const nextIdx = verseIdx + 1;
-        setCurrentAyahIndex(nextIdx);
-        playVerseAudio(nextIdx);
+        // Preload next audio so that when the next verse glides in, audio starts instantly
+        const nextAyah = ayahs[nextIdx];
+        if (nextAyah) {
+          const nextUrl = getAyahAudioUrl(surahData.num, nextAyah.num, selectedReciter.id);
+          const preload = new Audio(nextUrl);
+          preload.preload = 'auto';
+        }
+
+        // Contemplative respiration pause (480ms) between ayahs
+        if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+        transitionTimerRef.current = setTimeout(() => {
+          setCurrentAyahIndex(nextIdx);
+          playVerseAudio(nextIdx);
+          if (displayMode === 'continuous') {
+            const el = document.getElementById(`cinematic-ayah-${nextIdx}`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 480);
       } else {
         setIsPlayingAudio(false);
         setIsHudVisible(true);
@@ -472,6 +498,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const togglePlayAudio = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+    }
     if (isPlayingAudio) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -487,6 +516,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const handleNextVerse = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+    }
     if (currentAyahIndex < ayahs.length - 1) {
       const nextIdx = currentAyahIndex + 1;
       setCurrentAyahIndex(nextIdx);
@@ -503,6 +535,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const handlePrevVerse = () => {
+    if (transitionTimerRef.current) {
+      clearTimeout(transitionTimerRef.current);
+    }
     if (currentAyahIndex > 0) {
       const prevIdx = currentAyahIndex - 1;
       setCurrentAyahIndex(prevIdx);
@@ -579,30 +614,30 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   // Responsive fluid typography calculator
   const getDynamicArabicStyle = (arText: string) => {
     const len = arText?.length || 0;
-    let minPx = 26;
-    let preferredVw = 4.2;
-    let maxPx = 64;
+    let minPx = 28;
+    let preferredVw = 4.4;
+    let maxPx = 66;
 
     if (len > 350) {
-      minPx = 18;
-      preferredVw = 2.4;
-      maxPx = 30;
+      minPx = 19;
+      preferredVw = 2.5;
+      maxPx = 32;
     } else if (len > 220) {
-      minPx = 20;
-      preferredVw = 2.9;
-      maxPx = 38;
+      minPx = 21;
+      preferredVw = 3.0;
+      maxPx = 40;
     } else if (len > 130) {
-      minPx = 23;
-      preferredVw = 3.5;
-      maxPx = 48;
+      minPx = 24;
+      preferredVw = 3.6;
+      maxPx = 50;
     } else if (len > 60) {
-      minPx = 26;
-      preferredVw = 4.2;
-      maxPx = 58;
+      minPx = 28;
+      preferredVw = 4.4;
+      maxPx = 60;
     } else {
-      minPx = 30;
-      preferredVw = 5.2;
-      maxPx = 72;
+      minPx = 32;
+      preferredVw = 5.4;
+      maxPx = 74;
     }
 
     const multipliers = [0.85, 1.0, 1.15, 1.3];
@@ -614,7 +649,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     return {
       fontSize: `clamp(${finalMin}px, ${finalVw}vw, ${finalMax}px)`,
-      lineHeight: len > 180 ? 1.85 : 2.05,
+      lineHeight: len > 180 ? 1.9 : 2.1,
     };
   };
 
@@ -649,13 +684,37 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }
       }}
     >
-      {/* Ambient background soft light glows for cinema feel */}
+      {/* ========================================================
+          SACRED ISLAMIC GEOMETRIC ARABESQUE WATERMARK OVERLAY
+         ======================================================== */}
+      <div className="absolute inset-0 opacity-[0.035] pointer-events-none bg-[radial-gradient(#F59E0B_1px,transparent_1px)] [background-size:24px_24px]" />
+      <svg
+        className="absolute inset-0 w-full h-full opacity-[0.035] pointer-events-none"
+        xmlns="http://www.w3.org/2000/svg"
+        width="100%"
+        height="100%"
+      >
+        <defs>
+          <pattern id="islamic-arabesque-stars" width="70" height="70" patternUnits="userSpaceOnUse">
+            <path
+              d="M35 0 L43 23 L67 23 L48 37 L55 60 L35 46 L15 60 L22 37 L3 23 L27 23 Z"
+              fill="none"
+              stroke="#F59E0B"
+              strokeWidth="0.8"
+            />
+            <circle cx="35" cy="35" r="14" fill="none" stroke="#F59E0B" strokeWidth="0.5" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#islamic-arabesque-stars)" />
+      </svg>
+
+      {/* Atmospheric breathing aura lights */}
       <div
-        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-700"
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[750px] h-[550px] rounded-full blur-[150px] pointer-events-none transition-all duration-700 animate-pulse"
         style={{ backgroundColor: currentTheme.glow1 }}
       />
       <div
-        className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full blur-[120px] pointer-events-none transition-all duration-700"
+        className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full blur-[130px] pointer-events-none transition-all duration-700"
         style={{ backgroundColor: currentTheme.glow2 }}
       />
 
@@ -663,15 +722,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           TOP CINEMATIC HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <header
-        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
+        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-xl ${
           isHudVisible
-            ? 'opacity-100 translate-y-0 shadow-lg'
+            ? 'opacity-100 translate-y-0 shadow-[0_10px_35px_rgba(0,0,0,0.5)]'
             : 'opacity-0 -translate-y-full pointer-events-none'
         } ${currentTheme.hudBg} border-b`}
       >
         {/* Left: Surah Information */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/10 text-amber-300 border border-white/20 flex items-center justify-center font-bold text-sm">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400/25 to-amber-500/10 text-amber-300 border border-amber-400/35 flex items-center justify-center font-bold text-sm shadow-sm select-none">
             {currentSurahMeta.number}
           </div>
           <div>
@@ -682,19 +741,30 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               <span className="text-xs text-amber-300 font-bold hidden sm:inline">
                 ({currentSurahMeta.frenchTranslation})
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-neutral-300 uppercase tracking-widest text-[9px] font-bold">
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/10 text-neutral-300 uppercase tracking-widest text-[9px] font-bold border border-white/10">
                 {currentSurahMeta.revelationType === 'Meccan' ? 'Mecquoise' : 'Médinoise'}
               </span>
             </div>
-            <p className="text-xs text-neutral-400">
-              Verset {currentAyah?.num || 1} sur {currentSurahMeta.numberOfAyahs} • Récitateur :{' '}
-              <span className="text-amber-200 font-semibold">{selectedReciter.name}</span>
-            </p>
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span>
+                Verset {currentAyah?.num || 1} sur {currentSurahMeta.numberOfAyahs} • Récitateur :{' '}
+                <span className="text-amber-200 font-semibold">{selectedReciter.name}</span>
+              </span>
+              {/* Dynamic Soundwave indicator if playing */}
+              {isPlayingAudio && (
+                <div className="flex items-center gap-0.5 h-3 ml-1" title="Récitation en cours">
+                  <span className="w-0.5 bg-amber-400 rounded-full animate-soundwave-1" />
+                  <span className="w-0.5 bg-amber-400 rounded-full animate-soundwave-2" />
+                  <span className="w-0.5 bg-amber-400 rounded-full animate-soundwave-3" />
+                  <span className="w-0.5 bg-amber-400 rounded-full animate-soundwave-4" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Center: Reciter Switcher Pill */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 text-xs">
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/45 border border-white/15 text-xs backdrop-blur-md shadow-inner">
           <span className="text-neutral-400 font-semibold text-[11px]">Récitation :</span>
           <select
             value={selectedReciter.id}
@@ -715,12 +785,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         {/* Right: Quick Options (Theme, Tajweed, Video, Font Size, Exit) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Display Mode: Focus vs Continuous */}
-          <div className="hidden sm:flex items-center p-1 bg-black/40 rounded-xl border border-white/10 text-xs">
+          <div className="hidden sm:flex items-center p-1 bg-black/45 rounded-xl border border-white/12 text-xs backdrop-blur-md">
             <button
               onClick={() => setDisplayMode('focus')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                 displayMode === 'focus'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                  ? 'bg-amber-400 text-neutral-950 shadow-md font-black'
                   : 'text-neutral-300 hover:text-white'
               }`}
               title="Un verset géant centré à la fois"
@@ -731,7 +801,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               onClick={() => setDisplayMode('continuous')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                 displayMode === 'continuous'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                  ? 'bg-amber-400 text-neutral-950 shadow-md font-black'
                   : 'text-neutral-300 hover:text-white'
               }`}
               title="Défilement continu des versets"
@@ -741,17 +811,17 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </div>
 
           {/* Tajweed Toggle & Guide Button */}
-          <div className="flex items-center bg-black/40 rounded-xl border border-white/15 p-0.5">
+          <div className="flex items-center bg-black/45 rounded-xl border border-white/15 p-0.5 backdrop-blur-md">
             <button
               onClick={handleToggleTajweed}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 isTajweedEnabled
-                  ? 'bg-gradient-to-r from-emerald-500/30 to-amber-500/30 text-amber-300 border border-amber-400/30'
+                  ? 'bg-gradient-to-r from-emerald-500/30 to-amber-500/30 text-amber-300 border border-amber-400/40 shadow-xs'
                   : 'text-neutral-400 hover:text-white'
               }`}
               title="Activer/Désactiver le coloriage Tajweed des lettres"
             >
-              <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-emerald-400 to-amber-400 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-emerald-400 to-amber-400 inline-block shadow-xs" />
               <span>Tajweed</span>
             </button>
             <button
@@ -772,7 +842,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               e.stopPropagation();
               setIsVideoRecorderOpen(true);
             }}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-400/20 to-amber-500/30 hover:from-amber-400/30 hover:to-amber-500/40 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-amber-400/30 shadow-xs"
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-400/20 via-amber-400/25 to-amber-500/30 hover:from-amber-400/30 hover:to-amber-500/40 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-amber-400/35 shadow-xs"
             title="Enregistrer et exporter en vidéo avec le son et le logo officiel Le Sanctuaire"
           >
             <Video className="w-3.5 h-3.5 text-amber-400" />
@@ -819,7 +889,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                         onClick={() => handleSelectTheme(t.id)}
                         className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs font-bold transition cursor-pointer ${
                           isSelected
-                            ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                            ? 'bg-amber-400 text-neutral-950 shadow-sm font-black'
                             : 'hover:bg-white/10 text-neutral-200'
                         }`}
                       >
@@ -863,75 +933,108 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
       {/* ========================================================
           CENTER CONTENT: CINEMATIC READING CANVAS
-          Adapted with fluid auto-scaling so that NOTHING overflows or clips
+          Adapted with fluid auto-scaling and sacred illumination frame
          ======================================================== */}
       <main className="relative z-10 flex-1 w-full overflow-y-auto px-4 sm:px-8 md:px-14 py-4 md:py-6 flex flex-col justify-center items-center no-scrollbar">
         {displayMode === 'focus' ? (
           /* ========================================================
-             1. FOCUS MODE: SINGLE GIANT HERO VERSE
+             1. FOCUS MODE: SACRED ILLUMINATED ARCH MIHRAB
              ======================================================== */
-          <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center text-center space-y-4 sm:space-y-6 my-auto max-h-full py-2">
-            {/* Surah Bismillah Banner on first verse (except At-Tawbah) */}
-            {currentSurahMeta.number !== 9 && currentAyah?.num === 1 && (
-              <div className="text-amber-200/80 font-arabic text-xl sm:text-2xl md:text-3xl tracking-wide select-none">
-                بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
-              </div>
-            )}
+          <div className="relative w-full max-w-4xl mx-auto flex flex-col items-center justify-center text-center my-auto min-h-[360px] sm:min-h-[460px] md:min-h-[520px] py-4 px-3 sm:px-6">
+            {/* Atmospheric Mihrab Inner Glass Frame */}
+            <div className="absolute inset-0 -z-10 rounded-[36px] bg-gradient-to-b from-amber-400/[0.04] via-transparent to-amber-500/[0.02] border border-amber-400/15 backdrop-blur-[4px] shadow-[0_20px_60px_-15px_rgba(0,0,0,0.7)] pointer-events-none" />
 
-            {/* Compact Verse Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-[11px] sm:text-xs text-amber-300 font-mono font-bold tracking-wider select-none">
-              <span>Sourate {currentSurahMeta.name}</span>
-              <span className="opacity-40">•</span>
-              <span>Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}</span>
+            {/* Sacred Arch Apex Decorative Accent */}
+            <div className="flex items-center gap-3 text-amber-400/50 select-none pt-1 mb-3">
+              <div className="h-px w-10 sm:w-20 bg-gradient-to-r from-transparent via-amber-400/40 to-amber-400/70" />
+              <span className="text-amber-300 text-sm font-serif">۞</span>
+              <div className="h-px w-10 sm:w-20 bg-gradient-to-l from-transparent via-amber-400/40 to-amber-400/70" />
             </div>
 
-            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (No trailing raw numbers) */}
-            <div
-              dir="rtl"
-              className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-300 px-2 sm:px-4 break-words [word-break:keep-all]`}
-              style={{
-                fontFamily: "'Amiri', 'Traditional Arabic', serif",
-                ...getDynamicArabicStyle(currentAyah?.ar || ''),
-              }}
-            >
-              <TajweedText text={currentAyah?.ar || ''} enabled={isTajweedEnabled} />
-              {/* Clean traditional Ayah ornament separator WITHOUT numbers */}
-              <span className="inline-block text-amber-400/90 mx-2 text-2xl md:text-3xl align-middle select-none">
-                ۝
-              </span>
+            {/* Stabilized Verse Animation Stage with Smooth Cross-Dissolve */}
+            <div className="w-full flex-1 flex flex-col items-center justify-center relative min-h-[260px] sm:min-h-[340px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={`focus-ayah-${currentSurahMeta.number}-${currentAyah?.num || 1}`}
+                  initial={{ opacity: 0, y: 14, filter: 'blur(8px)', scale: 0.985 }}
+                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)', scale: 1 }}
+                  exit={{ opacity: 0, y: -14, filter: 'blur(8px)', scale: 0.985 }}
+                  transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full flex flex-col items-center justify-center text-center space-y-4 sm:space-y-6"
+                >
+                  {/* Bismillah Cartouche on first verse (except At-Tawbah) */}
+                  {currentSurahMeta.number !== 9 && currentAyah?.num === 1 && (
+                    <div className="inline-flex items-center justify-center px-6 py-2 rounded-2xl bg-amber-400/10 border border-amber-400/25 shadow-[0_0_20px_rgba(251,191,36,0.12)] select-none">
+                      <span className="text-amber-200 font-arabic text-2xl sm:text-3xl md:text-4xl tracking-wide drop-shadow-[0_2px_12px_rgba(251,191,36,0.35)]">
+                        بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Compact Sacred Verse Badge */}
+                  <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-white/[0.06] border border-white/20 text-[11px] sm:text-xs text-amber-300 font-mono font-bold tracking-wider shadow-sm backdrop-blur-md select-none">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    <span>Sourate {currentSurahMeta.name}</span>
+                    <span className="opacity-40">•</span>
+                    <span>Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}</span>
+                  </div>
+
+                  {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING & RADIANT GLOW */}
+                  <div
+                    dir="rtl"
+                    className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-300 px-3 sm:px-6 break-words [word-break:keep-all] select-text drop-shadow-[0_4px_18px_rgba(0,0,0,0.85)]`}
+                    style={{
+                      fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                      ...getDynamicArabicStyle(currentAyah?.ar || ''),
+                    }}
+                  >
+                    <TajweedText text={currentAyah?.ar || ''} enabled={isTajweedEnabled} />
+                    {/* Clean traditional Ayah ornament separator WITHOUT numbers */}
+                    <span className="inline-flex items-center justify-center mx-2.5 my-1 align-middle text-amber-400 text-2xl md:text-3xl select-none drop-shadow-[0_0_12px_rgba(245,158,11,0.6)]">
+                      ۝
+                    </span>
+                  </div>
+
+                  {/* Glassmorphic French Translation & Phonetics Showcase Card */}
+                  {(showPhonetics || showTranslation) && (
+                    <div className="w-full max-w-3xl space-y-3 p-4 sm:p-5 rounded-2xl bg-white/[0.04] border border-white/12 shadow-[0_10px_35px_rgba(0,0,0,0.4)] backdrop-blur-md max-h-[32vh] overflow-y-auto no-scrollbar text-center">
+                      {showPhonetics && currentAyah?.tr && (
+                        <p
+                          className={`italic font-serif ${currentTheme.textTr} leading-relaxed tracking-wide`}
+                          style={getDynamicTranslationStyle(currentAyah.tr.length)}
+                        >
+                          « {currentAyah.tr} »
+                        </p>
+                      )}
+
+                      {showTranslation && currentAyah?.fr && (
+                        <p
+                          className={`font-medium ${currentTheme.textFr} leading-relaxed sm:leading-loose text-neutral-100`}
+                          style={getDynamicTranslationStyle(currentAyah.fr.length)}
+                        >
+                          {currentAyah.fr}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
-            {/* Phonetics & French Translation - Proportional & scroll-safe */}
-            {(showPhonetics || showTranslation) && (
-              <div className="w-full max-w-3xl space-y-2.5 pt-3 sm:pt-4 border-t border-white/10 max-h-[32vh] overflow-y-auto no-scrollbar px-2">
-                {showPhonetics && currentAyah?.tr && (
-                  <p
-                    className={`italic font-serif ${currentTheme.textTr} leading-relaxed`}
-                    style={getDynamicTranslationStyle(currentAyah.tr.length)}
-                  >
-                    « {currentAyah.tr} »
-                  </p>
-                )}
-
-                {showTranslation && currentAyah?.fr && (
-                  <p
-                    className={`font-medium ${currentTheme.textFr} leading-relaxed`}
-                    style={getDynamicTranslationStyle(currentAyah.fr.length)}
-                  >
-                    {currentAyah.fr}
-                  </p>
-                )}
-              </div>
-            )}
+            {/* Sacred Bottom Accent */}
+            <div className="flex items-center gap-3 text-amber-400/40 select-none pt-3 pb-1">
+              <div className="h-px w-8 sm:w-16 bg-gradient-to-r from-transparent via-amber-400/30 to-amber-400/50" />
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400/50" />
+              <div className="h-px w-8 sm:w-16 bg-gradient-to-l from-transparent via-amber-400/30 to-amber-400/50" />
+            </div>
 
             {/* ========================================================
-                SIDE CHEVRONS (AUTOHIDE WHEN PLAYING AUDIO)
-                "et aussi les deux crochet suivant et precedant"
+                LUMINOUS SIDE NAVIGATION LENSES (AUTOHIDE WHEN PLAYING AUDIO)
                ======================================================== */}
             <button
               onClick={handlePrevVerse}
               disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
-              className={`fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+              className={`fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/45 hover:bg-black/75 text-amber-200/80 hover:text-amber-300 border border-amber-400/30 hover:border-amber-400/70 shadow-[0_8px_25px_rgba(0,0,0,0.5)] transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-md hover:shadow-[0_0_25px_rgba(251,191,36,0.3)] ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
               }`}
               title="Verset précédent (Flèche Gauche)"
@@ -942,7 +1045,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <button
               onClick={handleNextVerse}
               disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
-              className={`fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+              className={`fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-black/45 hover:bg-black/75 text-amber-200/80 hover:text-amber-300 border border-amber-400/30 hover:border-amber-400/70 shadow-[0_8px_25px_rgba(0,0,0,0.5)] transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-md hover:shadow-[0_0_25px_rgba(251,191,36,0.3)] ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
               }`}
               title="Verset suivant (Flèche Droite)"
@@ -952,11 +1055,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </div>
         ) : (
           /* ========================================================
-             2. CONTINUOUS SCROLL MODE: ALL VERSES IN GIANT TYPE
+             2. CONTINUOUS SCROLL MODE: ALL VERSES IN GIANT ILLUMINATED TYPE
              ======================================================== */
           <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-8 py-8">
             {currentSurahMeta.number !== 9 && (
-              <div className="text-center text-amber-200/80 font-arabic text-2xl sm:text-3xl pb-4">
+              <div className="text-center text-amber-200/90 font-arabic text-2xl sm:text-3xl pb-4 drop-shadow-[0_2px_12px_rgba(251,191,36,0.3)]">
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
               </div>
             )}
@@ -971,14 +1074,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     setCurrentAyahIndex(idx);
                     if (isPlayingAudio) playVerseAudio(idx);
                   }}
-                  className={`p-5 sm:p-7 rounded-3xl transition-all duration-300 cursor-pointer ${
+                  className={`p-6 sm:p-8 rounded-3xl transition-all duration-300 cursor-pointer ${
                     isCurrent
-                      ? `${currentTheme.cardBg} ${currentTheme.activeBorder} scale-[1.01]`
-                      : 'hover:bg-white/5 border border-transparent'
+                      ? `${currentTheme.cardBg} ${currentTheme.activeBorder} scale-[1.01] shadow-[0_15px_40px_rgba(0,0,0,0.45)]`
+                      : 'hover:bg-white/5 border border-white/5'
                   }`}
                 >
                   <div className="flex items-center justify-between pb-3">
-                    <span className="w-7 h-7 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-mono font-bold text-xs">
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400/25 to-amber-500/10 text-amber-300 border border-amber-400/30 flex items-center justify-center font-mono font-bold text-xs shadow-xs">
                       {ayah.num}
                     </span>
                     <button
@@ -987,7 +1090,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                         setCurrentAyahIndex(idx);
                         playVerseAudio(idx);
                       }}
-                      className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white transition"
+                      className="p-2.5 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white transition shadow-sm"
                       title="Écouter ce verset"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
@@ -997,20 +1100,20 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   {/* Clean Arabic verse with Tajweed coloring */}
                   <div
                     dir="rtl"
-                    className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
+                    className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all] drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)]`}
                     style={{
                       fontFamily: "'Amiri', 'Traditional Arabic', serif",
                       ...getDynamicArabicStyle(ayah.ar),
                     }}
                   >
                     <TajweedText text={ayah.ar} enabled={isTajweedEnabled} />
-                    <span className="inline-block text-amber-400/90 mx-2 text-xl md:text-2xl align-middle select-none">
+                    <span className="inline-flex items-center justify-center mx-2 text-amber-400 text-xl md:text-2xl align-middle select-none drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]">
                       ۝
                     </span>
                   </div>
 
                   {(showPhonetics || showTranslation) && (
-                    <div className="pt-3 space-y-1.5 border-t border-white/10 mt-3 text-left">
+                    <div className="pt-3.5 space-y-2 border-t border-white/10 mt-3 text-left">
                       {showPhonetics && ayah.tr && (
                         <p
                           className={`italic ${currentTheme.textTr} leading-relaxed`}
@@ -1040,9 +1143,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           BOTTOM CINEMATIC FLOATING HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <footer
-        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-md ${
+        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-xl ${
           isHudVisible
-            ? 'opacity-100 translate-y-0 shadow-lg'
+            ? 'opacity-100 translate-y-0 shadow-[0_-10px_35px_rgba(0,0,0,0.5)]'
             : 'opacity-0 translate-y-full pointer-events-none'
         } ${currentTheme.hudBg} border-t`}
       >
@@ -1083,9 +1186,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <SkipBack className="w-4 h-4" />
           </button>
 
+          {/* Luminous Pulsating Play Button */}
           <button
             onClick={togglePlayAudio}
-            className="p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black shadow-lg transition active:scale-95 cursor-pointer"
+            className={`p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black shadow-xl transition-all duration-300 active:scale-95 cursor-pointer border border-amber-200/50 ${
+              isPlayingAudio
+                ? 'shadow-[0_0_35px_rgba(251,191,36,0.65)] ring-4 ring-amber-400/30'
+                : 'hover:shadow-[0_0_25px_rgba(251,191,36,0.45)]'
+            }`}
             title={isPlayingAudio ? 'Mettre en pause la récitation (Espace)' : 'Écouter la récitation (Espace)'}
           >
             {isPlayingAudio ? (
@@ -1110,7 +1218,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             onClick={() => setShowTranslation((v) => !v)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               showTranslation
-                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm font-black'
                 : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
             }`}
             title="Afficher/Masquer la traduction française (Touche T)"
@@ -1122,7 +1230,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             onClick={() => setShowPhonetics((v) => !v)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               showPhonetics
-                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm font-black'
                 : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
             }`}
             title="Afficher/Masquer la phonétique (Touche P)"

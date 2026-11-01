@@ -237,7 +237,11 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
           return (
             <span
               key={index}
-              style={{ color: '#F87171', fontWeight: 600 }}
+              style={{
+                color: '#FF6B6B',
+                fontWeight: 600,
+                textShadow: '0 0 14px rgba(255, 107, 107, 0.45)',
+              }}
               title="Madd : Prolongation 4 à 6 temps"
             >
               {token.text}
@@ -248,7 +252,11 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
           return (
             <span
               key={index}
-              style={{ color: '#34D399', fontWeight: 600 }}
+              style={{
+                color: '#34D399',
+                fontWeight: 600,
+                textShadow: '0 0 14px rgba(52, 211, 153, 0.45)',
+              }}
               title="Ghunnah : Nasalisation 2 temps"
             >
               {token.text}
@@ -259,7 +267,11 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
           return (
             <span
               key={index}
-              style={{ color: '#38BDF8', fontWeight: 600 }}
+              style={{
+                color: '#38BDF8',
+                fontWeight: 600,
+                textShadow: '0 0 14px rgba(56, 189, 248, 0.45)',
+              }}
               title="Qalqalah : Rebond sonore sur lettre avec sukoon"
             >
               {token.text}
@@ -270,7 +282,11 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
           return (
             <span
               key={index}
-              style={{ color: '#FBBF24', fontWeight: 600 }}
+              style={{
+                color: '#FBBF24',
+                fontWeight: 600,
+                textShadow: '0 0 14px rgba(251, 191, 36, 0.45)',
+              }}
               title="Tafkhîm : Lettre emphatique prononcée pleine bouche"
             >
               {token.text}
@@ -281,7 +297,7 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
           return (
             <span
               key={index}
-              style={{ opacity: 0.55, color: '#94A3B8' }}
+              style={{ opacity: 0.5, color: '#94A3B8' }}
               title="Lettre muette / assimilée"
             >
               {token.text}
