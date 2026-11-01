@@ -3,20 +3,16 @@ import {
   X,
   Video,
   Download,
-  Play,
-  Pause,
   Sparkles,
   ShieldCheck,
   Check,
   Smartphone,
   Tv,
   Square,
-  RefreshCw,
   Loader2,
   Film,
   Camera,
   Layers,
-  Volume2,
 } from 'lucide-react';
 import { Reciter } from '../types';
 import { CINEMATIC_THEMES, CinematicThemeId } from './QuranCinematicReader';
@@ -66,7 +62,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
   // Recording pipeline states
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingProgress, setRecordingProgress] = useState<number>(0);
-  const [currentRecordingAyah, setCurrentRecordingAyah] = useState<number>(fromAyah);
+  const [_currentRecordingAyah, setCurrentRecordingAyah] = useState<number>(fromAyah);
   const [recordingStatusText, setRecordingStatusText] = useState<string>('');
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [generatedBlob, setGeneratedBlob] = useState<Blob | null>(null);
@@ -148,120 +144,135 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
   };
 
   // =========================================================================
-  // CANVAS DRAWING ENGINE: Renders a single frame for an ayah
+  // 1. BASE SCENE (Background, ambient light, card frame, official watermark)
   // =========================================================================
-  const drawFrame = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    ayah: { num: number; ar: string; tr: string; fr: string },
-    audioProgress: number,
-    analyserData?: Uint8Array
-  ) => {
-    // 1. Theme Background
+  const drawBaseScene = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.save();
+
+    // Radial gradient background
     const bgGrad = ctx.createRadialGradient(
       width / 2,
       height * 0.35,
-      width * 0.1,
+      width * 0.05,
       width / 2,
       height / 2,
-      width * 0.8
+      width * 0.85
     );
     bgGrad.addColorStop(0, currentTheme.swatch);
-    bgGrad.addColorStop(0.65, '#050c08');
+    bgGrad.addColorStop(0.65, '#050e09');
     bgGrad.addColorStop(1, '#000000');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Ambient Soft Glows
+    // Ambient soft glow
     const glowGrad = ctx.createRadialGradient(
       width / 2,
-      height * 0.3,
+      height * 0.32,
       20,
       width / 2,
-      height * 0.3,
-      width * 0.45
+      height * 0.32,
+      width * 0.48
     );
-    glowGrad.addColorStop(0, currentTheme.glow1.replace(/[\d\.]+\)$/, '0.22)'));
+    glowGrad.addColorStop(0, currentTheme.glow1.replace(/[\d\.]+\)$/, '0.25)'));
     glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glowGrad;
     ctx.fillRect(0, 0, width, height);
 
-    // 3. Official Authentication Watermark Badge (Le Sanctuaire)
+    // Official Authentication Watermark Badge (Le Sanctuaire) - Frameless, clean top-right pill
     if (includeWatermark) {
-      const padX = width * 0.06;
-      const padY = height * 0.05;
+      const isPortrait = aspectRatio === 'story';
+      const badgeW = isPortrait ? 300 : 360;
+      const badgeH = 40;
+      const badgeX = width - badgeW - 32;
+      const badgeY = 28;
 
-      // Badge Container Pill
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
-      ctx.lineWidth = 2;
-      const badgeW = width > 1200 ? 460 : 380;
-      const badgeH = 54;
-      const badgeX = width - padX - badgeW;
-      const badgeY = padY;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 1;
 
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 27);
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 20);
       ctx.fill();
       ctx.stroke();
 
-      // Golden Moon Emblem & Le Sanctuaire Branding
-      ctx.font = 'bold 22px sans-serif';
+      ctx.font = 'bold 15px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#FCD34D';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText('☪ Le Sanctuaire', badgeX + 22, badgeY + badgeH / 2);
+      ctx.fillText('☪ Le Sanctuaire', badgeX + 16, badgeY + badgeH / 2);
 
-      ctx.font = 'normal 15px sans-serif';
+      ctx.font = 'normal 12px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#A7F3D0';
-      ctx.fillText('• Récitation Authentifiée', badgeX + 175, badgeY + badgeH / 2);
+      ctx.fillText('• Récitation Authentifiée', badgeX + 146, badgeY + badgeH / 2);
     }
 
-    // 4. Surah & Reciter Header
-    const topY = height * 0.12;
+    ctx.restore();
+  };
+
+  // =========================================================================
+  // 2. AYAH ELEMENTS (Pure Frameless Typography matching Image 2)
+  // Renders with opacity and vertical offset for silky smooth crossfading!
+  // =========================================================================
+  const drawAyahElements = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    ayah: { num: number; ar: string; tr: string; fr: string },
+    opacity: number,
+    offsetY: number = 0
+  ) => {
+    if (opacity <= 0.005) return;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+    ctx.translate(0, offsetY);
+
+    // Stable anchor coordinates
+    const isPortrait = aspectRatio === 'story';
+    const topZoneY = isPortrait ? height * 0.14 : height * 0.13;
+
+    // Top Verse Pill: Sourate [Name] • Verset [X] / [Y] (matching Image 2)
+    const pillY = topZoneY;
+    const pillW = isPortrait ? 340 : 400;
+    const pillH = 38;
+    const pillX = (width - pillW) / 2;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(pillX, pillY, pillW, pillH, 19);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.font = '500 15px "Plus Jakarta Sans", monospace, sans-serif';
+    ctx.fillStyle = '#FCD34D';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fillText(
+      `Sourate ${surahName}  •  Verset ${ayah.num} / ${totalAyahs}`,
+      width / 2,
+      pillY + pillH / 2
+    );
 
-    // Surah badge
-    ctx.font = 'bold 28px sans-serif';
-    ctx.fillStyle = '#FCD34D';
-    ctx.fillText(`Sourate ${surahName} (${surahNum}) • Verset ${ayah.num}`, width / 2, topY);
-
-    ctx.font = 'normal 20px sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-    ctx.fillText(`Récitateur : ${selectedReciter.name}`, width / 2, topY + 36);
-
-    // Bismillah if Ayah 1 (except At-Tawbah)
-    let currentY = topY + 90;
-    if (surahNum !== 9 && ayah.num === 1) {
-      ctx.font = '36px "Amiri", serif';
-      ctx.fillStyle = '#FDE68A';
-      ctx.fillText('بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ', width / 2, currentY);
-      currentY += 60;
-    }
-
-    // 5. Arabic Verse Text (with or without Tajweed colors)
-    const arabicMaxWidth = width * 0.88;
-    const arabicFontSize =
-      aspectRatio === 'story'
-        ? ayah.ar.length > 250
-          ? 38
-          : ayah.ar.length > 120
-            ? 48
-            : 60
-        : ayah.ar.length > 250
+    // Giant Arabic Verse with Tajweed Colors (Borderless, pure calligraphy)
+    const arabicMaxWidth = width * 0.86;
+    const arabicFontSize = isPortrait
+      ? ayah.ar.length > 250
+        ? 34
+        : ayah.ar.length > 130
           ? 44
-          : ayah.ar.length > 120
-            ? 56
-            : 70;
+          : 54
+      : ayah.ar.length > 250
+        ? 40
+        : ayah.ar.length > 130
+          ? 50
+          : 62;
 
     ctx.font = `${arabicFontSize}px "Amiri", "Traditional Arabic", serif`;
     ctx.direction = 'rtl';
     ctx.textAlign = 'center';
 
-    // Wrap Arabic text into lines
     const words = ayah.ar.split(' ');
     const lines: string[] = [];
     let currentLine = '';
@@ -280,32 +291,32 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
     const lineHeight = arabicFontSize * 2.0;
     const totalArabicHeight = lines.length * lineHeight;
-    currentY = Math.max(currentY + 20, (height * 0.45) - (totalArabicHeight / 2));
 
-    // Render Arabic lines
+    // Center anchor for Arabic verse
+    const arabicCenterAnchorY = isPortrait ? height * 0.43 : height * 0.44;
+    const startArabicY = arabicCenterAnchorY - totalArabicHeight / 2;
+
     lines.forEach((line, idx) => {
-      const lineY = currentY + idx * lineHeight;
+      const lineY = startArabicY + idx * lineHeight;
 
       if (!includeTajweed) {
         ctx.fillStyle = '#FEF3C7';
         ctx.fillText(line, width / 2, lineY);
       } else {
-        // Render with Tajweed colors per token
         const tokens = parseTajweedTokens(line);
         let totalLineWidth = 0;
         tokens.forEach((t) => {
           totalLineWidth += ctx.measureText(t.text).width;
         });
 
-        // Start from left bound in RTL centered calculation
         let startX = width / 2 + totalLineWidth / 2;
         ctx.textAlign = 'right';
 
         tokens.forEach((token) => {
-          if (token.type === 'madd') ctx.fillStyle = '#F87171'; // Coral Red
-          else if (token.type === 'ghunnah') ctx.fillStyle = '#34D399'; // Emerald
-          else if (token.type === 'qalqalah') ctx.fillStyle = '#38BDF8'; // Sky Blue
-          else if (token.type === 'tafkhim') ctx.fillStyle = '#FBBF24'; // Amber Gold
+          if (token.type === 'madd') ctx.fillStyle = '#F87171';
+          else if (token.type === 'ghunnah') ctx.fillStyle = '#34D399';
+          else if (token.type === 'qalqalah') ctx.fillStyle = '#38BDF8';
+          else if (token.type === 'tafkhim') ctx.fillStyle = '#FBBF24';
           else if (token.type === 'silent') ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
           else ctx.fillStyle = '#FEF3C7';
 
@@ -317,37 +328,66 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       }
     });
 
-    // Clean Ayah end ornament symbol without raw numbers
-    const ornamentY = currentY + totalArabicHeight + 15;
-    ctx.font = '36px "Amiri", serif';
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
-    ctx.fillText('۝', width / 2, ornamentY);
+    // Subtle thin single horizontal divider line (matching Image 2)
+    const lineY = isPortrait ? height * 0.64 : height * 0.66;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(width * 0.12, lineY);
+    ctx.lineTo(width * 0.88, lineY);
+    ctx.stroke();
 
-    // 6. French Translation & Phonetics
+    // French Translation: Pure clean white typography without any box (matching Image 2)
     ctx.direction = 'ltr';
-    let subY = ornamentY + 50;
-
-    if (includePhonetics && ayah.tr) {
-      ctx.font = 'italic 22px Georgia, serif';
-      ctx.fillStyle = currentTheme.textTr.includes('emerald')
-        ? '#6EE7B7'
-        : currentTheme.textTr.includes('sky')
-          ? '#7DD3FC'
-          : '#FCD34D';
-      const maxTransW = width * 0.85;
-      wrapAndDrawText(ctx, `« ${ayah.tr} »`, width / 2, subY, maxTransW, 34);
-      subY += 45;
-    }
-
     if (includeTranslation && ayah.fr) {
-      ctx.font = '500 24px "Plus Jakarta Sans", sans-serif';
+      const transFontSize = isPortrait ? 22 : 24;
+      ctx.font = `normal ${transFontSize}px "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif`;
+
+      const tWords = ayah.fr.split(' ');
+      const tLines: string[] = [];
+      let tLine = '';
+      const textMaxW = width * 0.80;
+
+      for (let n = 0; n < tWords.length; n++) {
+        const testT = tLine ? `${tLine} ${tWords[n]}` : tWords[n];
+        if (ctx.measureText(testT).width > textMaxW && n > 0) {
+          tLines.push(tLine);
+          tLine = tWords[n];
+        } else {
+          tLine = testT;
+        }
+      }
+      if (tLine) tLines.push(tLine);
+
+      const tLineHeight = transFontSize * 1.55;
+      const transStartY = lineY + 28;
+
       ctx.fillStyle = '#FFFFFF';
-      const maxTransW = width * 0.85;
-      wrapAndDrawText(ctx, ayah.fr, width / 2, subY, maxTransW, 36);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+
+      tLines.forEach((tl, i) => {
+        ctx.fillText(tl, width / 2, transStartY + i * tLineHeight);
+      });
     }
 
-    // 7. Dynamic Audio Visualizer Waveform at the Bottom
+    ctx.restore();
+  };
+
+  // =========================================================================
+  // 3. BOTTOM BAR (Waveform + Progress Bar)
+  // =========================================================================
+  const drawBottomBar = (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    audioProgress: number,
+    analyserData?: Uint8Array
+  ) => {
+    ctx.save();
     const bottomBarY = height - 90;
+
+    // Soundwave visualization
     if (analyserData && analyserData.length > 0) {
       const barsCount = 36;
       const barWidth = 6;
@@ -358,7 +398,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       ctx.fillStyle = currentTheme.accent;
       for (let b = 0; b < barsCount; b++) {
         const val = analyserData[b * 2] || 0;
-        const barHeight = Math.max(6, (val / 255) * 45);
+        const barHeight = Math.max(6, (val / 255) * 44);
         ctx.fillRect(
           waveStartX + b * (barWidth + spacing),
           bottomBarY - barHeight / 2,
@@ -368,10 +408,10 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       }
     }
 
-    // 8. Progress indicator bar
+    // Audio progress bar
     const progW = width * 0.7;
     const progX = (width - progW) / 2;
-    const progY = height - 35;
+    const progY = height - 38;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.beginPath();
     ctx.roundRect(progX, progY, progW, 6, 3);
@@ -385,33 +425,89 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
     ctx.restore();
   };
 
-  const wrapAndDrawText = (
+  // =========================================================================
+  // 4. CROSSFADE TRANSITION ANIMATOR (Silky smooth, non-abrupt transition!)
+  // =========================================================================
+  const animateCrossfadeTransition = async (
     ctx: CanvasRenderingContext2D,
-    text: string,
-    x: number,
-    y: number,
-    maxWidth: number,
-    lineHeight: number
+    width: number,
+    height: number,
+    outgoingAyah: { num: number; ar: string; tr: string; fr: string },
+    incomingAyah: { num: number; ar: string; tr: string; fr: string },
+    durationMs: number = 750
   ) => {
-    const words = text.split(' ');
-    let line = '';
-    let currY = y;
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && n > 0) {
-        ctx.fillText(line.trim(), x, currY);
-        line = words[n] + ' ';
-        currY += lineHeight;
-      } else {
-        line = testLine;
-      }
-    }
-    ctx.fillText(line.trim(), x, currY);
+    const startTime = performance.now();
+
+    await new Promise<void>((resolve) => {
+      const step = (now: number) => {
+        if (isCancelledRef.current) {
+          resolve();
+          return;
+        }
+
+        const elapsed = now - startTime;
+        const rawT = Math.min(1, elapsed / durationMs);
+        // Cosine easing for ultra-smooth optical acceleration and deceleration
+        const t = 0.5 - 0.5 * Math.cos(rawT * Math.PI);
+
+        // 1. Draw persistent base scene
+        drawBaseScene(ctx, width, height);
+
+        // 2. Outgoing verse gently fades out & floats upward
+        drawAyahElements(ctx, width, height, outgoingAyah, 1 - t, -16 * t);
+
+        // 3. Incoming verse gently fades in & rises from below
+        drawAyahElements(ctx, width, height, incomingAyah, t, 16 * (1 - t));
+
+        // 4. Clean bottom bar
+        drawBottomBar(ctx, width, height, 0, undefined);
+
+        if (rawT < 1) {
+          requestAnimationFrame(step);
+        } else {
+          resolve();
+        }
+      };
+
+      requestAnimationFrame(step);
+    });
+  };
+
+  // Fade-in at start of video
+  const animateVerseFadeIn = async (
+    ctx: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+    ayah: { num: number; ar: string; tr: string; fr: string },
+    durationMs: number = 450
+  ) => {
+    const startTime = performance.now();
+    await new Promise<void>((resolve) => {
+      const step = (now: number) => {
+        if (isCancelledRef.current) {
+          resolve();
+          return;
+        }
+        const elapsed = now - startTime;
+        const rawT = Math.min(1, elapsed / durationMs);
+        const t = 0.5 - 0.5 * Math.cos(rawT * Math.PI);
+
+        drawBaseScene(ctx, width, height);
+        drawAyahElements(ctx, width, height, ayah, t, 14 * (1 - t));
+        drawBottomBar(ctx, width, height, 0, undefined);
+
+        if (rawT < 1) {
+          requestAnimationFrame(step);
+        } else {
+          resolve();
+        }
+      };
+      requestAnimationFrame(step);
+    });
   };
 
   // =========================================================================
-  // VIDEO GENERATION / RECORDING PIPELINE
+  // 5. MAIN RECORDING PIPELINE
   // =========================================================================
   const handleStartRecording = async () => {
     if (isRecording) return;
@@ -447,7 +543,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       analyser.fftSize = 128;
       const freqData = new Uint8Array(analyser.frequencyBinCount);
 
-      // 2. Setup Canvas stream
+      // 2. Setup Canvas stream at 30 fps
       const canvasStream = canvas.captureStream(30);
 
       // Combine video track + audio track
@@ -457,7 +553,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       ];
       const combinedStream = new MediaStream(combinedTracks);
 
-      // 3. Setup MediaRecorder with best supported mimeType
+      // Best supported mimeType
       const mimeTypes = [
         'video/webm;codecs=vp9,opus',
         'video/webm;codecs=vp8,opus',
@@ -468,7 +564,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
       const recorder = new MediaRecorder(combinedStream, {
         mimeType: selectedMime || undefined,
-        videoBitsPerSecond: 3000000, // 3 Mbps for crisp 1080p
+        videoBitsPerSecond: 3500000,
       });
       mediaRecorderRef.current = recorder;
 
@@ -486,38 +582,41 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
           const url = URL.createObjectURL(blob);
           setGeneratedVideoUrl(url);
           setRecordingProgress(100);
-          setRecordingStatusText('Génération réussie ! Prêt au téléchargement.');
+          setRecordingStatusText('Génération réussie ! Prêt au visionnage.');
         }
         setIsRecording(false);
       };
 
       recorder.start();
 
-      // 4. Sequentially play and record each selected verse
       const totalVerses = selectedAyahs.length;
 
+      // Initial smooth fade-in before audio starts
+      await animateVerseFadeIn(ctx, width, height, selectedAyahs[0], 500);
+
+      // Loop through verses
       for (let idx = 0; idx < totalVerses; idx++) {
         if (isCancelledRef.current) break;
-        const ayah = selectedAyahs[idx];
-        setCurrentRecordingAyah(ayah.num);
+        const currentAyah = selectedAyahs[idx];
+        setCurrentRecordingAyah(currentAyah.num);
         setRecordingStatusText(
-          `Enregistrement du verset ${ayah.num} sur ${toAyah} (${idx + 1} / ${totalVerses})...`
+          `Récitation du verset ${currentAyah.num} sur ${toAyah} (${idx + 1} / ${totalVerses})...`
         );
 
         // Load verse audio
-        const audioUrl = getAyahAudioUrl(surahNum, ayah.num, selectedReciter.id);
+        const audioUrl = getAyahAudioUrl(surahNum, currentAyah.num, selectedReciter.id);
         const audio = new Audio();
         audio.crossOrigin = 'anonymous';
         audio.src = audioUrl;
         audioRef.current = audio;
 
-        // Connect audio to destination & analyser
+        // Connect audio node
         const sourceNode = audioCtx.createMediaElementSource(audio);
         sourceNode.connect(analyser);
         analyser.connect(audioDest);
-        sourceNode.connect(audioCtx.destination); // Let user hear preview while recording
+        sourceNode.connect(audioCtx.destination);
 
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
           let hasEnded = false;
 
           const renderLoop = () => {
@@ -532,7 +631,10 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
             );
             setRecordingProgress(overallProgress);
 
-            drawFrame(ctx, width, height, ayah, verseProgress, freqData);
+            drawBaseScene(ctx, width, height);
+            drawAyahElements(ctx, width, height, currentAyah, 1.0, 0);
+            drawBottomBar(ctx, width, height, verseProgress, freqData);
+
             animationFrameRef.current = requestAnimationFrame(renderLoop);
           };
 
@@ -549,25 +651,36 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
           audio.onerror = () => {
             hasEnded = true;
             sourceNode.disconnect();
-            // Continue even if one audio fails
             resolve();
           };
 
-          audio
-            .play()
-            .catch((err) => {
-              console.warn('Audio play error in video recorder:', err);
-              hasEnded = true;
-              sourceNode.disconnect();
-              resolve();
-            });
+          audio.play().catch(() => {
+            hasEnded = true;
+            sourceNode.disconnect();
+            resolve();
+          });
         });
 
-        // Small pause between verses
-        await new Promise((r) => setTimeout(r, 400));
+        if (isCancelledRef.current) break;
+
+        // =====================================================================
+        // SILKY SMOOTH CROSSFADE TRANSITION TO NEXT VERSE
+        // Eliminates abrupt cuts completely!
+        // =====================================================================
+        if (idx < totalVerses - 1) {
+          const nextAyah = selectedAyahs[idx + 1];
+          setRecordingStatusText(`Transition vers le verset ${nextAyah.num}...`);
+          // 800ms gentle crossfade transition
+          await animateCrossfadeTransition(ctx, width, height, currentAyah, nextAyah, 800);
+          // Short 200ms natural breathing pause before the Qari starts reciting next verse
+          await new Promise((r) => setTimeout(r, 200));
+        } else {
+          // Final verse lingering & smooth gentle finish
+          await new Promise((r) => setTimeout(r, 800));
+        }
       }
 
-      // Stop recorder once all verses finish
+      // Stop recorder
       if (!isCancelledRef.current && recorder.state !== 'inactive') {
         recorder.stop();
       }
@@ -578,7 +691,6 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
     }
   };
 
-  // Download video file
   const handleDownloadVideo = () => {
     if (!generatedBlob && !generatedVideoUrl) return;
     const a = document.createElement('a');
@@ -589,7 +701,6 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
     document.body.removeChild(a);
   };
 
-  // Download high-resolution PNG snapshot of the first selected ayah
   const handleDownloadSnapshot = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -599,7 +710,9 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
     const ctx = canvas.getContext('2d');
     if (!ctx || selectedAyahs.length === 0) return;
 
-    drawFrame(ctx, width, height, selectedAyahs[0], 1.0);
+    drawBaseScene(ctx, width, height);
+    drawAyahElements(ctx, width, height, selectedAyahs[0], 1.0, 0);
+    drawBottomBar(ctx, width, height, 1.0);
 
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
@@ -629,7 +742,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                Générez une vidéo avec le son de la récitation, le Tajweed et le logo officiel Le Sanctuaire
+                Générez une vidéo avec transition fondue douce entre chaque verset, audio et logo certifié
               </p>
             </div>
           </div>
@@ -878,7 +991,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-emerald-400 flex items-center gap-2">
                   <Check className="w-4 h-4" />
-                  Vidéo générée avec succès !
+                  Vidéo générée avec succès avec transition douce !
                 </span>
                 <span className="text-xs text-neutral-400">
                   {totalSelected} verset{totalSelected > 1 ? 's' : ''} • Format {aspectRatio}
