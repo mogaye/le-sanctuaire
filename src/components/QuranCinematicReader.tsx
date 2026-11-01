@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Maximize2,
   Minimize2,
@@ -8,20 +8,12 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
-  SlidersHorizontal,
-  Eye,
-  EyeOff,
   Type,
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  X,
-  BookOpen,
-  RotateCcw,
-  Languages,
-  Moon,
-  Sun,
-  Flame,
+  Palette,
+  Check,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
@@ -61,7 +53,210 @@ interface QuranCinematicReaderProps {
   getAyahAudioUrl: (surahNum: number, ayahNum: number, reciterId: string) => string;
 }
 
-export type CinematicTheme = 'emerald' | 'oled' | 'amber';
+// 10 Distinct, Gorgeous and Immersive Spiritual Themes
+export type CinematicThemeId =
+  | 'emerald'
+  | 'midnight'
+  | 'oled'
+  | 'amber'
+  | 'amethyst'
+  | 'ocean'
+  | 'ruby'
+  | 'forest'
+  | 'slate'
+  | 'sepia';
+
+export interface ThemeConfig {
+  id: CinematicThemeId;
+  name: string;
+  bg: string;
+  inlineBg: string;
+  cardBg: string;
+  textAr: string;
+  textTr: string;
+  textFr: string;
+  hudBg: string;
+  badge: string;
+  activeBorder: string;
+  accent: string;
+  swatch: string;
+  glow1: string;
+  glow2: string;
+}
+
+export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
+  emerald: {
+    id: 'emerald',
+    name: 'Émeraude Sacrée',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#06281b_0%,#03160e_55%,#010805_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #06281b 0%, #03160e 55%, #010805 100%)',
+    cardBg: 'bg-emerald-950/40 border-emerald-500/25',
+    textAr: 'text-amber-100 selection:bg-amber-500 selection:text-neutral-950',
+    textTr: 'text-emerald-300/85',
+    textFr: 'text-emerald-100/90',
+    hudBg: 'bg-[#04170f]/92 border-emerald-500/30 text-white',
+    badge: 'bg-emerald-900/60 text-amber-300 border-emerald-500/40',
+    activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(251,191,36,0.18)]',
+    accent: '#34D399',
+    swatch: '#06281b',
+    glow1: 'rgba(251, 191, 36, 0.06)',
+    glow2: 'rgba(16, 185, 129, 0.08)',
+  },
+  midnight: {
+    id: 'midnight',
+    name: 'Bleu Nuit Céleste',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#0b1e36_0%,#05101f_55%,#02060d_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #0b1e36 0%, #05101f 55%, #02060d 100%)',
+    cardBg: 'bg-sky-950/40 border-sky-500/25',
+    textAr: 'text-sky-100 selection:bg-sky-400 selection:text-neutral-950',
+    textTr: 'text-sky-300/85',
+    textFr: 'text-slate-100/90',
+    hudBg: 'bg-[#051120]/92 border-sky-500/30 text-white',
+    badge: 'bg-sky-900/60 text-sky-300 border-sky-500/40',
+    activeBorder: 'border-sky-400/80 shadow-[0_0_40px_rgba(56,189,248,0.2)]',
+    accent: '#38BDF8',
+    swatch: '#0b1e36',
+    glow1: 'rgba(56, 189, 248, 0.08)',
+    glow2: 'rgba(99, 102, 241, 0.06)',
+  },
+  oled: {
+    id: 'oled',
+    name: 'Noir Absolu OLED',
+    bg: 'bg-black',
+    inlineBg: '#000000',
+    cardBg: 'bg-neutral-950/80 border-white/15',
+    textAr: 'text-white selection:bg-white selection:text-black',
+    textTr: 'text-neutral-400',
+    textFr: 'text-neutral-200',
+    hudBg: 'bg-neutral-900/95 border-white/20 text-white',
+    badge: 'bg-neutral-800 text-white border-white/25',
+    activeBorder: 'border-white/80 shadow-[0_0_40px_rgba(255,255,255,0.15)]',
+    accent: '#FFFFFF',
+    swatch: '#000000',
+    glow1: 'rgba(255, 255, 255, 0.04)',
+    glow2: 'rgba(255, 255, 255, 0.03)',
+  },
+  amber: {
+    id: 'amber',
+    name: 'Ambre Crépusculaire',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#2a1808_0%,#170c03_55%,#090401_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #2a1808 0%, #170c03 55%, #090401 100%)',
+    cardBg: 'bg-amber-950/40 border-amber-500/25',
+    textAr: 'text-amber-100 selection:bg-amber-400 selection:text-black',
+    textTr: 'text-amber-300/85',
+    textFr: 'text-amber-100/90',
+    hudBg: 'bg-[#190d04]/92 border-amber-500/30 text-amber-100',
+    badge: 'bg-amber-900/60 text-amber-300 border-amber-500/40',
+    activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(245,158,11,0.2)]',
+    accent: '#F59E0B',
+    swatch: '#2a1808',
+    glow1: 'rgba(245, 158, 11, 0.08)',
+    glow2: 'rgba(217, 119, 6, 0.06)',
+  },
+  amethyst: {
+    id: 'amethyst',
+    name: 'Améthyste Royale',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#220e36_0%,#12061f_55%,#06020c_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #220e36 0%, #12061f 55%, #06020c 100%)',
+    cardBg: 'bg-purple-950/40 border-purple-500/25',
+    textAr: 'text-purple-100 selection:bg-purple-400 selection:text-black',
+    textTr: 'text-purple-300/85',
+    textFr: 'text-purple-100/90',
+    hudBg: 'bg-[#130722]/92 border-purple-500/30 text-purple-100',
+    badge: 'bg-purple-900/60 text-purple-300 border-purple-500/40',
+    activeBorder: 'border-purple-400/80 shadow-[0_0_40px_rgba(192,132,252,0.2)]',
+    accent: '#C084FC',
+    swatch: '#220e36',
+    glow1: 'rgba(192, 132, 252, 0.08)',
+    glow2: 'rgba(168, 85, 247, 0.06)',
+  },
+  ocean: {
+    id: 'ocean',
+    name: 'Abysse Océanique',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#082930_0%,#04161a_55%,#01090c_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #082930 0%, #04161a 55%, #01090c 100%)',
+    cardBg: 'bg-teal-950/40 border-teal-500/25',
+    textAr: 'text-teal-100 selection:bg-teal-400 selection:text-black',
+    textTr: 'text-teal-300/85',
+    textFr: 'text-teal-100/90',
+    hudBg: 'bg-[#04181d]/92 border-teal-500/30 text-teal-100',
+    badge: 'bg-teal-900/60 text-teal-300 border-teal-500/40',
+    activeBorder: 'border-teal-400/80 shadow-[0_0_40px_rgba(45,212,191,0.2)]',
+    accent: '#2DD4BF',
+    swatch: '#082930',
+    glow1: 'rgba(45, 212, 191, 0.08)',
+    glow2: 'rgba(20, 184, 166, 0.06)',
+  },
+  ruby: {
+    id: 'ruby',
+    name: 'Grenat Impérial',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#2e0d16_0%,#19050b_55%,#090104_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #2e0d16 0%, #19050b 55%, #090104 100%)',
+    cardBg: 'bg-rose-950/40 border-rose-500/25',
+    textAr: 'text-rose-100 selection:bg-rose-400 selection:text-black',
+    textTr: 'text-rose-300/85',
+    textFr: 'text-rose-100/90',
+    hudBg: 'bg-[#1a060d]/92 border-rose-500/30 text-rose-100',
+    badge: 'bg-rose-900/60 text-rose-300 border-rose-500/40',
+    activeBorder: 'border-rose-400/80 shadow-[0_0_40px_rgba(251,113,133,0.2)]',
+    accent: '#FB7185',
+    swatch: '#2e0d16',
+    glow1: 'rgba(251, 113, 133, 0.08)',
+    glow2: 'rgba(244, 63, 94, 0.06)',
+  },
+  forest: {
+    id: 'forest',
+    name: "Forêt d'Éden",
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#15260f_0%,#0b1607_55%,#040902_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #15260f 0%, #0b1607 55%, #040902 100%)',
+    cardBg: 'bg-lime-950/40 border-lime-500/25',
+    textAr: 'text-lime-100 selection:bg-lime-400 selection:text-black',
+    textTr: 'text-lime-300/85',
+    textFr: 'text-lime-100/90',
+    hudBg: 'bg-[#0c1808]/92 border-lime-500/30 text-lime-100',
+    badge: 'bg-lime-900/60 text-lime-300 border-lime-500/40',
+    activeBorder: 'border-lime-400/80 shadow-[0_0_40px_rgba(163,230,53,0.2)]',
+    accent: '#A3E635',
+    swatch: '#15260f',
+    glow1: 'rgba(163, 230, 53, 0.08)',
+    glow2: 'rgba(132, 204, 22, 0.06)',
+  },
+  slate: {
+    id: 'slate',
+    name: 'Anthracite Titane',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#1c2430_0%,#10151d_55%,#07090d_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #1c2430 0%, #10151d 55%, #07090d 100%)',
+    cardBg: 'bg-slate-900/60 border-slate-500/25',
+    textAr: 'text-slate-100 selection:bg-slate-400 selection:text-black',
+    textTr: 'text-slate-300/85',
+    textFr: 'text-slate-100/90',
+    hudBg: 'bg-[#101621]/92 border-slate-500/30 text-slate-100',
+    badge: 'bg-slate-800 text-slate-300 border-slate-600/40',
+    activeBorder: 'border-slate-400/80 shadow-[0_0_40px_rgba(148,163,184,0.2)]',
+    accent: '#94A3B8',
+    swatch: '#1c2430',
+    glow1: 'rgba(148, 163, 184, 0.08)',
+    glow2: 'rgba(100, 116, 139, 0.06)',
+  },
+  sepia: {
+    id: 'sepia',
+    name: 'Parchemin Médine',
+    bg: 'bg-[radial-gradient(ellipse_at_50%_30%,#262018_0%,#17120c_55%,#0a0805_100%)]',
+    inlineBg: 'radial-gradient(ellipse at 50% 30%, #262018 0%, #17120c 55%, #0a0805 100%)',
+    cardBg: 'bg-amber-950/40 border-amber-600/25',
+    textAr: 'text-[#FEF9C3] selection:bg-amber-400 selection:text-black',
+    textTr: 'text-amber-200/85',
+    textFr: 'text-amber-100/90',
+    hudBg: 'bg-[#18130d]/92 border-amber-600/30 text-amber-100',
+    badge: 'bg-amber-900/60 text-amber-300 border-amber-600/40',
+    activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(217,119,6,0.2)]',
+    accent: '#D97706',
+    swatch: '#262018',
+    glow1: 'rgba(217, 119, 6, 0.08)',
+    glow2: 'rgba(180, 83, 9, 0.06)',
+  },
+};
+
 export type CinematicDisplayMode = 'focus' | 'continuous';
 
 export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
@@ -69,7 +264,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   onClose,
   surahData,
   currentSurahMeta,
-  allSurahs,
+  allSurahs: _allSurahs,
   initialAyahNum = 1,
   selectedReciter,
   onSelectReciter,
@@ -79,16 +274,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   // Navigation & Verse Focus
   const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(0);
   const [displayMode, setDisplayMode] = useState<CinematicDisplayMode>('focus');
-  const [theme, setTheme] = useState<CinematicTheme>('emerald');
 
-  // Giant typography settings: 42px (M), 56px (L), 70px (XL default), 86px (XXL)
-  const [fontSizeLevel, setFontSizeLevel] = useState<number>(2); // 0: 42px, 1: 56px, 2: 70px, 3: 86px
-  const fontSizes = [
-    { ar: 'text-3xl sm:text-4xl md:text-5xl leading-relaxed', label: 'Grand (46px)' },
-    { ar: 'text-4xl sm:text-5xl md:text-6xl leading-[1.8]', label: 'Très Grand (58px)' },
-    { ar: 'text-5xl sm:text-6xl md:text-7xl leading-[2.0]', label: 'Majestueux (72px)' },
-    { ar: 'text-6xl sm:text-7xl md:text-8xl leading-[2.2]', label: 'Monumental (88px)' },
-  ];
+  // 10 Themes Selection
+  const [theme, setTheme] = useState<CinematicThemeId>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_theme') as CinematicThemeId;
+      if (saved && CINEMATIC_THEMES[saved]) return saved;
+    } catch {
+      // ignore
+    }
+    return 'emerald';
+  });
+  const [isThemePickerOpen, setIsThemePickerOpen] = useState<boolean>(false);
+
+  // Font Size levels: 0 (Compact), 1 (Standard), 2 (Grand), 3 (Monumental)
+  const [fontSizeLevel, setFontSizeLevel] = useState<number>(1);
 
   // Translation & phonetics visibility
   const [showTranslation, setShowTranslation] = useState<boolean>(true);
@@ -99,12 +299,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Auto-hide HUD on inactivity
+  // Auto-hide HUD, side chevrons, and mouse cursor
   const [isHudVisible, setIsHudVisible] = useState<boolean>(true);
   const hideTimerRef = useRef<any>(null);
 
-  // Fullscreen state
-  const [isFullscreenActive, setIsFullscreenActive] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const verseListRef = useRef<HTMLDivElement | null>(null);
 
@@ -124,24 +322,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       try {
         if (!document.fullscreenElement) {
           await document.documentElement.requestFullscreen();
-          setIsFullscreenActive(true);
         }
       } catch (e) {
-        // Fullscreen might be restricted by browser policy or devtools; proceed with full-viewport mode
-        setIsFullscreenActive(true);
+        // Fullscreen might be restricted by browser policy; continue smoothly
       }
     };
 
     enterFullscreen();
-
-    const handleFullscreenChange = () => {
-      setIsFullscreenActive(!!document.fullscreenElement);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    };
   }, [isOpen]);
 
   // Stop audio on close or unmount
@@ -154,6 +341,17 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     };
   }, []);
 
+  // Save selected theme
+  const handleSelectTheme = (themeId: CinematicThemeId) => {
+    setTheme(themeId);
+    try {
+      localStorage.setItem('sanctuaire_cinematic_theme', themeId);
+    } catch {
+      // ignore
+    }
+    setIsThemePickerOpen(false);
+  };
+
   // Exit fullscreen and close
   const handleExit = () => {
     if (audioRef.current) {
@@ -165,23 +363,32 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     onClose();
   };
 
-  // Auto-hide HUD logic
-  const resetHudTimer = () => {
-    setIsHudVisible(true);
+  // Auto-hide HUD logic:
+  // When audio is playing: auto-hide quickly (2.5 seconds) so everything disappears:
+  // top bar, bottom bar, mouse cursor, and the two side chevrons!
+  // When paused: keep visible longer (6 seconds) or until user interaction.
+  const resetHudTimer = (forceShow: boolean = true) => {
+    if (forceShow) {
+      setIsHudVisible(true);
+    }
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current);
     }
+    const delay = isPlayingAudio ? 2500 : 5000;
     hideTimerRef.current = setTimeout(() => {
-      setIsHudVisible(false);
-    }, 3500);
+      if (isPlayingAudio) {
+        setIsHudVisible(false);
+        setIsThemePickerOpen(false);
+      }
+    }, delay);
   };
 
   useEffect(() => {
     if (!isOpen) return;
-    resetHudTimer();
+    resetHudTimer(true);
 
-    const handleMouseMove = () => resetHudTimer();
-    const handleTouchStart = () => resetHudTimer();
+    const handleMouseMove = () => resetHudTimer(true);
+    const handleTouchStart = () => resetHudTimer(true);
 
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('touchstart', handleTouchStart);
@@ -191,7 +398,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       window.removeEventListener('touchstart', handleTouchStart);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     };
-  }, [isOpen]);
+  }, [isOpen, isPlayingAudio]);
 
   // Verses array
   const ayahs = surahData?.ayahs || [];
@@ -219,20 +426,26 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         playVerseAudio(nextIdx);
       } else {
         setIsPlayingAudio(false);
+        setIsHudVisible(true);
       }
     };
 
     audio.onerror = () => {
       setIsPlayingAudio(false);
+      setIsHudVisible(true);
     };
 
     audio
       .play()
       .then(() => {
         setIsPlayingAudio(true);
+        // "quand on tape le son tout les bare bas comme haut disparet automatiquement de meme que la souris et aussi les deux crochet"
+        setIsHudVisible(false);
+        setIsThemePickerOpen(false);
       })
       .catch(() => {
         setIsPlayingAudio(false);
+        setIsHudVisible(true);
       });
   };
 
@@ -242,7 +455,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         audioRef.current.pause();
       }
       setIsPlayingAudio(false);
+      setIsHudVisible(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     } else {
+      // Immediately fade out controls on play tap
+      setIsHudVisible(false);
+      setIsThemePickerOpen(false);
       playVerseAudio(currentAyahIndex);
     }
   };
@@ -254,13 +472,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       if (isPlayingAudio) {
         playVerseAudio(nextIdx);
       }
-      // Scroll to element in continuous mode
       if (displayMode === 'continuous') {
         const el = document.getElementById(`cinematic-ayah-${nextIdx}`);
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } else if (currentSurahMeta.number < 114) {
-      // Next Surah
       onSelectSurah(currentSurahMeta.number + 1);
     }
   };
@@ -277,7 +493,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     } else if (currentSurahMeta.number > 1) {
-      // Previous Surah
       onSelectSurah(currentSurahMeta.number - 1);
     }
   };
@@ -288,7 +503,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleExit();
+        if (isThemePickerOpen) {
+          setIsThemePickerOpen(false);
+        } else {
+          handleExit();
+        }
       } else if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         togglePlayAudio();
@@ -318,70 +537,116 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentAyahIndex, ayahs.length, isPlayingAudio]);
+  }, [isOpen, currentAyahIndex, ayahs.length, isPlayingAudio, isThemePickerOpen]);
 
   if (!isOpen) return null;
 
-  // Visual Theme styling
-  const themeStyles = {
-    emerald: {
-      bg: 'bg-radial from-[#072418] via-[#04160F] to-[#010805]',
-      cardBg: 'bg-emerald-950/40 border-emerald-500/25',
-      textAr: 'text-amber-100 selection:bg-amber-500 selection:text-neutral-950',
-      textTr: 'text-emerald-300/85',
-      textFr: 'text-emerald-100/90',
-      hudBg: 'bg-[#051810]/90 border-emerald-500/30 text-white',
-      badge: 'bg-emerald-900/60 text-amber-300 border-emerald-500/40',
-      activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(251,191,36,0.18)]',
-    },
-    oled: {
-      bg: 'bg-black',
-      cardBg: 'bg-neutral-950/70 border-white/15',
-      textAr: 'text-white selection:bg-white selection:text-black',
-      textTr: 'text-neutral-400',
-      textFr: 'text-neutral-200',
-      hudBg: 'bg-neutral-900/90 border-white/20 text-white',
-      badge: 'bg-neutral-800 text-white border-white/25',
-      activeBorder: 'border-white/80 shadow-[0_0_40px_rgba(255,255,255,0.15)]',
-    },
-    amber: {
-      bg: 'bg-radial from-[#1F160C] via-[#120B04] to-[#080502]',
-      cardBg: 'bg-amber-950/30 border-amber-500/25',
-      textAr: 'text-amber-100 selection:bg-amber-400 selection:text-black',
-      textTr: 'text-amber-300/80',
-      textFr: 'text-amber-100/85',
-      hudBg: 'bg-[#180E06]/90 border-amber-500/30 text-amber-100',
-      badge: 'bg-amber-900/60 text-amber-300 border-amber-500/40',
-      activeBorder: 'border-amber-400/80 shadow-[0_0_40px_rgba(245,158,11,0.2)]',
-    },
-  }[theme];
+  const currentTheme = CINEMATIC_THEMES[theme] || CINEMATIC_THEMES.emerald;
+
+  // =========================================================================
+  // DYNAMIC TEXT ADAPTATION: NEVER OVERFLOW OR CLIP REGARDLESS OF TEXT SIZE
+  // Calculates an intelligent fluid size proportional to verse length & user level
+  // =========================================================================
+  const getDynamicArabicStyle = (arText: string) => {
+    const len = arText?.length || 0;
+    let minPx = 26;
+    let preferredVw = 4.2;
+    let maxPx = 64;
+
+    if (len > 350) {
+      minPx = 18;
+      preferredVw = 2.4;
+      maxPx = 30;
+    } else if (len > 220) {
+      minPx = 20;
+      preferredVw = 2.9;
+      maxPx = 38;
+    } else if (len > 130) {
+      minPx = 23;
+      preferredVw = 3.5;
+      maxPx = 48;
+    } else if (len > 60) {
+      minPx = 26;
+      preferredVw = 4.2;
+      maxPx = 58;
+    } else {
+      minPx = 30;
+      preferredVw = 5.2;
+      maxPx = 72;
+    }
+
+    const multipliers = [0.85, 1.0, 1.15, 1.3];
+    const m = multipliers[fontSizeLevel] || 1.0;
+
+    const finalMin = Math.round(minPx * m);
+    const finalVw = (preferredVw * m).toFixed(1);
+    const finalMax = Math.round(maxPx * m);
+
+    return {
+      fontSize: `clamp(${finalMin}px, ${finalVw}vw, ${finalMax}px)`,
+      lineHeight: len > 180 ? 1.85 : 2.05,
+    };
+  };
+
+  const getDynamicTranslationStyle = (len: number) => {
+    const multipliers = [0.85, 1.0, 1.15, 1.3];
+    const m = multipliers[fontSizeLevel] || 1.0;
+    let minPx = 14;
+    let preferredVw = 1.4;
+    let maxPx = 19;
+    if (len > 280) {
+      minPx = 12.5;
+      preferredVw = 1.25;
+      maxPx = 16.5;
+    }
+    return {
+      fontSize: `clamp(${Math.round(minPx * m)}px, ${(preferredVw * m).toFixed(1)}vw, ${Math.round(maxPx * m)}px)`,
+    };
+  };
+
+  const themeList = Object.values(CINEMATIC_THEMES);
 
   return (
     <div
       ref={containerRef}
-      className={`fixed inset-0 z-[9999] ${themeStyles.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500`}
-      onClick={resetHudTimer}
+      style={{ background: currentTheme.inlineBg }}
+      className={`fixed inset-0 z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
+        !isHudVisible && isPlayingAudio ? 'cursor-none' : 'cursor-default'
+      }`}
+      onClick={() => {
+        if (!isHudVisible) {
+          resetHudTimer(true);
+        }
+      }}
     >
       {/* Ambient background soft light glows for cinema feel */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-amber-400/5 rounded-full blur-[140px] pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-[450px] h-[450px] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div
+        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-700"
+        style={{ backgroundColor: currentTheme.glow1 }}
+      />
+      <div
+        className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full blur-[120px] pointer-events-none transition-all duration-700"
+        style={{ backgroundColor: currentTheme.glow2 }}
+      />
 
       {/* ========================================================
-          TOP CINEMATIC HUD (AUTO-HIDES ON INACTIVITY)
+          TOP CINEMATIC HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <header
-        className={`relative z-50 w-full px-5 py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
-          isHudVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-6 pointer-events-none'
-        } ${themeStyles.hudBg} border-b`}
+        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
+          isHudVisible
+            ? 'opacity-100 translate-y-0 shadow-lg'
+            : 'opacity-0 -translate-y-full pointer-events-none'
+        } ${currentTheme.hudBg} border-b`}
       >
         {/* Left: Surah Information */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-bold text-sm">
+          <div className="w-9 h-9 rounded-xl bg-white/10 text-amber-300 border border-white/20 flex items-center justify-center font-bold text-sm">
             {currentSurahMeta.number}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-black text-white tracking-tight">
+              <h2 className="text-sm sm:text-base md:text-lg font-black text-white tracking-tight">
                 {currentSurahMeta.name}
               </h2>
               <span className="text-xs text-amber-300 font-bold hidden sm:inline">
@@ -418,13 +683,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         </div>
 
         {/* Right: Quick Options (Theme, Font Size, Exit) */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Display Mode: Focus vs Continuous */}
           <div className="hidden sm:flex items-center p-1 bg-black/40 rounded-xl border border-white/10 text-xs">
             <button
               onClick={() => setDisplayMode('focus')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                displayMode === 'focus' ? 'bg-amber-400 text-neutral-950' : 'text-neutral-300 hover:text-white'
+                displayMode === 'focus'
+                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                  : 'text-neutral-300 hover:text-white'
               }`}
               title="Un verset géant centré à la fois"
             >
@@ -433,7 +700,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <button
               onClick={() => setDisplayMode('continuous')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                displayMode === 'continuous' ? 'bg-amber-400 text-neutral-950' : 'text-neutral-300 hover:text-white'
+                displayMode === 'continuous'
+                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                  : 'text-neutral-300 hover:text-white'
               }`}
               title="Défilement continu des versets"
             >
@@ -441,36 +710,83 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             </button>
           </div>
 
-          {/* Theme Selector */}
-          <button
-            onClick={() => {
-              const order: CinematicTheme[] = ['emerald', 'oled', 'amber'];
-              const next = order[(order.indexOf(theme) + 1) % order.length];
-              setTheme(next);
-            }}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 transition cursor-pointer"
-            title={`Thème actuel : ${theme}. Cliquer pour changer`}
-          >
-            <Sparkles className="w-4 h-4" />
-          </button>
+          {/* Theme Palette Button with Swatch preview */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsThemePickerOpen((prev) => !prev);
+              }}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-white/15"
+              title="Choisir parmi les 10 thèmes immersifs"
+            >
+              <span
+                className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-xs inline-block"
+                style={{ backgroundColor: currentTheme.swatch }}
+              />
+              <Palette className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">{currentTheme.name}</span>
+            </button>
+
+            {/* 10 Themes Selection Popover */}
+            {isThemePickerOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-2 w-72 p-3 rounded-2xl bg-neutral-900/98 backdrop-blur-xl border border-white/20 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150"
+              >
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+                  <span className="text-xs font-black uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    10 Couleurs Immersives
+                  </span>
+                  <span className="text-[10px] text-amber-400 font-bold">10 / 10 Thèmes</span>
+                </div>
+                <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto no-scrollbar pr-1">
+                  {themeList.map((t) => {
+                    const isSelected = t.id === theme;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelectTheme(t.id)}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs font-bold transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                            : 'hover:bg-white/10 text-neutral-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-4 h-4 rounded-full border border-white/50 shadow-xs shrink-0"
+                            style={{ backgroundColor: t.swatch }}
+                          />
+                          <span>{t.name}</span>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Font Size Increaser */}
           <button
-            onClick={() => setFontSizeLevel((lvl) => (lvl + 1) % fontSizes.length)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 transition cursor-pointer flex items-center gap-1 text-xs font-bold"
-            title="Agrandir la taille d'écriture"
+            onClick={() => setFontSizeLevel((lvl) => (lvl + 1) % 4)}
+            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 transition cursor-pointer flex items-center gap-1 text-xs font-bold border border-white/15"
+            title="Ajuster la taille du texte"
           >
-            <Type className="w-4 h-4" />
-            <span className="hidden sm:inline">A+</span>
+            <Type className="w-3.5 h-3.5 text-amber-300" />
+            <span>A{fontSizeLevel === 0 ? '-' : fontSizeLevel === 3 ? '++' : '+'}</span>
           </button>
 
           {/* Exit Fullscreen */}
           <button
             onClick={handleExit}
-            className="p-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 text-white transition cursor-pointer flex items-center gap-1.5 font-bold text-xs shadow-md"
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 text-white transition cursor-pointer flex items-center gap-1.5 font-bold text-xs shadow-md"
             title="Quitter le mode plein écran (Échap)"
           >
-            <Minimize2 className="w-4 h-4" />
+            <Minimize2 className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Quitter</span>
           </button>
         </div>
@@ -478,82 +794,100 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
       {/* ========================================================
           CENTER CONTENT: CINEMATIC READING CANVAS
+          Adapted with fluid auto-scaling so that NOTHING overflows or clips
          ======================================================== */}
-      <main className="relative z-10 flex-1 overflow-y-auto px-4 sm:px-8 md:px-16 py-6 flex flex-col justify-center items-center no-scrollbar">
+      <main className="relative z-10 flex-1 w-full overflow-y-auto px-4 sm:px-8 md:px-14 py-4 md:py-6 flex flex-col justify-center items-center no-scrollbar">
         {displayMode === 'focus' ? (
           /* ========================================================
              1. FOCUS MODE: SINGLE GIANT HERO VERSE
              ======================================================== */
-          <div className="w-full max-w-5xl mx-auto flex flex-col items-center justify-center text-center space-y-8 my-auto">
-            {/* Surah Bismillah Banner if not At-Tawbah and first verse */}
+          <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center text-center space-y-4 sm:space-y-6 my-auto max-h-full py-2">
+            {/* Surah Bismillah Banner on first verse (except At-Tawbah) */}
             {currentSurahMeta.number !== 9 && currentAyah?.num === 1 && (
-              <div className="text-amber-200/80 font-arabic text-2xl sm:text-3xl md:text-4xl tracking-wide pb-4">
+              <div className="text-amber-200/80 font-arabic text-xl sm:text-2xl md:text-3xl tracking-wide select-none">
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
               </div>
             )}
 
-            {/* Verse Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-bold tracking-wider">
+            {/* Compact Verse Badge */}
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/15 text-[11px] sm:text-xs text-amber-300 font-mono font-bold tracking-wider select-none">
               <span>Sourate {currentSurahMeta.name}</span>
               <span className="opacity-40">•</span>
               <span>Verset {currentAyah?.num} / {currentSurahMeta.numberOfAyahs}</span>
             </div>
 
-            {/* GIANT ARABIC SCRIPT */}
+            {/* GIANT ARABIC SCRIPT - Clean without trailing raw numbers */}
             <div
               dir="rtl"
-              className={`w-full font-arabic ${fontSizes[fontSizeLevel].ar} ${themeStyles.textAr} tracking-normal text-center leading-[2.1] font-normal transition-all duration-300 px-4`}
-              style={{ fontFamily: "'Amiri', 'Traditional Arabic', serif" }}
+              className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-300 px-2 sm:px-4 break-words [word-break:keep-all]`}
+              style={{
+                fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                ...getDynamicArabicStyle(currentAyah?.ar || ''),
+              }}
             >
               {currentAyah?.ar}
-              <span className="inline-block text-amber-400 mx-3 text-3xl align-middle opacity-90 select-none">
-                ۝{currentAyah?.num}
+              {/* Clean traditional Ayah ornament separator WITHOUT numbers */}
+              <span className="inline-block text-amber-400/90 mx-2 text-2xl md:text-3xl align-middle select-none">
+                ۝
               </span>
             </div>
 
-            {/* Phonetics & French Translation */}
+            {/* Phonetics & French Translation - Proportional & scroll-safe */}
             {(showPhonetics || showTranslation) && (
-              <div className="w-full max-w-3xl space-y-4 pt-4 border-t border-white/10">
+              <div className="w-full max-w-3xl space-y-2.5 pt-3 sm:pt-4 border-t border-white/10 max-h-[32vh] overflow-y-auto no-scrollbar px-2">
                 {showPhonetics && currentAyah?.tr && (
-                  <p className={`text-base sm:text-lg md:text-xl italic font-serif ${themeStyles.textTr} leading-relaxed`}>
+                  <p
+                    className={`italic font-serif ${currentTheme.textTr} leading-relaxed`}
+                    style={getDynamicTranslationStyle(currentAyah.tr.length)}
+                  >
                     « {currentAyah.tr} »
                   </p>
                 )}
 
                 {showTranslation && currentAyah?.fr && (
-                  <p className={`text-lg sm:text-xl md:text-2xl font-medium ${themeStyles.textFr} leading-relaxed`}>
+                  <p
+                    className={`font-medium ${currentTheme.textFr} leading-relaxed`}
+                    style={getDynamicTranslationStyle(currentAyah.fr.length)}
+                  >
                     {currentAyah.fr}
                   </p>
                 )}
               </div>
             )}
 
-            {/* Previous & Next Clickable Targets for Mouse Users */}
+            {/* ========================================================
+                SIDE CHEVRONS (AUTOHIDE WHEN PLAYING AUDIO)
+                "et aussi les deux crochet suivant et precedant"
+               ======================================================== */}
             <button
               onClick={handlePrevVerse}
               disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
-              className="fixed left-4 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition cursor-pointer disabled:opacity-20 active:scale-90"
+              className={`fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+                isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
+              }`}
               title="Verset précédent (Flèche Gauche)"
             >
-              <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+              <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
             </button>
 
             <button
               onClick={handleNextVerse}
               disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
-              className="fixed right-4 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/5 hover:bg-white/15 text-white/70 hover:text-white transition cursor-pointer disabled:opacity-20 active:scale-90"
+              className={`fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+                isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
+              }`}
               title="Verset suivant (Flèche Droite)"
             >
-              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+              <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
             </button>
           </div>
         ) : (
           /* ========================================================
              2. CONTINUOUS SCROLL MODE: ALL VERSES IN GIANT TYPE
              ======================================================== */
-          <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-10 py-12">
+          <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-8 py-8">
             {currentSurahMeta.number !== 9 && (
-              <div className="text-center text-amber-200/80 font-arabic text-3xl sm:text-4xl pb-8">
+              <div className="text-center text-amber-200/80 font-arabic text-2xl sm:text-3xl pb-4">
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
               </div>
             )}
@@ -568,14 +902,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     setCurrentAyahIndex(idx);
                     if (isPlayingAudio) playVerseAudio(idx);
                   }}
-                  className={`p-6 sm:p-8 rounded-3xl transition-all duration-300 cursor-pointer ${
+                  className={`p-5 sm:p-7 rounded-3xl transition-all duration-300 cursor-pointer ${
                     isCurrent
-                      ? `${themeStyles.cardBg} ${themeStyles.activeBorder} scale-[1.01]`
+                      ? `${currentTheme.cardBg} ${currentTheme.activeBorder} scale-[1.01]`
                       : 'hover:bg-white/5 border border-transparent'
                   }`}
                 >
-                  <div className="flex items-center justify-between pb-4">
-                    <span className="w-8 h-8 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-mono font-bold text-xs">
+                  <div className="flex items-center justify-between pb-3">
+                    <span className="w-7 h-7 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-mono font-bold text-xs">
                       {ayah.num}
                     </span>
                     <button
@@ -591,26 +925,36 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     </button>
                   </div>
 
+                  {/* Clean Arabic verse without trailing raw numbers */}
                   <div
                     dir="rtl"
-                    className={`font-arabic ${fontSizes[fontSizeLevel].ar} ${themeStyles.textAr} text-right leading-[2.1]`}
-                    style={{ fontFamily: "'Amiri', 'Traditional Arabic', serif" }}
+                    className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
+                    style={{
+                      fontFamily: "'Amiri', 'Traditional Arabic', serif",
+                      ...getDynamicArabicStyle(ayah.ar),
+                    }}
                   >
                     {ayah.ar}
-                    <span className="inline-block text-amber-400 mx-2 text-2xl select-none">
-                      ۝{ayah.num}
+                    <span className="inline-block text-amber-400/90 mx-2 text-xl md:text-2xl align-middle select-none">
+                      ۝
                     </span>
                   </div>
 
                   {(showPhonetics || showTranslation) && (
-                    <div className="pt-4 space-y-2 border-t border-white/10 mt-4 text-left">
+                    <div className="pt-3 space-y-1.5 border-t border-white/10 mt-3 text-left">
                       {showPhonetics && ayah.tr && (
-                        <p className={`text-sm sm:text-base italic ${themeStyles.textTr}`}>
+                        <p
+                          className={`italic ${currentTheme.textTr} leading-relaxed`}
+                          style={getDynamicTranslationStyle(ayah.tr.length)}
+                        >
                           {ayah.tr}
                         </p>
                       )}
                       {showTranslation && ayah.fr && (
-                        <p className={`text-base sm:text-lg font-medium ${themeStyles.textFr}`}>
+                        <p
+                          className={`font-medium ${currentTheme.textFr} leading-relaxed`}
+                          style={getDynamicTranslationStyle(ayah.fr.length)}
+                        >
                           {ayah.fr}
                         </p>
                       )}
@@ -624,19 +968,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       </main>
 
       {/* ========================================================
-          BOTTOM CINEMATIC FLOATING HUD (AUTO-HIDES ON INACTIVITY)
+          BOTTOM CINEMATIC FLOATING HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <footer
-        className={`relative z-50 w-full px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-500 backdrop-blur-md ${
-          isHudVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'
-        } ${themeStyles.hudBg} border-t`}
+        className={`relative z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-md ${
+          isHudVisible
+            ? 'opacity-100 translate-y-0 shadow-lg'
+            : 'opacity-0 translate-y-full pointer-events-none'
+        } ${currentTheme.hudBg} border-t`}
       >
         {/* Left: Quick Surah Stepper */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => onSelectSurah(Math.max(1, currentSurahMeta.number - 1))}
             disabled={currentSurahMeta.number <= 1}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30"
+            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30 border border-white/10"
             title="Sourate précédente"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -650,7 +996,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           <button
             onClick={() => onSelectSurah(Math.min(114, currentSurahMeta.number + 1))}
             disabled={currentSurahMeta.number >= 114}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30"
+            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30 border border-white/10"
             title="Sourate suivante"
           >
             <span className="hidden sm:inline">Sourate suiv.</span>
@@ -662,7 +1008,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrevVerse}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
             title="Verset précédent"
           >
             <SkipBack className="w-4 h-4" />
@@ -682,20 +1028,20 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
           <button
             onClick={handleNextVerse}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
             title="Verset suivant"
           >
             <SkipForward className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Right: Translation & Phonetics Toggles + Shortcuts Info */}
+        {/* Right: Translation & Phonetics Toggles + Mute */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowTranslation((v) => !v)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               showTranslation
-                ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
                 : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
             }`}
             title="Afficher/Masquer la traduction française (Touche T)"
@@ -707,7 +1053,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             onClick={() => setShowPhonetics((v) => !v)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
               showPhonetics
-                ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
                 : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
             }`}
             title="Afficher/Masquer la phonétique (Touche P)"
@@ -722,7 +1068,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               }
               setIsAudioMuted(!isAudioMuted);
             }}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
             title={isAudioMuted ? 'Activer le son' : 'Couper le son'}
           >
             {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
