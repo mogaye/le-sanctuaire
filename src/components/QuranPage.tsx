@@ -2539,26 +2539,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         </div>
       )}
 
-      {/* Floating Action Button : Plein Écran Cinématique sur Mobile (Touch-friendly 1-tap) */}
-      {!isCinematicReaderOpen && (
-        <aside
-          aria-label="Contrôle Plein Écran Cinématique Mobile"
-          className="fixed bottom-6 right-4 z-40 md:hidden flex flex-col items-end gap-2 pointer-events-auto"
-        >
-          <button
-            type="button"
-            onClick={() => setIsCinematicReaderOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-[0_8px_25px_rgba(245,158,11,0.5)] border-2 border-amber-300/90 active:scale-95 transition-all cursor-pointer group"
-            title="Activer la lecture plein écran immersif et cinématique"
-          >
-            <div className="w-5 h-5 rounded-full bg-neutral-950/20 flex items-center justify-center shrink-0">
-              <Maximize2 className="w-3.5 h-3.5 stroke-[2.7]" />
-            </div>
-            <span className="tracking-wide">Plein Écran Cinématique</span>
-          </button>
-        </aside>
-      )}
-
       {/* Immersive Fullscreen Cinematic Quran Reader */}
       <QuranCinematicReader
         isOpen={isCinematicReaderOpen}

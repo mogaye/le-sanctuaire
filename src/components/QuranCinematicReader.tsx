@@ -485,22 +485,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
   }, [surahData, initialAyahNum]);
 
-  // Request browser native Fullscreen when opened
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const enterFullscreen = async () => {
-      try {
-        if (!document.fullscreenElement) {
-          await document.documentElement.requestFullscreen();
-        }
-      } catch (e) {
-        // ignore
-      }
-    };
-
-    enterFullscreen();
-  }, [isOpen]);
 
   // Stop audio on close or unmount
   useEffect(() => {
@@ -742,11 +726,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         handlePrevVerse();
       } else if (e.key.toLowerCase() === 'f') {
         e.preventDefault();
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        } else {
-          document.documentElement.requestFullscreen().catch(() => {});
-        }
+        try {
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          } else if (window.innerWidth >= 1024) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        } catch {}
       } else if (e.key.toLowerCase() === 't') {
         setShowTranslation((v) => !v);
       } else if (e.key.toLowerCase() === 'p') {
@@ -777,6 +763,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   // so text never overflows the frame, regardless of screen aspect ratio or verse length
   const getDynamicArabicStyle = (arText: string) => {
     const len = arText?.length || 0;
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
     let minPx = 18;
     let preferredVw = 3.6;
     let preferredVh = 4.8;
@@ -785,39 +773,39 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     if (len > 350) {
       // Extremely long verses (e.g. Ayat ad-Dayn, Ayat al-Kursi)
-      minPx = 13;
-      preferredVw = 1.8;
+      minPx = isMobile ? 15 : 14;
+      preferredVw = isMobile ? 3.8 : 1.8;
       preferredVh = 2.8;
-      maxPx = 24;
-      lineHt = 1.55;
+      maxPx = isMobile ? 22 : 24;
+      lineHt = 1.6;
     } else if (len > 220) {
       // Long verses
-      minPx = 15;
-      preferredVw = 2.2;
+      minPx = isMobile ? 17 : 16;
+      preferredVw = isMobile ? 4.2 : 2.2;
       preferredVh = 3.3;
-      maxPx = 28;
-      lineHt = 1.6;
+      maxPx = isMobile ? 25 : 28;
+      lineHt = 1.65;
     } else if (len > 130) {
       // Medium-long verses (e.g. Al-Kahf 5 has ~137 chars)
-      minPx = 16;
-      preferredVw = 2.6;
+      minPx = isMobile ? 19 : 17;
+      preferredVw = isMobile ? 4.8 : 2.6;
       preferredVh = 3.8;
-      maxPx = 34;
-      lineHt = 1.65;
+      maxPx = isMobile ? 29 : 34;
+      lineHt = 1.7;
     } else if (len > 60) {
       // Medium verses
-      minPx = 18;
-      preferredVw = 3.0;
+      minPx = isMobile ? 22 : 19;
+      preferredVw = isMobile ? 5.4 : 3.0;
       preferredVh = 4.4;
-      maxPx = 40;
-      lineHt = 1.7;
+      maxPx = isMobile ? 34 : 40;
+      lineHt = 1.75;
     } else {
       // Short verses (e.g. Al-Kahf 4)
-      minPx = 20;
-      preferredVw = 3.8;
+      minPx = isMobile ? 25 : 22;
+      preferredVw = isMobile ? 6.2 : 3.8;
       preferredVh = 5.2;
-      maxPx = 50;
-      lineHt = 1.75;
+      maxPx = isMobile ? 42 : 50;
+      lineHt = 1.8;
     }
 
     const multipliers = [0.85, 1.0, 1.15, 1.3];
@@ -835,23 +823,24 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const getDynamicTranslationStyle = (len: number) => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
     const multipliers = [0.85, 1.0, 1.15, 1.3];
     const m = multipliers[fontSizeLevel] || 1.0;
-    let minPx = 12;
-    let preferredVw = 1.2;
-    let preferredVh = 1.9;
-    let maxPx = 16;
+    let minPx = isMobile ? 12 : 12;
+    let preferredVw = isMobile ? 3.4 : 1.2;
+    let preferredVh = isMobile ? 2.2 : 1.9;
+    let maxPx = isMobile ? 15 : 16;
 
     if (len > 280) {
-      minPx = 10.5;
-      preferredVw = 1.0;
-      preferredVh = 1.5;
-      maxPx = 13.5;
+      minPx = isMobile ? 11 : 10.5;
+      preferredVw = isMobile ? 3.0 : 1.0;
+      preferredVh = isMobile ? 1.8 : 1.5;
+      maxPx = isMobile ? 13 : 13.5;
     }
 
     return {
       fontSize: `clamp(${Math.round(minPx * m)}px, min(${(preferredVw * m).toFixed(2)}vw, ${(preferredVh * m).toFixed(2)}vh), ${Math.round(maxPx * m)}px)`,
-      lineHeight: 1.45,
+      lineHeight: 1.5,
     };
   };
 
@@ -878,9 +867,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }
       }}
     >
-      {/* Dynamic Islamic Photographic Background Wallpaper Layer */}
+      {/* Dynamic Islamic Photographic Background Wallpaper Layer (Desktop & Tablet only; mobile uses pure serene spiritual gradient for flawless readability and fluid performance) */}
       {selectedBg && selectedBgId !== 'none' && (
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+        <div className="hidden md:block absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
           <img
             src={selectedBg.url}
             alt={selectedBg.name}
@@ -1017,8 +1006,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </div>
 
 
-          {/* Wallpaper / Background Images Button */}
-          <div className="relative">
+          {/* Wallpaper / Background Images Button (Desktop only; hidden on mobile) */}
+          <div className="relative hidden md:block">
             <button
               onClick={(e) => {
                 e.stopPropagation();

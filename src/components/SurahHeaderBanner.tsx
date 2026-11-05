@@ -66,12 +66,16 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
             {onOpenCinematic && (
               <button
                 type="button"
-                onClick={onOpenCinematic}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCinematic();
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95 shrink-0"
                 title="Lire en mode plein écran immersif et cinématique"
               >
-                <Maximize2 className="w-3.5 h-3.5" />
-                <span>Plein Écran Cinématique</span>
+                <Maximize2 className="w-3.5 h-3.5 stroke-[2.3]" />
+                <span className="hidden sm:inline">Plein Écran Cinématique</span>
+                <span className="sm:hidden">Cinéma 4K</span>
               </button>
             )}
             {onOpenSurahSelector && (
