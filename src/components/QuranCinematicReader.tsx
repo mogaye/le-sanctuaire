@@ -17,6 +17,12 @@ import {
   X,
   BookOpen,
   Image as ImageIcon,
+  Headphones,
+  Languages,
+  FileText,
+  RotateCw,
+  Layers,
+  Search,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
@@ -398,7 +404,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   onClose,
   surahData,
   currentSurahMeta,
-  allSurahs: _allSurahs,
+  allSurahs,
   initialAyahNum = 1,
   selectedReciter,
   onSelectReciter,
@@ -410,6 +416,88 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [displayMode, setDisplayMode] = useState<CinematicDisplayMode>('focus');
   const [isVerseFading, setIsVerseFading] = useState<boolean>(false);
 
+  // Modals & Popovers state (all open in fixed front overlays, never behind text)
+  const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
+  const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
+  const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
+
+  // Landscape Mode & Fullscreen (requested for mobile/tablet & desktop)
+  const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
+  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerHeight > window.innerWidth;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const handleOrientation = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    window.addEventListener('resize', handleOrientation);
+    window.addEventListener('orientationchange', handleOrientation);
+    return () => {
+      window.removeEventListener('resize', handleOrientation);
+      window.removeEventListener('orientationchange', handleOrientation);
+    };
+  }, []);
+
+  const closeAllPopovers = () => {
+    setIsSurahPickerOpen(false);
+    setIsReciterPickerOpen(false);
+    setIsAppearanceModalOpen(false);
+  };
+
+  const toggleLandscapeFullscreen = async () => {
+    try {
+      const next = !isLandscapeMode;
+      setIsLandscapeMode(next);
+
+      if (next) {
+        const el = containerRef.current || document.documentElement;
+        if (el && !document.fullscreenElement) {
+          if (el.requestFullscreen) {
+            await el.requestFullscreen({ navigationUI: 'hide' } as any).catch(() => {});
+          } else if ((el as any).webkitRequestFullscreen) {
+            await (el as any).webkitRequestFullscreen().catch(() => {});
+          }
+        }
+
+        if (screen.orientation && (screen.orientation as any).lock) {
+          await (screen.orientation as any).lock('landscape').catch(() => {});
+        } else if ((screen as any).lockOrientation) {
+          try {
+            (screen as any).lockOrientation('landscape');
+          } catch {}
+        }
+      } else {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        if (screen.orientation && (screen.orientation as any).unlock) {
+          try {
+            (screen.orientation as any).unlock();
+          } catch {}
+        } else if ((screen as any).unlockOrientation) {
+          try {
+            (screen as any).unlockOrientation();
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('Landscape toggle error:', err);
+    }
+  };
+
+  const handleChooseSurah = (num: number) => {
+    closeAllPopovers();
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    setIsPlayingAudio(false);
+    onSelectSurah(num);
+  };
+
   // 10 Themes Selection
   const [theme, setTheme] = useState<CinematicThemeId>(() => {
     try {
@@ -420,7 +508,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
     return 'emerald';
   });
-  const [isThemePickerOpen, setIsThemePickerOpen] = useState<boolean>(false);
+
+  // Unified Appearance & Settings Modal (Unites Themes, Backgrounds 4K, and Tajweed/Reading settings)
+  const [isAppearanceModalOpen, setIsAppearanceModalOpen] = useState<boolean>(false);
+  const [appearanceTab, setAppearanceTab] = useState<'themes' | 'backgrounds' | 'tajweed'>('themes');
 
   // Cinematic Background Wallpapers State
   const [selectedBgId, setSelectedBgId] = useState<string>(() => {
@@ -443,7 +534,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
     return 0.55;
   });
-  const [isBgPickerOpen, setIsBgPickerOpen] = useState<boolean>(false);
   const [bgCategoryFilter, setBgCategoryFilter] = useState<'all' | 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire'>('all');
 
   // Tajweed Coloring & Guide state
@@ -456,7 +546,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       return true;
     }
   });
-  const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
 
   // Font Size levels: 0 (Compact), 1 (Standard), 2 (Grand), 3 (Monumental)
   const [fontSizeLevel, setFontSizeLevel] = useState<number>(1);
@@ -515,7 +604,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     } catch {
       // ignore
     }
-    setIsThemePickerOpen(false);
   };
 
   const handleSelectBackground = (bgId: string) => {
@@ -547,41 +635,76 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     }
+    if (screen.orientation && (screen.orientation as any).unlock) {
+      try {
+        (screen.orientation as any).unlock();
+      } catch {}
+    } else if ((screen as any).unlockOrientation) {
+      try {
+        (screen as any).unlockOrientation();
+      } catch {}
+    }
+    closeAllPopovers();
     onClose();
   };
 
+  const anyModalOpen =
+    isSurahPickerOpen ||
+    isReciterPickerOpen ||
+    isAppearanceModalOpen;
+
+  // Auto-hide HUD icons when audio is playing and user is not touching mouse/screen
   const resetHudTimer = (forceShow: boolean = true) => {
     if (forceShow) {
       setIsHudVisible(true);
     }
     if (hideTimerRef.current) {
       clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
     }
-    const delay = isPlayingAudio ? 2500 : 5000;
-    hideTimerRef.current = setTimeout(() => {
-      if (isPlayingAudio) {
+    // Auto-hide only when audio is actively playing and no settings modal is open
+    if (isPlayingAudio && !anyModalOpen) {
+      hideTimerRef.current = setTimeout(() => {
         setIsHudVisible(false);
-        setIsThemePickerOpen(false);
-      }
-    }, delay);
+      }, 2500);
+    }
   };
 
   useEffect(() => {
     if (!isOpen) return;
+
+    if (!isPlayingAudio) {
+      setIsHudVisible(true);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      return;
+    }
+
+    // When audio is playing, schedule auto-hide if inactive
     resetHudTimer(true);
 
-    const handleMouseMove = () => resetHudTimer(true);
-    const handleTouchStart = () => resetHudTimer(true);
+    const onUserActivity = () => {
+      resetHudTimer(true);
+    };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('touchstart', handleTouchStart);
+    window.addEventListener('mousemove', onUserActivity);
+    window.addEventListener('touchstart', onUserActivity, { passive: true });
+    window.addEventListener('pointermove', onUserActivity);
+    window.addEventListener('keydown', onUserActivity);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchstart', handleTouchStart);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      window.removeEventListener('mousemove', onUserActivity);
+      window.removeEventListener('touchstart', onUserActivity);
+      window.removeEventListener('pointermove', onUserActivity);
+      window.removeEventListener('keydown', onUserActivity);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
     };
-  }, [isOpen, isPlayingAudio]);
+  }, [isOpen, isPlayingAudio, anyModalOpen]);
 
   const ayahs = (surahData?.ayahs || []).map((a) => ({
     ...a,
@@ -658,8 +781,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       .play()
       .then(() => {
         setIsPlayingAudio(true);
-        setIsHudVisible(false);
-        setIsThemePickerOpen(false);
+        setIsHudVisible(true);
       })
       .catch(() => {
         setIsPlayingAudio(false);
@@ -676,8 +798,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       setIsHudVisible(true);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     } else {
-      setIsHudVisible(false);
-      setIsThemePickerOpen(false);
+      setIsHudVisible(true);
       playVerseAudio(currentAyahIndex);
     }
   };
@@ -706,12 +827,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isTajweedGuideOpen) {
-          setIsTajweedGuideOpen(false);
-        } else if (isBgPickerOpen) {
-          setIsBgPickerOpen(false);
-        } else if (isThemePickerOpen) {
-          setIsThemePickerOpen(false);
+        if (anyModalOpen) {
+          closeAllPopovers();
         } else {
           handleExit();
         }
@@ -751,8 +868,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     currentAyahIndex,
     ayahs.length,
     isPlayingAudio,
-    isThemePickerOpen,
-    isTajweedGuideOpen,
+    isAppearanceModalOpen,
   ]);
 
   if (!isOpen) return null;
@@ -854,17 +970,45 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       ? CINEMATIC_BACKGROUNDS
       : CINEMATIC_BACKGROUNDS.filter((b) => b.category === bgCategoryFilter);
 
+  const filteredSurahs = (allSurahs || []).filter((s) => {
+    const q = surahSearchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.arabicName.includes(q) ||
+      s.frenchTranslation.toLowerCase().includes(q) ||
+      String(s.number).includes(q)
+    );
+  });
+
+  const isEmulatedLandscape = isLandscapeMode && isPortrait;
+
   return (
     <div
       ref={containerRef}
-      style={{ background: currentTheme.inlineBg }}
+      style={{
+        background: currentTheme.inlineBg,
+        ...(isEmulatedLandscape
+          ? {
+              position: 'fixed',
+              top: 0,
+              left: '100vw',
+              width: '100vh',
+              height: '100vw',
+              transform: 'rotate(90deg)',
+              transformOrigin: 'top left',
+              zIndex: 9999,
+            }
+          : {}),
+      }}
       className={`fixed inset-0 z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
         !isHudVisible && isPlayingAudio ? 'cursor-none' : 'cursor-default'
       }`}
       onClick={() => {
-        if (!isHudVisible) {
-          resetHudTimer(true);
-        }
+        resetHudTimer(true);
+      }}
+      onMouseMove={() => {
+        resetHudTimer(true);
       }}
     >
       {/* Dynamic Islamic Photographic Background Wallpaper Layer (Desktop & Tablet only; mobile uses pure serene spiritual gradient for flawless readability and fluid performance) */}
@@ -899,394 +1043,86 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       />
 
       {/* ========================================================
-          TOP CINEMATIC HUD (AUTO-HIDES ON AUDIO PLAY)
+          TOP FLOATING ACTION ICONS (NO BACKGROUND BAND, PURE ICONS)
          ======================================================== */}
-      <header
-        className={`absolute top-0 left-0 right-0 z-50 w-full px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 transition-all duration-500 backdrop-blur-md overflow-x-auto no-scrollbar ${
+      <div
+        className={`fixed top-3 sm:top-5 left-3 sm:left-6 right-3 sm:right-6 z-[100] flex items-center justify-between pointer-events-none transition-all duration-500 ${
           isHudVisible
-            ? 'opacity-100 translate-y-0 shadow-lg'
-            : 'opacity-0 -translate-y-full pointer-events-none'
-        } ${currentTheme.hudBg} border-b`}
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 -translate-y-6 pointer-events-none'
+        }`}
       >
-        {/* Left: Surah Information */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 text-amber-300 border border-white/20 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
-            {currentSurahMeta.number}
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h2 className="text-xs sm:text-base md:text-lg font-black text-white tracking-tight">
-                {currentSurahMeta.name}
-              </h2>
-              <span className="text-xs text-amber-300 font-bold hidden md:inline">
-                ({currentSurahMeta.frenchTranslation})
-              </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-neutral-300 uppercase tracking-widest text-[9px] font-bold hidden sm:inline">
-                {currentSurahMeta.revelationType === 'Meccan' ? 'Mecquoise' : 'Médinoise'}
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-xs text-neutral-400">
-              Verset {currentAyah?.num || 1}/{currentSurahMeta.numberOfAyahs} •{' '}
-              <span className="text-amber-200 font-semibold">{selectedReciter.name.split(' ')[0]}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Center: Reciter Switcher Pill */}
-        <div className="hidden lg:flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-2xl bg-black/50 border border-white/15 text-[11px] sm:text-xs shrink-0">
-          <span className="text-neutral-400 font-semibold text-[11px]">Récitation :</span>
-          <select
-            value={selectedReciter.id}
-            onChange={(e) => {
-              const rec = RECITERS.find((r) => r.id === e.target.value);
-              if (rec) onSelectReciter(rec);
-            }}
-            className="bg-transparent text-amber-300 font-bold cursor-pointer focus:outline-hidden max-w-[130px] sm:max-w-none truncate"
-          >
-            {RECITERS.map((r) => (
-              <option key={r.id} value={r.id} className="bg-neutral-900 text-white">
-                {r.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Right: Quick Options (Theme, Tajweed, Video, Font Size, Exit) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Display Mode: Focus vs Continuous */}
-          <div className="hidden sm:flex items-center p-1 bg-black/40 rounded-xl border border-white/10 text-xs">
-            <button
-              onClick={() => setDisplayMode('focus')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                displayMode === 'focus'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-300 hover:text-white'
-              }`}
-              title="Un verset géant centré à la fois"
-            >
-              Focus Verset
-            </button>
-            <button
-              onClick={() => setDisplayMode('continuous')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                displayMode === 'continuous'
-                  ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                  : 'text-neutral-300 hover:text-white'
-              }`}
-              title="Défilement continu des versets"
-            >
-              Défilement
-            </button>
-          </div>
-
-          {/* Tajweed Toggle & Guide Button */}
-          <div className="flex items-center bg-black/40 rounded-xl border border-white/15 p-0.5">
-            <button
-              onClick={handleToggleTajweed}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                isTajweedEnabled
-                  ? 'bg-gradient-to-r from-emerald-500/30 to-amber-500/30 text-amber-300 border border-amber-400/30'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-              title="Activer/Désactiver le coloriage Tajweed des lettres"
-            >
-              <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-emerald-400 to-amber-400 inline-block" />
-              <span>Tajweed</span>
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsTajweedGuideOpen(true);
-              }}
-              className="p-1.5 text-neutral-400 hover:text-amber-300 transition cursor-pointer"
-              title="Comprendre les couleurs et règles du Tajweed"
-            >
-              <HelpCircle className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-
-          {/* Wallpaper / Background Images Button (Desktop only; hidden on mobile) */}
-          <div className="relative hidden md:block">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsBgPickerOpen((prev) => !prev);
-                setIsThemePickerOpen(false);
-              }}
-              className={`p-2 sm:px-3 sm:py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border ${
-                selectedBgId !== 'none'
-                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 shadow-xs'
-                  : 'bg-white/10 hover:bg-white/20 text-neutral-300 border-white/15'
-              }`}
-              title="Choisir une image de fond cinématique (Arches, Lanternes, Nuit, Marbre)"
-            >
-              {selectedBg && selectedBgId !== 'none' ? (
-                <img
-                  src={selectedBg.url}
-                  alt=""
-                  className="w-4 h-4 rounded-full object-cover border border-amber-400/60 shrink-0"
-                />
-              ) : (
-                <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
-              )}
-              <span className="hidden md:inline">Fond</span>
-              <span className="text-[10px] opacity-75 font-normal hidden xl:inline">
-                ({selectedBgId === 'none' ? 'Dégradé' : selectedBg?.name.split('&')[0].trim()})
-              </span>
-            </button>
-
-            {/* Background Images Popover */}
-            {isBgPickerOpen && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-4 rounded-2xl bg-neutral-900/98 backdrop-blur-2xl border border-white/20 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 text-white"
-              >
-                <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-black uppercase tracking-wider text-neutral-200">
-                      Fonds Cinématiques Coran
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-amber-400 font-bold">
-                    {CINEMATIC_BACKGROUNDS.length} Fonds 4K Ultra-HD
-                  </span>
-                </div>
-
-                {/* Categories Tabs */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-3 no-scrollbar text-[11px] font-semibold">
-                  <button
-                    onClick={() => setBgCategoryFilter('all')}
-                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'all'
-                        ? 'bg-amber-400 text-neutral-950 font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                    }`}
-                  >
-                    Tous ({CINEMATIC_BACKGROUNDS.length})
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('emeraude')}
-                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'emeraude'
-                        ? 'bg-emerald-500 text-white font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-emerald-300'
-                    }`}
-                  >
-                    Émeraude
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('obsidienne')}
-                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'obsidienne'
-                        ? 'bg-neutral-200 text-neutral-950 font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                    }`}
-                  >
-                    Obsidienne
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('saphir')}
-                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'saphir'
-                        ? 'bg-sky-500 text-white font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-sky-300'
-                    }`}
-                  >
-                    Saphir
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('ivoire')}
-                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'ivoire'
-                        ? 'bg-amber-200 text-neutral-950 font-bold'
-                        : 'bg-white/5 hover:bg-white/10 text-amber-200'
-                    }`}
-                  >
-                    Ivoire & Or
-                  </button>
-                </div>
-
-                {/* Option to Disable Image (Pure Gradient) */}
-                <button
-                  onClick={() => {
-                    handleSelectBackground('none');
-                  }}
-                  className={`w-full mb-3 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
-                    selectedBgId === 'none'
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 rounded-full border border-current opacity-60 inline-block" />
-                    <span>Dégradé pur (sans image de fond)</span>
-                  </span>
-                  {selectedBgId === 'none' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                </button>
-
-                {/* Thumbnail Grid */}
-                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto no-scrollbar pr-1 mb-3">
-                  {filteredBackgrounds.map((bg) => {
-                    const isSelected = selectedBgId === bg.id;
-                    return (
-                      <button
-                        key={bg.id}
-                        onClick={() => handleSelectBackground(bg.id)}
-                        className={`group relative aspect-video rounded-xl overflow-hidden border text-left transition cursor-pointer flex flex-col justify-end p-1.5 ${
-                          isSelected
-                            ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-md'
-                            : 'border-white/10 hover:border-white/30'
-                        }`}
-                      >
-                        <img
-                          src={bg.url}
-                          alt={bg.name}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                        <div className="relative z-10 flex items-center justify-between w-full">
-                          <span className="text-[10px] font-bold text-white line-clamp-1 drop-shadow-xs">
-                            {bg.name}
-                          </span>
-                          {isSelected && (
-                            <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 ml-1">
-                              <Check className="w-3 h-3 stroke-[3]" />
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Opacity / Readability Veil Presets */}
-                <div className="pt-2 border-t border-white/10">
-                  <div className="flex items-center justify-between text-[11px] mb-1.5 text-neutral-300">
-                    <span className="font-semibold">Voile d'ombrage (lisibilité) :</span>
-                    <span className="text-amber-300 font-mono font-bold">
-                      {Math.round(bgOpacity * 100)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold">
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.38)}
-                      className={`py-1 rounded-lg border transition cursor-pointer ${
-                        bgOpacity <= 0.42
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Léger (38%)
-                    </button>
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.55)}
-                      className={`py-1 rounded-lg border transition cursor-pointer ${
-                        bgOpacity > 0.42 && bgOpacity <= 0.65
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Équilibré (55%)
-                    </button>
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.75)}
-                      className={`py-1 rounded-lg border transition cursor-pointer ${
-                        bgOpacity > 0.65
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Sombre (75%)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Theme Palette Button with Swatch preview */}
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsThemePickerOpen((prev) => !prev);
-              }}
-              className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-white/15"
-              title="Choisir parmi les 10 thèmes immersifs"
-            >
-              <span
-                className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-xs inline-block"
-                style={{ backgroundColor: currentTheme.swatch }}
-              />
-              <Palette className="w-3.5 h-3.5" />
-              <span className="hidden lg:inline">{currentTheme.name}</span>
-            </button>
-
-            {/* 10 Themes Selection Popover */}
-            {isThemePickerOpen && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="absolute right-0 top-full mt-2 w-72 p-3 rounded-2xl bg-neutral-900/98 backdrop-blur-xl border border-white/20 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150"
-              >
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
-                  <span className="text-xs font-black uppercase tracking-wider text-neutral-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    10 Couleurs Immersives
-                  </span>
-                  <span className="text-[10px] text-amber-400 font-bold">10 / 10 Thèmes</span>
-                </div>
-                <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto no-scrollbar pr-1">
-                  {themeList.map((t) => {
-                    const isSelected = t.id === theme;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => handleSelectTheme(t.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left text-xs font-bold transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                            : 'hover:bg-white/10 text-neutral-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-4 h-4 rounded-full border border-white/50 shadow-xs shrink-0"
-                            style={{ backgroundColor: t.swatch }}
-                          />
-                          <span>{t.name}</span>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 shrink-0 stroke-[3]" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Font Size Increaser */}
+        {/* Left Floating Icons: Surah & Reciter */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Surah Quick Picker Button */}
           <button
-            onClick={() => setFontSizeLevel((lvl) => (lvl + 1) % 4)}
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 transition cursor-pointer flex items-center gap-1 text-xs font-bold border border-white/15"
-            title="Ajuster la taille du texte"
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllPopovers();
+              setIsSurahPickerOpen(true);
+            }}
+            className="h-9 sm:h-10 px-3 rounded-full bg-black/55 hover:bg-black/75 text-amber-300 border border-white/20 backdrop-blur-xl flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer"
+            title={`Sourate ${currentSurahMeta.number}. ${currentSurahMeta.name} (cliquer pour changer)`}
           >
-            <Type className="w-3.5 h-3.5 text-amber-300" />
-            <span>A{fontSizeLevel === 0 ? '-' : fontSizeLevel === 3 ? '++' : '+'}</span>
+            <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
+            <span className="text-xs font-mono font-bold text-white tracking-tight">
+              {currentSurahMeta.number}. {currentSurahMeta.name}
+            </span>
           </button>
 
-          {/* Exit Fullscreen */}
+          {/* Reciter Selector Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllPopovers();
+              setIsReciterPickerOpen(true);
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/55 hover:bg-black/75 text-white/90 hover:text-white border border-white/20 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer"
+            title={`Récitateur : ${selectedReciter.name} (cliquer pour changer)`}
+          >
+            <Headphones className="w-4 h-4 text-amber-300" />
+          </button>
+        </div>
+
+        {/* Right Floating Icons: Unified Apparence & Réglages, Landscape (MOBILE ONLY), Close */}
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+          {/* Unified Apparence & Réglages (Unites Theme, Backgrounds 4K, Tajweed, and Text Size) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeAllPopovers();
+              setIsAppearanceModalOpen(true);
+            }}
+            className="h-9 sm:h-10 px-3 rounded-full bg-black/55 hover:bg-black/75 text-amber-300 border border-white/20 backdrop-blur-xl flex items-center gap-2 transition active:scale-95 shadow-xl cursor-pointer"
+            title="Apparence & Réglages (Thèmes, Fonds 4K, Tajweed, Taille de texte)"
+          >
+            <Palette className="w-4 h-4 text-amber-300" />
+            <span className="text-xs font-semibold text-white/95 hidden sm:inline">Apparence</span>
+          </button>
+
+          {/* Landscape / Fullscreen Rotation Button (STRICTLY ON MOBILE ONLY as requested by user) */}
+          <button
+            onClick={toggleLandscapeFullscreen}
+            className={`md:hidden w-9 h-9 sm:w-10 sm:h-10 rounded-full backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer border ${
+              isLandscapeMode
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+                : 'bg-black/55 hover:bg-black/75 text-white/90 hover:text-white border-white/20'
+            }`}
+            title={isLandscapeMode ? 'Quitter mode paysage plein écran' : 'Mode paysage plein écran'}
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+
+          {/* Close / Exit Reader */}
           <button
             onClick={handleExit}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-rose-600/85 hover:bg-rose-600 text-white transition cursor-pointer flex items-center gap-1.5 font-bold text-xs shadow-md"
-            title="Quitter le mode plein écran (Échap)"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-600/85 hover:bg-rose-600 text-white border border-rose-400/40 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer"
+            title="Quitter le mode cinématique (Échap)"
           >
-            <Minimize2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Quitter</span>
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
-      </header>
+      </div>
 
       {/* ========================================================
           CENTER CONTENT: CINEMATIC READING CANVAS
@@ -1469,56 +1305,41 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       </main>
 
       {/* ========================================================
-          BOTTOM CINEMATIC FLOATING HUD (AUTO-HIDES ON AUDIO PLAY)
+          BOTTOM FLOATING AUDIO & READING CONTROLS (NO BACKGROUND BAND, PURE ICONS)
          ======================================================== */}
-      <footer
-        className={`absolute bottom-0 left-0 right-0 z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 transition-all duration-500 backdrop-blur-md ${
+      <div
+        className={`fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none transition-all duration-500 ${
           isHudVisible
-            ? 'opacity-100 translate-y-0 shadow-lg'
-            : 'opacity-0 translate-y-full pointer-events-none'
-        } ${currentTheme.hudBg} border-t`}
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 translate-y-6 pointer-events-none'
+        }`}
       >
-        {/* Left: Quick Surah Stepper */}
-        <div className="flex items-center gap-2">
+        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full bg-black/60 backdrop-blur-2xl border border-white/20 shadow-2xl">
+          {/* Prev Surah (desktop/tablet) */}
           <button
             onClick={() => onSelectSurah(Math.max(1, currentSurahMeta.number - 1))}
             disabled={currentSurahMeta.number <= 1}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30 border border-white/10"
+            className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Sourate précédente"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sourate préc.</span>
-          </button>
-
-          <span className="text-xs font-bold text-amber-300 px-2 font-mono">
-            {currentSurahMeta.number}. {currentSurahMeta.name}
-          </span>
-
-          <button
-            onClick={() => onSelectSurah(Math.min(114, currentSurahMeta.number + 1))}
-            disabled={currentSurahMeta.number >= 114}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-30 border border-white/10"
-            title="Sourate suivante"
-          >
-            <span className="hidden sm:inline">Sourate suiv.</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Center: Audio Play/Pause & Verse Stepper */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePrevVerse}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
-            title="Verset précédent"
           >
             <SkipBack className="w-4 h-4" />
           </button>
 
+          {/* Prev Ayah */}
+          <button
+            onClick={handlePrevVerse}
+            disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white flex items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
+            title="Verset précédent"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {/* Center Play/Pause button */}
           <button
             onClick={togglePlayAudio}
-            className="p-3.5 sm:p-4 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black shadow-lg transition active:scale-95 cursor-pointer"
-            title={isPlayingAudio ? 'Mettre en pause la récitation (Espace)' : 'Écouter la récitation (Espace)'}
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black shadow-lg transition active:scale-95 cursor-pointer flex items-center justify-center mx-1"
+            title={isPlayingAudio ? 'Mettre en pause (Espace)' : 'Écouter la récitation (Espace)'}
           >
             {isPlayingAudio ? (
               <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
@@ -1527,42 +1348,56 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             )}
           </button>
 
+          {/* Next Ayah */}
           <button
             onClick={handleNextVerse}
-            className="p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
+            disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white flex items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Verset suivant"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          {/* Next Surah (desktop/tablet) */}
+          <button
+            onClick={() => onSelectSurah(Math.min(114, currentSurahMeta.number + 1))}
+            disabled={currentSurahMeta.number >= 114}
+            className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
+            title="Sourate suivante"
           >
             <SkipForward className="w-4 h-4" />
           </button>
-        </div>
 
-        {/* Right: Translation, Phonetics, Video & Mute */}
-        <div className="flex items-center gap-2">
+          {/* Subtle separator */}
+          <div className="w-px h-5 bg-white/20 mx-1" />
+
+          {/* French Translation Toggle (icon only) */}
           <button
             onClick={() => setShowTranslation((v) => !v)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
               showTranslation
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
-                : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
+                : 'bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white border-white/10'
             }`}
-            title="Afficher/Masquer la traduction française (Touche T)"
+            title={showTranslation ? 'Masquer la traduction française (T)' : 'Afficher la traduction française (T)'}
           >
-            <span>Traduction FR</span>
+            <Languages className="w-4 h-4" />
           </button>
 
+          {/* Phonetics Toggle (icon only, hidden on very narrow screens) */}
           <button
             onClick={() => setShowPhonetics((v) => !v)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+            className={`hidden xs:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center transition active:scale-95 cursor-pointer border ${
               showPhonetics
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
-                : 'bg-white/5 hover:bg-white/10 text-neutral-400 border-white/10'
+                : 'bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white border-white/10'
             }`}
-            title="Afficher/Masquer la phonétique (Touche P)"
+            title={showPhonetics ? 'Masquer la phonétique (P)' : 'Afficher la phonétique (P)'}
           >
-            <span>Phonétique</span>
+            <FileText className="w-4 h-4" />
           </button>
 
-
+          {/* Mute/Sound Toggle (icon only) */}
           <button
             onClick={() => {
               if (audioRef.current) {
@@ -1570,104 +1405,546 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               }
               setIsAudioMuted(!isAudioMuted);
             }}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition cursor-pointer border border-white/10"
+            className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
+              isAudioMuted
+                ? 'bg-rose-500/25 text-rose-300 border-rose-400/50'
+                : 'bg-white/10 hover:bg-white/20 text-white/90 hover:text-white border-white/10'
+            }`}
             title={isAudioMuted ? 'Activer le son' : 'Couper le son'}
           >
             {isAudioMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
         </div>
-      </footer>
+      </div>
 
       {/* ========================================================
-          TAJWEED RULES EXPLANATION MODAL
+          1. SURAH SELECTION MODAL (OPENS IN FOREGROUND, NEVER CLIPPED)
          ======================================================== */}
-      {isTajweedGuideOpen && (
+      {isSurahPickerOpen && (
         <div
-          onClick={() => setIsTajweedGuideOpen(false)}
-          className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={closeAllPopovers}
         >
           <div
+            className="w-full max-w-lg bg-neutral-900/98 border border-white/20 rounded-3xl p-5 shadow-2xl space-y-4 text-white max-h-[85vh] flex flex-col z-[10001]"
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-2xl bg-neutral-900 border border-white/20 rounded-3xl p-6 shadow-2xl space-y-5 text-white max-h-[85vh] overflow-y-auto"
           >
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-black text-white">
-                    Guide des Couleurs du Tajweed (تجويد)
-                  </h3>
-                  <p className="text-xs text-neutral-400">
-                    Comprendre l'utilité et les règles de récitation des lettres colorées
-                  </p>
-                </div>
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-black text-white">Choisir une Sourate (1-114)</h3>
               </div>
               <button
-                onClick={() => setIsTajweedGuideOpen(false)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
+                onClick={closeAllPopovers}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/20 text-xs sm:text-sm text-neutral-200 leading-relaxed">
-              <strong className="text-amber-300 font-bold">À quoi sert le Tajweed ?</strong>
-              <p className="mt-1 text-neutral-300">
-                Le Tajweed est la science de la récitation coranique. Le coloriage a été conçu par les savants
-                pour guider visuellement vos yeux : chaque couleur vous indique instantanément comment prononcer la
-                lettre (allonger, faire résonner dans le nez, faire rebondir ou ne pas prononcer) sans avoir
-                besoin de maîtriser par cœur les règles grammaticales complexes !
-              </p>
+            {/* Search Input */}
+            <div className="relative shrink-0">
+              <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={surahSearchQuery}
+                onChange={(e) => setSurahSearchQuery(e.target.value)}
+                placeholder="Rechercher par nom, numéro (ex: 18, Al-Kahf)..."
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/50 border border-white/15 text-sm text-white placeholder-neutral-500 focus:outline-hidden focus:border-amber-400"
+                autoFocus
+              />
             </div>
 
-            <div className="space-y-3">
-              {TAJWEED_RULES_EXPLANATIONS.map((rule) => (
-                <div
-                  key={rule.id}
-                  className="p-3.5 sm:p-4 rounded-2xl border transition-all"
-                  style={{ backgroundColor: rule.bgColor, borderColor: rule.borderColor }}
-                >
-                  <div className="flex items-center justify-between pb-1">
-                    <div className="flex items-center gap-2">
+            {/* Surahs List */}
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+              {filteredSurahs.map((s) => {
+                const isSelected = s.number === currentSurahMeta.number;
+                return (
+                  <button
+                    key={s.number}
+                    onClick={() => handleChooseSurah(s.number)}
+                    className={`w-full flex items-center justify-between p-2.5 sm:p-3 rounded-2xl text-left transition cursor-pointer border ${
+                      isSelected
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-white border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
                       <span
-                        className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs"
-                        style={{ backgroundColor: rule.color }}
-                      />
-                      <span className="font-bold text-sm text-white">{rule.name}</span>
-                      <span className="text-xs font-arabic opacity-75 font-semibold" dir="rtl">
-                        {rule.arabicName}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-mono font-bold text-xs ${
+                          isSelected ? 'bg-neutral-950 text-amber-300' : 'bg-white/10 text-amber-300'
+                        }`}
+                      >
+                        {s.number}
                       </span>
+                      <div>
+                        <div className="text-sm font-bold leading-tight">{s.name}</div>
+                        <div className={`text-[11px] ${isSelected ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                          {s.frenchTranslation} • {s.numberOfAyahs} versets
+                        </div>
+                      </div>
                     </div>
-                    <span
-                      className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
-                      style={{
-                        backgroundColor: rule.color,
-                        color: rule.id === 'silent' ? '#000000' : '#051A10',
-                      }}
-                    >
-                      {rule.duration}
+                    <span className="font-arabic text-base" dir="rtl">
+                      {s.arabicName}
                     </span>
-                  </div>
-                  <p className="text-xs text-neutral-200 mt-1 leading-relaxed">
-                    {rule.description}
-                  </p>
-                  <div className="mt-2 text-xs font-arabic text-right tracking-wide text-amber-200" dir="rtl">
-                    Exemple : <span className="font-bold underline">{rule.example}</span>
-                  </div>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="pt-2 flex justify-end">
+      {/* ========================================================
+          2. RECITER SELECTION MODAL (OPENS IN FOREGROUND, NEVER CLIPPED)
+         ======================================================== */}
+      {isReciterPickerOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={closeAllPopovers}
+        >
+          <div
+            className="w-full max-w-md bg-neutral-900/98 border border-white/20 rounded-3xl p-5 shadow-2xl space-y-4 text-white max-h-[85vh] flex flex-col z-[10001]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <Headphones className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-black text-white">Choisir un Récitateur</h3>
+              </div>
               <button
-                onClick={() => setIsTajweedGuideOpen(false)}
-                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs transition cursor-pointer shadow-md"
+                onClick={closeAllPopovers}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
               >
-                J'ai compris
+                <X className="w-5 h-5" />
               </button>
             </div>
+
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 no-scrollbar">
+              {RECITERS.map((r) => {
+                const isSelected = r.id === selectedReciter.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => {
+                      onSelectReciter(r);
+                      closeAllPopovers();
+                    }}
+                    className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition cursor-pointer border ${
+                      isSelected
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-white border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
+                          isSelected ? 'bg-neutral-950 text-amber-300' : 'bg-white/10 text-amber-300'
+                        }`}
+                      >
+                        <Headphones className="w-4 h-4" />
+                      </span>
+                      <div>
+                        <div className="text-sm font-bold leading-tight">{r.name}</div>
+                        <div className={`text-[11px] ${isSelected ? 'text-neutral-800' : 'text-neutral-400'}`}>
+                          {r.style}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 stroke-[3]" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          3. UNIFIED SETTINGS & APPEARANCE MODAL (THEMES, FONDS 4K, TAJWEED & TEXT)
+         ======================================================== */}
+      {isAppearanceModalOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 text-white"
+          onClick={closeAllPopovers}
+        >
+          <div
+            className="w-full max-w-xl bg-neutral-900/98 border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[88vh] flex flex-col z-[10001]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center">
+                  <Palette className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Apparence & Lecture</h3>
+                  <p className="text-xs text-neutral-400">Thèmes célestes, fonds d'écran et options de lecture</p>
+                </div>
+              </div>
+              <button
+                onClick={closeAllPopovers}
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 3 Unified Tabs */}
+            <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-2xl shrink-0 text-xs font-bold">
+              <button
+                onClick={() => setAppearanceTab('themes')}
+                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  appearanceTab === 'themes'
+                    ? 'bg-amber-400 text-neutral-950 font-black shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Palette className="w-3.5 h-3.5" />
+                <span>Thèmes</span>
+              </button>
+              <button
+                onClick={() => setAppearanceTab('backgrounds')}
+                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  appearanceTab === 'backgrounds'
+                    ? 'bg-amber-400 text-neutral-950 font-black shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Fonds 4K</span>
+              </button>
+              <button
+                onClick={() => setAppearanceTab('tajweed')}
+                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  appearanceTab === 'tajweed'
+                    ? 'bg-amber-400 text-neutral-950 font-black shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Tajweed & Texte</span>
+              </button>
+            </div>
+
+            {/* TAB 1: THEMES */}
+            {appearanceTab === 'themes' && (
+              <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {themeList.map((t) => {
+                    const isSelected = t.id === theme;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelectTheme(t.id)}
+                        className={`flex items-center justify-between p-3 rounded-2xl text-left text-xs font-bold transition cursor-pointer border ${
+                          isSelected
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-200 border-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-4 h-4 rounded-full border border-white/60 shadow-xs shrink-0"
+                            style={{ backgroundColor: t.swatch }}
+                          />
+                          <span className="text-sm font-semibold">{t.name}</span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 shrink-0 stroke-[3]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: BACKGROUNDS 4K */}
+            {appearanceTab === 'backgrounds' && (
+              <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 no-scrollbar">
+                {/* Categories */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-semibold shrink-0">
+                  <button
+                    onClick={() => setBgCategoryFilter('all')}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'all'
+                        ? 'bg-amber-400 text-neutral-950 font-bold shadow-xs'
+                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                    }`}
+                  >
+                    Tous ({CINEMATIC_BACKGROUNDS.length})
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('emeraude')}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'emeraude'
+                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                        : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+                    }`}
+                  >
+                    Émeraude
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('obsidienne')}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'obsidienne'
+                        ? 'bg-neutral-200 text-neutral-950 font-bold shadow-xs'
+                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                    }`}
+                  >
+                    Obsidienne
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('saphir')}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'saphir'
+                        ? 'bg-sky-500 text-white font-bold shadow-xs'
+                        : 'bg-white/5 hover:bg-white/10 text-sky-300'
+                    }`}
+                  >
+                    Saphir
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('ivoire')}
+                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'ivoire'
+                        ? 'bg-amber-200 text-neutral-950 font-bold shadow-xs'
+                        : 'bg-white/5 hover:bg-white/10 text-amber-200'
+                    }`}
+                  >
+                    Ivoire & Or
+                  </button>
+                </div>
+
+                {/* Option: Pure Gradient (No photo) */}
+                <button
+                  onClick={() => handleSelectBackground('none')}
+                  className={`w-full px-3.5 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                    selectedBgId === 'none'
+                      ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded-full border border-current opacity-60 inline-block" />
+                    <span>Dégradé pur (sans image photographique)</span>
+                  </span>
+                  {selectedBgId === 'none' && <Check className="w-4 h-4 stroke-[3]" />}
+                </button>
+
+                {/* Thumbnail Grid - 2 columns so cards are large, clear, and names never overlap! */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {filteredBackgrounds.map((bg) => {
+                    const isSelected = selectedBgId === bg.id;
+                    return (
+                      <button
+                        key={bg.id}
+                        onClick={() => handleSelectBackground(bg.id)}
+                        className={`group relative aspect-video rounded-2xl overflow-hidden border text-left transition cursor-pointer flex flex-col justify-end p-2.5 ${
+                          isSelected
+                            ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-md'
+                            : 'border-white/10 hover:border-white/30'
+                        }`}
+                      >
+                        <img
+                          src={bg.url}
+                          alt={bg.name}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                        <div className="relative z-10 flex items-center justify-between w-full">
+                          <span className="text-xs font-bold text-white truncate drop-shadow-xs">
+                            {bg.name}
+                          </span>
+                          {isSelected && (
+                            <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 ml-1">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Opacity Veil Presets */}
+                <div className="pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-xs mb-2 text-neutral-300">
+                    <span className="font-semibold">Voile d'ombrage (lisibilité texte) :</span>
+                    <span className="text-amber-300 font-mono font-bold">
+                      {Math.round(bgOpacity * 100)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs font-bold">
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.38)}
+                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                        bgOpacity <= 0.42
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Léger (38%)
+                    </button>
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.55)}
+                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                        bgOpacity > 0.42 && bgOpacity <= 0.65
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Équilibré (55%)
+                    </button>
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.75)}
+                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                        bgOpacity > 0.65
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Sombre (75%)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: TAJWEED & TEXT */}
+            {appearanceTab === 'tajweed' && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar text-xs">
+                {/* Tajweed Assistance Toggle Card */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">Coloration Tajweed Assistée</div>
+                      <div className="text-neutral-400 text-[11px]">
+                        Guide visuel des règles de prononciation coranique
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleTajweed}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
+                      isTajweedEnabled
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                        : 'bg-white/10 text-neutral-400 border-white/10'
+                    }`}
+                  >
+                    {isTajweedEnabled ? 'Activé' : 'Désactivé'}
+                  </button>
+                </div>
+
+                {/* Font Size Selector */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                  <div className="flex items-center justify-between text-neutral-300">
+                    <span className="font-bold text-sm text-white">Taille du texte arabe</span>
+                    <span className="text-amber-300 font-mono">
+                      {fontSizeLevel === 0
+                        ? 'Compact'
+                        : fontSizeLevel === 1
+                        ? 'Standard'
+                        : fontSizeLevel === 2
+                        ? 'Grand'
+                        : 'Monumental'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {['A', 'A+', 'A++', 'A+++'].map((label, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setFontSizeLevel(idx)}
+                        className={`py-2 rounded-xl font-bold transition cursor-pointer border ${
+                          fontSizeLevel === idx
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Display Mode Selector */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                  <div className="font-bold text-sm text-white">Mode de lecture</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setDisplayMode('focus')}
+                      className={`py-2 px-3 rounded-xl font-bold transition cursor-pointer border text-left ${
+                        displayMode === 'focus'
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      <div className="font-bold">Focus verset</div>
+                      <div className="text-[10px] opacity-75">Méditation un par un</div>
+                    </button>
+                    <button
+                      onClick={() => setDisplayMode('continuous')}
+                      className={`py-2 px-3 rounded-xl font-bold transition cursor-pointer border text-left ${
+                        displayMode === 'continuous'
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      <div className="font-bold">Continu</div>
+                      <div className="text-[10px] opacity-75">Défilement fluide</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tajweed Rules Summary Guide */}
+                <div className="space-y-2">
+                  <div className="font-bold text-sm text-white flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-amber-400" />
+                    <span>Règles de couleurs du Tajweed</span>
+                  </div>
+                  <div className="space-y-2">
+                    {TAJWEED_RULES_EXPLANATIONS.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="p-3 rounded-2xl border transition-all"
+                        style={{ backgroundColor: rule.bgColor, borderColor: rule.borderColor }}
+                      >
+                        <div className="flex items-center justify-between pb-0.5">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-3 h-3 rounded-full shrink-0 shadow-xs"
+                              style={{ backgroundColor: rule.color }}
+                            />
+                            <span className="font-bold text-xs text-white">{rule.name}</span>
+                            <span className="text-[11px] font-arabic opacity-75" dir="rtl">
+                              {rule.arabicName}
+                            </span>
+                          </div>
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                            style={{
+                              backgroundColor: rule.color,
+                              color: rule.id === 'silent' ? '#000000' : '#051A10',
+                            }}
+                          >
+                            {rule.duration}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-200 mt-1 leading-snug">
+                          {rule.description}
+                        </p>
+                        <div className="mt-1 text-[11px] font-arabic text-right text-amber-200" dir="rtl">
+                          Exemple : <span className="font-bold underline">{rule.example}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
