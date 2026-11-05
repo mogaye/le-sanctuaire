@@ -29,6 +29,8 @@ interface QuranVideoRecorderModalProps {
   selectedReciter: Reciter;
   getAyahAudioUrl: (surahNum: number, ayahNum: number, reciterId: string) => string;
   themeId: CinematicThemeId;
+  bgImageUrl?: string;
+  onOpenVideoStudio?: () => void;
 }
 
 type VideoAspectRatio = 'story' | 'landscape' | 'square';
@@ -44,20 +46,40 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
   selectedReciter,
   getAyahAudioUrl,
   themeId,
+  bgImageUrl,
+  onOpenVideoStudio,
 }) => {
-  // Range selection (de tel verset à un autre)
+  // Free Mode: Maximum 5 consecutive verses allowed
   const [fromAyah, setFromAyah] = useState<number>(currentAyahNum);
-  const [toAyah, setToAyah] = useState<number>(Math.min(totalAyahs, currentAyahNum));
+  const [toAyah, setToAyah] = useState<number>(Math.min(totalAyahs, currentAyahNum + Math.min(2, Math.max(0, 5 - 1))));
+
+  const handleFromAyahChange = (val: number) => {
+    const from = Math.max(1, Math.min(val, totalAyahs));
+    setFromAyah(from);
+    if (toAyah < from) {
+      setToAyah(from);
+    } else if (toAyah - from + 1 > 5) {
+      setToAyah(from + 4);
+    }
+  };
+
+  const handleToAyahChange = (val: number) => {
+    let to = Math.max(fromAyah, Math.min(val, totalAyahs));
+    if (to - fromAyah + 1 > 5) {
+      to = fromAyah + 4;
+    }
+    setToAyah(to);
+  };
 
   // Format selection
   const [aspectRatio, setAspectRatio] = useState<VideoAspectRatio>('story');
 
-  // Visual options
+  // Visual options (Watermark always enabled on free mode)
   const [activeThemeId, setActiveThemeId] = useState<CinematicThemeId>(themeId);
   const [includeTranslation, setIncludeTranslation] = useState<boolean>(true);
   const [includePhonetics, setIncludePhonetics] = useState<boolean>(false);
   const [includeTajweed, setIncludeTajweed] = useState<boolean>(true);
-  const [includeWatermark, setIncludeWatermark] = useState<boolean>(true);
+  const includeWatermark = true; // Mandatory watermark for free reader recorder
 
   // Recording pipeline states
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -74,6 +96,21 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const isCancelledRef = useRef<boolean>(false);
+  const bgImageObjRef = useRef<HTMLImageElement | null>(null);
+
+  // Preload background image if provided
+  useEffect(() => {
+    if (bgImageUrl) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = bgImageUrl;
+      img.onload = () => {
+        bgImageObjRef.current = img;
+      };
+    } else {
+      bgImageObjRef.current = null;
+    }
+  }, [bgImageUrl]);
 
   // Reset range when opened or currentAyahNum changes
   useEffect(() => {
@@ -149,20 +186,49 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
   const drawBaseScene = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.save();
 
-    // Radial gradient background
-    const bgGrad = ctx.createRadialGradient(
-      width / 2,
-      height * 0.35,
-      width * 0.05,
-      width / 2,
-      height / 2,
-      width * 0.85
-    );
-    bgGrad.addColorStop(0, currentTheme.swatch);
-    bgGrad.addColorStop(0.65, '#050e09');
-    bgGrad.addColorStop(1, '#000000');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, width, height);
+    // If a photographic background is active, draw it with aspect cover
+    if (bgImageObjRef.current && bgImageObjRef.current.complete) {
+      const img = bgImageObjRef.current;
+      const imgAspect = img.width / img.height;
+      const canvasAspect = width / height;
+      let drawW = width;
+      let drawH = height;
+      let drawX = 0;
+      let drawY = 0;
+
+      if (imgAspect > canvasAspect) {
+        drawH = height;
+        drawW = height * imgAspect;
+        drawX = (width - drawW) / 2;
+      } else {
+        drawW = width;
+        drawH = width / imgAspect;
+        drawY = (height - drawH) / 2;
+      }
+
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+      // Darkening scrim overlay for pristine Arabic readability
+      ctx.fillStyle = currentTheme.swatch || '#000000';
+      ctx.globalAlpha = 0.58;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalAlpha = 1.0;
+    } else {
+      // Radial gradient background
+      const bgGrad = ctx.createRadialGradient(
+        width / 2,
+        height * 0.35,
+        width * 0.05,
+        width / 2,
+        height / 2,
+        width * 0.85
+      );
+      bgGrad.addColorStop(0, currentTheme.swatch);
+      bgGrad.addColorStop(0.65, '#050e09');
+      bgGrad.addColorStop(1, '#000000');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+    }
 
     // Ambient soft glow
     const glowGrad = ctx.createRadialGradient(
@@ -538,6 +604,9 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+      }
       const audioDest = audioCtx.createMediaStreamDestination();
 
       const analyser = audioCtx.createAnalyser();
@@ -565,7 +634,8 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
       const recorder = new MediaRecorder(combinedStream, {
         mimeType: selectedMime || undefined,
-        videoBitsPerSecond: 3500000,
+        videoBitsPerSecond: 4000000,
+        audioBitsPerSecond: 192000, // Studio-quality 192kbps Opus/AAC audio!
       });
       mediaRecorderRef.current = recorder;
 
@@ -606,77 +676,118 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
         // Load verse audio
         const audioUrl = getAyahAudioUrl(surahNum, currentAyah.num, selectedReciter.id);
-        const audio = new Audio();
-        audio.crossOrigin = 'anonymous';
-        audio.src = audioUrl;
-        audioRef.current = audio;
 
-        // Connect audio node
-        const sourceNode = audioCtx.createMediaElementSource(audio);
-        sourceNode.connect(analyser);
-        analyser.connect(audioDest);
-        sourceNode.connect(audioCtx.destination);
+        let audioBuffer: AudioBuffer | null = null;
+        try {
+          const resp = await fetch(audioUrl);
+          const arrayBuf = await resp.arrayBuffer();
+          audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
+        } catch (e) {
+          console.warn('Fallback to HTMLAudioElement for ayah', currentAyah.num, e);
+        }
 
         await new Promise<void>((resolve) => {
           let hasEnded = false;
 
-          const renderLoop = () => {
-            if (isCancelledRef.current || hasEnded) return;
-            analyser.getByteFrequencyData(freqData);
+          if (audioBuffer) {
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(analyser);
+            analyser.connect(audioDest);
+            source.connect(audioCtx.destination);
 
-            const currentTime = audio.currentTime || 0;
-            const duration = audio.duration || 1;
-            const verseProgress = Math.min(1, currentTime / duration);
-            const overallProgress = Math.round(
-              ((idx + verseProgress) / totalVerses) * 100
-            );
-            setRecordingProgress(overallProgress);
+            const startTime = audioCtx.currentTime;
+            const duration = audioBuffer.duration;
 
-            drawBaseScene(ctx, width, height);
-            drawAyahElements(ctx, width, height, currentAyah, 1.0, 0);
-            drawBottomBar(ctx, width, height, verseProgress, freqData);
+            const renderLoop = () => {
+              if (isCancelledRef.current || hasEnded) return;
+              analyser.getByteFrequencyData(freqData);
 
-            animationFrameRef.current = requestAnimationFrame(renderLoop);
-          };
+              const elapsed = audioCtx.currentTime - startTime;
+              const verseProgress = Math.min(1, elapsed / duration);
+              const overallProgress = Math.round(
+                ((idx + verseProgress) / totalVerses) * 100
+              );
+              setRecordingProgress(overallProgress);
 
-          audio.onplay = () => {
+              drawBaseScene(ctx, width, height);
+              drawAyahElements(ctx, width, height, currentAyah, 1.0, 0);
+              drawBottomBar(ctx, width, height, verseProgress, freqData);
+
+              if (elapsed < duration) {
+                animationFrameRef.current = requestAnimationFrame(renderLoop);
+              } else {
+                hasEnded = true;
+                source.disconnect();
+                resolve();
+              }
+            };
+
+            source.start(0);
             renderLoop();
-          };
+          } else {
+            const audio = new Audio();
+            audio.crossOrigin = 'anonymous';
+            audio.src = audioUrl;
+            audioRef.current = audio;
 
-          audio.onended = () => {
-            hasEnded = true;
-            sourceNode.disconnect();
-            resolve();
-          };
+            const sourceNode = audioCtx.createMediaElementSource(audio);
+            sourceNode.connect(analyser);
+            analyser.connect(audioDest);
+            sourceNode.connect(audioCtx.destination);
 
-          audio.onerror = () => {
-            hasEnded = true;
-            sourceNode.disconnect();
-            resolve();
-          };
+            const renderLoop = () => {
+              if (isCancelledRef.current || hasEnded) return;
+              analyser.getByteFrequencyData(freqData);
 
-          audio.play().catch(() => {
-            hasEnded = true;
-            sourceNode.disconnect();
-            resolve();
-          });
+              const currentTime = audio.currentTime || 0;
+              const duration = audio.duration || 1;
+              const verseProgress = Math.min(1, currentTime / duration);
+              const overallProgress = Math.round(
+                ((idx + verseProgress) / totalVerses) * 100
+              );
+              setRecordingProgress(overallProgress);
+
+              drawBaseScene(ctx, width, height);
+              drawAyahElements(ctx, width, height, currentAyah, 1.0, 0);
+              drawBottomBar(ctx, width, height, verseProgress, freqData);
+
+              animationFrameRef.current = requestAnimationFrame(renderLoop);
+            };
+
+            audio.onplay = () => {
+              renderLoop();
+            };
+
+            audio.onended = () => {
+              hasEnded = true;
+              sourceNode.disconnect();
+              resolve();
+            };
+
+            audio.onerror = () => {
+              hasEnded = true;
+              sourceNode.disconnect();
+              resolve();
+            };
+
+            audio.play().catch(() => {
+              hasEnded = true;
+              sourceNode.disconnect();
+              resolve();
+            });
+          }
         });
 
         if (isCancelledRef.current) break;
 
-        // =====================================================================
-        // SILKY SMOOTH CROSSFADE TRANSITION TO NEXT VERSE
-        // Eliminates abrupt cuts completely!
-        // =====================================================================
+        // Silky smooth crossfade transition
         if (idx < totalVerses - 1) {
           const nextAyah = selectedAyahs[idx + 1];
           setRecordingStatusText(`Transition vers le verset ${nextAyah.num}...`);
-          // 800ms gentle crossfade transition
           await animateCrossfadeTransition(ctx, width, height, currentAyah, nextAyah, 800);
-          // Short 200ms natural breathing pause before the Qari starts reciting next verse
           await new Promise((r) => setTimeout(r, 200));
         } else {
-          // Final verse lingering & smooth gentle finish
           await new Promise((r) => setTimeout(r, 800));
         }
       }
@@ -761,15 +872,43 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
-          {/* Section 1: Selection de la plage de versets */}
+          {/* Studio Pro Promo Banner */}
+          {onOpenVideoStudio && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-emerald-500/15 to-amber-500/10 border border-amber-400/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+                <div className="text-left">
+                  <span className="text-xs font-black text-amber-300 block">
+                    Envie de créer des vidéos TikTok / Reels jusqu'à 10 versets ?
+                  </span>
+                  <span className="text-[11px] text-neutral-300">
+                    Mode sans fond (Fond Vert Chroma), formats 9:16 & 1:1, et 16 fonds 4K sur la page dédiée.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  cancelGeneration();
+                  onClose();
+                  onOpenVideoStudio();
+                }}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs shrink-0 transition shadow-md cursor-pointer"
+              >
+                Ouvrir le Studio Vidéo Pro →
+              </button>
+            </div>
+          )}
+
+          {/* Section 1: Selection de la plage de versets (Max 5 versets) */}
           <div className="p-4 sm:p-5 rounded-2xl bg-white/5 border border-white/10 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-2">
                 <Layers className="w-4 h-4" />
-                1. Sélection des Versets à Enregistrer
+                1. Sélection des Versets (Gratuit : Max 5 versets)
               </span>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-bold font-mono">
-                {totalSelected} verset{totalSelected > 1 ? 's' : ''} sélectionné{totalSelected > 1 ? 's' : ''}
+                {totalSelected} verset{totalSelected > 1 ? 's' : ''} (max 5)
               </span>
             </div>
 
@@ -781,11 +920,7 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
                 <select
                   value={fromAyah}
                   disabled={isRecording}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setFromAyah(val);
-                    if (val > toAyah) setToAyah(val);
-                  }}
+                  onChange={(e) => handleFromAyahChange(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-white/15 text-white font-bold text-sm focus:outline-hidden focus:border-amber-400"
                 >
                   {ayahs.map((a) => (
@@ -798,20 +933,16 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                  Au verset (Fin) :
+                  Au verset (Fin, max {fromAyah + 4}) :
                 </label>
                 <select
                   value={toAyah}
                   disabled={isRecording}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setToAyah(val);
-                    if (val < fromAyah) setFromAyah(val);
-                  }}
+                  onChange={(e) => handleToAyahChange(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl bg-neutral-800 border border-white/15 text-white font-bold text-sm focus:outline-hidden focus:border-amber-400"
                 >
                   {ayahs
-                    .filter((a) => a.num >= fromAyah)
+                    .filter((a) => a.num >= fromAyah && a.num <= fromAyah + 4)
                     .map((a) => (
                       <option key={a.num} value={a.num}>
                         Verset {a.num} : {a.ar.slice(0, 30)}...
@@ -930,18 +1061,23 @@ export const QuranVideoRecorderModal: React.FC<QuranVideoRecorderModalProps> = (
                 <span className="font-semibold">Coloriage Tajweed sur l'arabe (Madd, Ghunnah, etc.)</span>
               </label>
 
-              <label className="flex items-center gap-2.5 text-xs text-neutral-200 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeWatermark}
-                  disabled={isRecording}
-                  onChange={(e) => setIncludeWatermark(e.target.checked)}
-                  className="rounded text-amber-500 focus:ring-0 cursor-pointer w-4 h-4"
-                />
-                <span className="font-semibold text-amber-200">
-                  Logo &amp; Filigrane Authentifié Le Sanctuaire
+              <div className="flex items-center justify-between text-xs text-neutral-200 p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    disabled
+                    readOnly
+                    className="rounded text-amber-500 focus:ring-0 w-4 h-4 cursor-not-allowed opacity-80"
+                  />
+                  <span className="font-semibold text-amber-200">
+                    Logo &amp; Filigrane Authentifié Le Sanctuaire
+                  </span>
+                </div>
+                <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Obligatoire (Mode Gratuit)
                 </span>
-              </label>
+              </div>
 
               <label className="flex items-center gap-2.5 text-xs text-neutral-200 cursor-pointer">
                 <input

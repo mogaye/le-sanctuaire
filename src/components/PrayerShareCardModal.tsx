@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { CityData, Method } from '../types';
 import { getWeeklyAutomatedPrayers, AutomatedPrayerScheduleResult } from '../services/automatedPrayerService';
+import QRCode from 'qrcode';
 
 interface PrayerShareCardModalProps {
   isOpen: boolean;
@@ -399,30 +400,81 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
         });
       }
 
-      // Bottom Official Contacts Banner (matching le-sanctuaire.pro & WhatsApp 789139036)
-      ctx.save();
-      const footerY = H - 95;
-      const footerH = 65;
-      const footerW = W - 140;
-      const footerX = 70;
-      ctx.fillStyle = 'rgba(8, 26, 18, 0.94)';
-      ctx.strokeStyle = '#3EA08D';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(footerX, footerY, footerW, footerH, 32);
-      ctx.fill();
-      ctx.stroke();
+      // Bottom Official Contacts & QR Code Banner
+      try {
+        const qrDataUrl = await QRCode.toDataURL('https://le-sanctuaire.pro', {
+          margin: 1,
+          width: 140,
+          color: { dark: '#062817', light: '#FFFFFF' },
+        });
+        const qrImg = new Image();
+        qrImg.src = qrDataUrl;
+        await new Promise((res) => {
+          qrImg.onload = res;
+          qrImg.onerror = res;
+        });
 
-      ctx.fillStyle = '#FDE68A';
-      ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('🌐 le-sanctuaire.pro', footerX + 45, footerY + 40);
+        const logoImg = new Image();
+        logoImg.src = '/images/sanctuaire_logo.jpg';
+        await new Promise((res) => {
+          logoImg.onload = res;
+          logoImg.onerror = res;
+        });
 
-      ctx.fillStyle = '#6EE7B7';
-      ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText('WhatsApp : 789139036', footerX + footerW - 45, footerY + 40);
-      ctx.restore();
+        ctx.save();
+        const footerY = H - 105;
+        const footerH = 75;
+        const footerW = W - 140;
+        const footerX = 70;
+        ctx.fillStyle = 'rgba(8, 26, 18, 0.96)';
+        ctx.strokeStyle = '#3EA08D';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(footerX, footerY, footerW, footerH, 24);
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw Logo
+        if (logoImg.complete && logoImg.naturalWidth) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(footerX + 45, footerY + 38, 24, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(logoImg, footerX + 21, footerY + 14, 48, 48);
+          ctx.restore();
+        }
+
+        ctx.fillStyle = '#FDE68A';
+        ctx.font = '900 20px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('LE SANCTUAIRE', footerX + 80, footerY + 34);
+
+        ctx.fillStyle = '#9FE2D3';
+        ctx.font = 'bold 15px ui-monospace, SFMono-Regular, monospace';
+        ctx.fillText('le-sanctuaire.pro', footerX + 80, footerY + 58);
+
+        // QR Code Container on right
+        const qrBoxSize = 58;
+        const qrX = footerX + footerW - qrBoxSize - 18;
+        const qrY = footerY + (footerH - qrBoxSize) / 2;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.roundRect(qrX - 4, qrY - 4, qrBoxSize + 8, qrBoxSize + 8, 8);
+        ctx.fill();
+        ctx.drawImage(qrImg, qrX, qrY, qrBoxSize, qrBoxSize);
+
+        ctx.fillStyle = '#E5E7EB';
+        ctx.font = '600 12px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('Scannez pour accéder au site', qrX - 14, footerY + 35);
+        ctx.fillStyle = '#34D399';
+        ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+        ctx.fillText('Coran, Prières & Outils', qrX - 14, footerY + 54);
+
+        ctx.restore();
+      } catch (err) {
+        console.error('Error drawing QR code in template 1:', err);
+      }
 
       return canvas;
 
@@ -661,6 +713,48 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
         ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
         ctx.fillText(`Heures exactes calculées selon ${schedule.methodName}`, boxX + 30, quoteY + 24);
         ctx.restore();
+      }
+
+      // Template 2 Bottom QR Code badge
+      try {
+        const qrDataUrl = await QRCode.toDataURL('https://le-sanctuaire.pro', {
+          margin: 1,
+          width: 120,
+          color: { dark: '#062817', light: '#FFFFFF' },
+        });
+        const qrImg = new Image();
+        qrImg.src = qrDataUrl;
+        await new Promise((res) => {
+          qrImg.onload = res;
+          qrImg.onerror = res;
+        });
+
+        const qrBoxX = W - 260;
+        const qrBoxY = H - 150;
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.strokeStyle = '#3EA08D';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(qrBoxX, qrBoxY, 210, 80, 16);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.drawImage(qrImg, qrBoxX + 10, qrBoxY + 10, 60, 60);
+
+        ctx.fillStyle = '#062817';
+        ctx.font = '900 13px system-ui, -apple-system, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('LE SANCTUAIRE', qrBoxX + 80, qrBoxY + 30);
+        ctx.fillStyle = '#0D6846';
+        ctx.font = 'bold 12px ui-monospace, monospace';
+        ctx.fillText('le-sanctuaire.pro', qrBoxX + 80, qrBoxY + 48);
+        ctx.fillStyle = '#6B7280';
+        ctx.font = '600 10px system-ui, -apple-system, sans-serif';
+        ctx.fillText('Scannez pour le site', qrBoxX + 80, qrBoxY + 64);
+        ctx.restore();
+      } catch (e) {
+        // ignore
       }
 
       return canvas;

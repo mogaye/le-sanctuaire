@@ -9,6 +9,7 @@ import {
   Check,
   BookOpen,
   Calendar,
+  Bell,
 } from 'lucide-react';
 import { CityData, Method } from '../types';
 import { PRAYER_GUIDE_METADATA } from '../data/prayerGuideDocument';
@@ -36,6 +37,7 @@ interface PrayerPageProps {
   onOpenQibla?: () => void;
   onOpenPrayerSettings?: () => void;
   onOpenCalendar?: () => void;
+  onOpenAdhanAlert?: () => void;
 }
 
 export const PrayerPage: React.FC<PrayerPageProps> = ({
@@ -44,6 +46,7 @@ export const PrayerPage: React.FC<PrayerPageProps> = ({
   selectedCity,
   onOpenQibla,
   onOpenCalendar,
+  onOpenAdhanAlert,
 }) => {
   const [activeChapter, setActiveChapter] = useState<GuideChapter>('horaires');
   const [hasCopiedShare, setHasCopiedShare] = useState(false);
@@ -103,6 +106,18 @@ export const PrayerPage: React.FC<PrayerPageProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {onOpenAdhanAlert && (
+              <button
+                onClick={onOpenAdhanAlert}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+                title="Configurer les alertes de l'Adhan et écouter/télécharger les sons gratuits"
+              >
+                <Bell className="w-3.5 h-3.5 text-amber-500" />
+                <span className="hidden sm:inline">Adhan & Sons</span>
+                <span className="sm:hidden">Adhan</span>
+              </button>
+            )}
+
             {onOpenCalendar && (
               <button
                 onClick={onOpenCalendar}

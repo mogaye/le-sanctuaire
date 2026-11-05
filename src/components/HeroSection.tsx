@@ -137,6 +137,61 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               <span>Boussole Qibla Précise</span>
             </span>
           </div>
+
+          {/* Landing Page Social Media Quick Links */}
+          <div className="pt-2 flex flex-wrap items-center gap-2">
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${isLightHeroBg ? 'text-emerald-900/80' : 'text-emerald-200/90'}`}>
+              Communauté :
+            </span>
+            <a
+              href="https://www.tiktok.com/@le_sanctuaire"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all transform hover:scale-105 ${
+                isLightHeroBg
+                  ? 'bg-neutral-900 text-white hover:bg-neutral-800 shadow-2xs'
+                  : 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+              }`}
+            >
+              <span>TikTok</span>
+            </a>
+            <a
+              href="https://www.instagram.com/le_sanctuaire_officiel"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all transform hover:scale-105 ${
+                isLightHeroBg
+                  ? 'bg-gradient-to-r from-amber-600 via-rose-600 to-purple-600 text-white shadow-2xs'
+                  : 'bg-white/15 hover:bg-gradient-to-r hover:from-amber-600 hover:via-rose-600 hover:to-purple-600 text-white border border-white/20'
+              }`}
+            >
+              <span>Instagram</span>
+            </a>
+            <a
+              href="https://www.facebook.com/lesanctuaire.officiel"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all transform hover:scale-105 ${
+                isLightHeroBg
+                  ? 'bg-[#1877F2] text-white shadow-2xs'
+                  : 'bg-white/15 hover:bg-[#1877F2] text-white border border-white/20'
+              }`}
+            >
+              <span>Facebook</span>
+            </a>
+            <a
+              href="https://wa.me/221705908725"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all transform hover:scale-105 ${
+                isLightHeroBg
+                  ? 'bg-emerald-700 hover:bg-emerald-600 text-white shadow-2xs'
+                  : 'bg-emerald-500/30 hover:bg-emerald-500/50 text-emerald-200 border border-emerald-400/30'
+              }`}
+            >
+              <span>WhatsApp</span>
+            </a>
+          </div>
         </div>
 
         {/* Bottom Row: Enhanced Learning Card (Left) & Spiritual Wisdom Capsule (Right) */}

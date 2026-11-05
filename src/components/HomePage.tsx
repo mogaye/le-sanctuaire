@@ -28,6 +28,7 @@ import {
   Library,
   Image as ImageIcon,
   Share2,
+  Bell,
 } from 'lucide-react';
 import { Header } from './Header';
 import { MobileHomeScreen } from './MobileHomeScreen';
@@ -75,6 +76,7 @@ interface HomePageProps {
   onOpenFaith?: () => void;
   onOpenLibrary?: (bookId?: string) => void;
   onOpenDonations?: () => void;
+  onOpenAdhanModal?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 }
@@ -132,6 +134,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenFaith,
   onOpenLibrary,
   onOpenDonations,
+  onOpenAdhanModal,
   isDarkMode = true,
   onToggleDarkMode,
 }) => {
@@ -548,6 +551,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
                     <span>Affiche & Image</span>
                   </button>
+                  {onOpenAdhanModal && (
+                    <button
+                      onClick={onOpenAdhanModal}
+                      className="px-3.5 py-2.5 rounded-xl bg-amber-400/20 hover:bg-amber-400/30 border border-amber-300/40 text-amber-200 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+                      title="Configurer les alertes de l'Adhan et écouter/télécharger les audios gratuits"
+                    >
+                      <Bell className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Adhan & Sons</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => onOpenPrayerGuide(nextPrayerInfo.key)}
                     className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95"

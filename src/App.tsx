@@ -29,6 +29,8 @@ import { DhikrModal } from './components/DhikrModal';
 import { PrayerTimeSettingsModal, PrayerOffsets } from './components/PrayerTimeSettingsModal';
 import { DonationModal } from './components/DonationModal';
 import { GuestAccountReminderToast } from './components/GuestAccountReminderToast';
+import { QuranVideoStudioPage } from './components/QuranVideoStudioPage';
+import { AdhanAlertModal } from './components/AdhanAlertModal';
 import {
   supabase,
   hasUserDonatedLocally,
@@ -163,8 +165,8 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isDarkMode]);
 
-  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', or 'calendar'
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
+  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar', or 'video-studio'
+  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar' | 'video-studio'>('landing');
   const [selectedSurahForPage, setSelectedSurahForPage] = useState<number | undefined>(undefined);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
   const [isReadingBook, setIsReadingBook] = useState<boolean>(false);
@@ -192,6 +194,7 @@ export default function App() {
   const [isDhikrOpen, setIsDhikrOpen] = useState<boolean>(false);
   const [isPrayerSettingsOpen, setIsPrayerSettingsOpen] = useState<boolean>(false);
   const [isDonationOpen, setIsDonationOpen] = useState<boolean>(false);
+  const [isAdhanModalOpen, setIsAdhanModalOpen] = useState<boolean>(false);
 
   // =========================================================================
   // MOBILE HARDWARE BACK BUTTON (popstate) & EDGE SWIPE BACK GESTURE SUPPORT
@@ -209,6 +212,7 @@ export default function App() {
     isDhikrOpen,
     isPrayerSettingsOpen,
     isDonationOpen,
+    isAdhanModalOpen,
     showWelcomeWalkthrough,
   });
 
@@ -222,6 +226,7 @@ export default function App() {
       isDhikrOpen,
       isPrayerSettingsOpen,
       isDonationOpen,
+      isAdhanModalOpen,
       showWelcomeWalkthrough,
     };
   }, [
@@ -233,6 +238,7 @@ export default function App() {
     isDhikrOpen,
     isPrayerSettingsOpen,
     isDonationOpen,
+    isAdhanModalOpen,
     showWelcomeWalkthrough,
   ]);
 
@@ -255,6 +261,7 @@ export default function App() {
             isDhikrOpen ||
             isPrayerSettingsOpen ||
             isDonationOpen ||
+            isAdhanModalOpen ||
             showWelcomeWalkthrough,
         },
         ''
@@ -271,6 +278,7 @@ export default function App() {
     isDhikrOpen,
     isPrayerSettingsOpen,
     isDonationOpen,
+    isAdhanModalOpen,
     showWelcomeWalkthrough,
   ]);
 
@@ -297,6 +305,10 @@ export default function App() {
       }
 
       // 2. Close active global modals
+      if (s.isAdhanModalOpen) {
+        setIsAdhanModalOpen(false);
+        return true;
+      }
       if (s.isDonationOpen) {
         setIsDonationOpen(false);
         return true;
@@ -326,7 +338,13 @@ export default function App() {
         return true;
       }
 
-      // 3. If reading a book inside LibraryPage, return to library catalogue
+      // 3. If in Video Studio, return to Quran page
+      if (s.currentView === 'video-studio') {
+        setCurrentView('quran');
+        return true;
+      }
+
+      // 4. If reading a book inside LibraryPage, return to library catalogue
       if (s.isReadingBook) {
         window.dispatchEvent(new Event('sanctuaire-close-book'));
         setIsReadingBook(false);
@@ -893,8 +911,19 @@ export default function App() {
             onSelectReciter={handleSelectReciter}
             initialSurahNumber={selectedSurahForPage}
             onOpenPrayerPage={() => handleOpenPrayerGuide()}
+            onOpenVideoStudio={() => setCurrentView('video-studio')}
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
+          />
+        );
+
+      case 'video-studio':
+        return (
+          <QuranVideoStudioPage
+            onBack={() => setCurrentView('quran')}
+            initialSurahNum={selectedSurahForPage || 1}
+            selectedReciter={selectedReciter}
+            onSelectReciter={handleSelectReciter}
           />
         );
 
@@ -918,6 +947,7 @@ export default function App() {
               onOpenQibla={() => setIsQiblaOpen(true)}
               onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
               onOpenCalendar={() => setCurrentView('calendar')}
+              onOpenAdhanAlert={() => setIsAdhanModalOpen(true)}
             />
           </div>
         );
@@ -984,6 +1014,7 @@ export default function App() {
               onOpenFaith={handleOpenFaith}
               onOpenLibrary={canAccessLibrary ? handleOpenLibrary : undefined}
               onOpenDonations={() => setIsDonationOpen(true)}
+              onOpenAdhanModal={() => setIsAdhanModalOpen(true)}
               isDarkMode={isDarkMode}
               onToggleDarkMode={handleToggleDarkMode}
             />
@@ -1236,6 +1267,13 @@ export default function App() {
         onClose={() => setIsDonationOpen(false)}
         userEmail={currentUser?.email}
         userName={currentUser?.name}
+      />
+
+      {/* Modal d'Alerte et Sons Gratuits de l'Adhan */}
+      <AdhanAlertModal
+        isOpen={isAdhanModalOpen}
+        onClose={() => setIsAdhanModalOpen(false)}
+        selectedCity={selectedCity}
       />
 
       {/* Persistent 5-minute Guest Reminder for unauthenticated visitors */}

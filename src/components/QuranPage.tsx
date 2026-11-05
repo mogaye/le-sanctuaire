@@ -9,6 +9,7 @@ import {
   Copy,
   Play,
   Pause,
+  Video,
   MoreHorizontal,
   Sparkles,
   Maximize2,
@@ -49,6 +50,7 @@ import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUt
 import { toggleQuranFavorite } from '../lib/supabase';
 import { QuranCinematicReader } from './QuranCinematicReader';
 import { cleanAyahArabic } from '../utils/tajweedColorizer';
+import { getAyahAudioUrl, getSurahAudioUrl } from '../utils/quranAudioUtils';
 
 interface AyahData {
   num: number;
@@ -78,84 +80,9 @@ interface QuranPageProps {
   onSelectReciter: (reciter: Reciter) => void;
   initialSurahNumber?: number;
   onOpenPrayerPage?: () => void;
+  onOpenVideoStudio?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
-}
-
-// EveryAyah CDN URLs for all reciters
-function getAyahAudioUrl(surahNum: number, ayahNum: number, reciterId: string): string {
-  const sPad = String(surahNum).padStart(3, '0');
-  const aPad = String(ayahNum).padStart(3, '0');
-  const file = `${sPad}${aPad}.mp3`;
-
-  switch (reciterId) {
-    case 'abdulbasit':
-      return `https://everyayah.com/data/AbdulSamad_64kbps_QuranExplorer.Com/${file}`;
-    case 'husary':
-      return `https://everyayah.com/data/Husary_128kbps/${file}`;
-    case 'ghamdi':
-      return `https://everyayah.com/data/Ghamadi_40kbps/${file}`;
-    case 'sudais':
-      return `https://everyayah.com/data/Abdurrahmaan_As-Sudais_192kbps/${file}`;
-    case 'minshawi':
-      return `https://everyayah.com/data/Minshawy_Murattal_128kbps/${file}`;
-    case 'muaiqly':
-      return `https://everyayah.com/data/MaherAlMuaiqly128kbps/${file}`;
-    case 'shatri':
-      return `https://everyayah.com/data/Abu_Bakr_Ash-Shaatree_128kbps/${file}`;
-    case 'rifai':
-      return `https://everyayah.com/data/Hani_Rifai_192kbps/${file}`;
-    case 'hudhaify':
-      return `https://everyayah.com/data/Hudhaify_128kbps/${file}`;
-    case 'dussary':
-      return `https://everyayah.com/data/Yasser_Ad-Dussary_128kbps/${file}`;
-    case 'qatami':
-      return `https://everyayah.com/data/Nasser_Alqatami_128kbps/${file}`;
-    case 'jaber':
-      return `https://everyayah.com/data/Ali_Jaber_64kbps/${file}`;
-    case 'sowaid':
-      return `https://everyayah.com/data/Ayman_Sowaid_64kbps/${file}`;
-    case 'mishary':
-    default:
-      return `https://everyayah.com/data/Alafasy_128kbps/${file}`;
-  }
-}
-
-// Full Surah recitation URLs for all reciters
-function getSurahAudioUrl(surahNum: number, reciterId: string): string {
-  const sPad = String(surahNum).padStart(3, '0');
-
-  switch (reciterId) {
-    case 'abdulbasit':
-      return `https://download.quranicaudio.com/qdc/abdul_baset/murattal/${surahNum}.mp3`;
-    case 'sudais':
-      return `https://download.quranicaudio.com/qdc/abdurrahmaan_as_sudais/murattal/${surahNum}.mp3`;
-    case 'husary':
-      return `https://download.quranicaudio.com/qdc/khalil_al_husary/murattal/${surahNum}.mp3`;
-    case 'minshawi':
-      return `https://download.quranicaudio.com/qdc/siddiq_minshawi/murattal/${surahNum}.mp3`;
-    case 'shatri':
-      return `https://download.quranicaudio.com/qdc/abu_bakr_shatri/murattal/${surahNum}.mp3`;
-    case 'rifai':
-      return `https://download.quranicaudio.com/qdc/hani_ar_rifai/murattal/${surahNum}.mp3`;
-    case 'ghamdi':
-      return `https://download.quranicaudio.com/quran/sa3d_al-ghaamidi/complete/${sPad}.mp3`;
-    case 'muaiqly':
-      return `https://server12.mp3quran.net/maher/${sPad}.mp3`;
-    case 'hudhaify':
-      return `https://server9.mp3quran.net/hthfi/${sPad}.mp3`;
-    case 'dussary':
-      return `https://server11.mp3quran.net/yasser/${sPad}.mp3`;
-    case 'qatami':
-      return `https://server6.mp3quran.net/qtm/${sPad}.mp3`;
-    case 'jaber':
-      return `https://server11.mp3quran.net/a_jbr/${sPad}.mp3`;
-    case 'sowaid':
-      return `https://everyayah.com/data/Ayman_Sowaid_64kbps/${sPad}001.mp3`;
-    case 'mishary':
-    default:
-      return `https://download.quranicaudio.com/qdc/mishari_al_afasy/murattal/${surahNum}.mp3`;
-  }
 }
 
 export const QuranPage: React.FC<QuranPageProps> = ({
@@ -165,6 +92,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   onSelectReciter,
   initialSurahNumber,
   onOpenPrayerPage,
+  onOpenVideoStudio,
   isDarkMode,
   onToggleDarkMode,
 }) => {
@@ -1206,6 +1134,19 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               <span className="hidden md:inline">Plein Écran Cinématique</span>
               <span className="md:hidden">Cinéma</span>
             </button>
+
+            {/* Dedicated TikTok & Reels Video Studio Trigger */}
+            {onOpenVideoStudio && (
+              <button
+                onClick={onOpenVideoStudio}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30"
+                title="Ouvrir le Studio de création de vidéos TikTok, Reels, Shorts et WhatsApp"
+              >
+                <Video className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden md:inline">Studio Vidéo TikTok</span>
+                <span className="md:hidden">Studio</span>
+              </button>
+            )}
           </div>
 
           {/* Right: Quick Controls, Bookmarks, Dark Mode Adapter, Settings */}
@@ -2599,6 +2540,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         onSelectReciter={onSelectReciter}
         onSelectSurah={(num) => handleSelectSurah(num)}
         getAyahAudioUrl={getAyahAudioUrl}
+        onOpenVideoStudio={onOpenVideoStudio}
       />
     </div>
   );

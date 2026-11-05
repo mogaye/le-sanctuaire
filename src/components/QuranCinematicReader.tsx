@@ -17,6 +17,7 @@ import {
   HelpCircle,
   X,
   BookOpen,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
@@ -56,6 +57,7 @@ interface QuranCinematicReaderProps {
   onSelectReciter: (r: Reciter) => void;
   onSelectSurah: (surahNum: number) => void;
   getAyahAudioUrl: (surahNum: number, ayahNum: number, reciterId: string) => string;
+  onOpenVideoStudio?: () => void;
 }
 
 // 10 Distinct, Gorgeous and Immersive Spiritual Themes
@@ -262,6 +264,136 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
   },
 };
 
+export interface CinematicBackground {
+  id: string;
+  name: string;
+  category: 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire';
+  url: string;
+  recommendedTheme?: CinematicThemeId;
+}
+
+export const CINEMATIC_BACKGROUNDS: CinematicBackground[] = [
+  // Émeraude & Nuit (4K)
+  {
+    id: 'emerald_fanous_archway',
+    name: 'Porche Mauresque & Lanternes (4K)',
+    category: 'emeraude',
+    url: '/images/fonds-islamiques/emerald_fanous_archway_4k.webp',
+    recommendedTheme: 'emerald',
+  },
+  {
+    id: 'emerald_celestial_glow',
+    name: 'Rayonnement Céleste Émeraude (4K)',
+    category: 'emeraude',
+    url: '/images/fonds-islamiques/emerald_celestial_glow_4k.webp',
+    recommendedTheme: 'emerald',
+  },
+
+  // Obsidienne & Noir (4K)
+  {
+    id: 'obsidian_gold_rays',
+    name: "Marbre Noir & Rais d'Or (4K)",
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/obsidian_gold_rays_4k.webp',
+    recommendedTheme: 'oled',
+  },
+  {
+    id: 'midnight_gold_filigree',
+    name: 'Mandala Astral Or & Ardoise (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/midnight_gold_filigree_4k.webp',
+    recommendedTheme: 'oled',
+  },
+  {
+    id: 'midnight_gold_star',
+    name: 'Étoile Géométrique 12 Branches (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/midnight_gold_star_4k.webp',
+    recommendedTheme: 'slate',
+  },
+  {
+    id: 'obsidian_gold_waves',
+    name: "Vagues d'Or Liquide & Marbre (4K)",
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/obsidian_gold_waves_4k.webp',
+    recommendedTheme: 'oled',
+  },
+  {
+    id: 'ref_obsidian_gold',
+    name: 'Élégance Ombre Dorée (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/ref_obsidian_gold_4k.webp',
+    recommendedTheme: 'oled',
+  },
+
+  // Saphir & Crépuscule (4K)
+  {
+    id: 'sapphire_gold_mosque',
+    name: "Mosquée Saphir & Croissant d'Or (4K)",
+    category: 'saphir',
+    url: '/images/fonds-islamiques/sapphire_gold_mosque_4k.webp',
+    recommendedTheme: 'midnight',
+  },
+  {
+    id: 'sapphire_lantern_night',
+    name: 'Lanterne Indigo & Étoiles (4K)',
+    category: 'saphir',
+    url: '/images/fonds-islamiques/sapphire_lantern_night_4k.webp',
+    recommendedTheme: 'midnight',
+  },
+  {
+    id: 'golden_twilight_dunes',
+    name: 'Dunes Dorées sous la Nuit (4K)',
+    category: 'saphir',
+    url: '/images/fonds-islamiques/golden_twilight_dunes_4k.webp',
+    recommendedTheme: 'amber',
+  },
+
+  // Ivoire & Or (4K)
+  {
+    id: 'ivory_gold_arch',
+    name: "Arche d'Ivoire & Stuc d'Or (4K)",
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_arch_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+  {
+    id: 'ivory_gold_courtyard',
+    name: 'Patio Andalou aux Arches (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_courtyard_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+  {
+    id: 'ivory_gold_palace',
+    name: 'Palais Royal Blanc & Or (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_palace_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+  {
+    id: 'ivory_marble_arch',
+    name: 'Marbre de Carrare & Moucharabieh (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_marble_arch_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+  {
+    id: 'ivory_gold_rosette',
+    name: "Rosace Dorée d'Angle (4K)",
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_rosette_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+  {
+    id: 'ref_ivory_gold',
+    name: 'Géométrie Ivoire & Doré (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ref_ivory_gold_4k.webp',
+    recommendedTheme: 'sepia',
+  },
+];
+
 export type CinematicDisplayMode = 'focus' | 'continuous';
 
 export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
@@ -275,6 +407,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   onSelectReciter,
   onSelectSurah,
   getAyahAudioUrl,
+  onOpenVideoStudio,
 }) => {
   // Navigation & Verse Focus
   const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(0);
@@ -292,6 +425,30 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     return 'emerald';
   });
   const [isThemePickerOpen, setIsThemePickerOpen] = useState<boolean>(false);
+
+  // Cinematic Background Wallpapers State
+  const [selectedBgId, setSelectedBgId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_bg');
+      if (saved && (saved === 'none' || CINEMATIC_BACKGROUNDS.some((b) => b.id === saved))) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'emerald_fanous_archway';
+  });
+  const [bgOpacity, setBgOpacity] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_bg_opacity');
+      if (saved) return Number(saved);
+    } catch {
+      // ignore
+    }
+    return 0.55;
+  });
+  const [isBgPickerOpen, setIsBgPickerOpen] = useState<boolean>(false);
+  const [bgCategoryFilter, setBgCategoryFilter] = useState<'all' | 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire'>('all');
 
   // Tajweed Coloring & Guide state
   const [isTajweedEnabled, setIsTajweedEnabled] = useState<boolean>(() => {
@@ -382,6 +539,28 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       // ignore
     }
     setIsThemePickerOpen(false);
+  };
+
+  const handleSelectBackground = (bgId: string) => {
+    setSelectedBgId(bgId);
+    try {
+      localStorage.setItem('sanctuaire_cinematic_bg', bgId);
+    } catch {
+      // ignore
+    }
+    const bg = CINEMATIC_BACKGROUNDS.find((b) => b.id === bgId);
+    if (bg && bg.recommendedTheme) {
+      handleSelectTheme(bg.recommendedTheme);
+    }
+  };
+
+  const handleSelectBgOpacity = (val: number) => {
+    setBgOpacity(val);
+    try {
+      localStorage.setItem('sanctuaire_cinematic_bg_opacity', String(val));
+    } catch {
+      // ignore
+    }
   };
 
   const handleExit = () => {
@@ -552,6 +731,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       if (e.key === 'Escape') {
         if (isTajweedGuideOpen) {
           setIsTajweedGuideOpen(false);
+        } else if (isBgPickerOpen) {
+          setIsBgPickerOpen(false);
         } else if (isThemePickerOpen) {
           setIsThemePickerOpen(false);
         } else if (isVideoRecorderOpen) {
@@ -685,6 +866,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const themeList = Object.values(CINEMATIC_THEMES);
+  const selectedBg =
+    selectedBgId === 'none'
+      ? null
+      : CINEMATIC_BACKGROUNDS.find((b) => b.id === selectedBgId) || CINEMATIC_BACKGROUNDS[0];
+  const filteredBackgrounds =
+    bgCategoryFilter === 'all'
+      ? CINEMATIC_BACKGROUNDS
+      : CINEMATIC_BACKGROUNDS.filter((b) => b.category === bgCategoryFilter);
 
   return (
     <div
@@ -699,6 +888,27 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }
       }}
     >
+      {/* Dynamic Islamic Photographic Background Wallpaper Layer */}
+      {selectedBg && selectedBgId !== 'none' && (
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+          <img
+            src={selectedBg.url}
+            alt={selectedBg.name}
+            className="w-full h-full object-cover transition-opacity duration-700"
+          />
+          {/* Tone-matched darkening veil to guarantee immaculate contrast for Tajweed and translations */}
+          <div
+            className="absolute inset-0 transition-opacity duration-300"
+            style={{
+              backgroundColor: currentTheme.swatch || '#000000',
+              opacity: bgOpacity,
+            }}
+          />
+          {/* Radial vignette overlay */}
+          <div className="absolute inset-0 bg-radial-gradient from-transparent via-black/25 to-black/75 pointer-events-none" />
+        </div>
+      )}
+
       {/* Ambient background soft light glows for cinema feel */}
       <div
         className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-700"
@@ -828,6 +1038,206 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <Video className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden md:inline">Créer Vidéo</span>
           </button>
+
+          {/* Wallpaper / Background Images Button */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsBgPickerOpen((prev) => !prev);
+                setIsThemePickerOpen(false);
+              }}
+              className={`p-2 sm:px-3 sm:py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border ${
+                selectedBgId !== 'none'
+                  ? 'bg-amber-400/20 text-amber-300 border-amber-400/40 shadow-xs'
+                  : 'bg-white/10 hover:bg-white/20 text-neutral-300 border-white/15'
+              }`}
+              title="Choisir une image de fond cinématique (Arches, Lanternes, Nuit, Marbre)"
+            >
+              {selectedBg && selectedBgId !== 'none' ? (
+                <img
+                  src={selectedBg.url}
+                  alt=""
+                  className="w-4 h-4 rounded-full object-cover border border-amber-400/60 shrink-0"
+                />
+              ) : (
+                <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
+              )}
+              <span className="hidden md:inline">Fond</span>
+              <span className="text-[10px] opacity-75 font-normal hidden xl:inline">
+                ({selectedBgId === 'none' ? 'Dégradé' : selectedBg?.name.split('&')[0].trim()})
+              </span>
+            </button>
+
+            {/* Background Images Popover */}
+            {isBgPickerOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-4 rounded-2xl bg-neutral-900/98 backdrop-blur-2xl border border-white/20 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 text-white"
+              >
+                <div className="flex items-center justify-between pb-2 mb-3 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-black uppercase tracking-wider text-neutral-200">
+                      Fonds Cinématiques Coran
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-amber-400 font-bold">
+                    {CINEMATIC_BACKGROUNDS.length} Fonds 4K Ultra-HD
+                  </span>
+                </div>
+
+                {/* Categories Tabs */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-3 no-scrollbar text-[11px] font-semibold">
+                  <button
+                    onClick={() => setBgCategoryFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'all'
+                        ? 'bg-amber-400 text-neutral-950 font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                    }`}
+                  >
+                    Tous ({CINEMATIC_BACKGROUNDS.length})
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('emeraude')}
+                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'emeraude'
+                        ? 'bg-emerald-500 text-white font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+                    }`}
+                  >
+                    Émeraude
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('obsidienne')}
+                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'obsidienne'
+                        ? 'bg-neutral-200 text-neutral-950 font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                    }`}
+                  >
+                    Obsidienne
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('saphir')}
+                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'saphir'
+                        ? 'bg-sky-500 text-white font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-sky-300'
+                    }`}
+                  >
+                    Saphir
+                  </button>
+                  <button
+                    onClick={() => setBgCategoryFilter('ivoire')}
+                    className={`px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer ${
+                      bgCategoryFilter === 'ivoire'
+                        ? 'bg-amber-200 text-neutral-950 font-bold'
+                        : 'bg-white/5 hover:bg-white/10 text-amber-200'
+                    }`}
+                  >
+                    Ivoire & Or
+                  </button>
+                </div>
+
+                {/* Option to Disable Image (Pure Gradient) */}
+                <button
+                  onClick={() => {
+                    handleSelectBackground('none');
+                  }}
+                  className={`w-full mb-3 px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
+                    selectedBgId === 'none'
+                      ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                      : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-3.5 h-3.5 rounded-full border border-current opacity-60 inline-block" />
+                    <span>Dégradé pur (sans image de fond)</span>
+                  </span>
+                  {selectedBgId === 'none' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                </button>
+
+                {/* Thumbnail Grid */}
+                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto no-scrollbar pr-1 mb-3">
+                  {filteredBackgrounds.map((bg) => {
+                    const isSelected = selectedBgId === bg.id;
+                    return (
+                      <button
+                        key={bg.id}
+                        onClick={() => handleSelectBackground(bg.id)}
+                        className={`group relative aspect-video rounded-xl overflow-hidden border text-left transition cursor-pointer flex flex-col justify-end p-1.5 ${
+                          isSelected
+                            ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-md'
+                            : 'border-white/10 hover:border-white/30'
+                        }`}
+                      >
+                        <img
+                          src={bg.url}
+                          alt={bg.name}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                        <div className="relative z-10 flex items-center justify-between w-full">
+                          <span className="text-[10px] font-bold text-white line-clamp-1 drop-shadow-xs">
+                            {bg.name}
+                          </span>
+                          {isSelected && (
+                            <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 ml-1">
+                              <Check className="w-3 h-3 stroke-[3]" />
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Opacity / Readability Veil Presets */}
+                <div className="pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between text-[11px] mb-1.5 text-neutral-300">
+                    <span className="font-semibold">Voile d'ombrage (lisibilité) :</span>
+                    <span className="text-amber-300 font-mono font-bold">
+                      {Math.round(bgOpacity * 100)}%
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold">
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.38)}
+                      className={`py-1 rounded-lg border transition cursor-pointer ${
+                        bgOpacity <= 0.42
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Léger (38%)
+                    </button>
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.55)}
+                      className={`py-1 rounded-lg border transition cursor-pointer ${
+                        bgOpacity > 0.42 && bgOpacity <= 0.65
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Équilibré (55%)
+                    </button>
+                    <button
+                      onClick={() => handleSelectBgOpacity(0.75)}
+                      className={`py-1 rounded-lg border transition cursor-pointer ${
+                        bgOpacity > 0.65
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      Sombre (75%)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Theme Palette Button with Swatch preview */}
           <div className="relative">
@@ -1320,6 +1730,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           selectedReciter={selectedReciter}
           getAyahAudioUrl={getAyahAudioUrl}
           themeId={theme}
+          bgImageUrl={selectedBg && selectedBgId !== 'none' ? selectedBg.url : undefined}
+          onOpenVideoStudio={onOpenVideoStudio ? () => {
+            setIsVideoRecorderOpen(false);
+            onClose();
+            onOpenVideoStudio();
+          } : undefined}
         />
       )}
     </div>

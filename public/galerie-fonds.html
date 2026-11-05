@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galerie Privée - 20 Fonds Islamiques HD (16:9)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #151a1e 0%, #080b0e 100%);
+    }
+    .font-serif-title {
+      font-family: 'Cinzel', serif;
+    }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen py-12 px-4 sm:px-6 lg:px-8">
+
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <header class="text-center mb-14">
+      <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30 uppercase tracking-widest mb-4">
+        ✨ 20 Images Générées • Format 16:9 • Ultra HD
+      </span>
+      <h1 class="text-3xl sm:text-5xl font-bold font-serif-title text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 mb-3">
+        Galerie des Fonds Islamiques
+      </h1>
+      <p class="text-slate-400 max-w-2xl mx-auto text-sm sm:text-base">
+        Fichiers haute résolution prêts à être visualisés et téléchargés. Les images sont stockées dans <code class="bg-black/50 px-2 py-0.5 rounded text-amber-300 text-xs">public/images/fonds-islamiques/</code> et <code class="bg-black/50 px-2 py-0.5 rounded text-amber-300 text-xs">src/assets/images/</code>.
+      </p>
+    </header>
+
+    <!-- Categories Navigation Filter -->
+    <div class="flex flex-wrap items-center justify-center gap-2 mb-10">
+      <button onclick="filterGallery('all')" class="filter-btn active px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20" data-cat="all">Toutes (20)</button>
+      <button onclick="filterGallery('ivoire')" class="filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10" data-cat="ivoire">Ivoire & Or (5)</button>
+      <button onclick="filterGallery('emeraude')" class="filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10" data-cat="emeraude">Émeraude & Nuit (5)</button>
+      <button onclick="filterGallery('obsidienne')" class="filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10" data-cat="obsidienne">Obsidienne & Or (5)</button>
+      <button onclick="filterGallery('saphir')" class="filter-btn px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10" data-cat="saphir">Saphir & Crépuscule (5)</button>
+    </div>
+
+    <!-- Grid -->
+    <div id="gallery-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+      
+      <!-- 1 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="ivoire">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/ivory_gold_arch_1793564750588.jpg" alt="Arche d'ivoire et filigrane d'or" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Arche d\'ivoire et filigrane d\'or')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#1 Ivoire & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Arche d'ivoire et filigrane d'or</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Cadre néo-mauresque en stuc ivoire et arabesques d'or</p>
+          </div>
+          <a href="/images/fonds-islamiques/ivory_gold_arch_1793564750588.jpg" download="01_arche_ivoire_or.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 2 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="ivoire">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/ivory_gold_palace_1793564770778.jpg" alt="Galerie royale en marbre blanc" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Galerie royale en marbre blanc')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#2 Ivoire & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Galerie royale en marbre blanc</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Colonnade de palais blanc et or avec sol miroitant</p>
+          </div>
+          <a href="/images/fonds-islamiques/ivory_gold_palace_1793564770778.jpg" download="02_galerie_royale_marbre.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 3 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="ivoire">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/ivory_marble_arch_1793564789615.jpg" alt="Arche marbre de Carrare & moucharabieh" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Arche marbre de Carrare & moucharabieh')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#3 Ivoire & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Marbre de Carrare & moucharabieh</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Encadrement architectural en dentelle d'or ciselé</p>
+          </div>
+          <a href="/images/fonds-islamiques/ivory_marble_arch_1793564789615.jpg" download="03_carrare_moucharabieh.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 4 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="ivoire">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/ivory_gold_courtyard_1793564823787.jpg" alt="Patio andalou aux reflets dorés" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Patio andalou aux reflets dorés')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#4 Ivoire & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Patio andalou aux reflets dorés</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Cour intérieure avec bassin miroir et arches mauresques</p>
+          </div>
+          <a href="/images/fonds-islamiques/ivory_gold_courtyard_1793564823787.jpg" download="04_patio_andalou.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 5 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="ivoire">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/ivory_gold_rosette_1793564843162.jpg" alt="Rosace géométrique en or massif" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Rosace géométrique en or massif')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#5 Ivoire & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Rosace géométrique en or massif</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Médaillons d'angle 3D et gaufrage géométrique crème</p>
+          </div>
+          <a href="/images/fonds-islamiques/ivory_gold_rosette_1793564843162.jpg" download="05_rosace_or_massif.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 6 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-emerald-400/40 transition-all duration-300" data-cat="emeraude">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/emerald_night_lantern_1793564751230.jpg" alt="Nuit émeraude et lanternes suspendues" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Nuit émeraude et lanternes suspendues')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-emerald-400 text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 font-medium">#6 Émeraude & Nuit</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Nuit émeraude & lanternes Fanous</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Mosquée illuminée sous ciel vert forêt et lanternes</p>
+          </div>
+          <a href="/images/fonds-islamiques/emerald_night_lantern_1793564751230.jpg" download="06_nuit_emeraude_lanternes.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 7 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-emerald-400/40 transition-all duration-300" data-cat="emeraude">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/emerald_gold_dome_1793564772322.jpg" alt="Grand dôme et arche illuminée" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Grand dôme et arche illuminée')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-emerald-400 text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 font-medium">#7 Émeraude & Nuit</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Grand dôme et arche illuminée</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Perspective monumentale sur dôme d'or et arcade ciselée</p>
+          </div>
+          <a href="/images/fonds-islamiques/emerald_gold_dome_1793564772322.jpg" download="07_grand_dome_emeraude.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 8 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-emerald-400/40 transition-all duration-300" data-cat="emeraude">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/emerald_celestial_glow_1793564790461.jpg" alt="Rayonnement céleste émeraude" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Rayonnement céleste émeraude')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-emerald-400 text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 font-medium">#8 Émeraude & Nuit</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Rayonnement céleste émeraude</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Centre baigné de lumière dorée et ornements zellige</p>
+          </div>
+          <a href="/images/fonds-islamiques/emerald_celestial_glow_1793564790461.jpg" download="08_rayonnement_celeste.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 9 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-emerald-400/40 transition-all duration-300" data-cat="emeraude">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/emerald_minaret_stars_1793564825398.jpg" alt="Minarets étoilés sur canopée" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Minarets étoilés sur canopée')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-emerald-400 text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 font-medium">#9 Émeraude & Nuit</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Minarets étoilés sur canopée</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Cadre polylobé d'or, minarets étincelants et ciel nocturne</p>
+          </div>
+          <a href="/images/fonds-islamiques/emerald_minaret_stars_1793564825398.jpg" download="09_minarets_etoiles.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 10 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-emerald-400/40 transition-all duration-300" data-cat="emeraude">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/emerald_fanous_archway_1793564843484.jpg" alt="Porche mauresque aux trois lanternes" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Porche mauresque aux trois lanternes')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-emerald-400 text-xs px-2.5 py-1 rounded-md border border-emerald-500/20 font-medium">#10 Émeraude & Nuit</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Porche aux trois lanternes</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Mosaïque zellige verte et trio de lanternes en laiton doré</p>
+          </div>
+          <a href="/images/fonds-islamiques/emerald_fanous_archway_1793564843484.jpg" download="10_porche_trois_lanternes.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 11 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="obsidienne">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/obsidian_gold_rays_1793564752842.jpg" alt="Marbre noir & rais de lumière" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Marbre noir & rais de lumière')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#11 Obsidienne & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Marbre noir & rais de lumière dorée</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Fond minéral ténébreux traversé d'une aura ambrée</p>
+          </div>
+          <a href="/images/fonds-islamiques/obsidian_gold_rays_1793564752842.jpg" download="11_marbre_noir_lumiere.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 12 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="obsidienne">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/midnight_gold_star_1793564771484.jpg" alt="Étoile géométrique à 12 branches" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Étoile géométrique à 12 branches')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#12 Obsidienne & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Étoile géométrique à 12 branches</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Grande rosace en or ciselé sur ardoise texturée</p>
+          </div>
+          <a href="/images/fonds-islamiques/midnight_gold_star_1793564771484.jpg" download="12_etoile_12_branches.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 13 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="obsidienne">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/midnight_moroccan_arch_1793564792375.jpg" alt="Arche monumentale en or sur noir" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Arche monumentale en or sur noir')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#13 Obsidienne & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Arche monumentale en or sur noir</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Découpe géométrique dorée avec effet de lumière feutrée</p>
+          </div>
+          <a href="/images/fonds-islamiques/midnight_moroccan_arch_1793564792375.jpg" download="13_arche_or_sur_noir.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 14 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="obsidienne">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/midnight_gold_filigree_1793564826698.jpg" alt="Mandala astral or et graphite" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Mandala astral or et graphite')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#14 Obsidienne & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Mandala astral or et graphite</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Motifs solaires 3D dorés et bokeh de poussière d'étoiles</p>
+          </div>
+          <a href="/images/fonds-islamiques/midnight_gold_filigree_1793564826698.jpg" download="14_mandala_astral_or.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 15 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-amber-400/40 transition-all duration-300" data-cat="obsidienne">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/obsidian_gold_waves_1793564844031.jpg" alt="Vagues d'or liquide et arabesques" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Vagues d\'or liquide et arabesques')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-amber-300 text-xs px-2.5 py-1 rounded-md border border-amber-500/20 font-medium">#15 Obsidienne & Or</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Vagues d'or liquide & arabesques</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Soierie fluide dorée et motifs calligraphiques sur marbre</p>
+          </div>
+          <a href="/images/fonds-islamiques/obsidian_gold_waves_1793564844031.jpg" download="15_vagues_or_liquide.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 16 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-blue-400/40 transition-all duration-300" data-cat="saphir">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/sapphire_gold_mosque_1793564752850.jpg" alt="Mosquée saphir et croissant d'or" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Mosquée saphir et croissant d\'or')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-blue-400 text-xs px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">#16 Saphir & Crépuscule</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Mosquée saphir & croissant d'or</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Horizon nocturne bleu nuit avec dômes et lune dorée</p>
+          </div>
+          <a href="/images/fonds-islamiques/sapphire_gold_mosque_1793564752850.jpg" download="16_mosquee_saphir.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-950 border border-blue-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 17 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-blue-400/40 transition-all duration-300" data-cat="saphir">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/golden_twilight_dunes_1793564771985.jpg" alt="Dunes dorées sous le ciel d'Orient" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Dunes dorées sous le ciel d\'Orient')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-blue-400 text-xs px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">#17 Saphir & Crépuscule</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Dunes dorées sous le ciel d'Orient</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Dunes crépusculaires et lueur chaleureuse de lanterne</p>
+          </div>
+          <a href="/images/fonds-islamiques/golden_twilight_dunes_1793564771985.jpg" download="17_dunes_dorees.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-950 border border-blue-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 18 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-blue-400/40 transition-all duration-300" data-cat="saphir">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/sapphire_lantern_night_1793564792196.jpg" alt="Lanternes d'indigo et poussière d'étoiles" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Lanternes d\'indigo et poussière d\'étoiles')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-blue-400 text-xs px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">#18 Saphir & Crépuscule</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Lanternes d'indigo & étoiles</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Lanterne marocaine ouvragée sous voûte céleste indigo</p>
+          </div>
+          <a href="/images/fonds-islamiques/sapphire_lantern_night_1793564792196.jpg" download="18_lanternes_indigo.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-950 border border-blue-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 19 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-blue-400/40 transition-all duration-300" data-cat="saphir">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/sapphire_crescent_dawn_1793564826559.jpg" alt="Aube dorée et lanterne suspendue" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Aube dorée et lanterne suspendue')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-blue-400 text-xs px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">#19 Saphir & Crépuscule</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Aube dorée & lanterne suspendue</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Ciel saphir se fondant dans l'aube ambrée avec cadre doré</p>
+          </div>
+          <a href="/images/fonds-islamiques/sapphire_crescent_dawn_1793564826559.jpg" download="19_aube_doree_lanterne.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-950 border border-blue-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+      <!-- 20 -->
+      <div class="gallery-item group bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden shadow-xl hover:border-blue-400/40 transition-all duration-300" data-cat="saphir">
+        <div class="relative aspect-video overflow-hidden bg-slate-950">
+          <img src="/images/fonds-islamiques/sapphire_mosque_colonnade_1793564844720.jpg" alt="Colonnade impériale sur eau miroitante" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" onclick="openModal(this.src, 'Colonnade impériale sur eau miroitante')">
+          <span class="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-blue-400 text-xs px-2.5 py-1 rounded-md border border-blue-500/20 font-medium">#20 Saphir & Crépuscule</span>
+        </div>
+        <div class="p-5 flex items-center justify-between gap-4">
+          <div>
+            <h3 class="font-bold text-white text-base">Colonnade impériale sur eau miroitante</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Galerie de marbre, bassin miroir, croissants et étoiles</p>
+          </div>
+          <a href="/images/fonds-islamiques/sapphire_mosque_colonnade_1793564844720.jpg" download="20_colonnade_imperiale.jpg" class="shrink-0 px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500 text-blue-300 hover:text-slate-950 border border-blue-500/30 font-semibold text-xs transition-all flex items-center gap-1.5">
+            📥 Télécharger
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Fullscreen Modal Preview -->
+  <div id="modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex flex-col items-center justify-center p-4">
+    <button onclick="closeModal()" class="absolute top-6 right-6 text-slate-400 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full text-sm font-semibold transition-all">
+      ✕ Fermer
+    </button>
+    <div class="max-w-5xl w-full flex flex-col items-center">
+      <img id="modal-img" src="" alt="" class="max-h-[75vh] w-auto max-w-full rounded-2xl shadow-2xl border border-white/20 object-contain">
+      <h2 id="modal-title" class="text-lg font-bold text-white mt-4 text-center"></h2>
+      <a id="modal-download" href="" download="" class="mt-3 px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/30 transition-all flex items-center gap-2">
+        📥 Télécharger cette image en haute résolution
+      </a>
+    </div>
+  </div>
+
+  <script>
+    function filterGallery(category) {
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.getAttribute('data-cat') === category) {
+          btn.classList.add('bg-amber-500', 'text-slate-950', 'shadow-lg', 'shadow-amber-500/20');
+          btn.classList.remove('bg-white/5', 'text-slate-300', 'border', 'border-white/10');
+        } else {
+          btn.classList.remove('bg-amber-500', 'text-slate-950', 'shadow-lg', 'shadow-amber-500/20');
+          btn.classList.add('bg-white/5', 'text-slate-300', 'border', 'border-white/10');
+        }
+      });
+
+      document.querySelectorAll('.gallery-item').forEach(item => {
+        if (category === 'all' || item.getAttribute('data-cat') === category) {
+          item.style.display = 'block';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    }
+
+    function openModal(src, title) {
+      document.getElementById('modal-img').src = src;
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-download').href = src;
+      document.getElementById('modal-download').setAttribute('download', title.toLowerCase().replace(/[^a-z0-9]/g, '_') + '.jpg');
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+    }
+
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target.id === 'modal') closeModal();
+    });
+  </script>
+</body>
+</html>
