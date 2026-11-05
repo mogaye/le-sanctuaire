@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sun, Moon } from 'lucide-react';
 import { Header } from './components/Header';
@@ -37,7 +37,7 @@ import {
   syncConnectedAccountToBackend,
   syncAllLocalTablesToSupabase,
 } from './lib/supabase';
-import { CITIES, METHODS, RECITERS } from './data/islamicData';
+import { CITIES, METHODS, RECITERS, getLiveCityWithRealPrayers } from './data/islamicData';
 import { CityData, Method, Reciter, UserProfile } from './types';
 import {
   GREEN_HERO_BACKGROUNDS,
@@ -95,6 +95,11 @@ export default function App() {
       // ignore
     }
   };
+
+  // Live accurate astronomical prayer times for the selected city for today
+  const liveSelectedCity = useMemo(() => {
+    return getLiveCityWithRealPrayers(selectedCity, new Date(), selectedMethod.id);
+  }, [selectedCity, selectedMethod.id]);
 
   const [selectedReciter, setSelectedReciter] = useState<Reciter>(() => {
     try {
@@ -834,7 +839,7 @@ export default function App() {
       case 'fasting':
         return (
           <FastingPage
-            selectedCity={selectedCity}
+            selectedCity={liveSelectedCity}
             onBackToHome={() => setCurrentView('home')}
             onOpenBookReader={canAccessLibrary ? (bookId) => handleOpenLibrary(bookId) : undefined}
           />
@@ -923,7 +928,7 @@ export default function App() {
             <PrayerPage
               currentUser={currentUser}
               onBackToHome={() => setCurrentView('home')}
-              selectedCity={selectedCity}
+              selectedCity={liveSelectedCity}
               selectedMethod={selectedMethod}
               initialPrayerKey={activePrayerKey}
               onOpenQibla={() => setIsQiblaOpen(true)}
@@ -953,7 +958,7 @@ export default function App() {
             <MonthlyPrayerCalendarView
               currentUser={currentUser}
               onBackToHome={() => setCurrentView('home')}
-              selectedCity={selectedCity}
+              selectedCity={liveSelectedCity}
               selectedMethod={selectedMethod}
             />
           </div>
@@ -981,7 +986,7 @@ export default function App() {
               onLogout={handleLogout}
               onGoToLanding={() => setCurrentView('landing')}
               onOpenAuth={() => setCurrentView('login')}
-              selectedCity={selectedCity}
+              selectedCity={liveSelectedCity}
               onSelectCity={handleSelectCity}
               selectedMethod={selectedMethod}
               onSelectMethod={handleSelectMethod}
@@ -1046,7 +1051,7 @@ export default function App() {
               {/* Hero Content (Header + Hero Section) */}
               <div className="relative z-10 flex flex-col">
                 <Header
-                  selectedCity={selectedCity}
+                  selectedCity={liveSelectedCity}
                   onSelectCity={handleSelectCity}
                   selectedMethod={selectedMethod}
                   onSelectMethod={handleSelectMethod}
@@ -1077,6 +1082,7 @@ export default function App() {
                   onSelectPrayerKey={setActivePrayerKey}
                   onAccederSite={handleAccederAuSite}
                   isLightHeroBg={currentHeroBg.mode === 'white'}
+                  selectedCity={liveSelectedCity}
                 />
               </div>
             </div>
@@ -1093,7 +1099,7 @@ export default function App() {
               />
 
               <AppPreviewSection
-                selectedCity={selectedCity}
+                selectedCity={liveSelectedCity}
                 onOpenPrayerGuide={() => handleOpenPrayerGuide()}
                 onOpenQuran={() => handleOpenQuranPage()}
                 onOpenQibla={() => setIsQiblaOpen(true)}
@@ -1209,6 +1215,7 @@ export default function App() {
         isOpen={isPrayerGuideOpen}
         onClose={() => setIsPrayerGuideOpen(false)}
         initialPrayerKey={activePrayerKey}
+        selectedCity={liveSelectedCity}
       />
 
       <QuranModal
@@ -1221,7 +1228,7 @@ export default function App() {
       <QiblaModal
         isOpen={isQiblaOpen}
         onClose={() => setIsQiblaOpen(false)}
-        selectedCity={selectedCity}
+        selectedCity={liveSelectedCity}
         selectedMethod={selectedMethod}
         onSelectCity={handleSelectCity}
         onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
@@ -1235,7 +1242,7 @@ export default function App() {
       <PrayerTimeSettingsModal
         isOpen={isPrayerSettingsOpen}
         onClose={() => setIsPrayerSettingsOpen(false)}
-        selectedCity={selectedCity}
+        selectedCity={liveSelectedCity}
         selectedMethod={selectedMethod}
         onSelectMethod={handleSelectMethod}
         offsets={prayerOffsets}
@@ -1255,7 +1262,7 @@ export default function App() {
       <AdhanAlertModal
         isOpen={isAdhanModalOpen}
         onClose={() => setIsAdhanModalOpen(false)}
-        selectedCity={selectedCity}
+        selectedCity={liveSelectedCity}
       />
 
       {/* Persistent 5-minute Guest Reminder for unauthenticated visitors */}

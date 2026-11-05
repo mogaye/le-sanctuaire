@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowUpRight, Sparkles, Compass, ArrowRight, BookOpen, Clock, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PrayerTime } from '../types';
+import { PrayerTime, CityData } from '../types';
 import { PRAYERS } from '../data/islamicData';
 import { useSpiritualVerseTimer } from '../hooks/useSpiritualVerseTimer';
 
@@ -11,6 +11,7 @@ interface HeroSectionProps {
   onSelectPrayerKey: (key: 'F' | 'D' | 'A' | 'M' | 'I') => void;
   onAccederSite?: () => void;
   isLightHeroBg?: boolean;
+  selectedCity?: CityData;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
@@ -19,6 +20,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   onSelectPrayerKey,
   onAccederSite,
   isLightHeroBg = false,
+  selectedCity,
 }) => {
   const { currentVerse } = useSpiritualVerseTimer(60000, 3);
 
@@ -242,18 +244,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             <div className="mb-3 px-3 py-2 rounded-xl bg-emerald-50/80 dark:bg-[#1A3626] border border-emerald-100/90 dark:border-emerald-700/50 flex items-center justify-between text-xs">
               <span className="font-semibold text-emerald-950 dark:text-white flex items-center gap-1.5">
                 <span className="text-emerald-700 dark:text-emerald-400 font-bold font-serif text-sm">{selectedPrayer.arabicName}</span>
-                <span>Prière de {selectedPrayer.name}</span>
+                <span>Prière de {selectedPrayer.name} {selectedCity?.name ? `(${selectedCity.name})` : ''}</span>
               </span>
-              <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-emerald-900/60 px-2 py-0.5 rounded-md shadow-2xs border border-emerald-200/50 dark:border-emerald-700/50">
-                {selectedPrayer.rakats} Rakats
+              <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 bg-white dark:bg-emerald-900/60 px-2 py-0.5 rounded-md shadow-2xs border border-emerald-200/50 dark:border-emerald-700/50 font-mono">
+                {selectedCity?.prayers?.[selectedPrayer.key] || selectedPrayer.time} • {selectedPrayer.rakats}R
               </span>
             </div>
 
-            {/* Card Footer: 5 Interactive Prayer Chips (Fajr, Dhuhr, Asr, Maghrib, Isha) */}
+            {/* Card Footer: 5 Interactive Prayer Chips (Fajr, Dhuhr, Asr, Maghrib, Isha) with authentic times */}
             <div className="pt-2 border-t border-neutral-100 dark:border-emerald-800/40">
               <div className="flex items-center justify-between gap-1.5 sm:gap-2">
                 {PRAYERS.map((prayer) => {
                   const isSelected = activePrayerKey === prayer.key;
+                  const realTime = selectedCity?.prayers?.[prayer.key] || prayer.time;
                   return (
                     <button
                       key={prayer.key}
@@ -262,7 +265,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                         onSelectPrayerKey(prayer.key);
                         onOpenPrayerGuide(prayer.key);
                       }}
-                      title={`${prayer.name} (${prayer.arabicName}) - ${prayer.rakats} Rakats`}
+                      title={`${prayer.name} (${prayer.arabicName}) — Horaire : ${realTime} — ${prayer.rakats} Rakats`}
                       className={`flex-1 flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-all cursor-pointer active:scale-95 ${
                         isSelected
                           ? 'bg-emerald-700 text-white shadow-md shadow-emerald-700/30 ring-2 ring-emerald-500 scale-[1.03]'
@@ -273,8 +276,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                       <span className={`text-[9px] font-bold mt-1 tracking-tight truncate ${isSelected ? 'text-emerald-100' : 'text-neutral-500 dark:text-neutral-400'}`}>
                         {prayer.name}
                       </span>
-                      <span className={`text-[8px] mt-0.5 leading-none ${isSelected ? 'text-amber-300 font-semibold' : 'text-neutral-400 dark:text-neutral-400'}`}>
-                        {prayer.rakats}R
+                      <span className={`text-[9.5px] mt-0.5 font-mono font-bold leading-none ${isSelected ? 'text-amber-300 font-extrabold' : 'text-emerald-800 dark:text-emerald-300'}`}>
+                        {realTime}
                       </span>
                     </button>
                   );

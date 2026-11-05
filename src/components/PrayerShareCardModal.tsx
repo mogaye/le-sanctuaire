@@ -29,14 +29,30 @@ interface PrayerShareCardModalProps {
 
 export type PosterTemplateType = 'salat' | 'makkah';
 
+export interface PosterArtBg {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export const POSTER_ART_BACKGROUNDS: PosterArtBg[] = [
+  { id: 'mosque_royale', name: 'Grande Mosquée Céleste', url: '/images/prayer_template_salat.png' },
+  { id: 'emerald_arch', name: 'Arches & Fanous Émeraude', url: '/images/fonds-islamiques/emerald_fanous_archway_4k.webp' },
+  { id: 'sapphire_night', name: 'Nuit Saphir & Minarets', url: '/images/fonds-islamiques/sapphire_lantern_night_4k.webp' },
+  { id: 'twilight_dunes', name: 'Crépuscule Doré', url: '/images/fonds-islamiques/golden_twilight_dunes_4k.webp' },
+  { id: 'ivory_palace', name: 'Palais d’Ivoire & Or', url: '/images/fonds-islamiques/ivory_gold_palace_4k.webp' },
+];
+
 export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
   isOpen,
   onClose,
   selectedCity,
   selectedMethod,
 }) => {
-  // 1. Template selection: 'salat' is the FIRST background as requested
+  // 1. Template selection: 'salat' is the FIRST background with gorgeous mosque art
   const [selectedTemplate, setSelectedTemplate] = useState<PosterTemplateType>('salat');
+  const [selectedArtBgId, setSelectedArtBgId] = useState<string>('mosque_royale');
+  const currentArtBg = POSTER_ART_BACKGROUNDS.find((b) => b.id === selectedArtBgId) || POSTER_ART_BACKGROUNDS[0];
 
   // 2. Senegal / Wolof local prayer names toggle (Suba, Tisbar, Takussan, Timis, Guéé)
   const isSenegaleseCity = useMemo(() => {
@@ -135,17 +151,20 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
 
     if (selectedTemplate === 'salat') {
       // =========================================================================
-      // TEMPLATE 1: ARTISTIC SALAT SILHOUETTES + TEAL TABLE (Model from image_8e8f3580 + image_162546d6)
+      // TEMPLATE 1: ARTISTIC MOSQUE & CELESTIAL BACKGROUND + TEAL TABLE
       // =========================================================================
       const bgImage = new Image();
       bgImage.crossOrigin = 'anonymous';
-      bgImage.src = '/images/prayer_template_salat.png';
+      bgImage.src = currentArtBg.url;
 
-      await new Promise((resolve, reject) => {
-        if (bgImage.complete) resolve(true);
+      await new Promise((resolve) => {
+        if (bgImage.complete && bgImage.naturalWidth > 0) resolve(true);
         else {
           bgImage.onload = () => resolve(true);
-          bgImage.onerror = () => reject(new Error('Failed to load SALAT image'));
+          bgImage.onerror = () => {
+            console.warn('Poster background image failed to load, continuing with canvas gradient fallback');
+            resolve(false);
+          };
         }
       });
 
@@ -829,7 +848,7 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                  {selectedTemplate === 'salat' ? '1er Modèle : SALAT & Noms Sénégal' : '2e Modèle : Horloge Makkah'}
+                  {selectedTemplate === 'salat' ? '1er Modèle : Grande Mosquée & Noms Sénégal' : '2e Modèle : Horloge Makkah'}
                 </span>
                 <span className="text-xs text-amber-300 font-bold hidden sm:inline">
                   Automatisé chaque semaine
@@ -853,7 +872,7 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
         {/* Modal Toolbar: Template Choice & Naming Options */}
         <div className="px-5 py-3 bg-[#0E2C1D] border-b border-emerald-500/20 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
           
-          {/* Template Switcher (SALAT vs MAKKAH) */}
+          {/* Template Switcher (Grande Mosquée vs MAKKAH) */}
           <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-emerald-500/20">
             <button
               onClick={() => setSelectedTemplate('salat')}
@@ -864,7 +883,7 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>1. Modèle SALAT (Art)</span>
+              <span>1. Grande Mosquée (Art)</span>
             </button>
             <button
               onClick={() => setSelectedTemplate('makkah')}
@@ -878,6 +897,28 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
               <span>2. Modèle Makkah</span>
             </button>
           </div>
+
+          {/* Background Selector for Template 1 */}
+          {selectedTemplate === 'salat' && (
+            <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-emerald-500/20 overflow-x-auto max-w-full">
+              <span className="text-[10px] uppercase font-bold text-amber-300/80 px-1.5 hidden md:inline">
+                Fond :
+              </span>
+              {POSTER_ART_BACKGROUNDS.map((bg) => (
+                <button
+                  key={bg.id}
+                  onClick={() => setSelectedArtBgId(bg.id)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1 ${
+                    selectedArtBgId === bg.id
+                      ? 'bg-amber-400 text-neutral-950 shadow-xs'
+                      : 'text-neutral-300 hover:text-white bg-white/5'
+                  }`}
+                >
+                  <span>{bg.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Wolof / Sénégal Names Toggle */}
           <div className="flex items-center gap-1.5 p-1 bg-black/40 rounded-2xl border border-emerald-500/20">
@@ -958,17 +999,17 @@ export const PrayerShareCardModal: React.FC<PrayerShareCardModalProps> = ({
               LIVE POSTER PREVIEW (EXACT FAITHFUL REPRESENTATION)
              ========================================================================= */}
           {selectedTemplate === 'salat' ? (
-            /* TEMPLATE 1: SALAT BACKGROUND WITH THE TEAL TABLE FROM image_162546d6 */
+            /* TEMPLATE 1: ARTISTIC MOSQUE BACKGROUND WITH THE TEAL TABLE */
             <div
-              className="relative w-full max-w-[420px] aspect-[1080/1440] rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col justify-between p-4 shrink-0"
+              className="relative w-full max-w-[420px] aspect-[1080/1440] rounded-3xl overflow-hidden shadow-2xl border border-emerald-500/30 flex flex-col justify-between p-4 shrink-0 transition-all duration-300"
               style={{
-                backgroundImage: 'url(/images/prayer_template_salat.png)',
+                backgroundImage: `url(${currentArtBg.url})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }}
             >
-              {/* Vignette overlay on lower half */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent pointer-events-none" />
+              {/* Vignette overlay on lower half to keep table readable while upper mosque & crescent are radiant */}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#05130A]/95 via-[#081C10]/60 to-transparent pointer-events-none" />
 
               {/* Top brand badge */}
               <div className="relative z-10 self-center">

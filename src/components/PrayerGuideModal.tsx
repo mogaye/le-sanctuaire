@@ -2,17 +2,20 @@ import React, { useState } from 'react';
 import { X, ChevronRight, ChevronLeft, Volume2, CheckCircle, Sparkles } from 'lucide-react';
 import { PRAYERS, PRAYER_STEPS } from '../data/islamicData';
 import { PrayerIllustration, PrayerPostureKey } from './PrayerIllustration';
+import { CityData } from '../types';
 
 interface PrayerGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPrayerKey?: 'F' | 'D' | 'A' | 'M' | 'I';
+  selectedCity?: CityData;
 }
 
 export const PrayerGuideModal: React.FC<PrayerGuideModalProps> = ({
   isOpen,
   onClose,
   initialPrayerKey = 'F',
+  selectedCity,
 }) => {
   const [selectedKey, setSelectedKey] = useState<'F' | 'D' | 'A' | 'M' | 'I'>(initialPrayerKey);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -67,7 +70,7 @@ export const PrayerGuideModal: React.FC<PrayerGuideModalProps> = ({
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-neutral-600 dark:text-neutral-300 mt-0.5 font-medium truncate">
-              Gestes, récitations et invocations authentiques.
+              {selectedCity ? `${selectedCity.name} • ${currentPrayer.name} à ${selectedCity.prayers?.[currentPrayer.key] || currentPrayer.time}` : 'Gestes, récitations et invocations authentiques.'}
             </p>
           </div>
 
@@ -83,6 +86,7 @@ export const PrayerGuideModal: React.FC<PrayerGuideModalProps> = ({
         <div className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-8 pt-3 pb-2 border-b border-neutral-200 dark:border-emerald-800/40 overflow-x-auto no-scrollbar">
           {PRAYERS.map((p) => {
             const isSelected = selectedKey === p.key;
+            const prayerTime = selectedCity?.prayers?.[p.key] || p.time;
             return (
               <button
                 key={p.key}
@@ -98,8 +102,8 @@ export const PrayerGuideModal: React.FC<PrayerGuideModalProps> = ({
               >
                 <span>{p.name}</span>
                 <span className="font-arabic text-xs sm:text-sm opacity-90">{p.arabicName}</span>
-                <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-white/20">
-                  {p.rakats}R
+                <span className="font-mono text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded bg-white/20">
+                  {prayerTime}
                 </span>
               </button>
             );

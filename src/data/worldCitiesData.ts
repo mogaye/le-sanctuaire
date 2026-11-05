@@ -25,11 +25,11 @@ export const WORLD_CITIES: CityData[] = [
     "longitude": -17.4467,
     "qiblaAngle": 74,
     "prayers": {
-      "F": "05:47",
-      "D": "13:05",
-      "A": "16:23",
-      "M": "19:10",
-      "I": "20:17"
+      "F": "05:54",
+      "D": "12:54",
+      "A": "16:12",
+      "M": "18:40",
+      "I": "19:49"
     }
   },
   {
@@ -43,11 +43,11 @@ export const WORLD_CITIES: CityData[] = [
     "longitude": -15.8756,
     "qiblaAngle": 74,
     "prayers": {
-      "F": "05:41",
-      "D": "12:59",
-      "A": "16:17",
-      "M": "19:03",
-      "I": "20:11"
+      "F": "05:47",
+      "D": "12:48",
+      "A": "16:05",
+      "M": "18:33",
+      "I": "19:42"
     }
   },
   {
@@ -61,11 +61,11 @@ export const WORLD_CITIES: CityData[] = [
     "longitude": -16.4818,
     "qiblaAngle": 75,
     "prayers": {
-      "F": "05:43",
-      "D": "13:01",
-      "A": "16:20",
-      "M": "19:06",
-      "I": "20:14"
+      "F": "05:51",
+      "D": "12:51",
+      "A": "16:07",
+      "M": "18:34",
+      "I": "19:44"
     }
   },
   {
@@ -79,11 +79,11 @@ export const WORLD_CITIES: CityData[] = [
     "longitude": -16.9359,
     "qiblaAngle": 74,
     "prayers": {
-      "F": "05:45",
-      "D": "13:03",
-      "A": "16:21",
-      "M": "19:08",
-      "I": "20:15"
+      "F": "05:52",
+      "D": "12:52",
+      "A": "16:10",
+      "M": "18:38",
+      "I": "19:47"
     }
   },
   {
@@ -4112,10 +4112,21 @@ export function computeDynamicCityPrayers(
       params.ishaAngle = 12;
     }
 
-    const pt = new PrayerTimes(coords, date, params);
+    const tz = city.timezone || 'Africa/Dakar';
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    const parts = formatter.formatToParts(date);
+    const getVal = (t: string) => parseInt(parts.find((p) => p.type === t)?.value || '0', 10);
+    const anchoredDate = new Date(getVal('year'), getVal('month') - 1, getVal('day'), 12, 0, 0);
+
+    const pt = new PrayerTimes(coords, anchoredDate, params);
     const formatTime = (d: Date) => {
       return new Intl.DateTimeFormat('en-GB', {
-        timeZone: city.timezone,
+        timeZone: tz,
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
@@ -4132,6 +4143,22 @@ export function computeDynamicCityPrayers(
   } catch (err) {
     return city.prayers;
   }
+}
+
+/**
+ * Returns a clone of CityData where .prayers contains the authentic astronomical times for today
+ */
+export function getLiveCityWithRealPrayers(
+  city: CityData,
+  date: Date = new Date(),
+  methodId: string = 'muslim'
+): CityData {
+  if (!city) return city;
+  const realPrayers = computeDynamicCityPrayers(city, date, methodId);
+  return {
+    ...city,
+    prayers: realPrayers,
+  };
 }
 
 /**

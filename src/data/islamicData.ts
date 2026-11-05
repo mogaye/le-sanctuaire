@@ -1,8 +1,8 @@
 import { CityData, Method, Reciter, PrayerTime, Surah, DhikrItem } from '../types';
-import { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, WorldRegion } from './worldCitiesData';
+import { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, getLiveCityWithRealPrayers, WorldRegion } from './worldCitiesData';
 
 export const CITIES: CityData[] = WORLD_CITIES;
-export { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers };
+export { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, getLiveCityWithRealPrayers };
 export type { WorldRegion };
 
 export const METHODS: Method[] = [
@@ -47,41 +47,41 @@ export const PRAYERS: PrayerTime[] = [
     name: 'Fajr',
     key: 'F',
     arabicName: 'الفجر',
-    time: '05:04',
+    time: '05:54',
     rakats: 2,
-    description: 'Prière de l’aube (2 unités / Rakats obligatoires, récitation à voix haute).',
+    description: 'Prière de l’aube / Suba (2 unités / Rakats obligatoires, récitation à voix haute).',
   },
   {
     name: 'Dhuhr',
     key: 'D',
     arabicName: 'الظهر',
-    time: '12:28',
+    time: '12:54',
     rakats: 4,
-    description: 'Prière du midi après le zénith du soleil (4 Rakats, récitation à voix basse).',
+    description: 'Prière du midi après le zénith / Tisbar (4 Rakats, récitation à voix basse).',
   },
   {
     name: 'Asr',
     key: 'A',
     arabicName: 'العصر',
-    time: '15:52',
+    time: '16:12',
     rakats: 4,
-    description: 'Prière de l’après-midi (4 Rakats, récitation à voix basse).',
+    description: 'Prière de l’après-midi / Takussan (4 Rakats, récitation à voix basse).',
   },
   {
     name: 'Maghrib',
     key: 'M',
     arabicName: 'المغرب',
-    time: '18:31',
+    time: '18:40',
     rakats: 3,
-    description: 'Prière du coucher de soleil (3 Rakats, 2 à voix haute puis 1 à voix basse).',
+    description: 'Prière du coucher de soleil / Timis (3 Rakats, 2 à voix haute puis 1 à voix basse).',
   },
   {
     name: 'Isha',
     key: 'I',
     arabicName: 'العشاء',
-    time: '20:01',
+    time: '19:49',
     rakats: 4,
-    description: 'Prière de la nuit (4 Rakats, 2 à voix haute puis 2 à voix basse).',
+    description: 'Prière de la nuit / Guéé (4 Rakats, 2 à voix haute puis 2 à voix basse).',
   },
 ];
 

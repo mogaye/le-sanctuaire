@@ -26,7 +26,6 @@ import {
   Sun,
   Award,
   Library,
-  Image as ImageIcon,
   Share2,
   Bell,
 } from 'lucide-react';
@@ -543,14 +542,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2.5">
-                  <button
-                    onClick={() => setIsSharePosterOpen(true)}
-                    className="px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-bold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
-                    title="Télécharger l'affiche illustrée des horaires de prière"
-                  >
-                    <ImageIcon className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Affiche & Image</span>
-                  </button>
                   {onOpenAdhanModal && (
                     <button
                       onClick={onOpenAdhanModal}
