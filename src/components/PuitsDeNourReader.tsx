@@ -20,6 +20,7 @@ import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.web
 
 interface PuitsDeNourReaderProps {
   onClose?: () => void;
+  onOpenCinematic?: () => void;
 }
 
 // Construit un texte de présentation continu et fluide (sans découpage en parties/rubriques)
@@ -81,7 +82,10 @@ function buildContinuousCharacterParagraphs(character: BookCharacter): string[] 
   return paragraphs;
 }
 
-export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
+export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = ({
+  onClose,
+  onOpenCinematic,
+}) => {
   const [activeTab, setActiveTab] = useState<'lecture' | 'personnages' | 'lieux'>('lecture');
   const [selectedChapterIndex, setSelectedChapterIndex] = useState<number>(0);
   const [selectedCharacter, setSelectedCharacter] = useState<BookCharacter | null>(null);
@@ -318,6 +322,29 @@ export const PuitsDeNourReader: React.FC<PuitsDeNourReaderProps> = () => {
               </strong>{' '}
               avec sa photo et son histoire complète.
             </p>
+
+            <div className="pt-3 flex flex-wrap items-center gap-3">
+              {onOpenCinematic && (
+                <button
+                  type="button"
+                  onClick={onOpenCinematic}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-neutral-950 font-black text-xs sm:text-sm shadow-xl transition active:scale-95 cursor-pointer"
+                  title="Ouvrir Le Puits de Nour en immersion plein écran cinématique"
+                >
+                  <Sparkles className="w-4 h-4 fill-current text-neutral-950" />
+                  <span>Mode Plein Écran Cinématique</span>
+                </button>
+              )}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  <span>Retour au Catalogue</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

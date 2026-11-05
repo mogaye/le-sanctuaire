@@ -20,6 +20,7 @@ import {
 import { PuitsDeNourReader } from './PuitsDeNourReader';
 import { IslamicPersonBookReader } from './IslamicPersonBookReader';
 import { PdfBookReader } from './PdfBookReader';
+import { BookCinematicReader } from './BookCinematicReader';
 import { PUITS_DE_NOUR_HERO_IMAGE, PUITS_DE_NOUR_CHARACTERS } from '../data/puitsDeNourCharacters';
 import { PUITS_DE_NOUR_CHAPTERS } from '../data/puitsDeNourText';
 import {
@@ -102,6 +103,17 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     if (!initialBookId || initialBookId === 'puits-de-nour') return null;
     return ISLAMIC_BOOKS.find((b) => b.id === initialBookId && Boolean(b.pdfUrl)) || null;
   });
+  const [cinematicReader, setCinematicReader] = useState<{
+    isOpen: boolean;
+    bookType: 'puits-de-nour' | 'person';
+    personBook?: IslamicPersonBook | null;
+    initialChapterIndex?: number;
+  }>({
+    isOpen: false,
+    bookType: 'puits-de-nour',
+    personBook: null,
+    initialChapterIndex: 0,
+  });
   const [selectedCategory, setSelectedCategory] = useState<'all' | IslamicPersonCategory>('all');
   const [bookFilterCategory, setBookFilterCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +127,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
   }, []);
 
   const isReadingAnyBook =
-    isReadingPuitsDeNour || selectedPersonBook !== null || selectedPdfBook !== null;
+    isReadingPuitsDeNour ||
+    selectedPersonBook !== null ||
+    selectedPdfBook !== null ||
+    cinematicReader.isOpen;
 
   useEffect(() => {
     onReadingStateChange?.(isReadingAnyBook);
@@ -126,7 +141,9 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
 
   useEffect(() => {
     const handleCloseBookFromBack = () => {
-      if (selectedPdfBook) {
+      if (cinematicReader.isOpen) {
+        setCinematicReader((prev) => ({ ...prev, isOpen: false }));
+      } else if (selectedPdfBook) {
         setSelectedPdfBook(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (isReadingPuitsDeNour) {
@@ -139,7 +156,7 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
     };
     window.addEventListener('sanctuaire-close-book', handleCloseBookFromBack);
     return () => window.removeEventListener('sanctuaire-close-book', handleCloseBookFromBack);
-  }, [selectedPdfBook, isReadingPuitsDeNour, selectedPersonBook]);
+  }, [selectedPdfBook, isReadingPuitsDeNour, selectedPersonBook, cinematicReader.isOpen]);
 
   const filteredPdfBooks = useMemo(() => {
     return ISLAMIC_BOOKS.filter((book) => {
@@ -264,7 +281,16 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
          ======================================================== */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-1 w-full space-y-8 sm:space-y-12">
         {isReadingPuitsDeNour ? (
-          <PuitsDeNourReader onClose={() => setIsReadingPuitsDeNour(false)} />
+          <PuitsDeNourReader
+            onClose={() => setIsReadingPuitsDeNour(false)}
+            onOpenCinematic={() =>
+              setCinematicReader({
+                isOpen: true,
+                bookType: 'puits-de-nour',
+                initialChapterIndex: 0,
+              })
+            }
+          />
         ) : selectedPersonBook ? (
           <IslamicPersonBookReader
             book={selectedPersonBook}
@@ -277,6 +303,14 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             allBooks={ISLAMIC_PEOPLE_BOOKS}
+            onOpenCinematic={() =>
+              setCinematicReader({
+                isOpen: true,
+                bookType: 'person',
+                personBook: selectedPersonBook,
+                initialChapterIndex: 0,
+              })
+            }
           />
         ) : (
           <>
@@ -457,8 +491,25 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                     </span>
                   </div>
 
-                  {/* Bouton de lecture directe */}
-                  <div className="pt-2">
+                  {/* Boutons de lecture : Plein Écran Cinématique & Standard */}
+                  <div className="pt-2 flex flex-wrap items-center justify-center md:justify-start gap-3">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCinematicReader({
+                          isOpen: true,
+                          bookType: 'puits-de-nour',
+                          initialChapterIndex: 0,
+                        });
+                      }}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-neutral-950 text-xs sm:text-sm font-black shadow-lg transition active:scale-95 cursor-pointer"
+                      title="Ouvrir Le Puits de Nour en immersion plein écran cinématique"
+                    >
+                      <Sparkles className="w-4 h-4 fill-current text-neutral-950" />
+                      <span>Mode Plein Écran Cinématique</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={(e) => {
@@ -466,10 +517,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                         setIsReadingPuitsDeNour(true);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs sm:text-sm font-bold shadow-md transition cursor-pointer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs sm:text-sm font-bold shadow-md transition cursor-pointer"
                     >
                       <BookOpen className="w-4 h-4" />
-                      <span>Lire Le Puits de Nour maintenant</span>
+                      <span>Lire le texte intégral</span>
                     </button>
                   </div>
                 </div>
@@ -585,30 +636,54 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                         </p>
                       </div>
 
-                      {/* Boutons d'action : Lire le PDF & Télécharger */}
-                      <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 flex items-center justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPdfBook(book);
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
-                          }}
-                          className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>Lire l'ouvrage (PDF)</span>
-                        </button>
-
-                        {book.pdfUrl && (
-                          <a
-                            href={book.pdfUrl}
-                            download
-                            className="inline-flex items-center justify-center gap-1 p-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#12241A] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-emerald-200 border border-stone-200 dark:border-emerald-500/25 transition cursor-pointer"
-                            title="Télécharger le PDF sur votre appareil"
+                      {/* Boutons d'action : Lire le PDF & Télécharger & Mode Cinématique */}
+                      <div className="pt-3 border-t border-stone-200/80 dark:border-emerald-500/20 space-y-2">
+                        {book.id === 'biographie-du-prophete' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const prophetPersonBook =
+                                ISLAMIC_PEOPLE_BOOKS.find((b) => b.id === 'prophete-muhammad-sira') ||
+                                ISLAMIC_PEOPLE_BOOKS[0];
+                              setCinematicReader({
+                                isOpen: true,
+                                bookType: 'person',
+                                personBook: prophetPersonBook,
+                                initialChapterIndex: 0,
+                              });
+                            }}
+                            className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-400 hover:to-amber-600 text-neutral-950 text-xs font-black shadow-md transition active:scale-95 cursor-pointer"
+                            title="Ouvrir la biographie en mode immersion plein écran cinématique"
                           >
-                            <Download className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
-                          </a>
+                            <Sparkles className="w-3.5 h-3.5 fill-current text-neutral-950" />
+                            <span>Mode Plein Écran Cinématique (10 Chapitres)</span>
+                          </button>
                         )}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPdfBook(book);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Lire l'ouvrage (PDF)</span>
+                          </button>
+
+                          {book.pdfUrl && (
+                            <a
+                              href={book.pdfUrl}
+                              download
+                              className="inline-flex items-center justify-center gap-1 p-2 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#12241A] dark:hover:bg-emerald-900/60 text-neutral-800 dark:text-emerald-200 border border-stone-200 dark:border-emerald-500/25 transition cursor-pointer"
+                              title="Télécharger le PDF sur votre appareil"
+                            >
+                              <Download className="w-4 h-4 text-emerald-700 dark:text-emerald-300" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -821,19 +896,39 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                                 ))}
                               </div>
 
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedPersonBook(personBook);
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer ml-auto"
-                              >
-                                <BookOpen className="w-3.5 h-3.5" />
-                                <span>Lire l&apos;histoire</span>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center gap-2 ml-auto">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCinematicReader({
+                                      isOpen: true,
+                                      bookType: 'person',
+                                      personBook,
+                                      initialChapterIndex: 0,
+                                    });
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 text-xs font-black shadow-xs transition active:scale-95 cursor-pointer"
+                                  title="Ouvrir la biographie en mode immersion plein écran cinématique"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 fill-current text-neutral-950" />
+                                  <span>Mode Cinématique</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPersonBook(personBook);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                                >
+                                  <BookOpen className="w-3.5 h-3.5" />
+                                  <span>Lire</span>
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </>
                           ) : (
                             <div className="w-full flex items-center justify-between gap-2">
@@ -915,8 +1010,33 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
             setSelectedPdfBook(null);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          onOpenCinematic={
+            selectedPdfBook.id === 'biographie-du-prophete'
+              ? () => {
+                  const prophetPersonBook =
+                    ISLAMIC_PEOPLE_BOOKS.find((b) => b.id === 'prophete-muhammad-sira') ||
+                    ISLAMIC_PEOPLE_BOOKS[0];
+                  setSelectedPdfBook(null);
+                  setCinematicReader({
+                    isOpen: true,
+                    bookType: 'person',
+                    personBook: prophetPersonBook,
+                    initialChapterIndex: 0,
+                  });
+                }
+              : undefined
+          }
         />
       )}
+
+      {/* Lecteur Plein Écran Cinématique (Histoires des Prophètes & Livre du Vendredi) */}
+      <BookCinematicReader
+        isOpen={cinematicReader.isOpen}
+        onClose={() => setCinematicReader((prev) => ({ ...prev, isOpen: false }))}
+        bookType={cinematicReader.bookType}
+        personBook={cinematicReader.personBook}
+        initialChapterIndex={cinematicReader.initialChapterIndex || 0}
+      />
     </div>
   );
 };
