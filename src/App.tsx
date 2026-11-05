@@ -29,7 +29,6 @@ import { DhikrModal } from './components/DhikrModal';
 import { PrayerTimeSettingsModal, PrayerOffsets } from './components/PrayerTimeSettingsModal';
 import { DonationModal } from './components/DonationModal';
 import { GuestAccountReminderToast } from './components/GuestAccountReminderToast';
-import { QuranVideoStudioPage } from './components/QuranVideoStudioPage';
 import { AdhanAlertModal } from './components/AdhanAlertModal';
 import {
   supabase,
@@ -165,8 +164,8 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isDarkMode]);
 
-  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar', or 'video-studio'
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar' | 'video-studio'>('landing');
+  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar'
+  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
   const [selectedSurahForPage, setSelectedSurahForPage] = useState<number | undefined>(undefined);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
   const [isReadingBook, setIsReadingBook] = useState<boolean>(false);
@@ -335,12 +334,6 @@ export default function App() {
       }
       if (s.showWelcomeWalkthrough) {
         setShowWelcomeWalkthrough(false);
-        return true;
-      }
-
-      // 3. If in Video Studio, return to Quran page
-      if (s.currentView === 'video-studio') {
-        setCurrentView('quran');
         return true;
       }
 
@@ -911,19 +904,8 @@ export default function App() {
             onSelectReciter={handleSelectReciter}
             initialSurahNumber={selectedSurahForPage}
             onOpenPrayerPage={() => handleOpenPrayerGuide()}
-            onOpenVideoStudio={() => setCurrentView('video-studio')}
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
-          />
-        );
-
-      case 'video-studio':
-        return (
-          <QuranVideoStudioPage
-            onBack={() => setCurrentView('quran')}
-            initialSurahNum={selectedSurahForPage || 1}
-            selectedReciter={selectedReciter}
-            onSelectReciter={handleSelectReciter}
           />
         );
 

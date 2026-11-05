@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Palette,
   Check,
-  Video,
   HelpCircle,
   X,
   BookOpen,
@@ -23,7 +22,6 @@ import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
 import { RECITERS } from '../data/islamicData';
 import { TajweedText, TAJWEED_RULES_EXPLANATIONS, cleanAyahArabic } from '../utils/tajweedColorizer';
-import { QuranVideoRecorderModal } from './QuranVideoRecorderModal';
 
 interface AyahData {
   num: number;
@@ -57,7 +55,6 @@ interface QuranCinematicReaderProps {
   onSelectReciter: (r: Reciter) => void;
   onSelectSurah: (surahNum: number) => void;
   getAyahAudioUrl: (surahNum: number, ayahNum: number, reciterId: string) => string;
-  onOpenVideoStudio?: () => void;
 }
 
 // 10 Distinct, Gorgeous and Immersive Spiritual Themes
@@ -407,7 +404,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   onSelectReciter,
   onSelectSurah,
   getAyahAudioUrl,
-  onOpenVideoStudio,
 }) => {
   // Navigation & Verse Focus
   const [currentAyahIndex, setCurrentAyahIndex] = useState<number>(0);
@@ -461,9 +457,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
   });
   const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
-
-  // Video Generator Studio Modal state
-  const [isVideoRecorderOpen, setIsVideoRecorderOpen] = useState<boolean>(false);
 
   // Font Size levels: 0 (Compact), 1 (Standard), 2 (Grand), 3 (Monumental)
   const [fontSizeLevel, setFontSizeLevel] = useState<number>(1);
@@ -735,8 +728,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           setIsBgPickerOpen(false);
         } else if (isThemePickerOpen) {
           setIsThemePickerOpen(false);
-        } else if (isVideoRecorderOpen) {
-          setIsVideoRecorderOpen(false);
         } else {
           handleExit();
         }
@@ -776,7 +767,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     isPlayingAudio,
     isThemePickerOpen,
     isTajweedGuideOpen,
-    isVideoRecorderOpen,
   ]);
 
   if (!isOpen) return null;
@@ -1026,18 +1016,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             </button>
           </div>
 
-          {/* Video Studio Generator Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsVideoRecorderOpen(true);
-            }}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-amber-400/20 to-amber-500/30 hover:from-amber-400/30 hover:to-amber-500/40 text-amber-300 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold border border-amber-400/30 shadow-xs"
-            title="Enregistrer et exporter en vidéo avec le son et le logo officiel Le Sanctuaire"
-          >
-            <Video className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">Créer Vidéo</span>
-          </button>
 
           {/* Wallpaper / Background Images Button */}
           <div className="relative">
@@ -1595,16 +1573,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <span>Phonétique</span>
           </button>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsVideoRecorderOpen(true);
-            }}
-            className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-amber-300 transition cursor-pointer border border-white/10"
-            title="Exporter une séquence en vidéo"
-          >
-            <Video className="w-4 h-4" />
-          </button>
 
           <button
             onClick={() => {
@@ -1715,29 +1683,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         </div>
       )}
 
-      {/* ========================================================
-          VIDEO RECORDER / EXPORT STUDIO MODAL
-         ======================================================== */}
-      {isVideoRecorderOpen && (
-        <QuranVideoRecorderModal
-          isOpen={isVideoRecorderOpen}
-          onClose={() => setIsVideoRecorderOpen(false)}
-          surahNum={currentSurahMeta.number}
-          surahName={currentSurahMeta.name}
-          totalAyahs={currentSurahMeta.numberOfAyahs}
-          currentAyahNum={currentAyah?.num || 1}
-          ayahs={ayahs}
-          selectedReciter={selectedReciter}
-          getAyahAudioUrl={getAyahAudioUrl}
-          themeId={theme}
-          bgImageUrl={selectedBg && selectedBgId !== 'none' ? selectedBg.url : undefined}
-          onOpenVideoStudio={onOpenVideoStudio ? () => {
-            setIsVideoRecorderOpen(false);
-            onClose();
-            onOpenVideoStudio();
-          } : undefined}
-        />
-      )}
     </div>
   );
 };

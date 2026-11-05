@@ -9,7 +9,6 @@ import {
   Copy,
   Play,
   Pause,
-  Video,
   MoreHorizontal,
   Sparkles,
   Maximize2,
@@ -80,7 +79,6 @@ interface QuranPageProps {
   onSelectReciter: (reciter: Reciter) => void;
   initialSurahNumber?: number;
   onOpenPrayerPage?: () => void;
-  onOpenVideoStudio?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
 }
@@ -92,7 +90,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   onSelectReciter,
   initialSurahNumber,
   onOpenPrayerPage,
-  onOpenVideoStudio,
   isDarkMode,
   onToggleDarkMode,
 }) => {
@@ -1135,18 +1132,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               <span className="md:hidden">Cinéma</span>
             </button>
 
-            {/* Dedicated TikTok & Reels Video Studio Trigger */}
-            {onOpenVideoStudio && (
-              <button
-                onClick={onOpenVideoStudio}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0 border border-emerald-400/30"
-                title="Ouvrir le Studio de création de vidéos TikTok, Reels, Shorts et WhatsApp"
-              >
-                <Video className="w-3.5 h-3.5 text-amber-300" />
-                <span className="hidden md:inline">Studio Vidéo TikTok</span>
-                <span className="md:hidden">Studio</span>
-              </button>
-            )}
+
           </div>
 
           {/* Right: Quick Controls, Bookmarks, Dark Mode Adapter, Settings */}
@@ -2540,7 +2526,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         onSelectReciter={onSelectReciter}
         onSelectSurah={(num) => handleSelectSurah(num)}
         getAyahAudioUrl={getAyahAudioUrl}
-        onOpenVideoStudio={onOpenVideoStudio}
       />
     </div>
   );
