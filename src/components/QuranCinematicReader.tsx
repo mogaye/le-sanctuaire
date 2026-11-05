@@ -24,8 +24,6 @@ import {
   RotateCw,
   Layers,
   Search,
-  Pin,
-  PinOff,
   Sun,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
@@ -511,30 +509,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   }, [isOpen]);
 
   const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
-  const [isHudPinned, setIsHudPinned] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('sanctuaire_cinematic_hud_pinned') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleHudPinned = () => {
-    setIsHudPinned((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('sanctuaire_cinematic_hud_pinned', String(next));
-      } catch {}
-      if (next) {
-        setIsHudVisible(true);
-        if (hideTimerRef.current) {
-          clearTimeout(hideTimerRef.current);
-          hideTimerRef.current = null;
-        }
-      }
-      return next;
-    });
-  };
 
   // Screen Wake Lock (Anti-veille automatique pour empêcher l'écran et l'appareil de s'éteindre)
   const [isWakeLockEnabled, setIsWakeLockEnabled] = useState<boolean>(() => {
@@ -801,7 +775,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     isAppearanceModalOpen ||
     isTajweedGuideOpen;
 
-  // Auto-hide HUD icons when audio is playing and user is not touching mouse/screen
+  // Auto-hide HUD icons after 4.5 seconds of inactivity (both in silent reading and audio playback)
   const resetHudTimer = (forceShow: boolean = true) => {
     if (forceShow) {
       setIsHudVisible(true);
@@ -810,25 +784,23 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       clearTimeout(hideTimerRef.current);
       hideTimerRef.current = null;
     }
-    // Never auto-hide if pinned or if any modal/menu is open
-    if (isHudPinned || anyModalOpen) {
+    // Never auto-hide if any modal/menu is open
+    if (anyModalOpen) {
       setIsHudVisible(true);
       return;
     }
-    // Auto-hide after 5000ms (5 seconds) of inactivity when audio is actively playing
-    if (isPlayingAudio) {
-      hideTimerRef.current = setTimeout(() => {
-        if (!isHudPinned && !anyModalOpen) {
-          setIsHudVisible(false);
-        }
-      }, 5000);
-    }
+    // Auto-hide after 4500ms (4.5s) of inactivity in all modes
+    hideTimerRef.current = setTimeout(() => {
+      if (!anyModalOpen) {
+        setIsHudVisible(false);
+      }
+    }, 4500);
   };
 
   useEffect(() => {
     if (!isOpen) return;
 
-    if (!isPlayingAudio || isHudPinned || anyModalOpen) {
+    if (anyModalOpen) {
       setIsHudVisible(true);
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
@@ -837,7 +809,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       return;
     }
 
-    // When audio is playing and not pinned, schedule auto-hide after 5s if inactive
+    // Schedule auto-hide after 4.5s of inactivity
     resetHudTimer(true);
 
     const onUserActivity = () => {
@@ -859,7 +831,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         hideTimerRef.current = null;
       }
     };
-  }, [isOpen, isPlayingAudio, anyModalOpen, isHudPinned]);
+  }, [isOpen, anyModalOpen]);
 
   const ayahs = (surahData?.ayahs || []).map((a) => ({
     ...a,
@@ -928,13 +900,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         transitionToVerse(nextIdx, true, false);
       } else {
         setIsPlayingAudio(false);
-        setIsHudVisible(true);
+        resetHudTimer(true);
       }
     };
 
     audio.onerror = () => {
       setIsPlayingAudio(false);
-      setIsHudVisible(true);
+      resetHudTimer(true);
     };
 
     audio
@@ -948,7 +920,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       })
       .catch(() => {
         setIsPlayingAudio(false);
-        setIsHudVisible(true);
+        resetHudTimer(true);
       });
   };
 
@@ -958,16 +930,16 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         audioRef.current.pause();
       }
       setIsPlayingAudio(false);
-      setIsHudVisible(true);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      resetHudTimer(true);
     } else {
-      setIsHudVisible(true);
+      resetHudTimer(true);
       playVerseAudio(currentAyahIndex, true);
     }
   };
 
   const handleNextVerse = () => {
     if (isVerseFading) return;
+    resetHudTimer(true);
     if (currentAyahIndex < ayahs.length - 1) {
       transitionToVerse(currentAyahIndex + 1, isPlayingAudio, true);
     } else if (currentSurahMeta.number < 114) {
@@ -977,6 +949,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
   const handlePrevVerse = () => {
     if (isVerseFading) return;
+    resetHudTimer(true);
     if (currentAyahIndex > 0) {
       transitionToVerse(currentAyahIndex - 1, isPlayingAudio, true);
     } else if (currentSurahMeta.number > 1) {
@@ -1161,10 +1134,21 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           : {}),
       }}
       className={`fixed inset-0 w-screen h-screen min-h-[100dvh] z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
-        !isHudVisible && isPlayingAudio ? 'cursor-none' : 'cursor-default'
+        !isHudVisible ? 'cursor-none' : 'cursor-default'
       }`}
-      onClick={() => {
-        resetHudTimer(true);
+      onClick={(e) => {
+        if (!isHudVisible) {
+          resetHudTimer(true);
+        } else if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'MAIN') {
+          // Tapping empty background toggles HUD immediately for distraction-free reading
+          setIsHudVisible(false);
+          if (hideTimerRef.current) {
+            clearTimeout(hideTimerRef.current);
+            hideTimerRef.current = null;
+          }
+        } else {
+          resetHudTimer(true);
+        }
       }}
       onMouseMove={() => {
         resetHudTimer(true);
@@ -2098,33 +2082,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     }`}
                   >
                     {showTranslation ? 'Activé' : 'Désactivé'}
-                  </button>
-                </div>
-
-                {/* Pin HUD / Permanent Controls Toggle Card */}
-                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
-                      <Pin className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-white">Garder les commandes visibles</div>
-                      <div className="text-neutral-400 text-[11px]">
-                        {isHudPinned
-                          ? 'Les icônes restent fixées à l’écran'
-                          : 'Masquage automatique après 5s d’inactivité'}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={toggleHudPinned}
-                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
-                      isHudPinned
-                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
-                        : 'bg-white/10 text-neutral-400 border-white/10'
-                    }`}
-                  >
-                    {isHudPinned ? 'Fixé (Permanent)' : 'Auto-masquage (5s)'}
                   </button>
                 </div>
 
