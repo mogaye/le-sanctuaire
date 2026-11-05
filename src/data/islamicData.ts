@@ -14,7 +14,8 @@ export const METHODS: Method[] = [
 ];
 
 export const RECITERS: Reciter[] = [
-  { id: 'mishary', name: 'Mishary', style: 'Mishary Rashid Alafasy' },
+  { id: 'leclerc_fr', name: '🇫🇷 Audio Français (Youssouf Leclerc)', style: 'Youssouf Leclerc — Traduction Audio Française Intégrale' },
+  { id: 'mishary', name: 'Mishary Alafasy', style: 'Mishary Rashid Alafasy' },
   { id: 'abdulbasit', name: 'Abdul Basit', style: 'Abdul Basit Abd us-Samad (Murattal)' },
   { id: 'abdulbasit_mujawwad', name: 'Abdul Basit (Muj.)', style: 'Abdul Basit Abd us-Samad (Mujawwad)' },
   { id: 'sudais', name: 'Al-Sudais', style: 'Abdur-Rahman as-Sudais' },
@@ -39,7 +40,6 @@ export const RECITERS: Reciter[] = [
   { id: 'budair', name: 'Al-Budair', style: 'Salah Al-Budair' },
   { id: 'matroud', name: 'Al-Matroud', style: 'Abdullah Al-Matroud' },
   { id: 'abbad', name: 'Fares Abbad', style: 'Fares Abbad' },
-  { id: 'leclerc_fr', name: 'Audio Français', style: 'Youssouf Leclerc (Traduction Française Audio)' },
 ];
 
 export const PRAYERS: PrayerTime[] = [

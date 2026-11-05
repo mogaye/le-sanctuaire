@@ -944,15 +944,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         </div>
 
         {/* Center: Reciter Switcher Pill */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 text-xs">
-          <span className="text-neutral-400 font-semibold text-[11px]">Récitation :</span>
+        <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-2xl bg-black/50 border border-white/15 text-[11px] sm:text-xs shrink-0">
+          <span className="hidden sm:inline text-neutral-400 font-semibold text-[11px]">Récitation :</span>
           <select
             value={selectedReciter.id}
             onChange={(e) => {
               const rec = RECITERS.find((r) => r.id === e.target.value);
               if (rec) onSelectReciter(rec);
             }}
-            className="bg-transparent text-amber-300 font-bold cursor-pointer focus:outline-hidden"
+            className="bg-transparent text-amber-300 font-bold cursor-pointer focus:outline-hidden max-w-[130px] sm:max-w-none truncate"
           >
             {RECITERS.map((r) => (
               <option key={r.id} value={r.id} className="bg-neutral-900 text-white">
