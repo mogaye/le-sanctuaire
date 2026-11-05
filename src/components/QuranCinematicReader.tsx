@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Minimize2,
+  Maximize,
   Play,
   Pause,
   SkipBack,
@@ -421,7 +422,64 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
   const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
 
-  // Landscape Mode & Fullscreen (requested for mobile/tablet & desktop)
+  // Fullscreen State (Tracks browser native fullscreen so reader covers 100% of physical display)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    if (typeof document !== 'undefined') {
+      return Boolean(document.fullscreenElement);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    };
+  }, []);
+
+  const enterNativeFullscreen = async () => {
+    try {
+      const el = containerRef.current || document.documentElement;
+      if (el && !document.fullscreenElement) {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen({ navigationUI: 'hide' } as any).catch(() => {});
+        } else if ((el as any).webkitRequestFullscreen) {
+          await (el as any).webkitRequestFullscreen().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('Native fullscreen error:', err);
+    }
+  };
+
+  const exitNativeFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen().catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn('Exit fullscreen error:', err);
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) {
+      await exitNativeFullscreen();
+    } else {
+      await enterNativeFullscreen();
+    }
+  };
+
+  // Landscape Mode & Fullscreen (requested for mobile/tablet)
   const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
   const [isPortrait, setIsPortrait] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
@@ -442,6 +500,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     };
   }, []);
 
+  // Auto-request fullscreen upon opening reader
+  useEffect(() => {
+    if (!isOpen) return;
+    enterNativeFullscreen();
+  }, [isOpen]);
+
   const closeAllPopovers = () => {
     setIsSurahPickerOpen(false);
     setIsReciterPickerOpen(false);
@@ -454,14 +518,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       setIsLandscapeMode(next);
 
       if (next) {
-        const el = containerRef.current || document.documentElement;
-        if (el && !document.fullscreenElement) {
-          if (el.requestFullscreen) {
-            await el.requestFullscreen({ navigationUI: 'hide' } as any).catch(() => {});
-          } else if ((el as any).webkitRequestFullscreen) {
-            await (el as any).webkitRequestFullscreen().catch(() => {});
-          }
-        }
+        await enterNativeFullscreen();
 
         if (screen.orientation && (screen.orientation as any).lock) {
           await (screen.orientation as any).lock('landscape').catch(() => {});
@@ -632,9 +689,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     if (audioRef.current) {
       audioRef.current.pause();
     }
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
+    exitNativeFullscreen();
     if (screen.orientation && (screen.orientation as any).unlock) {
       try {
         (screen.orientation as any).unlock();
@@ -841,15 +896,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
         handlePrevVerse();
-      } else if (e.key.toLowerCase() === 'f') {
+      } else if (e.key.toLowerCase() === 'f' || e.key === 'F11') {
         e.preventDefault();
-        try {
-          if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => {});
-          } else if (window.innerWidth >= 1024) {
-            document.documentElement.requestFullscreen().catch(() => {});
-          }
-        } catch {}
+        toggleFullscreen();
       } else if (e.key.toLowerCase() === 't') {
         setShowTranslation((v) => !v);
       } else if (e.key.toLowerCase() === 'p') {
@@ -1001,7 +1050,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             }
           : {}),
       }}
-      className={`fixed inset-0 z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
+      className={`fixed inset-0 w-screen h-screen min-h-[100dvh] z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
         !isHudVisible && isPlayingAudio ? 'cursor-none' : 'cursor-default'
       }`}
       onClick={() => {
@@ -1084,8 +1133,32 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </button>
         </div>
 
-        {/* Right Floating Icons: Unified Apparence & Réglages, Landscape (MOBILE ONLY), Close */}
+        {/* Right Floating Icons: Fullscreen Toggle, Apparence & Réglages, Landscape (MOBILE ONLY), Close */}
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+          {/* Fullscreen Toggle (Covers the ENTIRE SCREEN, including the top browser bar on PC, tablet, and mobile) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer border ${
+              isFullscreen
+                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.6)]'
+                : 'bg-black/55 hover:bg-black/75 text-amber-300 hover:text-white border-white/20'
+            }`}
+            title={
+              isFullscreen
+                ? 'Quitter le plein écran (F ou Échap)'
+                : 'Plein écran complet (couvrir tout l’écran y compris le haut) (F)'
+            }
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4 stroke-[2.4]" />
+            ) : (
+              <Maximize className="w-4 h-4 stroke-[2.4]" />
+            )}
+          </button>
+
           {/* Unified Apparence & Réglages (Unites Theme, Backgrounds 4K, Tajweed, and Text Size) */}
           <button
             onClick={(e) => {
