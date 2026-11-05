@@ -69,6 +69,7 @@ interface HomePageProps {
   onOpenPrayerGuide: (prayerKey?: 'F' | 'D' | 'A' | 'M' | 'I') => void;
   onOpenCalendar?: () => void;
   onOpenQuran: () => void;
+  onOpenCinematicQuran?: (surahNumber?: number) => void;
   onOpenQibla: () => void;
   onOpenDhikr: () => void;
   onOpenFasting?: () => void;
@@ -127,6 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenPrayerGuide,
   onOpenCalendar,
   onOpenQuran,
+  onOpenCinematicQuran,
   onOpenQibla,
   onOpenDhikr,
   onOpenFasting,
@@ -452,6 +454,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           }}
           onNextVerse={handleNextVerse}
           onOpenQuran={onOpenQuran}
+          onOpenCinematicQuran={onOpenCinematicQuran}
           onOpenPrayerGuide={() => onOpenPrayerGuide(nextPrayerInfo.key)}
           onOpenQibla={onOpenQibla}
           onOpenDhikr={onOpenDhikr}

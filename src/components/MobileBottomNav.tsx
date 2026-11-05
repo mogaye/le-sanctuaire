@@ -13,12 +13,14 @@ import {
   ChevronRight,
   Menu,
   Calendar,
+  Maximize2,
 } from 'lucide-react';
 
 export interface MobileBottomNavProps {
   currentView: string;
   onGoToHome: () => void;
   onOpenQuran: () => void;
+  onOpenCinematicQuran?: () => void;
   onOpenPrayerGuide: () => void;
   onOpenCalendar?: () => void;
   onOpenQibla: () => void;
@@ -35,6 +37,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onGoToHome,
   onOpenQuran,
+  onOpenCinematicQuran,
   onOpenPrayerGuide,
   onOpenCalendar,
   onOpenQibla,
@@ -369,6 +372,35 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Grille des Espaces */}
             <div className="grid grid-cols-2 gap-2.5 pt-1">
+              {/* Plein Écran Cinématique Coran */}
+              {onOpenCinematicQuran && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreOpen(false);
+                    onOpenCinematicQuran();
+                  }}
+                  className="p-3 rounded-2xl bg-gradient-to-br from-amber-50 to-emerald-50 dark:from-amber-950/40 dark:to-emerald-950/50 hover:from-amber-100 hover:to-emerald-100 border border-amber-400/50 text-left flex items-center gap-2.5 cursor-pointer active:scale-98 transition-all col-span-2 shadow-xs"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-neutral-950 flex items-center justify-center shrink-0 shadow-sm">
+                    <Maximize2 className="w-5 h-5 stroke-[2.4]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="block text-xs font-black text-amber-950 dark:text-amber-300 truncate">
+                        Plein Écran Cinématique Coran
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-400/20 px-1.5 py-0.5 rounded-full border border-amber-400/30">
+                        4K
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-emerald-800 dark:text-emerald-200/85 truncate">
+                      Lecture immersive, Tajweed & fonds animés
+                    </span>
+                  </div>
+                </button>
+              )}
+
               {/* Dhikr & Tasbih */}
               <button
                 type="button"

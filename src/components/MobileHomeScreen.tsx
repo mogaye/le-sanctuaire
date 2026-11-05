@@ -34,6 +34,7 @@ import {
   RotateCcw,
   Check,
   Award,
+  Maximize2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CityData } from '../types';
@@ -72,6 +73,7 @@ export interface MobileHomeScreenProps {
   };
   onNextVerse: () => void;
   onOpenQuran: () => void;
+  onOpenCinematicQuran?: (surahNumber?: number) => void;
   onOpenPrayerGuide: () => void;
   onOpenQibla: () => void;
   onOpenDhikr: () => void;
@@ -173,6 +175,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   currentVerse,
   onNextVerse,
   onOpenQuran,
+  onOpenCinematicQuran,
   onOpenPrayerGuide,
   onOpenQibla,
   onOpenDhikr,
@@ -615,6 +618,40 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         </div>
 
         {/* ========================================================
+            5B. BANNIÈRE PROMINENTE : LECTURE PLEIN ÉCRAN CINÉMATIQUE
+           ======================================================== */}
+        <div
+          onClick={() => (onOpenCinematicQuran ? onOpenCinematicQuran() : onOpenQuran())}
+          className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-emerald-900 via-[#103824] to-emerald-950 border border-amber-400/40 shadow-md cursor-pointer active:scale-98 transition-all group"
+        >
+          <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-400/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="relative z-10 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-neutral-950 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                <Maximize2 className="w-5 h-5 stroke-[2.4]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                    Mode Immersif 4K
+                  </span>
+                  <span className="text-[10px] text-emerald-200/80 font-medium">Sans distraction</span>
+                </div>
+                <h4 className="text-sm font-black text-white tracking-tight mt-1">
+                  Lecture Plein Écran Cinématique
+                </h4>
+                <p className="text-[11px] text-emerald-200/90 leading-tight line-clamp-1 mt-0.5">
+                  Grand texte arabe, Tajweed coloré, récitation & fonds animés
+                </p>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+              <Play className="w-4 h-4 ml-0.5 fill-current" />
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================
             6. "HORAIRES DES 5 PRIÈRES DU JOUR"
            ======================================================== */}
         <div className="space-y-2.5 pt-1">
@@ -798,15 +835,26 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               </button>
             </div>
 
-            <div className="mt-3 pt-2.5 border-t border-neutral-100 dark:border-emerald-800/60 flex items-center justify-between text-[11px]">
+            <div className="mt-3 pt-2.5 border-t border-neutral-100 dark:border-emerald-800/60 flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between text-[11px]">
               <span className="text-emerald-800 dark:text-emerald-200/90 font-arabic text-xs">بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</span>
-              <button
-                type="button"
-                onClick={onOpenQuran}
-                className="text-emerald-700 dark:text-emerald-300 font-bold hover:underline cursor-pointer"
-              >
-                Lire la sourate complète →
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => (onOpenCinematicQuran ? onOpenCinematicQuran(1) : onOpenQuran())}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-xs transition active:scale-95 cursor-pointer"
+                  title="Ouvrir en plein écran cinématique"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Plein Écran Cinématique</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenQuran}
+                  className="text-emerald-700 dark:text-emerald-300 font-bold hover:underline cursor-pointer"
+                >
+                  Lire →
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1296,6 +1344,22 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                 >
                   <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>Le Saint Coran (114 Sourates)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSideDrawerOpen(false);
+                    if (onOpenCinematicQuran) {
+                      onOpenCinematicQuran();
+                    } else {
+                      onOpenQuran();
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 transition-colors cursor-pointer"
+                >
+                  <Maximize2 className="w-4 h-4 text-amber-500" />
+                  <span>Lecture Plein Écran Cinématique (4K)</span>
                 </button>
 
                 <button

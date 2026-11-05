@@ -913,39 +913,39 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           TOP CINEMATIC HUD (AUTO-HIDES ON AUDIO PLAY)
          ======================================================== */}
       <header
-        className={`absolute top-0 left-0 right-0 z-50 w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between transition-all duration-500 backdrop-blur-md ${
+        className={`absolute top-0 left-0 right-0 z-50 w-full px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 transition-all duration-500 backdrop-blur-md overflow-x-auto no-scrollbar ${
           isHudVisible
             ? 'opacity-100 translate-y-0 shadow-lg'
             : 'opacity-0 -translate-y-full pointer-events-none'
         } ${currentTheme.hudBg} border-b`}
       >
         {/* Left: Surah Information */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-white/10 text-amber-300 border border-white/20 flex items-center justify-center font-bold text-sm">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 text-amber-300 border border-white/20 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
             {currentSurahMeta.number}
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base md:text-lg font-black text-white tracking-tight">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h2 className="text-xs sm:text-base md:text-lg font-black text-white tracking-tight">
                 {currentSurahMeta.name}
               </h2>
-              <span className="text-xs text-amber-300 font-bold hidden sm:inline">
+              <span className="text-xs text-amber-300 font-bold hidden md:inline">
                 ({currentSurahMeta.frenchTranslation})
               </span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-neutral-300 uppercase tracking-widest text-[9px] font-bold">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-neutral-300 uppercase tracking-widest text-[9px] font-bold hidden sm:inline">
                 {currentSurahMeta.revelationType === 'Meccan' ? 'Mecquoise' : 'Médinoise'}
               </span>
             </div>
-            <p className="text-xs text-neutral-400">
-              Verset {currentAyah?.num || 1} sur {currentSurahMeta.numberOfAyahs} • Récitateur :{' '}
-              <span className="text-amber-200 font-semibold">{selectedReciter.name}</span>
+            <p className="text-[10px] sm:text-xs text-neutral-400">
+              Verset {currentAyah?.num || 1}/{currentSurahMeta.numberOfAyahs} •{' '}
+              <span className="text-amber-200 font-semibold">{selectedReciter.name.split(' ')[0]}</span>
             </p>
           </div>
         </div>
 
         {/* Center: Reciter Switcher Pill */}
-        <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-2xl bg-black/50 border border-white/15 text-[11px] sm:text-xs shrink-0">
-          <span className="hidden sm:inline text-neutral-400 font-semibold text-[11px]">Récitation :</span>
+        <div className="hidden lg:flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-2xl bg-black/50 border border-white/15 text-[11px] sm:text-xs shrink-0">
+          <span className="text-neutral-400 font-semibold text-[11px]">Récitation :</span>
           <select
             value={selectedReciter.id}
             onChange={(e) => {

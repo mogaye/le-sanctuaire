@@ -81,6 +81,7 @@ interface QuranPageProps {
   onOpenPrayerPage?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+  startInCinematic?: boolean;
 }
 
 export const QuranPage: React.FC<QuranPageProps> = ({
@@ -92,6 +93,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   onOpenPrayerPage,
   isDarkMode,
   onToggleDarkMode,
+  startInCinematic = false,
 }) => {
   const hasUserChangedSurahRef = useRef<boolean>(false);
 
@@ -266,7 +268,13 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   });
 
   // Immersive Cinematic Fullscreen Reader State
-  const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(false);
+  const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(() => Boolean(startInCinematic));
+
+  useEffect(() => {
+    if (startInCinematic) {
+      setIsCinematicReaderOpen(true);
+    }
+  }, [startInCinematic]);
 
   // Active surah metadata from 114 catalog
   const currentSurahMeta: CompleteSurahItem = useMemo(() => {
@@ -1005,8 +1013,11 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 referrerPolicy="no-referrer"
                 className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover ring-1 ring-emerald-600/40 group-hover:scale-105 transition-transform shrink-0"
               />
-              <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none">
+              <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none hidden sm:inline">
                 Le Sanctuaire
+              </span>
+              <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none sm:hidden text-xs">
+                Accueil
               </span>
             </button>
 
@@ -1246,22 +1257,36 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 : `hidden lg:flex p-4 sm:p-5 ${isDark ? 'bg-[#14261C] text-white' : 'bg-white text-neutral-900'}`
             }`}
           >
-            {/* Mobile Sidebar Close Button */}
+            {/* Mobile Sidebar Close Button & Quick Cinematic Trigger */}
             {isMobileSidebarOpen && (
-              <div className={`lg:hidden shrink-0 flex items-center justify-between pb-3 border-b ${isDark ? 'border-emerald-500/25' : 'border-neutral-200'}`}>
-                <span className={`font-extrabold text-base tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                  Index des 114 Sourates
-                </span>
+              <div className={`lg:hidden shrink-0 space-y-2.5 pb-3 border-b ${isDark ? 'border-emerald-500/25' : 'border-neutral-200'}`}>
+                <div className="flex items-center justify-between">
+                  <span className={`font-extrabold text-base tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                    Index des 114 Sourates
+                  </span>
+                  <button
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                    className={`p-1.5 rounded-xl border transition cursor-pointer ${
+                      isDark
+                        ? 'bg-[#193226] border-emerald-500/30 text-emerald-300 hover:text-white'
+                        : 'bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900'
+                    }`}
+                    title="Fermer le menu des sourates"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => setIsMobileSidebarOpen(false)}
-                  className={`p-1.5 rounded-xl border transition cursor-pointer ${
-                    isDark
-                      ? 'bg-[#193226] border-emerald-500/30 text-emerald-300 hover:text-white'
-                      : 'bg-neutral-100 border-neutral-200 text-neutral-600 hover:text-neutral-900'
-                  }`}
-                  title="Fermer le menu des sourates"
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSidebarOpen(false);
+                    setIsCinematicReaderOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <Maximize2 className="w-4 h-4 stroke-[2.4]" />
+                  <span>Ouvrir en Plein Écran Cinématique (4K)</span>
                 </button>
               </div>
             )}
@@ -2512,6 +2537,26 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Floating Action Button : Plein Écran Cinématique sur Mobile (Touch-friendly 1-tap) */}
+      {!isCinematicReaderOpen && (
+        <aside
+          aria-label="Contrôle Plein Écran Cinématique Mobile"
+          className="fixed bottom-6 right-4 z-40 md:hidden flex flex-col items-end gap-2 pointer-events-auto"
+        >
+          <button
+            type="button"
+            onClick={() => setIsCinematicReaderOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-[0_8px_25px_rgba(245,158,11,0.5)] border-2 border-amber-300/90 active:scale-95 transition-all cursor-pointer group"
+            title="Activer la lecture plein écran immersif et cinématique"
+          >
+            <div className="w-5 h-5 rounded-full bg-neutral-950/20 flex items-center justify-center shrink-0">
+              <Maximize2 className="w-3.5 h-3.5 stroke-[2.7]" />
+            </div>
+            <span className="tracking-wide">Plein Écran Cinématique</span>
+          </button>
+        </aside>
       )}
 
       {/* Immersive Fullscreen Cinematic Quran Reader */}

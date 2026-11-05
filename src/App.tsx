@@ -172,6 +172,7 @@ export default function App() {
   // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar'
   const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
   const [selectedSurahForPage, setSelectedSurahForPage] = useState<number | undefined>(undefined);
+  const [startInCinematicForQuran, setStartInCinematicForQuran] = useState<boolean>(false);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
   const [isReadingBook, setIsReadingBook] = useState<boolean>(false);
 
@@ -723,8 +724,9 @@ export default function App() {
     setCurrentView('prayer');
   };
 
-  const handleOpenQuranPage = (surahNumber?: number) => {
+  const handleOpenQuranPage = (surahNumber?: number, openCinematic: boolean = false) => {
     setSelectedSurahForPage(surahNumber);
+    setStartInCinematicForQuran(openCinematic);
     setCurrentView('quran');
   };
 
@@ -904,10 +906,14 @@ export default function App() {
         return (
           <QuranPage
             currentUser={currentUser}
-            onBackToHome={() => setCurrentView('home')}
+            onBackToHome={() => {
+              setStartInCinematicForQuran(false);
+              setCurrentView('home');
+            }}
             selectedReciter={selectedReciter}
             onSelectReciter={handleSelectReciter}
             initialSurahNumber={selectedSurahForPage}
+            startInCinematic={startInCinematicForQuran}
             onOpenPrayerPage={() => handleOpenPrayerGuide()}
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
@@ -995,6 +1001,7 @@ export default function App() {
               onOpenPrayerGuide={handleOpenPrayerGuide}
               onOpenCalendar={() => setCurrentView('calendar')}
               onOpenQuran={() => handleOpenQuranPage()}
+              onOpenCinematicQuran={(surahNum) => handleOpenQuranPage(surahNum, true)}
               onOpenQibla={() => setIsQiblaOpen(true)}
               onOpenDhikr={() => setIsDhikrOpen(true)}
               onOpenFasting={handleOpenFasting}
@@ -1163,6 +1170,7 @@ export default function App() {
               setCurrentView('home');
             }}
             onOpenQuran={() => handleOpenQuranPage()}
+            onOpenCinematicQuran={() => handleOpenQuranPage(undefined, true)}
             onOpenPrayerGuide={() => handleOpenPrayerGuide()}
             onOpenCalendar={() => setCurrentView('calendar')}
             onOpenQibla={() => setIsQiblaOpen(true)}
