@@ -1,21 +1,30 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  Minimize2,
+  Maximize2,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
   ChevronLeft,
   ChevronRight,
   Palette,
+  BookOpen,
   Sparkles,
   X,
   List,
   Type,
   Users,
+  Check,
   Award,
+  Compass,
   ArrowLeft,
-  Volume2,
-  VolumeX,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { PUITS_DE_NOUR_CHAPTERS } from '../data/puitsDeNourText';
 import {
   PUITS_DE_NOUR_CHARACTERS,
+  PUITS_DE_NOUR_HERO_IMAGE,
   BookCharacter,
 } from '../data/puitsDeNourCharacters';
 import {
@@ -27,6 +36,7 @@ import {
   CINEMATIC_THEMES,
   CinematicThemeId,
   CINEMATIC_BACKGROUNDS,
+  CinematicBackground,
 } from './QuranCinematicReader';
 import { CharacterPortrait } from './CharacterPortrait';
 
@@ -38,15 +48,11 @@ export interface BookCinematicReaderProps {
   initialChapterIndex?: number;
 }
 
-interface SlidePart {
+interface ChapterDisplay {
   id: string;
-  chapterIndex: number;
-  chapterNumber: string;
-  chapterTitle: string;
-  chapterSubtitle?: string;
-  partIndex: number; // 1-indexed in chapter
-  totalPartsInChapter: number;
-  globalIndex: number;
+  number: string;
+  title: string;
+  subtitle?: string;
   paragraphs: string[];
 }
 
@@ -77,33 +83,33 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
     }
   });
 
-  // Typography state
-  const [fontSize, setFontSize] = useState<'base' | 'lg' | 'xl' | '2xl'>('xl');
+  // Typography & Layout state
+  const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('lg');
   const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
+  const [maxWidth, setMaxWidth] = useState<'reading' | 'wide'>('reading');
+  const [currentChapterIdx, setCurrentChapterIdx] = useState<number>(initialChapterIndex);
 
-  // Slide navigation state
-  const [currentSlideIndex, setCurrentSlideIndex] = useState<number>(0);
-
-  // Bars visibility state: DISAPPEARS IMMEDIATELY when reading or navigating
-  const [areBarsVisible, setAreBarsVisible] = useState<boolean>(false);
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Drawers
+  // Drawers and Modals
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isCharactersOpen, setIsCharactersOpen] = useState(false);
   const [isMilestonesOpen, setIsMilestonesOpen] = useState(false);
   const [selectedCharacter, setSelectedCharacter] = useState<BookCharacter | null>(null);
 
-  // Audio / Speech
+  // Audio / Speech Synthesis state
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechRate, setSpeechRate] = useState<number>(1);
+  const [readingProgress, setReadingProgress] = useState<number>(0);
 
-  // Hint toast that fades out quickly
-  const [showQuickHint, setShowQuickHint] = useState<boolean>(true);
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    return Boolean(document.fullscreenElement);
+  });
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Prepare normalized chapter data
-  const rawChapters = useMemo(() => {
+  const normalizedChapters: ChapterDisplay[] = useMemo(() => {
     if (bookType === 'puits-de-nour') {
       return PUITS_DE_NOUR_CHAPTERS.map((ch, idx) => {
         const rawLines = ch.rawText.split('\n');
@@ -126,7 +132,7 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
         }
 
         return {
-          index: idx,
+          id: ch.id || `chap-${idx + 1}`,
           number: ch.number,
           title: ch.title,
           subtitle: "Récit & Sagesse • Dar-Salam",
@@ -135,10 +141,10 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
       });
     }
 
-    // Person book (Histoire du Prophète Muhammad ﷺ)
+    // Otherwise person book (e.g. Histoire du Prophète Muhammad ﷺ)
     const activePerson = personBook || ISLAMIC_PEOPLE_BOOKS[0];
     return activePerson.chapters.map((ch: PersonChapter, idx: number) => ({
-      index: idx,
+      id: `prophet-chap-${idx + 1}`,
       number: ch.number,
       title: ch.title,
       subtitle: ch.subtitle,
@@ -146,85 +152,8 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
     }));
   }, [bookType, personBook]);
 
-  // Build the complete paginated sequence of slides ("parties") across all chapters
-  const allSlides: SlidePart[] = useMemo(() => {
-    const list: SlidePart[] = [];
-    let globalCounter = 0;
-
-    rawChapters.forEach((ch) => {
-      // Clean paragraphs
-      const cleanedParas = ch.paragraphs
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0 && !p.startsWith('Chapitre '));
-
-      // Group into comfortable slide chunks (1 substantial paragraph or 2 short ones)
-      const chapterSlideGroups: string[][] = [];
-      let i = 0;
-      while (i < cleanedParas.length) {
-        const p1 = cleanedParas[i];
-        const p2 = cleanedParas[i + 1];
-
-        if (p1.length > 450 || !p2) {
-          chapterSlideGroups.push([p1]);
-          i += 1;
-        } else if (p1.length + p2.length < 750) {
-          chapterSlideGroups.push([p1, p2]);
-          i += 2;
-        } else {
-          chapterSlideGroups.push([p1]);
-          i += 1;
-        }
-      }
-
-      const totalPartsInChapter = Math.max(1, chapterSlideGroups.length);
-      chapterSlideGroups.forEach((paras, pIdx) => {
-        list.push({
-          id: `slide-${ch.index}-${pIdx}`,
-          chapterIndex: ch.index,
-          chapterNumber: ch.number,
-          chapterTitle: ch.title,
-          chapterSubtitle: ch.subtitle,
-          partIndex: pIdx + 1,
-          totalPartsInChapter,
-          globalIndex: globalCounter,
-          paragraphs: paras,
-        });
-        globalCounter += 1;
-      });
-    });
-
-    return list;
-  }, [rawChapters]);
-
-  // Jump to initial chapter slide when opened
-  useEffect(() => {
-    if (initialChapterIndex > 0 && allSlides.length > 0) {
-      const targetSlide = allSlides.find((s) => s.chapterIndex === initialChapterIndex);
-      if (targetSlide) {
-        setCurrentSlideIndex(targetSlide.globalIndex);
-      }
-    } else {
-      setCurrentSlideIndex(0);
-    }
-    // Bars are hidden immediately on open
-    setAreBarsVisible(false);
-    setShowQuickHint(true);
-    const hintTimer = setTimeout(() => setShowQuickHint(false), 3500);
-    return () => clearTimeout(hintTimer);
-  }, [isOpen, initialChapterIndex, allSlides]);
-
-  const currentSlide: SlidePart = allSlides[currentSlideIndex] || allSlides[0] || {
-    id: 'empty',
-    chapterIndex: 0,
-    chapterNumber: 'Chapitre 1',
-    chapterTitle: '',
-    partIndex: 1,
-    totalPartsInChapter: 1,
-    globalIndex: 0,
-    paragraphs: [],
-  };
-
-  const activeTheme = CINEMATIC_THEMES[currentThemeId] || CINEMATIC_THEMES.amber;
+  const currentChapter = normalizedChapters[currentChapterIdx] || normalizedChapters[0];
+  const activeTheme = CINEMATIC_THEMES[currentThemeId] || CINEMATIC_THEMES.emerald;
   const currentBg = CINEMATIC_BACKGROUNDS.find((bg) => bg.id === selectedBgId) || null;
 
   // Book metadata
@@ -236,102 +165,36 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
     bookType === 'puits-de-nour'
       ? 'بِئْرُ نُور — دَارُ السَّلَام'
       : personBook?.arabicName || 'السِّيرَةُ النَّبَوِيَّةُ — مُحَمَّدٌ ﷺ';
+  const bookSubtitle =
+    bookType === 'puits-de-nour'
+      ? 'Parution du Vendredi • Récit initiatique & Sagesse'
+      : personBook?.title || 'Récit historique en dix chapitres authentiques';
 
-  // Navigation callbacks
-  const goToNextPart = useCallback(() => {
-    setCurrentSlideIndex((prev) => {
-      if (prev < allSlides.length - 1) {
-        return prev + 1;
-      }
-      return prev;
-    });
-    setAreBarsVisible(false);
-  }, [allSlides.length]);
-
-  const goToPrevPart = useCallback(() => {
-    setCurrentSlideIndex((prev) => {
-      if (prev > 0) {
-        return prev - 1;
-      }
-      return prev;
-    });
-    setAreBarsVisible(false);
-  }, []);
-
-  // Stop speech synthesis helper
-  const stopSpeech = useCallback(() => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-    setIsSpeaking(false);
-  }, []);
-
-  // Stop speech on slide change
-  useEffect(() => {
-    stopSpeech();
-  }, [currentSlideIndex, stopSpeech]);
-
-  useEffect(() => {
-    return () => {
-      stopSpeech();
-    };
-  }, [stopSpeech]);
-
-  // KEYBOARD CONTROLS: ArrowLeft, ArrowRight, and ESCAPE TO QUIT
+  // Keyboard navigation & Esc key
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ESCAPE TO QUIT IMMEDIATELY
       if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        stopSpeech();
-        if (isTocOpen) {
-          setIsTocOpen(false);
-          return;
+        if (isTocOpen) setIsTocOpen(false);
+        else if (isPaletteOpen) setIsPaletteOpen(false);
+        else if (isCharactersOpen) setIsCharactersOpen(false);
+        else if (isMilestonesOpen) setIsMilestonesOpen(false);
+        else if (selectedCharacter) setSelectedCharacter(null);
+        else onClose();
+      } else if (e.key === 'ArrowRight') {
+        if (currentChapterIdx < normalizedChapters.length - 1) {
+          setCurrentChapterIdx((prev) => prev + 1);
         }
-        if (isPaletteOpen) {
-          setIsPaletteOpen(false);
-          return;
+      } else if (e.key === 'ArrowLeft') {
+        if (currentChapterIdx > 0) {
+          setCurrentChapterIdx((prev) => prev - 1);
         }
-        if (isCharactersOpen) {
-          setIsCharactersOpen(false);
-          return;
-        }
-        if (isMilestonesOpen) {
-          setIsMilestonesOpen(false);
-          return;
-        }
-        if (selectedCharacter) {
-          setSelectedCharacter(null);
-          return;
-        }
-        // Exit native fullscreen if active
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        }
-        onClose();
-        return;
-      }
-
-      // RIGHT ARROW / SPACE / PAGE DOWN = PARTIE SUIVANTE
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
-        e.preventDefault();
-        setAreBarsVisible(false);
-        goToNextPart();
-      }
-
-      // LEFT ARROW / PAGE UP = PARTIE PRÉCÉDENTE
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-        e.preventDefault();
-        setAreBarsVisible(false);
-        goToPrevPart();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isOpen,
     isTocOpen,
@@ -339,72 +202,132 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
     isCharactersOpen,
     isMilestonesOpen,
     selectedCharacter,
-    goToNextPart,
-    goToPrevPart,
+    currentChapterIdx,
+    normalizedChapters.length,
     onClose,
-    stopSpeech,
   ]);
 
-  // MOUSE MOVEMENT: Temporarily reveal bars, then DISAPPEAR INSTANTLY after 2 seconds
-  const handleMouseMove = () => {
-    setAreBarsVisible(true);
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
+  // Fullscreen event listener
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  // Stop speech on chapter change or unmount
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
-    idleTimerRef.current = setTimeout(() => {
-      setAreBarsVisible(false);
-    }, 2000);
+    setIsSpeaking(false);
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentChapterIdx, bookType]);
+
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Track scroll reading progress
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const total = el.scrollHeight - el.clientHeight;
+    if (total <= 0) {
+      setReadingProgress(100);
+    } else {
+      setReadingProgress(Math.min(100, Math.round((el.scrollTop / total) * 100)));
+    }
   };
 
-  // Toggle speech synthesis for current slide
+  const handleToggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSelectTheme = (themeId: CinematicThemeId) => {
+    setCurrentThemeId(themeId);
+    try {
+      localStorage.setItem('sanctuaire_book_cinematic_theme', themeId);
+    } catch {}
+  };
+
+  const handleSelectBackground = (bgId: string | null) => {
+    setSelectedBgId(bgId);
+    try {
+      if (bgId) {
+        localStorage.setItem('sanctuaire_book_cinematic_bg', bgId);
+      } else {
+        localStorage.removeItem('sanctuaire_book_cinematic_bg');
+      }
+    } catch {}
+  };
+
   const handleToggleSpeech = () => {
     if (!('speechSynthesis' in window)) return;
 
     if (isSpeaking) {
-      stopSpeech();
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
       return;
     }
 
     window.speechSynthesis.cancel();
-    const textToRead = currentSlide.paragraphs.join(' ');
+    const textToRead = [
+      `${bookTitle}.`,
+      `${currentChapter.number} : ${currentChapter.title}.`,
+      ...currentChapter.paragraphs,
+    ].join(' ');
+
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'fr-FR';
     utterance.rate = speechRate;
-    utterance.onend = () => {
-      setIsSpeaking(false);
-      // Auto-advance to next part on completion
-      goToNextPart();
-    };
+    utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
 
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
   };
 
+  const handleCycleSpeechRate = () => {
+    const nextRate = speechRate === 1 ? 1.15 : speechRate === 1.15 ? 0.9 : 1;
+    setSpeechRate(nextRate);
+    if (isSpeaking) {
+      // restart with next rate
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setTimeout(handleToggleSpeech, 100);
+    }
+  };
+
   if (!isOpen) return null;
 
-  // Typography font size classes for grand wide presentation
   const fontClasses = {
-    base: 'text-xl sm:text-2xl md:text-3xl leading-[1.8] sm:leading-[1.85]',
-    lg: 'text-2xl sm:text-3xl md:text-[2.2rem] leading-[1.85] sm:leading-[1.9]',
-    xl: 'text-2xl sm:text-3xl md:text-4xl lg:text-[2.5rem] leading-[1.8] sm:leading-[1.9]',
-    '2xl': 'text-3xl sm:text-4xl md:text-5xl lg:text-[3rem] leading-[1.75] sm:leading-[1.85]',
+    sm: 'text-base sm:text-lg leading-relaxed',
+    base: 'text-lg sm:text-xl leading-[1.85]',
+    lg: 'text-xl sm:text-2xl leading-[1.95]',
+    xl: 'text-2xl sm:text-3xl leading-[2.05]',
   }[fontSize];
-
-  const progressPercent = Math.round(
-    ((currentSlideIndex + 1) / Math.max(1, allSlides.length)) * 100
-  );
 
   return (
     <div
-      onMouseMove={handleMouseMove}
-      onClick={() => {
-        // Clicking center hides bars immediately
-        if (areBarsVisible) {
-          setAreBarsVisible(false);
-        }
-      }}
-      className={`fixed inset-0 z-[100] w-screen h-screen overflow-hidden select-none text-white transition-colors duration-500 flex flex-col ${activeTheme.bg}`}
+      className={`fixed inset-0 z-[100] overflow-hidden flex flex-col select-none text-white transition-colors duration-500 ${activeTheme.bg}`}
       style={{
         background: !currentBg ? activeTheme.inlineBg : undefined,
       }}
@@ -420,9 +343,9 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             className="w-full h-full object-cover object-center opacity-30 transform scale-105 transition-opacity duration-700"
           />
           <div
-            className="absolute inset-0 backdrop-blur-[1px]"
+            className="absolute inset-0 backdrop-blur-[2px]"
             style={{
-              background: `radial-gradient(circle at 50% 40%, ${activeTheme.glow1} 0%, rgba(3, 10, 7, 0.90) 70%, rgba(1, 4, 3, 0.98) 100%)`,
+              background: `radial-gradient(circle at 50% 30%, ${activeTheme.glow1} 0%, rgba(3, 10, 7, 0.88) 70%, rgba(1, 4, 3, 0.96) 100%)`,
             }}
           />
         </div>
@@ -430,159 +353,193 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
 
       {/* Halo lumineux céleste d'ambiance */}
       <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[700px] pointer-events-none z-0 rounded-full blur-[160px] opacity-35 transition-colors duration-700"
+        className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[450px] pointer-events-none z-0 rounded-full blur-[140px] opacity-40 transition-colors duration-700"
         style={{ background: activeTheme.accent }}
       />
 
+      {/* Jauge fine de progression de lecture au sommet */}
+      <div className="relative z-30 w-full h-1 bg-white/10">
+        <div
+          className="h-full transition-all duration-150 ease-out"
+          style={{
+            width: `${readingProgress}%`,
+            backgroundColor: activeTheme.accent,
+            boxShadow: `0 0 10px ${activeTheme.accent}`,
+          }}
+        />
+      </div>
+
       {/* ==============================================================
-          BANDE DU HAUT (DISPARAÎT INSTANTANÉMENT)
+          BARRE SUPÉRIEURE HUD (TITRE, SOMMAIRE, THÈMES & CONTRÔLES)
          ============================================================== */}
       <header
-        className={`absolute top-0 left-0 right-0 z-30 h-16 sm:h-18 px-4 sm:px-8 border-b backdrop-blur-xl flex items-center justify-between transition-all duration-300 ${
-          areBarsVisible
-            ? 'opacity-100 translate-y-0 pointer-events-auto'
-            : 'opacity-0 -translate-y-4 pointer-events-none'
-        } ${activeTheme.hudBg}`}
-        onClick={(e) => e.stopPropagation()}
+        className={`relative z-20 h-16 sm:h-18 px-3 sm:px-6 border-b backdrop-blur-xl flex items-center justify-between shrink-0 shadow-lg transition-colors ${activeTheme.hudBg}`}
       >
-        {/* Côté Gauche : Quitter (Échap) / Sommaire / Titre */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* Côté Gauche : Quitter / Sommaire / Titre du livre */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/25 text-white text-xs sm:text-sm font-bold border border-white/20 transition active:scale-95 cursor-pointer"
-            title="Quitter la lecture (Échap)"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-bold border border-white/15 transition active:scale-95 cursor-pointer shrink-0"
+            title="Quitter la lecture plein écran (Échap)"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Quitter</span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/15 text-[10px] font-mono text-amber-300">
-              Échap
-            </span>
+            <span className="hidden md:inline">Quitter</span>
           </button>
 
-          {/* Bouton Sommaire */}
+          {/* Bouton Sommaire / Table des matières */}
           <button
             type="button"
             onClick={() => setIsTocOpen(!isTocOpen)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-bold border border-white/15 transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-bold border border-white/15 transition active:scale-95 cursor-pointer shrink-0"
+            title="Ouvrir la table des chapitres"
           >
             <List className="w-4 h-4 text-amber-300" />
             <span className="hidden sm:inline">Chapitres</span>
             <span className="px-1.5 py-0.2 rounded-md bg-amber-400/20 text-amber-300 text-[10px] font-mono">
-              {currentSlide.chapterIndex + 1}/{rawChapters.length}
+              {currentChapterIdx + 1}/{normalizedChapters.length}
             </span>
           </button>
 
-          {/* Titre & Identification */}
-          <div className="hidden lg:flex flex-col min-w-0 ml-2">
+          {/* Titre & Identification de l'ouvrage */}
+          <div className="hidden lg:flex flex-col min-w-0 ml-1">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border bg-black/40 border-white/15 text-amber-300 truncate">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border bg-black/40 border-white/15 text-amber-300 truncate max-w-[200px]">
                 {bookType === 'puits-de-nour' ? 'Livre du Vendredi' : 'Sîrah & Histoire'}
               </span>
-              <span className="text-xs font-serif text-white/70" dir="rtl">
+              <span className="text-xs font-serif text-white/70 truncate" dir="rtl">
                 {bookArabic}
               </span>
             </div>
-            <h1 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-md">
-              {bookTitle} • <span className="text-white/80">{currentSlide.chapterTitle}</span>
+            <h1 className="text-sm font-extrabold text-white truncate max-w-sm">
+              {bookTitle} • <span className="text-white/80 font-medium">{currentChapter.number}</span>
             </h1>
           </div>
         </div>
 
-        {/* Côté Droit : Audio Speech, Thèmes, Typo, Fermer */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Si Puits de Nour : Personnages */}
+        {/* Côté Droit : Audio Speech, Thèmes, Typo, Plein écran */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Si Puits de Nour : Bouton Personnages */}
           {bookType === 'puits-de-nour' && (
             <button
               type="button"
               onClick={() => setIsCharactersOpen(true)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 text-xs font-bold transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 text-xs font-bold transition cursor-pointer"
+              title="Voir les personnages de Dar-Salam"
             >
               <Users className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Personnages</span>
             </button>
           )}
 
-          {/* Si Histoire du Prophète : Repères */}
+          {/* Si Histoire du Prophète : Repères & Leçons */}
           {bookType === 'person' && (
             <button
               type="button"
               onClick={() => setIsMilestonesOpen(true)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 text-xs font-bold transition cursor-pointer"
+              className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 text-xs font-bold transition cursor-pointer"
+              title="Voir les repères historiques & la leçon spirituelle"
             >
               <Award className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Repères</span>
+              <span className="hidden md:inline">Repères & Vertus</span>
             </button>
           )}
 
           {/* Bouton Narration Vocale */}
-          <button
-            type="button"
-            onClick={handleToggleSpeech}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition cursor-pointer border ${
-              isSpeaking
-                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-md animate-pulse'
-                : 'bg-white/10 hover:bg-white/20 text-white border-white/15'
-            }`}
-            title="Écouter la narration vocale de cette partie"
-          >
-            {isSpeaking ? (
-              <>
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Pause</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="w-3.5 h-3.5 text-white/70" />
-                <span className="hidden sm:inline">Écouter</span>
-              </>
+          <div className="flex items-center rounded-full bg-white/10 border border-white/15 p-0.5">
+            <button
+              type="button"
+              onClick={handleToggleSpeech}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+                isSpeaking
+                  ? 'bg-amber-400 text-neutral-950 shadow-md font-extrabold animate-pulse'
+                  : 'text-white hover:bg-white/15'
+              }`}
+              title={isSpeaking ? 'Mettre la lecture en pause' : 'Écouter la narration vocale'}
+            >
+              {isSpeaking ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Pause</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5 text-white/70" />
+                  <span className="hidden sm:inline">Écouter</span>
+                </>
+              )}
+            </button>
+            {isSpeaking && (
+              <button
+                type="button"
+                onClick={handleCycleSpeechRate}
+                className="px-2 py-1 text-[10px] font-mono font-bold text-amber-300 hover:text-white transition cursor-pointer"
+                title="Vitesse de narration"
+              >
+                {speechRate}x
+              </button>
             )}
-          </button>
+          </div>
 
           {/* Sélecteur de Thèmes Célestes */}
           <button
             type="button"
             onClick={() => setIsPaletteOpen(!isPaletteOpen)}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white transition active:scale-95 cursor-pointer relative"
-            title="Changer de thème de couleur"
+            title="Personnaliser les couleurs & fonds spirituels"
           >
             <Palette className="w-4 h-4 text-amber-300" />
+            <span
+              className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-black"
+              style={{ backgroundColor: activeTheme.accent }}
+            />
           </button>
 
           {/* Bouton Taille de Police */}
           <div className="hidden sm:flex items-center rounded-full bg-white/10 border border-white/15 p-0.5">
-            {(['base', 'lg', 'xl', '2xl'] as const).map((sz) => (
+            {(['sm', 'base', 'lg', 'xl'] as const).map((sz) => (
               <button
                 key={sz}
                 type="button"
                 onClick={() => setFontSize(sz)}
-                className={`px-2.5 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+                className={`px-2 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
                   fontSize === sz
                     ? 'bg-white text-neutral-950 font-black shadow-xs'
                     : 'text-white/70 hover:text-white'
                 }`}
+                title={`Taille ${sz.toUpperCase()}`}
               >
-                {sz === 'base' ? 'A' : sz === 'lg' ? 'A+' : sz === 'xl' ? 'A++' : 'Max'}
+                {sz === 'sm' ? 'A-' : sz === 'base' ? 'A' : sz === 'lg' ? 'A+' : 'A++'}
               </button>
             ))}
           </div>
 
-          {/* Bascule Serif / Sans */}
+          {/* Bouton Bascule Serif / Sans */}
           <button
             type="button"
             onClick={() => setFontFamily((prev) => (prev === 'serif' ? 'sans' : 'serif'))}
             className="p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white transition active:scale-95 cursor-pointer"
-            title="Basculer la police de lecture"
+            title={`Basculer en police ${fontFamily === 'serif' ? 'Sans-Serif Moderne' : 'Serif Littéraire'}`}
           >
             <Type className="w-4 h-4" />
+          </button>
+
+          {/* Bascule Plein Écran */}
+          <button
+            type="button"
+            onClick={handleToggleFullscreen}
+            className="p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white transition active:scale-95 cursor-pointer"
+            title={isFullscreen ? 'Quitter le mode plein écran natif' : 'Activer le mode plein écran natif'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
 
           {/* Fermer */}
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-full bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-200 transition active:scale-95 cursor-pointer"
-            title="Quitter (Échap)"
+            className="p-2 rounded-full bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-200 transition active:scale-95 cursor-pointer ml-1"
+            title="Quitter"
           >
             <X className="w-4 h-4" />
           </button>
@@ -590,158 +547,188 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
       </header>
 
       {/* ==============================================================
-          ZONES DE CLIC GAUCHE / DROITE & BOUTONS FLOTTANTS DISCRETS
+          CORPS DU LIVRE : LECTURE CINÉMATIQUE HAUTE DÉFINITION
          ============================================================== */}
-      {/* Zone gauche (Partie précédente) */}
       <div
-        onClick={(e) => {
-          e.stopPropagation();
-          goToPrevPart();
-        }}
-        className="absolute left-0 top-0 bottom-0 w-24 sm:w-32 z-10 flex items-center justify-start pl-4 sm:pl-6 cursor-pointer group opacity-0 hover:opacity-100 transition-opacity"
-        title="Partie précédente (Flèche Gauche ←)"
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 md:p-12 transition-colors select-text"
       >
-        <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 group-hover:scale-110 group-hover:bg-black/60 group-hover:text-amber-300 transition-all shadow-xl">
-          <ChevronLeft className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* Zone droite (Partie suivante) */}
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          goToNextPart();
-        }}
-        className="absolute right-0 top-0 bottom-0 w-24 sm:w-32 z-10 flex items-center justify-end pr-4 sm:pr-6 cursor-pointer group opacity-0 hover:opacity-100 transition-opacity"
-        title="Partie suivante (Flèche Droite →)"
-      >
-        <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 group-hover:scale-110 group-hover:bg-black/60 group-hover:text-amber-300 transition-all shadow-xl">
-          <ChevronRight className="w-6 h-6" />
-        </div>
-      </div>
-
-      {/* ==============================================================
-          CORPS IMMERSIF : GRAND FORMAT LARGE (PAR PARTIE)
-         ============================================================== */}
-      <main
-        className="relative z-20 flex-1 w-full h-full flex flex-col justify-center items-center px-6 sm:px-12 md:px-20 lg:px-28 xl:px-36 select-text overflow-hidden"
-      >
-        {/* Conteneur de la partie en cours : Large, Centré, Plein format */}
         <div
-          key={currentSlide.id}
-          className="w-full max-w-5xl xl:max-w-6xl mx-auto flex flex-col justify-center items-center text-center space-y-6 sm:space-y-8 animate-in fade-in zoom-in-95 duration-200"
+          className={`mx-auto ${
+            maxWidth === 'reading' ? 'max-w-3xl' : 'max-w-4xl'
+          } space-y-8 sm:space-y-10 pb-28`}
         >
-          {/* En-tête discret de la partie */}
-          <div className="flex flex-col items-center gap-1.5 transition-opacity duration-300">
-            <span className="text-xs sm:text-sm uppercase tracking-widest font-bold text-amber-300/90 font-serif">
-              {currentSlide.chapterNumber} • Partie {currentSlide.partIndex} sur {currentSlide.totalPartsInChapter}
-            </span>
-            <h2 className="text-base sm:text-lg font-bold text-white/80 max-w-2xl truncate">
-              {currentSlide.chapterTitle}
+          {/* En-tête solennel du chapitre */}
+          <div className="text-center space-y-3 pt-4 sm:pt-8 border-b border-white/10 pb-8">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full border bg-black/40 border-white/15 text-amber-300 text-xs font-bold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{currentChapter.number} • {bookTitle}</span>
+            </div>
+
+            {/* Calligraphie Bismillah ou Titre Arabe */}
+            <div className="font-arabic text-2xl sm:text-3xl text-amber-200/90 pt-1" dir="rtl">
+              بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+            </div>
+
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-black text-white tracking-tight leading-tight">
+              {currentChapter.title}
             </h2>
+
+            {currentChapter.subtitle && (
+              <p className="text-sm sm:text-base text-white/75 max-w-xl mx-auto italic font-serif">
+                {currentChapter.subtitle}
+              </p>
+            )}
           </div>
 
-          {/* Paragraphes de cette partie : Grand format et couverture totale */}
+          {/* Citation noble (si livre du prophète) */}
+          {bookType === 'person' && personBook && currentChapterIdx === 0 && (
+            <div className="rounded-3xl bg-emerald-950/40 border border-emerald-500/30 p-6 sm:p-8 space-y-3 text-center my-6">
+              <p className="font-arabic text-2xl sm:text-3xl text-amber-300 leading-relaxed" dir="rtl">
+                {personBook.arabicQuote}
+              </p>
+              <p className="text-sm sm:text-base font-serif italic text-emerald-100/95 max-w-xl mx-auto">
+                {personBook.frenchQuote}
+              </p>
+              <span className="block text-[11px] uppercase tracking-wider font-bold text-amber-400/80">
+                — {personBook.quoteSource}
+              </span>
+            </div>
+          )}
+
+          {/* ==============================================================
+              PARAGRAPHES DU RÉCIT AVEC TYPOGRAPHIE LITTÉRAIRE
+             ============================================================== */}
           <div
-            className={`space-y-5 sm:space-y-7 text-center ${
+            className={`space-y-6 sm:space-y-7 ${
               fontFamily === 'serif' ? 'font-serif' : 'font-sans'
             } ${fontClasses}`}
           >
-            {currentSlide.paragraphs.map((pText, pIdx) => (
-              <p
-                key={`slide-p-${pIdx}`}
-                className="text-white/95 selection:bg-amber-500 selection:text-neutral-950 transition-colors tracking-wide max-w-5xl mx-auto drop-shadow-sm"
-              >
-                {pText}
-              </p>
-            ))}
+            {currentChapter.paragraphs.map((pText, pIdx) => {
+              const isFirst = pIdx === 0;
+              const firstLetter = pText.charAt(0);
+              const remainingText = pText.slice(1);
+
+              return (
+                <p
+                  key={`par-${currentChapterIdx}-${pIdx}`}
+                  className="text-white/90 selection:bg-amber-500 selection:text-neutral-950 transition-colors tracking-normal"
+                  style={{ textIndent: isFirst ? '0' : '1.5em' }}
+                >
+                  {isFirst ? (
+                    <>
+                      <span
+                        className="float-left text-5xl sm:text-6xl font-black mr-3 -mt-1 font-serif select-none"
+                        style={{ color: activeTheme.accent }}
+                      >
+                        {firstLetter}
+                      </span>
+                      <span>{remainingText}</span>
+                    </>
+                  ) : (
+                    pText
+                  )}
+                </p>
+              );
+            })}
           </div>
 
-          {/* Indicateur de bas de partie & points de progression */}
-          <div className="pt-2 flex items-center justify-center gap-2 text-white/40 text-xs font-mono">
-            <span>{currentSlide.partIndex}</span>
-            <div className="w-16 h-1 rounded-full bg-white/10 overflow-hidden">
-              <div
-                className="h-full bg-amber-400 transition-all duration-300"
-                style={{
-                  width: `${(currentSlide.partIndex / currentSlide.totalPartsInChapter) * 100}%`,
-                }}
-              />
+          {/* Ornement de fin de chapitre */}
+          <div className="pt-10 border-t border-white/10 text-center space-y-4">
+            <div className="flex items-center justify-center gap-3 text-amber-400/60">
+              <span className="h-px w-16 bg-white/15" />
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span className="h-px w-16 bg-white/15" />
             </div>
-            <span>{currentSlide.totalPartsInChapter}</span>
+            <p className="text-xs text-white/60 font-serif italic">
+              Fin de {currentChapter.number}
+            </p>
+
+            {/* Stepper suivant / précédent au bas du texte */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">
+              <button
+                type="button"
+                disabled={currentChapterIdx === 0}
+                onClick={() => {
+                  if (currentChapterIdx > 0) {
+                    setCurrentChapterIdx((prev) => prev - 1);
+                  }
+                }}
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl border text-xs sm:text-sm font-bold transition cursor-pointer ${
+                  currentChapterIdx === 0
+                    ? 'opacity-40 border-white/10 text-white/50 cursor-not-allowed'
+                    : 'bg-white/10 hover:bg-white/20 border-white/20 text-white active:scale-95'
+                }`}
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Chapitre Précédent</span>
+              </button>
+
+              <span className="text-xs font-mono text-white/60">
+                {currentChapterIdx + 1} sur {normalizedChapters.length}
+              </span>
+
+              <button
+                type="button"
+                disabled={currentChapterIdx === normalizedChapters.length - 1}
+                onClick={() => {
+                  if (currentChapterIdx < normalizedChapters.length - 1) {
+                    setCurrentChapterIdx((prev) => prev + 1);
+                  }
+                }}
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl border text-xs sm:text-sm font-bold transition cursor-pointer ${
+                  currentChapterIdx === normalizedChapters.length - 1
+                    ? 'opacity-40 border-white/10 text-white/50 cursor-not-allowed'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400/40 shadow-lg active:scale-95'
+                }`}
+              >
+                <span>Chapitre Suivant</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* ==============================================================
-          BANDE DU BAS (DISPARAÎT INSTANTANÉMENT)
+          BARRE D'ACTION INFÉRIEURE FLOTTANTE (STEPPER RAPIDE)
          ============================================================== */}
-      <footer
-        className={`absolute bottom-0 left-0 right-0 z-30 h-14 sm:h-16 px-6 sm:px-12 bg-black/60 backdrop-blur-xl border-t border-white/10 flex items-center justify-between text-xs text-white/80 transition-all duration-300 ${
-          areBarsVisible
-            ? 'opacity-100 translate-y-0 pointer-events-auto'
-            : 'opacity-0 translate-y-4 pointer-events-none'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <footer className="relative z-20 h-14 px-4 sm:px-6 bg-black/60 backdrop-blur-md border-t border-white/10 flex items-center justify-between shrink-0 text-xs text-white/80">
         <button
           type="button"
-          disabled={currentSlideIndex === 0}
-          onClick={goToPrevPart}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer font-bold"
+          disabled={currentChapterIdx === 0}
+          onClick={() => setCurrentChapterIdx((prev) => Math.max(0, prev - 1))}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer"
         >
-          <ChevronLeft className="w-4 h-4 text-amber-400" />
-          <span>Partie Précédente (←)</span>
+          <ChevronLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Précédent</span>
         </button>
 
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-white">
-            {currentSlide.chapterTitle}
+          <span className="font-semibold text-white truncate max-w-[200px] sm:max-w-md">
+            {currentChapter.title}
           </span>
-          <span className="text-white/30">•</span>
-          <span className="font-mono text-amber-300">
-            Partie {currentSlideIndex + 1} / {allSlides.length} ({progressPercent}%)
-          </span>
-          <span className="text-white/30 hidden sm:inline">•</span>
-          <span className="text-white/60 hidden sm:inline">
-            Touche <strong className="text-white font-mono">Échap</strong> pour quitter
+          <span className="text-white/40 hidden sm:inline">•</span>
+          <span className="font-mono text-amber-300 hidden sm:inline">
+            Progression : {readingProgress}%
           </span>
         </div>
 
         <button
           type="button"
-          disabled={currentSlideIndex === allSlides.length - 1}
-          onClick={goToNextPart}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer font-bold"
+          disabled={currentChapterIdx === normalizedChapters.length - 1}
+          onClick={() =>
+            setCurrentChapterIdx((prev) =>
+              Math.min(normalizedChapters.length - 1, prev + 1)
+            )
+          }
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent transition cursor-pointer"
         >
-          <span>Partie Suivante (→)</span>
-          <ChevronRight className="w-4 h-4 text-amber-400" />
+          <span className="hidden sm:inline">Suivant</span>
+          <ChevronRight className="w-4 h-4" />
         </button>
       </footer>
-
-      {/* ==============================================================
-          BULLE D'AIDE RAPIDE AU DÉMARRAGE (DISPARAÎT TRÈS VITE)
-         ============================================================== */}
-      {showQuickHint && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 px-5 py-2.5 rounded-full bg-black/85 backdrop-blur-md border border-white/20 text-xs sm:text-sm text-white flex items-center gap-3 shadow-2xl animate-in fade-in zoom-in-95 pointer-events-none">
-          <span className="text-amber-300 font-bold">Navigation au clavier :</span>
-          <span>Flèches <kbd className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-amber-300">←</kbd> et <kbd className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-amber-300">→</kbd> pour faire défiler les parties</span>
-          <span className="text-white/40">•</span>
-          <span>Touche <kbd className="px-1.5 py-0.5 rounded bg-white/20 font-mono text-white">Échap</kbd> pour quitter</span>
-        </div>
-      )}
-
-      {/* ==============================================================
-          BOUTON FLOTTANT QUITTER TOUJOURS ACCESSIBLE (EN HAUT À DROITE)
-         ============================================================== */}
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 right-4 z-40 p-2.5 rounded-full bg-black/35 hover:bg-black/75 backdrop-blur-md border border-white/15 hover:border-white/30 text-white/60 hover:text-white transition-all active:scale-95 cursor-pointer opacity-40 hover:opacity-100"
-        title="Quitter la lecture (Échap)"
-      >
-        <X className="w-4 h-4" />
-      </button>
 
       {/* ==============================================================
           TIROIR SOMMAIRE / TABLE DES MATIÈRES (SLIDE-OVER)
@@ -756,7 +743,12 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h3 className="text-base font-extrabold text-white">Table des Chapitres</h3>
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-extrabold text-white">
+                  Table des Chapitres
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsTocOpen(false)}
@@ -767,47 +759,59 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             </div>
 
             <div className="space-y-2.5 my-4 flex-1 overflow-y-auto pr-1">
-              {rawChapters.map((ch) => {
-                const isCurrent = ch.index === currentSlide.chapterIndex;
+              {normalizedChapters.map((ch, idx) => {
+                const isSelected = idx === currentChapterIdx;
                 return (
                   <button
-                    key={ch.index}
+                    key={ch.id}
                     type="button"
                     onClick={() => {
-                      const firstSlideOfChapter = allSlides.find(
-                        (s) => s.chapterIndex === ch.index
-                      );
-                      if (firstSlideOfChapter) {
-                        setCurrentSlideIndex(firstSlideOfChapter.globalIndex);
-                      }
+                      setCurrentChapterIdx(idx);
                       setIsTocOpen(false);
-                      setAreBarsVisible(false);
                     }}
                     className={`w-full text-left p-3.5 rounded-2xl border transition flex items-start justify-between gap-3 cursor-pointer ${
-                      isCurrent
+                      isSelected
                         ? 'bg-emerald-900/60 border-emerald-400/80 shadow-md'
                         : 'bg-white/5 hover:bg-white/10 border-white/10'
                     }`}
                   >
                     <div className="space-y-1 min-w-0">
-                      <span className="text-[11px] font-bold text-amber-300">
-                        {ch.number}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-bold text-amber-300">
+                          {ch.number}
+                        </span>
+                        {isSelected && (
+                          <span className="px-1.5 py-0.2 rounded-md bg-emerald-400/20 text-emerald-300 text-[9px] font-bold">
+                            En cours
+                          </span>
+                        )}
+                      </div>
                       <h4 className="text-sm font-bold text-white leading-snug line-clamp-2">
                         {ch.title}
                       </h4>
+                      {ch.subtitle && (
+                        <p className="text-xs text-white/60 line-clamp-1 italic font-serif">
+                          {ch.subtitle}
+                        </p>
+                      )}
                     </div>
                     <ChevronRight className="w-4 h-4 text-white/40 mt-1 shrink-0" />
                   </button>
                 );
               })}
             </div>
+
+            <div className="pt-4 border-t border-white/10 text-center">
+              <p className="text-xs text-white/50">
+                {bookTitle} • {normalizedChapters.length} Chapitres
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {/* ==============================================================
-          MODAL PALETTE DE COULEURS
+          MODAL PALETTE DE COULEURS & FONDS 4K
          ============================================================== */}
       {isPaletteOpen && (
         <div
@@ -821,7 +825,9 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <Palette className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-extrabold text-white">Thèmes de Lecture</h3>
+                <h3 className="text-base font-extrabold text-white">
+                  Thèmes & Décors Célestes
+                </h3>
               </div>
               <button
                 type="button"
@@ -832,35 +838,79 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {Object.values(CINEMATIC_THEMES).map((th) => {
-                const isSel = th.id === currentThemeId;
-                return (
+            {/* 10 Thèmes de couleurs */}
+            <div className="space-y-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                10 Nuances Nocturnes & Spirituelles
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {Object.values(CINEMATIC_THEMES).map((th) => {
+                  const isSel = th.id === currentThemeId;
+                  return (
+                    <button
+                      key={th.id}
+                      type="button"
+                      onClick={() => handleSelectTheme(th.id)}
+                      className={`p-3 rounded-2xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                        isSel
+                          ? 'border-amber-400 bg-white/15 shadow-md'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full border border-white/30 shrink-0"
+                        style={{ backgroundColor: th.accent }}
+                      />
+                      <span className="text-xs font-bold truncate text-white">
+                        {th.name}
+                      </span>
+                      {isSel && <Check className="w-3.5 h-3.5 text-amber-400 ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Arrière-plans 4K */}
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                  Arrière-plan Graphique Islamique 4K
+                </span>
+                {selectedBgId && (
                   <button
-                    key={th.id}
                     type="button"
-                    onClick={() => {
-                      setCurrentThemeId(th.id);
-                      try {
-                        localStorage.setItem('sanctuaire_book_cinematic_theme', th.id);
-                      } catch {}
-                      setIsPaletteOpen(false);
-                      setAreBarsVisible(false);
-                    }}
-                    className={`p-3 rounded-2xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
-                      isSel
-                        ? 'border-amber-400 bg-white/15 shadow-md'
-                        : 'border-white/10 bg-white/5 hover:bg-white/10'
-                    }`}
+                    onClick={() => handleSelectBackground(null)}
+                    className="text-xs text-white/60 hover:text-white underline cursor-pointer"
                   >
-                    <span
-                      className="w-4 h-4 rounded-full border border-white/30 shrink-0"
-                      style={{ backgroundColor: th.accent }}
-                    />
-                    <span className="text-xs font-bold truncate text-white">{th.name}</span>
+                    Effacer le fond
                   </button>
-                );
-              })}
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto pr-1">
+                {CINEMATIC_BACKGROUNDS.map((bg) => {
+                  const isSel = selectedBgId === bg.id;
+                  return (
+                    <button
+                      key={bg.id}
+                      type="button"
+                      onClick={() => handleSelectBackground(bg.id)}
+                      className={`p-2 rounded-2xl border text-left transition relative overflow-hidden group cursor-pointer ${
+                        isSel ? 'border-amber-400 ring-2 ring-amber-400/40' : 'border-white/10'
+                      }`}
+                    >
+                      <img
+                        src={bg.url}
+                        alt={bg.name}
+                        className="w-full h-14 object-cover rounded-xl opacity-75 group-hover:opacity-100 transition-opacity"
+                      />
+                      <span className="block text-[10px] font-bold text-white truncate mt-1">
+                        {bg.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -881,7 +931,9 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-amber-400" />
-                <h3 className="text-base font-extrabold text-white">Personnages de Dar-Salam</h3>
+                <h3 className="text-base font-extrabold text-white">
+                  Personnages de Dar-Salam
+                </h3>
               </div>
               <button
                 type="button"
@@ -907,6 +959,9 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
                       {char.name} <span className="text-xs text-amber-300">({char.age})</span>
                     </h4>
                     <p className="text-xs text-white/60 truncate">{char.role}</p>
+                    <p className="text-[11px] text-emerald-300/80 line-clamp-1 italic">
+                      « {char.personality} »
+                    </p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/40 shrink-0" />
                 </div>
@@ -944,6 +999,7 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
               </button>
             </div>
 
+            {/* Vertus */}
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
                 Vertus & Caractère Sacré
@@ -960,6 +1016,25 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
               </div>
             </div>
 
+            {/* Chronologie */}
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                Chronologie en 10 Chapitres
+              </span>
+              <div className="space-y-2">
+                {personBook.milestones.map((m, i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1 text-xs"
+                  >
+                    <span className="font-bold text-amber-300">{m.period}</span>
+                    <p className="text-white/80 leading-relaxed">{m.event}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Leçon spirituelle */}
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-400/30 text-xs sm:text-sm text-amber-100/90 leading-relaxed font-serif">
               <span className="block font-bold text-amber-300 mb-1 font-sans uppercase tracking-wider text-[11px]">
                 Enseignement & Portée Spirituelle :
@@ -971,7 +1046,7 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
       )}
 
       {/* ==============================================================
-          FICHE D'UN PERSONNAGE
+          FICHE DÉTAILLÉE D'UN PERSONNAGE (POUR LE PUITS DE NOUR)
          ============================================================== */}
       {selectedCharacter && (
         <div
@@ -992,7 +1067,9 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
                   />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-white">{selectedCharacter.name}</h3>
+                  <h3 className="text-lg font-black text-white">
+                    {selectedCharacter.name}
+                  </h3>
                   <p className="text-xs font-semibold text-amber-300">
                     {selectedCharacter.role} • {selectedCharacter.age}
                   </p>
@@ -1010,6 +1087,17 @@ export const BookCinematicReader: React.FC<BookCinematicReaderProps> = ({
             <p className="text-xs sm:text-sm text-white/90 leading-relaxed font-serif pt-2 border-t border-white/10">
               {selectedCharacter.shortBio}
             </p>
+
+            <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1 text-xs">
+              <span className="font-bold text-amber-300">Personnalité & Vertus :</span>
+              <p className="text-white/80">{selectedCharacter.personality}</p>
+            </div>
+
+            {selectedCharacter.innerConflict && (
+              <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-400/30 text-xs italic font-serif text-amber-100">
+                « {selectedCharacter.innerConflict} »
+              </div>
+            )}
           </div>
         </div>
       )}
