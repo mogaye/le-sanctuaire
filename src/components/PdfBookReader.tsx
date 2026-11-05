@@ -18,14 +18,9 @@ import { IslamicBook } from '../data/booksData';
 interface PdfBookReaderProps {
   book: IslamicBook;
   onClose: () => void;
-  onOpenCinematic?: () => void;
 }
 
-export const PdfBookReader: React.FC<PdfBookReaderProps> = ({
-  book,
-  onClose,
-  onOpenCinematic,
-}) => {
+export const PdfBookReader: React.FC<PdfBookReaderProps> = ({ book, onClose }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [showNativeToolbar, setShowNativeToolbar] = useState(false);
@@ -86,17 +81,7 @@ export const PdfBookReader: React.FC<PdfBookReaderProps> = ({
         {/* Côté Droit : Actions claires et bien espacées */}
         <div className="flex items-center gap-2 shrink-0">
           
-          {/* Bouton bascule Mode Plein Écran Cinématique si disponible */}
-          {onOpenCinematic && (
-            <button
-              onClick={onOpenCinematic}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-xs transition active:scale-95 cursor-pointer"
-              title="Basculer vers la lecture plein écran cinématique en 10 chapitres"
-            >
-              <Sparkles className="w-3.5 h-3.5 fill-current text-neutral-950" />
-              <span>Mode Cinématique</span>
-            </button>
-          )}
+
 
           {/* Bouton bascule Outils PDF / Mode Lecture Zen */}
           <button

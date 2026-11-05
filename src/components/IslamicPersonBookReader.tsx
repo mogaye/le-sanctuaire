@@ -19,13 +19,11 @@ interface IslamicPersonBookReaderProps {
   onClose: () => void;
   onSelectOtherBook?: (book: IslamicPersonBook) => void;
   allBooks?: IslamicPersonBook[];
-  onOpenCinematic?: () => void;
 }
 
 export const IslamicPersonBookReader: React.FC<IslamicPersonBookReaderProps> = ({
   book,
   onClose,
-  onOpenCinematic,
 }) => {
   const [activeTab, setActiveTab] = useState<'lecture' | 'sommaire' | 'reperes'>('lecture');
   const [selectedChapterIdx, setSelectedChapterIdx] = useState(0);
@@ -106,7 +104,7 @@ export const IslamicPersonBookReader: React.FC<IslamicPersonBookReaderProps> = (
       <div
         className={`relative rounded-3xl overflow-hidden bg-gradient-to-br ${book.coverGradient} border border-emerald-500/35 p-6 sm:p-10 text-white shadow-xl mb-6`}
       >
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-5">
           <button
             type="button"
             onClick={onClose}
@@ -115,18 +113,6 @@ export const IslamicPersonBookReader: React.FC<IslamicPersonBookReaderProps> = (
             <ArrowLeft className="w-4 h-4" />
             <span>Retour au Catalogue des Personnalités</span>
           </button>
-
-          {onOpenCinematic && (
-            <button
-              type="button"
-              onClick={onOpenCinematic}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs sm:text-sm shadow-xl transition active:scale-95 cursor-pointer"
-              title="Lire la biographie en mode immersion plein écran cinématique"
-            >
-              <Sparkles className="w-4 h-4 fill-current text-neutral-950" />
-              <span>Mode Plein Écran Cinématique</span>
-            </button>
-          )}
         </div>
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
