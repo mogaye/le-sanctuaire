@@ -24,11 +24,15 @@ import {
   RotateCw,
   Layers,
   Search,
+  Pin,
+  PinOff,
+  Sun,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
 import { RECITERS } from '../data/islamicData';
 import { TajweedText, TAJWEED_RULES_EXPLANATIONS, cleanAyahArabic } from '../utils/tajweedColorizer';
+import { useWakeLock } from '../hooks/useWakeLock';
 
 interface AyahData {
   num: number;
@@ -506,10 +510,62 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     enterNativeFullscreen();
   }, [isOpen]);
 
+  const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
+  const [isHudPinned, setIsHudPinned] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sanctuaire_cinematic_hud_pinned') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleHudPinned = () => {
+    setIsHudPinned((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_cinematic_hud_pinned', String(next));
+      } catch {}
+      if (next) {
+        setIsHudVisible(true);
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+      }
+      return next;
+    });
+  };
+
+  // Screen Wake Lock (Anti-veille automatique pour empêcher l'écran et l'appareil de s'éteindre)
+  const [isWakeLockEnabled, setIsWakeLockEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_wakelock');
+      if (saved === 'false') return false;
+      return true; // Default to true: prevent device sleep while reading/listening!
+    } catch {
+      return true;
+    }
+  });
+
+  const { isLocked: isWakeLocked, isSupported: isWakeLockSupported } = useWakeLock(
+    isOpen && isWakeLockEnabled
+  );
+
+  const toggleWakeLock = () => {
+    setIsWakeLockEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_cinematic_wakelock', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const closeAllPopovers = () => {
     setIsSurahPickerOpen(false);
     setIsReciterPickerOpen(false);
     setIsAppearanceModalOpen(false);
+    setIsTajweedGuideOpen(false);
   };
 
   const toggleLandscapeFullscreen = async () => {
@@ -607,9 +663,45 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   // Font Size levels: 0 (Compact), 1 (Standard), 2 (Grand), 3 (Monumental)
   const [fontSizeLevel, setFontSizeLevel] = useState<number>(1);
 
-  // Translation & phonetics visibility
-  const [showTranslation, setShowTranslation] = useState<boolean>(true);
-  const [showPhonetics, setShowPhonetics] = useState<boolean>(false);
+  // Translation & phonetics visibility - DEFAULT TO TRUE so transcription is always available!
+  const [showTranslation, setShowTranslation] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_translation');
+      if (saved === 'false') return false;
+      return true;
+    } catch {
+      return true;
+    }
+  });
+  const [showPhonetics, setShowPhonetics] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_phonetics');
+      if (saved === 'false') return false;
+      return true; // Default to true!
+    } catch {
+      return true;
+    }
+  });
+
+  const handleToggleTranslation = () => {
+    setShowTranslation((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_cinematic_translation', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleTogglePhonetics = () => {
+    setShowPhonetics((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sanctuaire_cinematic_phonetics', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Audio Playback State
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
@@ -706,7 +798,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const anyModalOpen =
     isSurahPickerOpen ||
     isReciterPickerOpen ||
-    isAppearanceModalOpen;
+    isAppearanceModalOpen ||
+    isTajweedGuideOpen;
 
   // Auto-hide HUD icons when audio is playing and user is not touching mouse/screen
   const resetHudTimer = (forceShow: boolean = true) => {
@@ -717,18 +810,25 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       clearTimeout(hideTimerRef.current);
       hideTimerRef.current = null;
     }
-    // Auto-hide only when audio is actively playing and no settings modal is open
-    if (isPlayingAudio && !anyModalOpen) {
+    // Never auto-hide if pinned or if any modal/menu is open
+    if (isHudPinned || anyModalOpen) {
+      setIsHudVisible(true);
+      return;
+    }
+    // Auto-hide after 5000ms (5 seconds) of inactivity when audio is actively playing
+    if (isPlayingAudio) {
       hideTimerRef.current = setTimeout(() => {
-        setIsHudVisible(false);
-      }, 2500);
+        if (!isHudPinned && !anyModalOpen) {
+          setIsHudVisible(false);
+        }
+      }, 5000);
     }
   };
 
   useEffect(() => {
     if (!isOpen) return;
 
-    if (!isPlayingAudio) {
+    if (!isPlayingAudio || isHudPinned || anyModalOpen) {
       setIsHudVisible(true);
       if (hideTimerRef.current) {
         clearTimeout(hideTimerRef.current);
@@ -737,7 +837,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       return;
     }
 
-    // When audio is playing, schedule auto-hide if inactive
+    // When audio is playing and not pinned, schedule auto-hide after 5s if inactive
     resetHudTimer(true);
 
     const onUserActivity = () => {
@@ -759,7 +859,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         hideTimerRef.current = null;
       }
     };
-  }, [isOpen, isPlayingAudio, anyModalOpen]);
+  }, [isOpen, isPlayingAudio, anyModalOpen, isHudPinned]);
 
   const ayahs = (surahData?.ayahs || []).map((a) => ({
     ...a,
@@ -768,11 +868,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const currentAyah = ayahs[currentAyahIndex] || ayahs[0];
 
   // Smooth, discreet, meditative verse transition (zero layout jump, silky soft dissolve)
-  const transitionToVerse = (nextIdx: number, andPlayAudio: boolean = false) => {
+  const transitionToVerse = (
+    nextIdx: number,
+    andPlayAudio: boolean = false,
+    isUserAction: boolean = false
+  ) => {
     if (!surahData || !ayahs || ayahs.length === 0) return;
     if (nextIdx < 0 || nextIdx >= ayahs.length) return;
     if (nextIdx === currentAyahIndex) {
-      if (andPlayAudio) playVerseAudio(nextIdx);
+      if (andPlayAudio) playVerseAudio(nextIdx, isUserAction);
       return;
     }
 
@@ -798,13 +902,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       // 4. Meditative natural breath interval before next recitation begins
       if (andPlayAudio) {
         setTimeout(() => {
-          playVerseAudio(nextIdx);
+          playVerseAudio(nextIdx, isUserAction);
         }, 260);
       }
     }, 200);
   };
 
-  const playVerseAudio = (verseIdx: number) => {
+  const playVerseAudio = (verseIdx: number, isUserAction: boolean = false) => {
     if (!surahData || !ayahs[verseIdx]) return;
     const ayah = ayahs[verseIdx];
 
@@ -820,7 +924,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     audio.onended = () => {
       if (verseIdx < ayahs.length - 1) {
         const nextIdx = verseIdx + 1;
-        transitionToVerse(nextIdx, true);
+        // Automatic advancement: MUST NOT force icons to pop up if already hidden
+        transitionToVerse(nextIdx, true, false);
       } else {
         setIsPlayingAudio(false);
         setIsHudVisible(true);
@@ -836,7 +941,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       .play()
       .then(() => {
         setIsPlayingAudio(true);
-        setIsHudVisible(true);
+        // Only force icons visible if the user explicitly clicked play or navigated
+        if (isUserAction) {
+          resetHudTimer(true);
+        }
       })
       .catch(() => {
         setIsPlayingAudio(false);
@@ -854,14 +962,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     } else {
       setIsHudVisible(true);
-      playVerseAudio(currentAyahIndex);
+      playVerseAudio(currentAyahIndex, true);
     }
   };
 
   const handleNextVerse = () => {
     if (isVerseFading) return;
     if (currentAyahIndex < ayahs.length - 1) {
-      transitionToVerse(currentAyahIndex + 1, isPlayingAudio);
+      transitionToVerse(currentAyahIndex + 1, isPlayingAudio, true);
     } else if (currentSurahMeta.number < 114) {
       onSelectSurah(currentSurahMeta.number + 1);
     }
@@ -870,7 +978,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const handlePrevVerse = () => {
     if (isVerseFading) return;
     if (currentAyahIndex > 0) {
-      transitionToVerse(currentAyahIndex - 1, isPlayingAudio);
+      transitionToVerse(currentAyahIndex - 1, isPlayingAudio, true);
     } else if (currentSurahMeta.number > 1) {
       onSelectSurah(currentSurahMeta.number - 1);
     }
@@ -900,9 +1008,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         e.preventDefault();
         toggleFullscreen();
       } else if (e.key.toLowerCase() === 't') {
-        setShowTranslation((v) => !v);
+        handleToggleTranslation();
       } else if (e.key.toLowerCase() === 'p') {
-        setShowPhonetics((v) => !v);
+        handleTogglePhonetics();
+      } else if (e.key.toLowerCase() === 'r') {
+        setIsTajweedGuideOpen((v) => !v);
       } else if (e.key === '+' || e.key === '=') {
         setFontSizeLevel((lvl) => Math.min(3, lvl + 1));
       } else if (e.key === '-' || e.key === '_') {
@@ -1095,6 +1205,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           TOP FLOATING ACTION ICONS (NO BACKGROUND BAND, PURE ICONS)
          ======================================================== */}
       <div
+        onMouseEnter={() => {
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          setIsHudVisible(true);
+        }}
+        onMouseLeave={() => {
+          resetHudTimer(false);
+        }}
         className={`fixed top-3 sm:top-5 left-3 sm:left-6 right-3 sm:right-6 z-[100] flex items-center justify-between pointer-events-none transition-all duration-500 ${
           isHudVisible
             ? 'opacity-100 translate-y-0'
@@ -1133,8 +1250,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           </button>
         </div>
 
-        {/* Right Floating Icons: Fullscreen Toggle, Apparence & Réglages, Landscape (MOBILE ONLY), Close */}
+        {/* Right Floating Icons: Plein Écran, Apparence & Réglages, Rotation (Mobile), Quitter */}
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+
           {/* Fullscreen Toggle (Covers the ENTIRE SCREEN, including the top browser bar on PC, tablet, and mobile) */}
           <button
             onClick={(e) => {
@@ -1252,7 +1370,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               >
                 {showPhonetics && currentAyah?.tr && (
                   <p
-                    className={`italic font-serif ${currentTheme.textTr} leading-relaxed text-center`}
+                    className={`italic font-serif ${currentTheme.textTr} leading-relaxed text-center text-sm sm:text-base md:text-lg tracking-wide`}
                     style={getDynamicTranslationStyle(currentAyah.tr.length)}
                   >
                     « {currentAyah.tr} »
@@ -1261,7 +1379,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
                 {showTranslation && currentAyah?.fr && (
                   <p
-                    className="font-normal text-white/95 leading-relaxed text-center tracking-normal"
+                    className="font-normal text-white/95 leading-relaxed text-center tracking-normal text-xs sm:text-sm md:text-base"
                     style={getDynamicTranslationStyle(currentAyah.fr.length)}
                   >
                     {currentAyah.fr}
@@ -1276,6 +1394,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                ======================================================== */}
             <button
               onClick={handlePrevVerse}
+              onMouseEnter={() => {
+                if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+                setIsHudVisible(true);
+              }}
+              onMouseLeave={() => {
+                resetHudTimer(false);
+              }}
               disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
               className={`fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
@@ -1287,6 +1412,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
             <button
               onClick={handleNextVerse}
+              onMouseEnter={() => {
+                if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+                setIsHudVisible(true);
+              }}
+              onMouseLeave={() => {
+                resetHudTimer(false);
+              }}
               disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
               className={`fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
@@ -1314,7 +1446,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   key={ayah.num}
                   id={`cinematic-ayah-${idx}`}
                   onClick={() => {
-                    transitionToVerse(idx, isPlayingAudio);
+                    transitionToVerse(idx, isPlayingAudio, true);
                   }}
                   className={`p-5 sm:p-7 rounded-3xl transition-all duration-300 cursor-pointer ${
                     isCurrent
@@ -1329,7 +1461,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        transitionToVerse(idx, true);
+                        transitionToVerse(idx, true, true);
                       }}
                       className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white transition"
                       title="Écouter ce verset"
@@ -1381,6 +1513,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           BOTTOM FLOATING AUDIO & READING CONTROLS (NO BACKGROUND BAND, PURE ICONS)
          ======================================================== */}
       <div
+        onMouseEnter={() => {
+          if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+          setIsHudVisible(true);
+        }}
+        onMouseLeave={() => {
+          resetHudTimer(false);
+        }}
         className={`fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none transition-all duration-500 ${
           isHudVisible
             ? 'opacity-100 translate-y-0'
@@ -1444,9 +1583,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           {/* Subtle separator */}
           <div className="w-px h-5 bg-white/20 mx-1" />
 
-          {/* French Translation Toggle (icon only) */}
+          {/* French Translation Toggle */}
           <button
-            onClick={() => setShowTranslation((v) => !v)}
+            onClick={handleToggleTranslation}
             className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
               showTranslation
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
@@ -1457,15 +1596,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <Languages className="w-4 h-4" />
           </button>
 
-          {/* Phonetics Toggle (icon only, hidden on very narrow screens) */}
+          {/* Phonetics / Transcription Toggle - VISIBLE EVERYWHERE */}
           <button
-            onClick={() => setShowPhonetics((v) => !v)}
-            className={`hidden xs:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center transition active:scale-95 cursor-pointer border ${
+            onClick={handleTogglePhonetics}
+            className={`flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center transition active:scale-95 cursor-pointer border ${
               showPhonetics
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
                 : 'bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white border-white/10'
             }`}
-            title={showPhonetics ? 'Masquer la phonétique (P)' : 'Afficher la phonétique (P)'}
+            title={showPhonetics ? 'Masquer la transcription phonétique (P)' : 'Afficher la transcription phonétique (P)'}
           >
             <FileText className="w-4 h-4" />
           </button>
@@ -1912,6 +2051,115 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   </button>
                 </div>
 
+                {/* Phonetics / Transcription Toggle Card */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">Transcription Phonétique</div>
+                      <div className="text-neutral-400 text-[11px]">
+                        Translittération en alphabet latin pour faciliter la récitation
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleTogglePhonetics}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
+                      showPhonetics
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                        : 'bg-white/10 text-neutral-400 border-white/10'
+                    }`}
+                  >
+                    {showPhonetics ? 'Activé' : 'Désactivé'}
+                  </button>
+                </div>
+
+                {/* French Translation Toggle Card */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                      <Languages className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">Traduction Française</div>
+                      <div className="text-neutral-400 text-[11px]">
+                        Sens des versets par le Professeur Hamidullah
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleTranslation}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
+                      showTranslation
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                        : 'bg-white/10 text-neutral-400 border-white/10'
+                    }`}
+                  >
+                    {showTranslation ? 'Activé' : 'Désactivé'}
+                  </button>
+                </div>
+
+                {/* Pin HUD / Permanent Controls Toggle Card */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                      <Pin className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">Garder les commandes visibles</div>
+                      <div className="text-neutral-400 text-[11px]">
+                        {isHudPinned
+                          ? 'Les icônes restent fixées à l’écran'
+                          : 'Masquage automatique après 5s d’inactivité'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleHudPinned}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
+                      isHudPinned
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                        : 'bg-white/10 text-neutral-400 border-white/10'
+                    }`}
+                  >
+                    {isHudPinned ? 'Fixé (Permanent)' : 'Auto-masquage (5s)'}
+                  </button>
+                </div>
+
+                {/* Anti-Veille / Maintenir l'écran allumé Toggle Card */}
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                      <Sun className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>Empêcher la mise en veille</span>
+                        {isWakeLocked && (
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                            Écran actif
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-neutral-400 text-[11px]">
+                        Maintient l’écran toujours allumé sans interruption pendant la lecture
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={toggleWakeLock}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer border ${
+                      isWakeLockEnabled
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                        : 'bg-white/10 text-neutral-400 border-white/10'
+                    }`}
+                  >
+                    {isWakeLockEnabled ? 'Activé' : 'Désactivé'}
+                  </button>
+                </div>
+
                 {/* Font Size Selector */}
                 <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2">
                   <div className="flex items-center justify-between text-neutral-300">
@@ -1974,9 +2222,20 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
                 {/* Tajweed Rules Summary Guide */}
                 <div className="space-y-2">
-                  <div className="font-bold text-sm text-white flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-amber-400" />
-                    <span>Règles de couleurs du Tajweed</span>
+                  <div className="font-bold text-sm text-white flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-amber-400" />
+                      <span>Règles de couleurs du Tajweed</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsAppearanceModalOpen(false);
+                        setIsTajweedGuideOpen(true);
+                      }}
+                      className="text-[11px] text-amber-300 hover:underline cursor-pointer"
+                    >
+                      Voir le guide complet &rarr;
+                    </button>
                   </div>
                   <div className="space-y-2">
                     {TAJWEED_RULES_EXPLANATIONS.map((rule) => (
@@ -2018,6 +2277,105 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          4. DEDICATED TAJWEED RULES & PRONUNCIATION MODAL
+         ======================================================== */}
+      {isTajweedGuideOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setIsTajweedGuideOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-neutral-900/98 border border-white/20 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white max-h-[90vh] flex flex-col z-[10001]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Règles de Tajweed (Tajwîd)</h3>
+                  <p className="text-xs text-neutral-400">Guide officiel des couleurs de prononciation coranique</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleToggleTajweed}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border ${
+                    isTajweedEnabled
+                      ? 'bg-emerald-500 text-neutral-950 border-emerald-400 shadow-sm'
+                      : 'bg-white/10 text-neutral-400 border-white/10'
+                  }`}
+                >
+                  {isTajweedEnabled ? 'Couleurs activées' : 'Désactivé'}
+                </button>
+                <button
+                  onClick={() => setIsTajweedGuideOpen(false)}
+                  className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Rules list */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar text-xs">
+              {TAJWEED_RULES_EXPLANATIONS.map((rule) => (
+                <div
+                  key={rule.id}
+                  className="p-4 rounded-2xl border transition-all"
+                  style={{ backgroundColor: rule.bgColor, borderColor: rule.borderColor }}
+                >
+                  <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: rule.color }}
+                      />
+                      <span className="font-bold text-sm text-white">{rule.name}</span>
+                      <span className="text-sm font-arabic font-bold opacity-85 text-amber-200" dir="rtl">
+                        {rule.arabicName}
+                      </span>
+                    </div>
+                    <span
+                      className="px-2.5 py-0.5 rounded-full text-[11px] font-bold"
+                      style={{
+                        backgroundColor: rule.color,
+                        color: rule.id === 'silent' ? '#000000' : '#051A10',
+                      }}
+                    >
+                      {rule.duration}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-200 mt-1.5 leading-relaxed">
+                    {rule.description}
+                  </p>
+                  <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-xs">
+                    <span className="text-neutral-400 text-[11px]">Exemples coraniques :</span>
+                    <span className="font-arabic text-sm text-amber-100 tracking-wider" dir="rtl">
+                      {rule.example}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer tips */}
+            <div className="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-neutral-400 shrink-0">
+              <span>Astuce : Vous pouvez activer ou désactiver les couleurs à tout moment avec la touche (R).</span>
+              <button
+                onClick={() => setIsTajweedGuideOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-amber-400 text-neutral-950 font-bold hover:bg-amber-300 transition cursor-pointer"
+              >
+                Compris
+              </button>
+            </div>
           </div>
         </div>
       )}

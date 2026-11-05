@@ -50,6 +50,7 @@ import { toggleQuranFavorite } from '../lib/supabase';
 import { QuranCinematicReader } from './QuranCinematicReader';
 import { cleanAyahArabic } from '../utils/tajweedColorizer';
 import { getAyahAudioUrl, getSurahAudioUrl } from '../utils/quranAudioUtils';
+import { useWakeLock } from '../hooks/useWakeLock';
 
 interface AyahData {
   num: number;
@@ -269,6 +270,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
 
   // Immersive Cinematic Fullscreen Reader State
   const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(() => Boolean(startInCinematic));
+
+  // Screen Wake Lock : Empêche la mise en veille de l'écran pendant la lecture et la récitation
+  useWakeLock(isPlayingAudio || isCinematicReaderOpen);
 
   const handleOpenCinematic = async () => {
     try {
