@@ -236,29 +236,48 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
       ctx.fillRect(0, 0, width, height);
     } else if (bgStyle === 'oled') {
       // Pure Pitch Black OLED #000000
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = '#030504';
       ctx.fillRect(0, 0, width, height);
     } else if (bgStyle === 'cinematic' && activeBackground && bgImageCache.current[activeBackground.url]) {
-      // 4K Wallpaper Image
+      // 4K Wallpaper Image with Aspect-Cover Math (Never stretches!)
       const img = bgImageCache.current[activeBackground.url];
-      ctx.drawImage(img, 0, 0, width, height);
+      const imgAspect = img.width / img.height;
+      const canvasAspect = width / height;
+      let drawW = width;
+      let drawH = height;
+      let drawX = 0;
+      let drawY = 0;
 
-      // Darkening veil for readability
-      ctx.fillStyle = `rgba(0, 0, 0, ${textDarkVeil})`;
+      if (imgAspect > canvasAspect) {
+        drawH = height;
+        drawW = height * imgAspect;
+        drawX = (width - drawW) / 2;
+      } else {
+        drawW = width;
+        drawH = width / imgAspect;
+        drawY = (height - drawH) / 2;
+      }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+      // Darkening base overlay
+      ctx.fillStyle = `rgba(0, 0, 0, ${textDarkVeil * 0.75})`;
       ctx.fillRect(0, 0, width, height);
 
-      // Subtle cinematic vignette
-      const radGrad = ctx.createRadialGradient(
+      // Intelligent Central Radial Darkening Shield (eliminates lantern glare behind calligraphy)
+      const isVertical = format === '9:16' || format === '4:5';
+      const shieldY = isVertical ? height * 0.44 : height * 0.45;
+      const shieldGrad = ctx.createRadialGradient(
         width / 2,
-        height / 2,
-        width * 0.2,
+        shieldY,
+        width * 0.1,
         width / 2,
-        height / 2,
-        width * 0.8
+        shieldY,
+        width * 0.78
       );
-      radGrad.addColorStop(0, 'rgba(0,0,0,0)');
-      radGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
-      ctx.fillStyle = radGrad;
+      shieldGrad.addColorStop(0, `rgba(4, 8, 12, ${Math.min(0.96, textDarkVeil + 0.22)})`);
+      shieldGrad.addColorStop(0.55, `rgba(4, 8, 12, ${textDarkVeil})`);
+      shieldGrad.addColorStop(1, 'rgba(4, 8, 12, 0.40)');
+      ctx.fillStyle = shieldGrad;
       ctx.fillRect(0, 0, width, height);
     } else {
       // Spiritual Deep Emerald / Midnight Gradient
@@ -276,10 +295,11 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
     const showWatermark = includeWatermark || !isProUser;
     if (showWatermark && bgStyle !== 'chroma') {
       ctx.save();
-      const badgeW = format === '9:16' ? 320 : 360;
+      const isVertical = format === '9:16' || format === '4:5';
+      const badgeW = isVertical ? 320 : 360;
       const badgeH = 40;
       const badgeX = width - badgeW - 32;
-      const badgeY = 32;
+      const badgeY = isVertical ? 68 : 32;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
       ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
@@ -330,12 +350,18 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
     );
     ctx.restore();
 
-    // 4. Large Arabic Verse Calligraphy
+    // 4. Large Arabic Verse Calligraphy with Dynamic Scaling & Shadow
     ctx.save();
     const cleanAr = cleanAyahArabic(currentAyah.ar);
     const words = cleanAr.split(' ');
     const maxArWidth = width * 0.88;
-    const fSize = isVertical ? arabicFontSize : arabicFontSize * 1.15;
+    const fSize = isVertical
+      ? cleanAr.length < 45
+        ? Math.max(arabicFontSize, 80)
+        : cleanAr.length < 90
+          ? Math.max(arabicFontSize, 66)
+          : arabicFontSize
+      : arabicFontSize * 1.15;
 
     ctx.font = `${fSize}px "Amiri", "Traditional Arabic", serif`;
     ctx.direction = 'rtl';
@@ -360,11 +386,25 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
     const centerArY = isVertical ? height * 0.42 : height * 0.44;
     const startArY = centerArY - totalArH / 2;
 
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+
     lines.forEach((l, idx) => {
       const ly = startArY + idx * lineGap;
 
-      if (!includeTajweed || bgStyle === 'chroma') {
-        ctx.fillStyle = bgStyle === 'chroma' ? '#000000' : '#FEF3C7';
+      if (bgStyle === 'chroma') {
+        // Chroma Key Mode: White text with thick black outline
+        ctx.save();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 6;
+        ctx.strokeText(l, width / 2, ly);
+        ctx.fillText(l, width / 2, ly);
+        ctx.restore();
+      } else if (!includeTajweed) {
+        ctx.fillStyle = '#FEF3C7';
         ctx.fillText(l, width / 2, ly);
       } else {
         const tokens = parseTajweedTokens(l);
@@ -391,67 +431,109 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
         ctx.textAlign = 'center';
       }
     });
+
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
     ctx.restore();
 
     // 5. Divider Line
-    const dividerY = isVertical ? height * 0.65 : height * 0.67;
-    ctx.save();
-    ctx.strokeStyle = bgStyle === 'chroma' ? '#000000' : 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(width * 0.15, dividerY);
-    ctx.lineTo(width * 0.85, dividerY);
-    ctx.stroke();
-    ctx.restore();
+    if (bgStyle !== 'chroma') {
+      const dividerY = isVertical ? height * 0.64 : height * 0.66;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.15, dividerY);
+      ctx.lineTo(width * 0.85, dividerY);
+      ctx.stroke();
+      ctx.restore();
+    }
 
-    // 6. Subtitles: French Translation & Phonetics
+    // 6. Subtitles: French Translation & Phonetics inside Frosted Card
     ctx.save();
     ctx.direction = 'ltr';
     ctx.textAlign = 'center';
-    let subY = dividerY + 30;
 
-    if (includePhonetics && currentAyah.tr) {
-      const phonSize = isVertical ? 20 : 22;
-      ctx.font = `italic ${phonSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
-      ctx.fillStyle = bgStyle === 'chroma' ? '#064E3B' : '#A7F3D0';
-
-      const pWords = currentAyah.tr.split(' ');
-      let pLine = '';
-      for (const pw of pWords) {
-        const testP = pLine ? `${pLine} ${pw}` : pw;
-        if (ctx.measureText(testP).width > width * 0.82 && pLine) {
-          ctx.fillText(pLine, width / 2, subY);
-          subY += phonSize * 1.5;
-          pLine = pw;
-        } else {
-          pLine = testP;
-        }
-      }
-      if (pLine) {
-        ctx.fillText(pLine, width / 2, subY);
-        subY += phonSize * 1.6;
-      }
-    }
-
-    if (includeTranslation && currentAyah.fr) {
-      const transSize = isVertical ? 23 : 25;
+    if ((includeTranslation && currentAyah.fr) || (includePhonetics && currentAyah.tr)) {
+      const transSize = isVertical ? 24 : 22;
+      const phonSize = isVertical ? 20 : 18;
       ctx.font = `500 ${transSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
-      ctx.fillStyle = bgStyle === 'chroma' ? '#000000' : '#FFFFFF';
 
-      const tWords = currentAyah.fr.split(' ');
+      const tWords = (currentAyah.fr || '').split(' ');
+      const tLines: string[] = [];
       let tLine = '';
-      for (const tw of tWords) {
-        const testT = tLine ? `${tLine} ${tw}` : tw;
-        if (ctx.measureText(testT).width > width * 0.84 && tLine) {
-          ctx.fillText(tLine, width / 2, subY);
-          subY += transSize * 1.55;
-          tLine = tw;
+      const textMaxW = width * 0.78;
+
+      for (let n = 0; n < tWords.length; n++) {
+        const testT = tLine ? `${tLine} ${tWords[n]}` : tWords[n];
+        if (ctx.measureText(testT).width > textMaxW && n > 0) {
+          tLines.push(tLine);
+          tLine = tWords[n];
         } else {
           tLine = testT;
         }
       }
-      if (tLine) {
-        ctx.fillText(tLine, width / 2, subY);
+      if (tLine) tLines.push(tLine);
+
+      const tLineHeight = transSize * 1.5;
+      const phonLineHeight = phonSize * 1.4;
+      const totalSubH =
+        (includePhonetics && currentAyah.tr ? phonLineHeight + 12 : 0) +
+        (includeTranslation ? tLines.length * tLineHeight : 0);
+      const cardPadX = 36;
+      const cardPadY = 20;
+      const cardW = Math.min(width * 0.88, textMaxW + cardPadX * 2);
+      const cardH = totalSubH + cardPadY * 2;
+      const cardX = (width - cardW) / 2;
+      const cardY = isVertical ? height * 0.66 : height * 0.68;
+
+      if (bgStyle !== 'chroma') {
+        ctx.fillStyle = 'rgba(6, 12, 16, 0.80)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(cardX, cardY, cardW, cardH, 20);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      let textCursorY = cardY + cardPadY;
+
+      // Phonetics
+      if (includePhonetics && currentAyah.tr) {
+        ctx.save();
+        ctx.font = `italic ${phonSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        ctx.fillStyle = bgStyle === 'chroma' ? '#000000' : '#A7F3D0';
+        ctx.textBaseline = 'top';
+        if (bgStyle === 'chroma') {
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 3;
+          ctx.strokeText(`« ${currentAyah.tr} »`, width / 2, textCursorY);
+        }
+        ctx.fillText(`« ${currentAyah.tr} »`, width / 2, textCursorY);
+        ctx.restore();
+        textCursorY += phonLineHeight + 12;
+      }
+
+      // French Translation
+      if (includeTranslation && currentAyah.fr) {
+        ctx.save();
+        ctx.font = `500 ${transSize}px "Plus Jakarta Sans", system-ui, sans-serif`;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textBaseline = 'top';
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 8;
+
+        tLines.forEach((tl) => {
+          if (bgStyle === 'chroma') {
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 4;
+            ctx.strokeText(tl, width / 2, textCursorY);
+          }
+          ctx.fillText(tl, width / 2, textCursorY);
+          textCursorY += tLineHeight;
+        });
+        ctx.restore();
       }
     }
     ctx.restore();
@@ -625,10 +707,48 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
       analyser.fftSize = 128;
       const freqData = new Uint8Array(analyser.frequencyBinCount);
 
-      // 2. Setup Canvas stream (30 fps)
+      // Studio Quality Dynamics Processing
+      const compressor = audioCtx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-18, audioCtx.currentTime);
+      compressor.knee.setValueAtTime(10, audioCtx.currentTime);
+      compressor.ratio.setValueAtTime(4, audioCtx.currentTime);
+      compressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+      compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.setValueAtTime(1.18, audioCtx.currentTime);
+
+      analyser.connect(compressor);
+      compressor.connect(masterGain);
+      masterGain.connect(audioDest);
+      masterGain.connect(audioCtx.destination);
+
+      // 2. CRITICAL PRELOAD: Preload all audio buffers BEFORE starting recorder
+      setRecordingStatusText('Pré-chargement des pistes audio haute fidélité...');
+      const audioBuffers: (AudioBuffer | null)[] = await Promise.all(
+        selectedAyahs.map(async (ayah) => {
+          try {
+            const url = getAyahAudioUrl(selectedSurahNum, ayah.num, selectedReciter.id);
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const arrayBuf = await resp.arrayBuffer();
+            return await audioCtx.decodeAudioData(arrayBuf);
+          } catch (e) {
+            console.warn(`Pré-chargement audio studio échoué verset ${ayah.num}`, e);
+            return null;
+          }
+        })
+      );
+
+      if (isCancelledRef.current) {
+        setIsRecording(false);
+        return;
+      }
+
+      // 3. Setup Canvas stream (30 fps)
       const canvasStream = canvas.captureStream(30);
 
-      // 3. Combine Video track + Audio track
+      // 4. Combine Video track + Studio Audio track
       const combinedTracks = [
         ...canvasStream.getVideoTracks(),
         ...audioDest.stream.getAudioTracks(),
@@ -646,7 +766,7 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
       const recorder = new MediaRecorder(combinedStream, {
         mimeType: selectedMime || undefined,
         videoBitsPerSecond: 4500000,
-        audioBitsPerSecond: 192000, // Studio quality 192kbps Opus/AAC audio!
+        audioBitsPerSecond: 192000,
       });
       mediaRecorderRef.current = recorder;
 
@@ -669,40 +789,27 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
         setIsRecording(false);
       };
 
+      // 5. Start recorder now
       recorder.start();
 
       const totalVerses = selectedAyahs.length;
 
-      // Loop through all selected verses
+      // Loop through all selected verses with in-memory audio buffers
       for (let idx = 0; idx < totalVerses; idx++) {
         if (isCancelledRef.current) break;
         const currentAyah = selectedAyahs[idx];
+        const audioBuffer = audioBuffers[idx];
         setRecordingStatusText(
           `Rendu du verset ${currentAyah.num} sur ${toAyah} (${idx + 1} / ${totalVerses})...`
         );
-
-        // Fetch audio buffer directly for pristine uncompressed studio sound
-        const audioUrl = getAyahAudioUrl(selectedSurahNum, currentAyah.num, selectedReciter.id);
-
-        let audioBuffer: AudioBuffer | null = null;
-        try {
-          const resp = await fetch(audioUrl);
-          const arrayBuf = await resp.arrayBuffer();
-          audioBuffer = await audioCtx.decodeAudioData(arrayBuf);
-        } catch (e) {
-          console.warn('Fallback to HTMLAudioElement for ayah', currentAyah.num, e);
-        }
 
         await new Promise<void>((resolve) => {
           let hasEnded = false;
 
           if (audioBuffer) {
-            // Pristine AudioBufferSourceNode
             const source = audioCtx.createBufferSource();
             source.buffer = audioBuffer;
             source.connect(analyser);
-            analyser.connect(audioDest);
-            source.connect(audioCtx.destination);
 
             const startTime = audioCtx.currentTime;
             const duration = audioBuffer.duration;
@@ -730,53 +837,36 @@ export const QuranVideoStudioPage: React.FC<QuranVideoStudioPageProps> = ({
             source.start(0);
             renderLoop();
           } else {
-            // HTMLAudioElement Fallback
-            const audio = new Audio();
-            audio.crossOrigin = 'anonymous';
-            audio.src = audioUrl;
-
-            const mediaSource = audioCtx.createMediaElementSource(audio);
-            mediaSource.connect(analyser);
-            analyser.connect(audioDest);
-            mediaSource.connect(audioCtx.destination);
-
-            const renderLoop = () => {
+            // Instant fallback if buffer missing
+            const startFallback = performance.now();
+            const fallbackDur = 3.5;
+            const renderFallback = () => {
               if (isCancelledRef.current || hasEnded) return;
-              analyser.getByteFrequencyData(freqData);
-
-              const cur = audio.currentTime || 0;
-              const dur = audio.duration || 1;
-              const ayahProg = Math.min(1, cur / dur);
+              const elapsed = (performance.now() - startFallback) / 1000;
+              const ayahProg = Math.min(1, elapsed / fallbackDur);
               const overallProg = Math.round(((idx + ayahProg) / totalVerses) * 100);
               setRecordingProgress(overallProg);
 
               drawScene(ctx, width, height, currentAyah, ayahProg, freqData);
-              animFrameRef.current = requestAnimationFrame(renderLoop);
+              if (elapsed < fallbackDur) {
+                animFrameRef.current = requestAnimationFrame(renderFallback);
+              } else {
+                hasEnded = true;
+                resolve();
+              }
             };
-
-            audio.onplay = () => renderLoop();
-            audio.onended = () => {
-              hasEnded = true;
-              mediaSource.disconnect();
-              resolve();
-            };
-            audio.onerror = () => {
-              hasEnded = true;
-              mediaSource.disconnect();
-              resolve();
-            };
-            audio.play().catch(() => {
-              hasEnded = true;
-              mediaSource.disconnect();
-              resolve();
-            });
+            renderFallback();
           }
         });
 
         if (isCancelledRef.current) break;
 
-        // Subtle pause between verses
-        await new Promise((r) => setTimeout(r, 350));
+        // Subtle clean 200ms pause between verses (natural breath pause, zero dropped frames)
+        if (idx < totalVerses - 1) {
+          await new Promise((r) => setTimeout(r, 220));
+        } else {
+          await new Promise((r) => setTimeout(r, 350));
+        }
       }
 
       if (!isCancelledRef.current && recorder.state !== 'inactive') {
