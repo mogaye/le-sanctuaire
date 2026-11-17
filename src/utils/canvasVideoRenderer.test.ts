@@ -215,3 +215,62 @@ test('renderVideoCanvasFrame renders cleanly in 1920x1080 YouTube 16:9 across al
     assert.equal(progressBarRect, undefined, `Template ${flowMode} must omit progress bar`);
   }
 });
+
+test('renderVideoCanvasFrame renders Bismillah intro cleanly without verse 0 labels', () => {
+  const seq = [
+    {
+      num: 0,
+      isBismillah: true,
+      audioSurahNum: 1,
+      audioAyahNum: 1,
+      ar: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+      tr: 'Bismillaahir Rahmaanir Raheem',
+      fr: "Au nom d'Allah, le Tout Miséricordieux, le Très Miséricordieux.",
+    },
+    {
+      num: 1,
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwallahu ahad',
+      fr: 'Dis: Il est Allah, Unique.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(seq, [4.5, 4.5], 1);
+
+  for (const flowMode of ['spotlight_card', 'mushaf_split', 'teleprompter'] as const) {
+    const { ctx, fillTexts } = createMockCanvasContext();
+    const opts: VideoCanvasRenderOptions = {
+      width: 1920,
+      height: 1080,
+      surahName: 'Al-Ikhlas',
+      surahNumber: 112,
+      startAyah: 1,
+      endAyah: 1,
+      isLightSurface: false,
+      bgImage: null,
+      showArabic: true,
+      useTajweed: true,
+      showPhonetics: true,
+      showFrench: true,
+      showSurahHeader: true,
+      textScale: 'standard',
+      flowMode,
+      reciterName: 'Alafasy',
+    };
+
+    const layout = precomputeVideoCanvasLayout(ctx, seq, opts);
+    renderVideoCanvasFrame(ctx, layout, timeline, 1.5, opts);
+
+    assert.equal(
+      fillTexts.some((c) => /VERSET 0|AYAH 0|﴿0﴾|^0\./.test(c.text)),
+      false,
+      `Template ${flowMode} must never display verse 0 for Bismillah`
+    );
+    if (flowMode === 'spotlight_card' || flowMode === 'mushaf_split') {
+      assert.ok(
+        fillTexts.some((c) => c.text === 'BISMILLAH'),
+        `Template ${flowMode} should display BISMILLAH badge`
+      );
+    }
+  }
+});
+

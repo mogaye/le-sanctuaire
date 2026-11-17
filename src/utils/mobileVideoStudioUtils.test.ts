@@ -5,6 +5,7 @@ import {
   VIDEO_EXPORT_WIDTH,
   VIDEO_TEMPLATE_PRESETS,
   buildContinuousTimeline,
+  buildStudioVideoSequence,
   computeContinuousScrollY,
   computeCoverDrawRect,
   findActiveTimelineEntry,
@@ -14,7 +15,9 @@ import {
   getVideoFormatPreset,
   normalizeVerseRange,
   selectPreferredVideoMimeType,
+  shouldPrependBismillah,
   sliceSelectedAyahs,
+  stripLeadingBismillahFromAyah1,
   wrapTextLines,
 } from './mobileVideoStudioUtils';
 
@@ -202,6 +205,92 @@ test('generateYouTubePublishPack creates timestamped chapters and full surah met
   assert.ok(pack.description.includes('00:10 Verset 3'));
   assert.ok(pack.description.includes('00:30 Verset 7'));
 });
+
+test('shouldPrependBismillah applies only when starting at Ayah 1 for Surahs other than 1 and 9', () => {
+  assert.equal(shouldPrependBismillah(1, 1), false); // Al-Fatiha Ayah 1 already IS Bismillah
+  assert.equal(shouldPrependBismillah(9, 1), false); // At-Tawbah has no Bismillah
+  assert.equal(shouldPrependBismillah(2, 1), true);
+  assert.equal(shouldPrependBismillah(18, 1), true);
+  assert.equal(shouldPrependBismillah(112, 1), true);
+  assert.equal(shouldPrependBismillah(2, 2), false);
+  assert.equal(shouldPrependBismillah(112, 2), false);
+});
+
+test('stripLeadingBismillahFromAyah1 removes glued Uthmani Bismillah prefix when verse body follows', () => {
+  const uthmaniAyah1 =
+    '\uFEFFبِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ قُلْ هُوَ ٱللَّهُ أَحَدٌ';
+  assert.equal(stripLeadingBismillahFromAyah1(uthmaniAyah1), 'قُلْ هُوَ ٱللَّهُ أَحَدٌ');
+
+  const bismillahOnly = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ';
+  assert.equal(stripLeadingBismillahFromAyah1(bismillahOnly), bismillahOnly);
+});
+
+test('buildStudioVideoSequence prepends Bismillah audio+text intro when starting at verse 1 and labels YouTube 00:00 Bismillah', () => {
+  const sampleSurah112 = [
+    {
+      num: 1,
+      ar: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwal laahu ahad',
+      fr: 'Dis: «Il est Allah, Unique.',
+    },
+    {
+      num: 2,
+      ar: 'ٱللَّهُ ٱلصَّمَدُ',
+      tr: 'Allaahus Samad',
+      fr: 'Allah, Le Seul à être imploré pour ce que nous désirons.',
+    },
+  ];
+
+  // Starting at verse 1 of Surah 112 -> prepends Bismillah (audioSurahNum 1, audioAyahNum 1) & strips glued prefix from Ayah 1
+  const seqFrom1 = buildStudioVideoSequence(112, sampleSurah112, 1, 2);
+  assert.equal(seqFrom1.length, 3);
+  assert.equal(seqFrom1[0].isBismillah, true);
+  assert.equal(seqFrom1[0].audioSurahNum, 1);
+  assert.equal(seqFrom1[0].audioAyahNum, 1);
+  assert.equal(seqFrom1[1].num, 1);
+  assert.equal(seqFrom1[1].ar, 'قُلْ هُوَ ٱللَّهُ أَحَدٌ');
+
+  // YouTube chapters begin at 00:00 Bismillah
+  const tl = buildContinuousTimeline(seqFrom1, [4, 4, 4], 1);
+  const pack = generateYouTubePublishPack({
+    surahName: 'Al-Ikhlas',
+    surahNumber: 112,
+    startAyah: 1,
+    endAyah: 2,
+    totalAyahsInSurah: 4,
+    reciterName: 'Alafasy',
+    timeline: tl,
+  });
+  assert.ok(pack.description.includes('00:00 Bismillah'));
+  assert.ok(pack.description.includes('00:04 Verset 1'));
+
+  // Starting at verse 2 -> no Bismillah intro
+  const seqFrom2 = buildStudioVideoSequence(112, sampleSurah112, 2, 2);
+  assert.equal(seqFrom2.length, 1);
+  assert.equal(seqFrom2[0].isBismillah, undefined);
+  assert.equal(seqFrom2[0].num, 2);
+
+  // Surah 1 (Al-Fatiha) -> no duplicate Bismillah
+  const seqFatiha = buildStudioVideoSequence(
+    1,
+    [{ num: 1, ar: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ', tr: 'Bismillah', fr: 'Au nom d Allah' }],
+    1,
+    1
+  );
+  assert.equal(seqFatiha.length, 1);
+  assert.equal(seqFatiha[0].isBismillah, undefined);
+
+  // Surah 9 (At-Tawbah) -> no Bismillah
+  const seqTawbah = buildStudioVideoSequence(
+    9,
+    [{ num: 1, ar: 'بَرَاءَةٌ مِنَ اللَّهِ', tr: 'Baraa-atum', fr: 'Désaveu...' }],
+    1,
+    1
+  );
+  assert.equal(seqTawbah.length, 1);
+  assert.equal(seqTawbah[0].isBismillah, undefined);
+});
+
 
 
 

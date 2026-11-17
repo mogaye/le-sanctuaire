@@ -261,8 +261,8 @@ export async function decodeVerseAudioSequence(
       const ayah = ayahs[idx];
       results[idx] = await fetchAndDecodeSingleAyah(
         audioCtx,
-        surahNum,
-        ayah.num,
+        ayah.audioSurahNum ?? surahNum,
+        ayah.audioAyahNum ?? ayah.num,
         reciterId,
         signal
       );

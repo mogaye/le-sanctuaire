@@ -35,6 +35,7 @@ export interface VideoCanvasRenderOptions {
 
 interface LaidOutVerseBlock {
   ayahNum: number;
+  isBismillah?: boolean;
   yStart: number;
   centerY: number;
   height: number;
@@ -100,7 +101,7 @@ export function precomputeVideoCanvasLayout(
 
     // Arabic lines
     ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
-    const arTextWithBadge = `${ayah.ar}  ﴿${ayah.num}﴾`;
+    const arTextWithBadge = ayah.isBismillah ? ayah.ar : `${ayah.ar}  ﴿${ayah.num}﴾`;
     const arLines = opts.showArabic
       ? wrapTextLines(arTextWithBadge, contentWidth, (txt) => ctx.measureText(txt).width)
       : [];
@@ -114,9 +115,10 @@ export function precomputeVideoCanvasLayout(
 
     // French lines
     ctx.font = `500 ${frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    const frLabelText = ayah.isBismillah ? ayah.fr : `${ayah.num}. ${ayah.fr}`;
     const frLines =
       opts.showFrench && ayah.fr
-        ? wrapTextLines(`${ayah.num}. ${ayah.fr}`, contentWidth, (txt) => ctx.measureText(txt).width)
+        ? wrapTextLines(frLabelText, contentWidth, (txt) => ctx.measureText(txt).width)
         : [];
 
     let blockHeight = Math.round(24 * resScale);
@@ -127,6 +129,7 @@ export function precomputeVideoCanvasLayout(
     const gapAfter = Math.round((opts.flowMode === 'stream' ? 38 : 60) * resScale);
     blocks.push({
       ayahNum: ayah.num,
+      isBismillah: ayah.isBismillah,
       yStart: blockStart,
       centerY: blockStart + blockHeight / 2,
       height: blockHeight,
@@ -376,7 +379,11 @@ function renderSpotlightCardTemplate(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = isLightSurface ? '#047857' : '#FCD34D';
-  ctx.fillText(`VERSET ${block.ayahNum}`, width / 2, cardY + Math.round(30 * resScale));
+  ctx.fillText(
+    block.isBismillah ? 'BISMILLAH' : `VERSET ${block.ayahNum}`,
+    width / 2,
+    cardY + Math.round(30 * resScale)
+  );
 
   let yCursor = cardY + Math.round(96 * resScale);
   const centerX = width / 2;
@@ -592,7 +599,11 @@ function renderMushafSplitTemplate(
     ctx.textBaseline = 'middle';
     ctx.font = `800 ${Math.round(14 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
-    ctx.fillText(`AYAH ${block.ayahNum}`, leftCenterX, leftY);
+    ctx.fillText(
+      block.isBismillah ? 'BISMILLAH' : `AYAH ${block.ayahNum}`,
+      leftCenterX,
+      leftY
+    );
     leftY += Math.round(36 * resScale);
 
     if (trLines.length > 0) {

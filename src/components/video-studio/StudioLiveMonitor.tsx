@@ -71,7 +71,15 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const [isAnimatingPreview, setIsAnimatingPreview] = useState(false);
   const [previewSec, setPreviewSec] = useState(0);
 
-  // Clamp selected verse index when ayah range changes
+  // Snap preview to the opening frame (Bismillah when starting at verse 1) when surah or start verse changes
+  useEffect(() => {
+    setSelectedVerseIdx(0);
+    setIsAnimatingPreview(false);
+    const firstSeg = timeline.segments[0];
+    setPreviewSec(firstSeg ? firstSeg.startSec + Math.min(1.0, firstSeg.durationSec * 0.35) : 0);
+  }, [surahNumber, startAyah]);
+
+  // Clamp selected verse index when ayah range shrinks
   useEffect(() => {
     setSelectedVerseIdx((prev) => {
       const next = Math.min(Math.max(0, prev), Math.max(0, ayahs.length - 1));
@@ -81,7 +89,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       }
       return next;
     });
-  }, [ayahs.length, startAyah, endAyah]);
+  }, [ayahs.length, endAyah]);
 
   // Load background image or video for true WYSIWYG canvas preview
   useEffect(() => {
@@ -322,9 +330,14 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-bold text-neutral-200 px-2 tabular-nums whitespace-nowrap">
-              Aperçu Verset {ayahs[selectedVerseIdx]?.num ?? startAyah} ({selectedVerseIdx + 1}/
-              {Math.max(1, ayahs.length)})
+            <span
+              data-testid="studio-monitor-verse-label"
+              className="text-xs font-bold text-neutral-200 px-2 tabular-nums whitespace-nowrap"
+            >
+              {ayahs[selectedVerseIdx]?.isBismillah
+                ? 'Aperçu Bismillah'
+                : `Aperçu Verset ${ayahs[selectedVerseIdx]?.num ?? startAyah}`}{' '}
+              ({selectedVerseIdx + 1}/{Math.max(1, ayahs.length)})
             </span>
             <button
               type="button"

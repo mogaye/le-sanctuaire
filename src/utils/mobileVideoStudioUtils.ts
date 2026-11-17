@@ -4,11 +4,25 @@ export interface StudioAyahItem {
   ar: string;
   tr: string;
   fr: string;
+  isBismillah?: boolean;
+  audioSurahNum?: number;
+  audioAyahNum?: number;
 }
+
+export const STUDIO_BISMILLAH_ITEM: StudioAyahItem = {
+  num: 0,
+  isBismillah: true,
+  audioSurahNum: 1,
+  audioAyahNum: 1,
+  ar: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+  tr: 'Bismillaahir Rahmaanir Raheem',
+  fr: "Au nom d'Allah, le Tout Miséricordieux, le Très Miséricordieux.",
+};
 
 export interface ContinuousTimelineSegment {
   index: number;
   ayahNum: number;
+  isBismillah?: boolean;
   startSec: number;
   endSec: number;
   durationSec: number;
@@ -51,6 +65,69 @@ export function sliceSelectedAyahs<T extends { num: number }>(
   return ayahs.filter((a) => a.num >= lo && a.num <= hi);
 }
 
+/**
+ * Videos starting at Ayah 1 must begin with Bismillah for all Surahs except
+ * Al-Fatiha (1, where Ayah 1 is already Bismillah) and At-Tawbah (9, no Bismillah).
+ */
+export function shouldPrependBismillah(surahNumber: number, startAyah: number): boolean {
+  return startAyah === 1 && surahNumber !== 1 && surahNumber !== 9;
+}
+
+function normalizeArabicTokenForMatch(token: string): string {
+  return token
+    .replace(/[\uFEFF\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '')
+    .replace(/[ٱأإآ]/g, 'ا')
+    .trim();
+}
+
+/**
+ * Editions like `quran-uthmani` prepend Bismillah directly inside Ayah 1 text of Surahs 2..114.
+ * When Bismillah is recited & shown as its own opening segment, strip the duplicate prefix from Ayah 1
+ * only if verse text remains after the 4 Bismillah words.
+ */
+export function stripLeadingBismillahFromAyah1(ar: string): string {
+  const cleaned = (ar || '').replace(/^\uFEFF/, '').trim();
+  if (!cleaned) return '';
+  const tokens = cleaned.split(/\s+/);
+  if (tokens.length <= 4) return cleaned;
+
+  const firstFour = tokens.slice(0, 4).map(normalizeArabicTokenForMatch);
+  if (
+    firstFour[0] === 'بسم' &&
+    firstFour[1] === 'الله' &&
+    firstFour[2] === 'الرحمن' &&
+    firstFour[3] === 'الرحيم'
+  ) {
+    return tokens.slice(4).join(' ').trim();
+  }
+  return cleaned;
+}
+
+export function buildStudioVideoSequence(
+  surahNumber: number,
+  ayahs: StudioAyahItem[],
+  startAyah: number,
+  endAyah: number
+): StudioAyahItem[] {
+  const sliced = sliceSelectedAyahs(ayahs, startAyah, endAyah);
+  if (sliced.length === 0) return [];
+  if (!shouldPrependBismillah(surahNumber, startAyah)) {
+    return sliced;
+  }
+
+  const normalizedVerses = sliced.map((item, idx) => {
+    if (idx === 0 && item.num === 1) {
+      return {
+        ...item,
+        ar: stripLeadingBismillahFromAyah1(item.ar),
+      };
+    }
+    return item;
+  });
+
+  return [{ ...STUDIO_BISMILLAH_ITEM }, ...normalizedVerses];
+}
+
 export function estimateAyahDurationSeconds(
   ayah: Pick<StudioAyahItem, 'ar' | 'fr'>,
   paceMultiplier: number = 1
@@ -63,7 +140,7 @@ export function estimateAyahDurationSeconds(
 }
 
 export function buildContinuousTimeline(
-  ayahs: Array<Pick<StudioAyahItem, 'num' | 'ar' | 'fr'>>,
+  ayahs: Array<Pick<StudioAyahItem, 'num' | 'ar' | 'fr' | 'isBismillah'>>,
   measuredDurationsSec?: Array<number | undefined | null>,
   paceMultiplier: number = 1
 ): ContinuousTimeline {
@@ -83,6 +160,7 @@ export function buildContinuousTimeline(
     segments.push({
       index: i,
       ayahNum: ayah.num,
+      isBismillah: ayah.isBismillah,
       startSec,
       endSec,
       durationSec: Number((endSec - startSec).toFixed(3)),
@@ -395,11 +473,13 @@ export function generateYouTubePublishPack(params: {
   const chapterLines: string[] = [];
   for (let i = 0; i < segments.length; i += step) {
     const seg = segments[i];
-    chapterLines.push(`${formatTimeMMSS(seg.startSec)} Verset ${seg.ayahNum}`);
+    const label = seg.isBismillah ? 'Bismillah' : `Verset ${seg.ayahNum}`;
+    chapterLines.push(`${formatTimeMMSS(seg.startSec)} ${label}`);
   }
   if (segments.length > 1 && (segments.length - 1) % step !== 0) {
     const lastSeg = segments[segments.length - 1];
-    chapterLines.push(`${formatTimeMMSS(lastSeg.startSec)} Verset ${lastSeg.ayahNum}`);
+    const label = lastSeg.isBismillah ? 'Bismillah' : `Verset ${lastSeg.ayahNum}`;
+    chapterLines.push(`${formatTimeMMSS(lastSeg.startSec)} ${label}`);
   }
 
   const description = [

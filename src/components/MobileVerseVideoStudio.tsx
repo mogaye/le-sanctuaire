@@ -42,9 +42,11 @@ import {
   VideoFormatId,
   VideoTemplateId,
   buildContinuousTimeline,
+  buildStudioVideoSequence,
   formatTimeMMSS,
   getVideoFormatPreset,
   normalizeVerseRange,
+  shouldPrependBismillah,
   sliceSelectedAyahs,
 } from '../utils/mobileVideoStudioUtils';
 import {
@@ -410,6 +412,26 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [surahVerses, normalizedRange]
   );
 
+  const hasBismillahIntro = useMemo(
+    () => shouldPrependBismillah(surahNum, normalizedRange.startAyah),
+    [surahNum, normalizedRange.startAyah]
+  );
+
+  const videoSequence = useMemo(
+    () =>
+      buildStudioVideoSequence(
+        surahNum,
+        surahVerses,
+        normalizedRange.startAyah,
+        normalizedRange.endAyah
+      ),
+    [surahNum, surahVerses, normalizedRange]
+  );
+
+  useEffect(() => {
+    setMeasuredDurations([]);
+  }, [surahNum, normalizedRange.startAyah, normalizedRange.endAyah]);
+
   // Resolve Active Background
   const activeCustomMedia = useMemo(
     () => customMedia.find((m) => m.id === bgId) || null,
@@ -499,8 +521,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   }, [surahQuery]);
 
   const timeline = useMemo(
-    () => buildContinuousTimeline(selectedVerses, measuredDurations, paceMultiplier),
-    [selectedVerses, measuredDurations, paceMultiplier]
+    () => buildContinuousTimeline(videoSequence, measuredDurations, paceMultiplier),
+    [videoSequence, measuredDurations, paceMultiplier]
   );
 
   // Quick range presets including long YouTube presets on PC or large surahs
@@ -671,13 +693,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // STAGE 2 — REAL-TIME CONTINUOUS VIDEO PLAYER ("Lire le contenu")
   // =========================================================================
   const startContinuousPlayer = async () => {
-    if (selectedVerses.length === 0) return;
+    if (videoSequence.length === 0) return;
     stopAllMedia();
     setStage('player');
     setPlayerStatus('loading');
     setPlayerHudVisible(true);
     setCurrentTimeSec(0);
-    setPlayerLoadProgress({ loaded: 0, total: selectedVerses.length });
+    setPlayerLoadProgress({ loaded: 0, total: videoSequence.length });
 
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
@@ -703,7 +725,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       decodeVerseAudioSequence(
         ctx,
         surahNum,
-        selectedVerses,
+        videoSequence,
         reciterId,
         (loaded, total) => setPlayerLoadProgress({ loaded, total }),
         abortCtrl.signal
@@ -735,7 +757,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       await document.fonts.ready.catch(() => {});
     }
 
-    const exactTimeline = buildContinuousTimeline(selectedVerses, durations, paceMultiplier);
+    const exactTimeline = buildContinuousTimeline(videoSequence, durations, paceMultiplier);
     playerTimelineRef.current = exactTimeline;
 
     const liveWidth = activeFormat.previewWidth;
@@ -770,7 +792,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         playerRenderOptsRef.current = renderOpts;
         playerLayoutRef.current = precomputeVideoCanvasLayout(
           canvasCtx,
-          selectedVerses,
+          videoSequence,
           renderOpts
         );
         renderVideoCanvasFrame(canvasCtx, playerLayoutRef.current, exactTimeline, 0, renderOpts);
@@ -873,7 +895,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       }
       const nextOffset = playerStatus === 'ended' ? 0 : currentTimeSec;
       const exactTimeline = buildContinuousTimeline(
-        selectedVerses,
+        videoSequence,
         measuredDurations,
         paceMultiplier
       );
@@ -884,7 +906,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const seekContinuousPlayer = (targetSec: number) => {
     const ctx = audioCtxRef.current;
     const exactTimeline = buildContinuousTimeline(
-      selectedVerses,
+      videoSequence,
       measuredDurations,
       paceMultiplier
     );
@@ -908,7 +930,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // STAGE 3 — MP4 EXPORT AT ACTIVE FORMAT RESOLUTION (16:9 / 9:16 / 1:1)
   // =========================================================================
   const startVideoExport = async () => {
-    if (selectedVerses.length === 0) return;
+    if (videoSequence.length === 0) return;
     stopAllMedia();
     if (exportedVideoUrl) {
       URL.revokeObjectURL(exportedVideoUrl);
@@ -922,7 +944,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     setStage('export');
     setExportStatus('preparing_audio');
     setExportStatusMessage(
-      `Chargement et assemblage audio continu (${selectedVerses.length} versets)...`
+      `Chargement et assemblage audio continu (${
+        hasBismillahIntro ? `Bismillah + ${selectedVerses.length}` : selectedVerses.length
+      } versets)...`
     );
 
     const abortCtrl = new AbortController();
@@ -953,7 +977,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         decodeVerseAudioSequence(
           ctx,
           surahNum,
-          selectedVerses,
+          videoSequence,
           reciterId,
           (loaded, total) => {
             setPlayerLoadProgress({ loaded, total });
@@ -989,7 +1013,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
       );
       setMeasuredDurations(durations);
-      const exactTimeline = buildContinuousTimeline(selectedVerses, durations, paceMultiplier);
+      const exactTimeline = buildContinuousTimeline(videoSequence, durations, paceMultiplier);
 
       if (document.fonts?.ready) {
         await document.fonts.ready.catch(() => {});
@@ -1028,19 +1052,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         reciterName: selectedReciter.name,
       };
 
-      const layout = precomputeVideoCanvasLayout(canvasCtx, selectedVerses, renderOpts);
+      const layout = precomputeVideoCanvasLayout(canvasCtx, videoSequence, renderOpts);
       renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
 
       setExportStatus('recording');
       setExportStatusMessage(
-        `Encodage MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${selectedVerses.length} versets...`
+        `Encodage MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${videoSequence.length} séquences...`
       );
 
       const exportResult = await exportQuranVideoToMp4({
         canvas,
         canvasCtx,
         layout,
-        ayahs: selectedVerses,
+        ayahs: videoSequence,
         timeline: exactTimeline,
         renderOpts,
         audioCtx: ctx,
@@ -1082,13 +1106,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       setExportedFileExt(exportResult.extension);
       setExportedAudioInfo({
         okCount: okAudioCount,
-        totalCount: selectedVerses.length,
+        totalCount: videoSequence.length,
         mime: exportResult.mimeType,
       });
       setExportProgressPct(100);
       setExportStatus('ready');
       setExportStatusMessage(
-        `Vidéo MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) prête avec son continu (${okAudioCount}/${selectedVerses.length} versets) !`
+        `Vidéo MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) prête avec son continu (${okAudioCount}/${videoSequence.length} séquences) !`
       );
     } catch (err: any) {
       if (!abortCtrl.signal.aborted) {
@@ -1194,7 +1218,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   Préparation de la vidéo ({activeFormat.aspectLabel})...
                 </p>
                 <p className="text-xs text-neutral-400 tabular-nums">
-                  {playerLoadProgress.loaded}/{playerLoadProgress.total} versets
+                  {playerLoadProgress.loaded}/{playerLoadProgress.total}{' '}
+                  {hasBismillahIntro ? 'séquences (avec Bismillah)' : 'versets'}
                 </p>
               </div>
             </div>
@@ -1407,7 +1432,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   >
                     <Volume2 className="w-4 h-4" />
                     <span>
-                      Audio continu inclus : {exportedAudioInfo.okCount}/{exportedAudioInfo.totalCount} versets
+                      Audio continu inclus : {exportedAudioInfo.okCount}/{exportedAudioInfo.totalCount}{' '}
+                      {hasBismillahIntro ? 'séquences (Bismillah + versets)' : 'versets'}
                     </span>
                   </div>
                 )}
@@ -1483,7 +1509,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // =========================================================================
   // RENDER: STAGE 1 — REFURBISHED PRO NLE STUDIO CONFIGURATOR
   // =========================================================================
-  const previewVerses = selectedVerses.slice(0, 2);
+  const previewVerses = videoSequence.slice(0, 2);
 
   return (
     <div
@@ -1814,6 +1840,20 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       {activeFormat.platformHint} • Chapitres YouTube générés automatiquement après export
                     </div>
                   </div>
+                </div>
+              )}
+
+              {hasBismillahIntro && (
+                <div
+                  data-testid="studio-bismillah-intro-notice"
+                  className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="font-semibold text-emerald-100">
+                    Début au verset 1 : Bismillah inclus en ouverture (audio &amp; texte)
+                  </span>
+                  <span className="font-arabic text-sm text-amber-200 shrink-0" dir="rtl">
+                    بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
+                  </span>
                 </div>
               )}
 
@@ -2241,7 +2281,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         {/* Right Column (Desktop Only): Real WYSIWYG Canvas Monitor */}
         <StudioLiveMonitor
           format={activeFormat}
-          ayahs={selectedVerses}
+          ayahs={videoSequence}
           timeline={timeline}
           surahName={surahMeta.name}
           surahNumber={surahMeta.number}
@@ -2270,7 +2310,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           <button
             type="button"
             data-testid="studio-play-continuous-btn"
-            disabled={isLoadingVerses || selectedVerses.length === 0}
+            disabled={isLoadingVerses || videoSequence.length === 0}
             onClick={startContinuousPlayer}
             className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs md:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
           >
@@ -2281,7 +2321,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           <button
             type="button"
             data-testid="studio-create-video-btn"
-            disabled={isLoadingVerses || selectedVerses.length === 0}
+            disabled={isLoadingVerses || videoSequence.length === 0}
             onClick={startVideoExport}
             className="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
           >

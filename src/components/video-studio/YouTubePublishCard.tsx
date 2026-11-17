@@ -113,7 +113,8 @@ export const YouTubePublishCard: React.FC<YouTubePublishCardProps> = ({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[11px] font-bold text-neutral-300">
-            Description &amp; Chapitres ({timeline.segments.length} versets)
+            Description &amp; Chapitres (
+            {timeline.segments.filter((s) => !s.isBismillah).length} versets)
           </span>
           <button
             type="button"
