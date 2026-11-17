@@ -195,3 +195,139 @@ export const MOBILE_VERTICAL_BACKGROUNDS: MobileVerticalBackgroundItem[] = [
     polarity: 'light',
   },
 ];
+
+export interface StudioWallpaperItem {
+  id: string;
+  name: string;
+  category: 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire';
+  url: string;
+  polarity: 'dark' | 'light';
+}
+
+export const STUDIO_4K_BACKGROUNDS: StudioWallpaperItem[] = [
+  {
+    id: 'emerald_fanous_archway',
+    name: 'Porche Mauresque & Lanternes (4K)',
+    category: 'emeraude',
+    url: '/images/fonds-islamiques/emerald_fanous_archway_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'emerald_celestial_glow',
+    name: 'Rayonnement Céleste Émeraude (4K)',
+    category: 'emeraude',
+    url: '/images/fonds-islamiques/emerald_celestial_glow_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'obsidian_gold_rays',
+    name: "Marbre Noir & Rais d'Or (4K)",
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/obsidian_gold_rays_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'midnight_gold_filigree',
+    name: 'Mandala Astral Or & Ardoise (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/midnight_gold_filigree_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'midnight_gold_star',
+    name: 'Étoile Géométrique 12 Branches (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/midnight_gold_star_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'obsidian_gold_waves',
+    name: "Vagues d'Or Liquide & Marbre (4K)",
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/obsidian_gold_waves_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'ref_obsidian_gold',
+    name: 'Élégance Ombre Dorée (4K)',
+    category: 'obsidienne',
+    url: '/images/fonds-islamiques/ref_obsidian_gold_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'sapphire_gold_mosque',
+    name: "Mosquée Saphir & Croissant d'Or (4K)",
+    category: 'saphir',
+    url: '/images/fonds-islamiques/sapphire_gold_mosque_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'sapphire_lantern_night',
+    name: 'Lanterne Indigo & Étoiles (4K)',
+    category: 'saphir',
+    url: '/images/fonds-islamiques/sapphire_lantern_night_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'golden_twilight_dunes',
+    name: 'Dunes Dorées sous la Nuit (4K)',
+    category: 'saphir',
+    url: '/images/fonds-islamiques/golden_twilight_dunes_4k.webp',
+    polarity: 'dark',
+  },
+  {
+    id: 'ivory_gold_arch',
+    name: "Arche d'Ivoire & Stuc d'Or (4K)",
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_arch_4k.webp',
+    polarity: 'light',
+  },
+  {
+    id: 'ivory_gold_courtyard',
+    name: 'Patio Andalou aux Arches (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_courtyard_4k.webp',
+    polarity: 'light',
+  },
+  {
+    id: 'ivory_gold_palace',
+    name: 'Palais Royal Blanc & Or (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_palace_4k.webp',
+    polarity: 'light',
+  },
+  {
+    id: 'ivory_marble_arch',
+    name: 'Marbre de Carrare & Moucharabieh (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_marble_arch_4k.webp',
+    polarity: 'light',
+  },
+  {
+    id: 'ivory_gold_rosette',
+    name: "Rosace Dorée d'Angle (4K)",
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ivory_gold_rosette_4k.webp',
+    polarity: 'light',
+  },
+  {
+    id: 'ref_ivory_gold',
+    name: 'Géométrie Ivoire & Doré (4K)',
+    category: 'ivoire',
+    url: '/images/fonds-islamiques/ref_ivory_gold_4k.webp',
+    polarity: 'light',
+  },
+];
+
+export const STUDIO_SOLID_BACKGROUNDS: Array<{
+  id: string;
+  name: string;
+  color: string;
+  polarity: 'dark' | 'light';
+}> = [
+  { id: 'none_noir', name: 'Noir Uni', color: '#050505', polarity: 'dark' },
+  { id: 'none_blanc', name: 'Blanc Uni', color: '#FCFCFB', polarity: 'light' },
+  { id: 'none_emerald', name: 'Émeraude', color: '#06261B', polarity: 'dark' },
+  { id: 'none_midnight', name: 'Bleu Nuit', color: '#0A1328', polarity: 'dark' },
+];
+

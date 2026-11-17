@@ -2,6 +2,7 @@ import {
   ContinuousTimeline,
   StudioAyahItem,
   computeContinuousScrollY,
+  computeCoverDrawRect,
   findActiveTimelineEntry,
   formatTimeMMSS,
   wrapTextLines,
@@ -15,7 +16,10 @@ export interface VideoCanvasRenderOptions {
   startAyah: number;
   endAyah: number;
   isLightSurface: boolean;
+  bgSurfaceColor?: string;
+  bgVeilOpacity?: number;
   bgImage: HTMLImageElement | null;
+  bgVideo?: HTMLVideoElement | null;
   showArabic: boolean;
   useTajweed: boolean;
   showPhonetics: boolean;
@@ -162,31 +166,33 @@ export function renderVideoCanvasFrame(
   const { width, height, isLightSurface } = opts;
 
   // 1. Solid base
-  ctx.fillStyle = isLightSurface ? '#FCFCFB' : '#000000';
+  ctx.fillStyle = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Background image (cover fit)
-  if (opts.bgImage) {
-    const imgRatio = opts.bgImage.width / Math.max(1, opts.bgImage.height);
-    const canvasRatio = width / Math.max(1, height);
-    let drawW = width;
-    let drawH = height;
-    let drawX = 0;
-    let drawY = 0;
-    if (imgRatio > canvasRatio) {
-      drawH = height;
-      drawW = height * imgRatio;
-      drawX = (width - drawW) / 2;
-    } else {
-      drawW = width;
-      drawH = width / Math.max(0.01, imgRatio);
-      drawY = (height - drawH) / 2;
-    }
-    ctx.drawImage(opts.bgImage, drawX, drawY, drawW, drawH);
+  // 2. Background Video OR Image (cover fit inside 9:16 frame)
+  const videoEl = opts.bgVideo;
+  if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+    const rect = computeCoverDrawRect(videoEl.videoWidth, videoEl.videoHeight, width, height);
+    ctx.drawImage(videoEl, rect.x, rect.y, rect.w, rect.h);
+  } else if (opts.bgImage) {
+    const rect = computeCoverDrawRect(opts.bgImage.width, opts.bgImage.height, width, height);
+    ctx.drawImage(opts.bgImage, rect.x, rect.y, rect.w, rect.h);
+  }
 
-    // Subtle veil to preserve spotless contrast
-    ctx.fillStyle = isLightSurface ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.22)';
-    ctx.fillRect(0, 0, width, height);
+  // Subtle veil to preserve spotless text contrast over user photos or videos
+  if (videoEl || opts.bgImage) {
+    const veilAlpha =
+      typeof opts.bgVeilOpacity === 'number'
+        ? Math.max(0, Math.min(0.85, opts.bgVeilOpacity))
+        : isLightSurface
+        ? 0.14
+        : 0.28;
+    if (veilAlpha > 0.005) {
+      ctx.fillStyle = isLightSurface
+        ? `rgba(255, 255, 255, ${veilAlpha})`
+        : `rgba(0, 0, 0, ${veilAlpha})`;
+      ctx.fillRect(0, 0, width, height);
+    }
   }
 
   // 3. Continuous scroll position across the entire verse ribbon

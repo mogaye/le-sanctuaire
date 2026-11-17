@@ -1,6 +1,7 @@
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { cleanAyahArabic } from './tajweedColorizer';
 import { StudioAyahItem } from './mobileVideoStudioUtils';
+import { getAyahAudioUrl } from './quranAudioUtils';
 
 export interface LoadedStudioSurah {
   num: number;
@@ -195,25 +196,32 @@ export async function decodeVerseAudioSequence(
     const ayah = ayahs[i];
     let decoded: AudioBuffer | null = null;
 
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 9000);
-      const onOuterAbort = () => controller.abort();
-      signal?.addEventListener('abort', onOuterAbort, { once: true });
+    const urlsToTry = [
+      `/api/quran-audio?surah=${surahNum}&ayah=${ayah.num}&reciter=${encodeURIComponent(reciterId)}`,
+      getAyahAudioUrl(surahNum, ayah.num, reciterId),
+    ];
 
-      const resp = await fetch(
-        `/api/quran-audio?surah=${surahNum}&ayah=${ayah.num}&reciter=${encodeURIComponent(reciterId)}`,
-        { signal: controller.signal }
-      );
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onOuterAbort);
+    for (const url of urlsToTry) {
+      if (signal?.aborted || decoded) break;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 9000);
+        const onOuterAbort = () => controller.abort();
+        signal?.addEventListener('abort', onOuterAbort, { once: true });
 
-      if (resp.ok) {
-        const arr = await resp.arrayBuffer();
-        decoded = await audioCtx.decodeAudioData(arr.slice(0));
+        const resp = await fetch(url, { signal: controller.signal });
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onOuterAbort);
+
+        if (resp.ok) {
+          const arr = await resp.arrayBuffer();
+          if (arr.byteLength > 256) {
+            decoded = await audioCtx.decodeAudioData(arr.slice(0));
+          }
+        }
+      } catch {
+        decoded = null;
       }
-    } catch {
-      decoded = null;
     }
 
     if (decoded) {
@@ -320,3 +328,61 @@ export function scheduleContinuousAudioSequence(
     },
   };
 }
+
+/**
+ * Keeps the WebAudio MediaStreamAudioDestinationNode actively pulling continuous samples
+ * across Chromium/Android/Safari during MediaRecorder export.
+ */
+export function attachAudioStreamKeepalive(
+  audioCtx: AudioContext,
+  destNode: MediaStreamAudioDestinationNode,
+  monitorToSpeakers: boolean = false
+): {
+  feedNode: GainNode;
+  setMonitorEnabled: (enabled: boolean) => void;
+  dispose: () => void;
+} {
+  const feedNode = audioCtx.createGain();
+  feedNode.gain.value = 1.0;
+
+  // Wire recitation bus to recorded stream destination
+  feedNode.connect(destNode);
+
+  // Wire monitor gain to hardware destination so browser never suspends pulling audio frames
+  const monitorGain = audioCtx.createGain();
+  monitorGain.gain.value = monitorToSpeakers ? 1.0 : 0.0;
+  feedNode.connect(monitorGain);
+  monitorGain.connect(audioCtx.destination);
+
+  // Sub-audible ultra-low carrier (-96dB) ensures MediaRecorder always receives live audio frames from t=0
+  const carrier = audioCtx.createOscillator();
+  const carrierGain = audioCtx.createGain();
+  carrier.frequency.value = 1;
+  carrierGain.gain.value = 0.00002;
+  carrier.connect(carrierGain);
+  carrierGain.connect(destNode);
+  try {
+    carrier.start();
+  } catch {}
+
+  return {
+    feedNode,
+    setMonitorEnabled: (enabled: boolean) => {
+      try {
+        monitorGain.gain.setTargetAtTime(enabled ? 1.0 : 0.0, audioCtx.currentTime, 0.02);
+      } catch {
+        monitorGain.gain.value = enabled ? 1.0 : 0.0;
+      }
+    },
+    dispose: () => {
+      try {
+        carrier.stop();
+        carrier.disconnect();
+        carrierGain.disconnect();
+        monitorGain.disconnect();
+        feedNode.disconnect();
+      } catch {}
+    },
+  };
+}
+

@@ -88,11 +88,12 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
                   e.stopPropagation();
                   onOpenMobileVideoStudio();
                 }}
-                className="md:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
                 title="Créer une vidéo continue 9:16 à partir de versets"
               >
                 <Film className="w-3.5 h-3.5 stroke-[2.3]" />
-                <span>Créer Vidéo</span>
+                <span className="hidden sm:inline">Créer Vidéo 9:16</span>
+                <span className="sm:hidden">Créer Vidéo</span>
               </button>
             )}
             {onOpenSurahSelector && (

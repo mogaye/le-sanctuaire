@@ -1366,27 +1366,25 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             )}
           </button>
 
-          {/* Mobile-only 9:16 Continuous Verse Video Creator */}
-          {isMobile && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (audioRef.current) {
-                  audioRef.current.pause();
-                }
-                setIsPlayingAudio(false);
-                closeAllPopovers();
-                setIsVideoStudioOpen(true);
-              }}
-              data-testid="cinematic-open-video-studio-btn"
-              aria-label="Créer une vidéo continue de versets"
-              className="h-9 px-2.5 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-[11px]"
-              title="Créer une vidéo 9:16 à partir de versets"
-            >
-              <Film className="w-3.5 h-3.5 shrink-0" />
-              <span>Vidéo</span>
-            </button>
-          )}
+          {/* 9:16 Continuous Verse Video Creator (PC & Mobile) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (audioRef.current) {
+                audioRef.current.pause();
+              }
+              setIsPlayingAudio(false);
+              closeAllPopovers();
+              setIsVideoStudioOpen(true);
+            }}
+            data-testid="cinematic-open-video-studio-btn"
+            aria-label="Créer une vidéo continue 9:16 de versets"
+            className="h-9 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-[11px] shrink-0"
+            title="Créer une vidéo verticale 9:16 à partir de versets"
+          >
+            <Film className="w-3.5 h-3.5 shrink-0" />
+            <span>Vidéo 9:16</span>
+          </button>
 
           {/* Unified Apparence & Réglages (Unites Theme, Backgrounds 4K, Tajweed, and Text Size) */}
           <button
@@ -2033,7 +2031,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
             {/* TAB 1: THEMES */}
             {appearanceTab === 'themes' && (
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-2 pr-1 pb-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {themeList.map((t) => {
                     const isSelected = t.id === currentTheme.id;
@@ -2064,7 +2062,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
             {/* TAB 2: BACKGROUNDS (Mobile 9:16 Black/White vs Desktop 4K) */}
             {appearanceTab === 'backgrounds' && (
-              <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 no-scrollbar">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-3.5 pr-1 pb-4">
                 {/* Categories */}
                 {isMobile ? (
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-semibold shrink-0">
@@ -2260,7 +2258,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
             {/* TAB 3: TAJWEED & TEXT */}
             {appearanceTab === 'tajweed' && (
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar text-xs">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y space-y-4 pr-1 pb-6 text-xs">
                 {/* Tajweed Assistance Toggle Card */}
                 <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -2588,15 +2586,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         </div>
       )}
 
-      {/* Mobile-Only Continuous Verse Video Creator Studio */}
-      {isMobile && isVideoStudioOpen && (
+      {/* Continuous Verse Video Creator Studio (9:16 on both PC & Mobile) */}
+      {isVideoStudioOpen && (
         <MobileVerseVideoStudio
           isOpen={isVideoStudioOpen}
           onClose={() => setIsVideoStudioOpen(false)}
           initialSurahNum={currentSurahMeta.number}
           initialStartAyah={currentAyah?.num || 1}
           initialReciter={selectedReciter}
-          initialBgId={selectedMobileBgId}
+          initialBgId={isMobile ? selectedMobileBgId : selectedBgId}
           onSyncReciter={onSelectReciter}
         />
       )}

@@ -189,3 +189,60 @@ export function formatTimeMMSS(totalSec: number): string {
   const secs = rounded % 60;
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
+
+/**
+ * Selects a MediaRecorder MIME type that explicitly guarantees an audio+video codec pair
+ * before falling back to bare containers (e.g. avoids Chromium's bare `video/mp4` dropping WebAudio).
+ */
+export function selectPreferredVideoMimeType(
+  isTypeSupported: (mime: string) => boolean
+): { mimeType: string; extension: 'mp4' | 'webm' } {
+  const orderedCandidates: Array<{ mimeType: string; extension: 'mp4' | 'webm' }> = [
+    { mimeType: 'video/webm;codecs=vp9,opus', extension: 'webm' },
+    { mimeType: 'video/webm;codecs=vp8,opus', extension: 'webm' },
+    { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', extension: 'mp4' },
+    { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2', extension: 'mp4' },
+    { mimeType: 'video/mp4;codecs=avc1.42E01E,opus', extension: 'mp4' },
+    { mimeType: 'video/webm', extension: 'webm' },
+    { mimeType: 'video/mp4', extension: 'mp4' },
+  ];
+
+  for (const candidate of orderedCandidates) {
+    try {
+      if (isTypeSupported(candidate.mimeType)) {
+        return candidate;
+      }
+    } catch {
+      // ignore unsupported query errors
+    }
+  }
+
+  return { mimeType: '', extension: 'webm' };
+}
+
+/**
+ * Computes CSS object-fit: cover draw bounds for any landscape/square/vertical image or video
+ * inside the 9:16 vertical video canvas.
+ */
+export function computeCoverDrawRect(
+  srcWidth: number,
+  srcHeight: number,
+  dstWidth: number,
+  dstHeight: number
+): { x: number; y: number; w: number; h: number } {
+  const safeSrcW = Math.max(1, srcWidth || 1);
+  const safeSrcH = Math.max(1, srcHeight || 1);
+  const imgRatio = safeSrcW / safeSrcH;
+  const dstRatio = dstWidth / Math.max(1, dstHeight);
+
+  if (imgRatio > dstRatio) {
+    const h = dstHeight;
+    const w = dstHeight * imgRatio;
+    return { x: (dstWidth - w) / 2, y: 0, w, h };
+  }
+
+  const w = dstWidth;
+  const h = dstWidth / Math.max(0.01, imgRatio);
+  return { x: 0, y: (dstHeight - h) / 2, w, h };
+}
+

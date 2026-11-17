@@ -1161,6 +1161,21 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               <span className="md:hidden">Cinéma</span>
             </button>
 
+            {/* Desktop 9:16 Continuous Verse Video Creator Trigger */}
+            <button
+              type="button"
+              data-testid="header-desktop-video-studio-btn"
+              onClick={() => {
+                stopAudio();
+                setIsMobileVideoStudioOpen(true);
+              }}
+              aria-label="Créer une vidéo continue 9:16"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Créer une vidéo verticale 9:16 avec plusieurs versets et fond personnalisé"
+            >
+              <Film className="w-3.5 h-3.5 stroke-[2.3]" />
+              <span>Vidéo 9:16</span>
+            </button>
 
           </div>
 
@@ -1314,7 +1329,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                     stopAudio();
                     setIsMobileVideoStudioOpen(true);
                   }}
-                  className="md:hidden w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
+                  className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
                 >
                   <Film className="w-4 h-4 stroke-[2.4]" />
                   <span>Créer Vidéo Continue de Versets (9:16)</span>
@@ -2588,18 +2603,16 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         getAyahAudioUrl={getAyahAudioUrl}
       />
 
-      {/* Mobile-Only Continuous Verse Video Creator Studio */}
+      {/* Continuous Verse Video Creator Studio (9:16 on both PC & Mobile) */}
       {isMobileVideoStudioOpen && (
-        <div className="md:hidden">
-          <MobileVerseVideoStudio
-            isOpen={isMobileVideoStudioOpen}
-            onClose={() => setIsMobileVideoStudioOpen(false)}
-            initialSurahNum={selectedSurahNumber}
-            initialStartAyah={activeAyahNum}
-            initialReciter={selectedReciter}
-            onSyncReciter={onSelectReciter}
-          />
-        </div>
+        <MobileVerseVideoStudio
+          isOpen={isMobileVideoStudioOpen}
+          onClose={() => setIsMobileVideoStudioOpen(false)}
+          initialSurahNum={selectedSurahNumber}
+          initialStartAyah={activeAyahNum}
+          initialReciter={selectedReciter}
+          onSyncReciter={onSelectReciter}
+        />
       )}
     </div>
   );

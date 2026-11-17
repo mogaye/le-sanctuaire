@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import {
   buildContinuousTimeline,
   computeContinuousScrollY,
+  computeCoverDrawRect,
   findActiveTimelineEntry,
   formatTimeMMSS,
   normalizeVerseRange,
+  selectPreferredVideoMimeType,
   sliceSelectedAyahs,
   wrapTextLines,
 } from './mobileVideoStudioUtils';
@@ -82,3 +84,28 @@ test('wrapTextLines and formatTimeMMSS behave deterministically', () => {
   assert.ok(lines.length >= 3);
   assert.equal(formatTimeMMSS(75), '01:15');
 });
+
+test('selectPreferredVideoMimeType avoids Chromium bare video/mp4 when WebM Opus audio is supported', () => {
+  const chromeSupported = new Set(['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']);
+  assert.deepEqual(selectPreferredVideoMimeType((m) => chromeSupported.has(m)), {
+    mimeType: 'video/webm;codecs=vp9,opus',
+    extension: 'webm',
+  });
+
+  const safariSupported = new Set(['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4']);
+  assert.deepEqual(selectPreferredVideoMimeType((m) => safariSupported.has(m)), {
+    mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    extension: 'mp4',
+  });
+});
+
+test('computeCoverDrawRect cover-fits landscape video or tall media inside 720x1280 9:16 frame', () => {
+  const landscape = computeCoverDrawRect(1920, 1080, 720, 1280);
+  assert.equal(landscape.h, 1280);
+  assert.ok(landscape.w > 720);
+  assert.ok(landscape.x < 0);
+
+  const exact = computeCoverDrawRect(720, 1280, 720, 1280);
+  assert.deepEqual(exact, { x: 0, y: 0, w: 720, h: 1280 });
+});
+
