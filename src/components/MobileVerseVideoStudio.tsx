@@ -56,6 +56,14 @@ import {
   renderVideoCanvasFrame,
 } from '../utils/canvasVideoRenderer';
 import { useWakeLock } from '../hooks/useWakeLock';
+import {
+  deleteStudioMediaItem,
+  formatStudioBytes,
+  loadStudioBgPreferences,
+  loadStudioMediaLibrary,
+  saveStudioBgPreferences,
+  saveStudioMediaFile,
+} from '../utils/studioMediaLibrary';
 
 interface MobileVerseVideoStudioProps {
   isOpen: boolean;
@@ -72,6 +80,8 @@ interface CustomBackgroundMedia {
   name: string;
   kind: 'image' | 'video';
   url: string;
+  sizeBytes?: number;
+  syncedToServer?: boolean;
 }
 
 type StudioStage = 'setup' | 'player' | 'export';
@@ -140,12 +150,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   );
   const [reciterId, setReciterId] = useState<string>(initialReciter?.id || 'mishary');
 
-  // Background Selection + Custom Media (Images & Videos imported from user's device)
+  // Background Selection + Persistent Site Media Library (Images & Videos saved for future sessions)
   const [customMedia, setCustomMedia] = useState<CustomBackgroundMedia[]>([]);
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState<boolean>(false);
+  const [isSavingMedia, setIsSavingMedia] = useState<boolean>(false);
   const customMediaRef = useRef<CustomBackgroundMedia[]>([]);
   customMediaRef.current = customMedia;
 
   const [bgId, setBgId] = useState<string>(() => {
+    const prefs = loadStudioBgPreferences();
+    if (prefs.bgId) {
+      return prefs.bgId;
+    }
     if (
       STUDIO_SOLID_BACKGROUNDS.some((s) => s.id === initialBgId) ||
       MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === initialBgId) ||
@@ -156,8 +172,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     return 'mobile_noir_minimal';
   });
   const [bgFilter, setBgFilter] = useState<'all' | 'custom' | 'noir' | 'blanc' | '4k'>('all');
-  const [textColorOverride, setTextColorOverride] = useState<'auto' | 'light' | 'dark'>('auto');
-  const [bgVeilOpacity, setBgVeilOpacity] = useState<number>(0.25);
+  const [textColorOverride, setTextColorOverride] = useState<'auto' | 'light' | 'dark'>(() => {
+    const prefs = loadStudioBgPreferences();
+    return prefs.textColorOverride || 'auto';
+  });
+  const [bgVeilOpacity, setBgVeilOpacity] = useState<number>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.bgVeilOpacity === 'number' ? prefs.bgVeilOpacity : 0.25;
+  });
 
   const [showArabic, setShowArabic] = useState<boolean>(true);
   const [useTajweed, setUseTajweed] = useState<boolean>(true);
@@ -230,7 +252,54 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   useWakeLock(isOpen && stage !== 'setup');
 
-  // Sync defaults on open (preserve any custom user uploads during session)
+  // Load persistent media library from site storage (IndexedDB + Server Vault) when studio opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setIsLoadingLibrary(true);
+    loadStudioMediaLibrary()
+      .then((items) => {
+        if (!active) {
+          for (const it of items) {
+            try {
+              URL.revokeObjectURL(it.url);
+            } catch {}
+          }
+          return;
+        }
+        // Revoke previous object URLs before replacing
+        for (const prev of customMediaRef.current) {
+          try {
+            URL.revokeObjectURL(prev.url);
+          } catch {}
+        }
+        setCustomMedia(items);
+        const prefs = loadStudioBgPreferences();
+        if (prefs.bgId) {
+          const existsInCustom = items.some((m) => m.id === prefs.bgId);
+          const existsInBuiltIn =
+            STUDIO_SOLID_BACKGROUNDS.some((s) => s.id === prefs.bgId) ||
+            MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === prefs.bgId) ||
+            STUDIO_4K_BACKGROUNDS.some((b) => b.id === prefs.bgId);
+          if (existsInCustom || existsInBuiltIn) {
+            setBgId(prefs.bgId);
+          }
+        }
+      })
+      .finally(() => {
+        if (active) setIsLoadingLibrary(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
+  // Persist user's active background selection & contrast choices across future sessions
+  useEffect(() => {
+    saveStudioBgPreferences({ bgId, textColorOverride, bgVeilOpacity });
+  }, [bgId, textColorOverride, bgVeilOpacity]);
+
+  // Sync Surah / Reciter defaults on open without clobbering saved custom backgrounds
   useEffect(() => {
     if (!isOpen) return;
     setSurahNum(initialSurahNum || 1);
@@ -241,15 +310,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     setStartAyah(start);
     setEndAyah(end);
     setReciterId(initialReciter?.id || 'mishary');
-    if (
-      STUDIO_SOLID_BACKGROUNDS.some((s) => s.id === initialBgId) ||
-      MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === initialBgId) ||
-      STUDIO_4K_BACKGROUNDS.some((b) => b.id === initialBgId)
-    ) {
-      setBgId(initialBgId);
-    }
     setStage('setup');
-  }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id, initialBgId]);
+  }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id]);
 
   const surahMeta: CompleteSurahItem = useMemo(
     () => ALL_114_SURAHS.find((s) => s.number === surahNum) || ALL_114_SURAHS[0],
@@ -345,6 +407,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       name: m.name,
       url: m.url,
       kind: m.kind,
+      sizeBytes: m.sizeBytes,
       isCustom: true,
     }));
     const verticalCards = MOBILE_VERTICAL_BACKGROUNDS.map((b) => ({
@@ -387,36 +450,30 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [selectedVerses, measuredDurations, paceMultiplier]
   );
 
-  const handleImportDeviceMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportDeviceMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
 
-    const added: CustomBackgroundMedia[] = [];
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
-      const isVideo =
-        file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v|ogv)$/i.test(file.name);
-      const isImage =
-        file.type.startsWith('image/') ||
-        /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i.test(file.name);
-      if (!isVideo && !isImage) continue;
+    setIsSavingMedia(true);
+    try {
+      const added: CustomBackgroundMedia[] = [];
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const saved = await saveStudioMediaFile(file, i);
+        if (saved) {
+          added.push(saved);
+        }
+      }
 
-      const url = URL.createObjectURL(file);
-      const cleanName = file.name.replace(/\.[^.]+$/, '') || (isVideo ? 'Vidéo importée' : 'Image importée');
-      added.push({
-        id: `custom_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
-        name: cleanName,
-        kind: isVideo ? 'video' : 'image',
-        url,
-      });
+      if (added.length > 0) {
+        setCustomMedia((prev) => [...added, ...prev]);
+        setBgId(added[0].id);
+        setBgFilter('custom');
+      }
+    } finally {
+      setIsSavingMedia(false);
+      e.target.value = '';
     }
-
-    if (added.length > 0) {
-      setCustomMedia((prev) => [...added, ...prev]);
-      setBgId(added[0].id);
-      setBgFilter('custom');
-    }
-    e.target.value = '';
   };
 
   const handleRemoveCustomMedia = (id: string) => {
@@ -427,6 +484,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       }
       return prev.filter((m) => m.id !== id);
     });
+    deleteStudioMediaItem(id).catch(() => {});
     if (bgId === id) {
       setBgId('mobile_noir_minimal');
     }
@@ -1679,19 +1737,40 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3 scroll-mt-2"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5" />
-                <span>3. Fond 9:16 &amp; Médias Appareil</span>
-              </span>
+              <div>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>3. Fond 9:16 &amp; Bibliothèque du Site</span>
+                </span>
+                <p
+                  data-testid="studio-library-status"
+                  className="text-[11px] text-neutral-400 mt-0.5"
+                >
+                  {isSavingMedia
+                    ? 'Enregistrement dans la bibliothèque du site...'
+                    : isLoadingLibrary
+                    ? 'Chargement de vos médias enregistrés...'
+                    : customMedia.length > 0
+                    ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} stocké${customMedia.length > 1 ? 's' : ''} sur le site (${formatStudioBytes(
+                        customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
+                      )}) • Réutilisable à tout moment`
+                    : 'Vos images & vidéos importées sont stockées sur le site pour vos prochaines vidéos'}
+                </p>
+              </div>
 
               <button
                 type="button"
                 data-testid="studio-upload-media-btn"
+                disabled={isSavingMedia}
                 onClick={() => mediaFileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-[11px] shadow-md cursor-pointer transition active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-[11px] shadow-md cursor-pointer transition active:scale-95 disabled:opacity-60"
               >
-                <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Importer Image / Vidéo</span>
+                {isSavingMedia ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+                <span>Importer &amp; Sauvegarder</span>
               </button>
             </div>
 
@@ -1780,10 +1859,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               >
                 <Upload className="w-5 h-5 text-emerald-400 mx-auto" />
                 <div className="text-xs font-bold text-white">
-                  Appuyez ici pour choisir une image ou une vidéo de votre appareil
+                  Appuyez ici pour importer et sauvegarder vos images ou vidéos
                 </div>
                 <div className="text-[11px] text-neutral-400">
-                  Formats supportés : JPG, PNG, WEBP, MP4, WEBM, MOV (adaptés automatiquement en 9:16)
+                  Vos fichiers restent enregistrés dans cette bibliothèque du site pour les prochaines utilisations.
                 </div>
               </button>
             )}

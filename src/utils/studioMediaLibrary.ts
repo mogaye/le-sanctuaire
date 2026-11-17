@@ -1,0 +1,393 @@
+export type StudioMediaKind = 'image' | 'video';
+
+export interface StoredStudioMediaRecord {
+  id: string;
+  name: string;
+  kind: StudioMediaKind;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: number;
+  blob: Blob;
+  syncedToServer?: boolean;
+  serverUrl?: string;
+}
+
+export interface StudioMediaSummary {
+  id: string;
+  name: string;
+  kind: StudioMediaKind;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: number;
+  url?: string;
+  syncedToServer?: boolean;
+}
+
+export interface HydratedStudioMediaItem {
+  id: string;
+  name: string;
+  kind: StudioMediaKind;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: number;
+  url: string;
+  syncedToServer: boolean;
+}
+
+const DB_NAME = 'le_sanctuaire_studio_db';
+const DB_VERSION = 1;
+const STORE_NAME = 'custom_media';
+const CLIENT_ID_KEY = 'sanctuaire_studio_client_id';
+const PREFS_KEY = 'sanctuaire_studio_bg_prefs_v1';
+
+export interface StudioBgPreferences {
+  bgId?: string;
+  textColorOverride?: 'auto' | 'light' | 'dark';
+  bgVeilOpacity?: number;
+}
+
+export function loadStudioBgPreferences(): StudioBgPreferences {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(PREFS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveStudioBgPreferences(prefs: StudioBgPreferences): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+export function classifyStudioMediaFile(
+  fileName: string,
+  mimeType: string
+): StudioMediaKind | null {
+  const mime = (mimeType || '').toLowerCase();
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('image/')) return 'image';
+
+  const lower = (fileName || '').toLowerCase();
+  if (/\.(mp4|webm|mov|m4v|ogv)$/.test(lower)) return 'video';
+  if (/\.(png|jpe?g|webp|gif|bmp|avif|svg)$/.test(lower)) return 'image';
+  return null;
+}
+
+export function formatStudioBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 Ko';
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+export function sanitizeStudioOwnerKey(rawOwner?: string | null): string {
+  const clean = String(rawOwner || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_@.-]/g, '_');
+  return clean ? clean.slice(0, 80) : 'default_local';
+}
+
+export function getActiveStudioOwnerKey(): string {
+  if (typeof window === 'undefined') return 'default_local';
+  try {
+    const savedUser = window.localStorage.getItem('sanctuaire_user');
+    if (savedUser) {
+      const parsed = JSON.parse(savedUser);
+      if (parsed?.email) {
+        return sanitizeStudioOwnerKey(parsed.email);
+      }
+    }
+  } catch {
+    // ignore malformed user JSON
+  }
+
+  try {
+    let clientId = window.localStorage.getItem(CLIENT_ID_KEY);
+    if (!clientId) {
+      clientId = `browser_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      window.localStorage.setItem(CLIENT_ID_KEY, clientId);
+    }
+    return sanitizeStudioOwnerKey(clientId);
+  } catch {
+    return 'default_local';
+  }
+}
+
+export function mergeAndSortMediaSummaries(
+  localItems: StudioMediaSummary[],
+  remoteItems: StudioMediaSummary[]
+): StudioMediaSummary[] {
+  const map = new Map<string, StudioMediaSummary>();
+  for (const r of remoteItems) {
+    if (r?.id) map.set(r.id, { ...r, syncedToServer: true });
+  }
+  for (const l of localItems) {
+    if (!l?.id) continue;
+    const existing = map.get(l.id);
+    map.set(l.id, {
+      ...l,
+      syncedToServer: Boolean(l.syncedToServer || existing),
+      url: l.url || existing?.url,
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+function openStudioMediaDb(): Promise<IDBDatabase | null> {
+  if (typeof indexedDB === 'undefined') {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function getAllLocalMediaRecords(): Promise<StoredStudioMediaRecord[]> {
+  const db = await openStudioMediaDb();
+  if (!db) return [];
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const list = Array.isArray(req.result) ? req.result : [];
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        resolve(list);
+      };
+      req.onerror = () => resolve([]);
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
+async function putLocalMediaRecord(record: StoredStudioMediaRecord): Promise<boolean> {
+  const db = await openStudioMediaDb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.put(record);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function deleteLocalMediaRecord(id: string): Promise<boolean> {
+  const db = await openStudioMediaDb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+async function uploadMediaBlobToServer(
+  record: StoredStudioMediaRecord,
+  ownerKey: string
+): Promise<string | null> {
+  if (typeof fetch === 'undefined') return null;
+  try {
+    const res = await fetch('/api/studio-media', {
+      method: 'POST',
+      headers: {
+        'Content-Type': record.mimeType || 'application/octet-stream',
+        'x-media-id': record.id,
+        'x-media-name': encodeURIComponent(record.name),
+        'x-media-kind': record.kind,
+        'x-media-mime': record.mimeType || '',
+        'x-media-created': String(record.createdAt),
+        'x-media-owner': encodeURIComponent(ownerKey),
+      },
+      body: record.blob,
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data?.item?.url || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveStudioMediaFile(
+  file: File,
+  indexSeed: number = 0
+): Promise<HydratedStudioMediaItem | null> {
+  const kind = classifyStudioMediaFile(file.name, file.type);
+  if (!kind) return null;
+
+  const cleanName =
+    file.name.replace(/\.[^.]+$/, '') || (kind === 'video' ? 'Vidéo importée' : 'Image importée');
+  const id = `media_${Date.now()}_${indexSeed}_${Math.random().toString(36).slice(2, 7)}`;
+  const mimeType =
+    file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg');
+  const createdAt = Date.now();
+  const ownerKey = getActiveStudioOwnerKey();
+
+  const record: StoredStudioMediaRecord = {
+    id,
+    name: cleanName,
+    kind,
+    mimeType,
+    sizeBytes: file.size || file.size === 0 ? file.size : 0,
+    createdAt,
+    blob: file,
+    syncedToServer: false,
+  };
+
+  // 1. Persist immediately into IndexedDB so it stays on this site forever
+  await putLocalMediaRecord(record);
+
+  // 2. Sync to server vault so it's also stored remotely on the site (best-effort up to 50MB)
+  let syncedToServer = false;
+  if (record.sizeBytes <= 50 * 1024 * 1024) {
+    const serverUrl = await uploadMediaBlobToServer(record, ownerKey);
+    if (serverUrl) {
+      syncedToServer = true;
+      record.syncedToServer = true;
+      record.serverUrl = serverUrl;
+      await putLocalMediaRecord(record);
+    }
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    kind: record.kind,
+    mimeType: record.mimeType,
+    sizeBytes: record.sizeBytes,
+    createdAt: record.createdAt,
+    url: URL.createObjectURL(file),
+    syncedToServer,
+  };
+}
+
+export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[]> {
+  const ownerKey = getActiveStudioOwnerKey();
+  const localRecords = await getAllLocalMediaRecords();
+  const localById = new Map<string, StoredStudioMediaRecord>();
+  for (const rec of localRecords) {
+    if (rec?.id && rec.blob) {
+      localById.set(rec.id, rec);
+    }
+  }
+
+  // Also check server-side saved library for cross-session/cross-device recovery
+  let remoteSummaries: StudioMediaSummary[] = [];
+  try {
+    const res = await fetch(`/api/studio-media?owner=${encodeURIComponent(ownerKey)}`);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data?.items)) {
+        remoteSummaries = data.items;
+      }
+    }
+  } catch {
+    // offline or static environment: local IndexedDB still works 100%
+  }
+
+  // Hydrate any server-only item down into local IndexedDB so playback/canvas capture stays fast & same-origin
+  for (const remote of remoteSummaries) {
+    if (!remote?.id || localById.has(remote.id) || !remote.url) continue;
+    try {
+      const fileRes = await fetch(remote.url);
+      if (fileRes.ok) {
+        const blob = await fileRes.blob();
+        if (blob.size > 0) {
+          const downloaded: StoredStudioMediaRecord = {
+            id: remote.id,
+            name: remote.name,
+            kind: remote.kind,
+            mimeType: remote.mimeType || blob.type || (remote.kind === 'video' ? 'video/mp4' : 'image/jpeg'),
+            sizeBytes: blob.size,
+            createdAt: remote.createdAt || Date.now(),
+            blob,
+            syncedToServer: true,
+            serverUrl: remote.url,
+          };
+          await putLocalMediaRecord(downloaded);
+          localById.set(downloaded.id, downloaded);
+        }
+      }
+    } catch {
+      // skip failing item
+    }
+  }
+
+  // Background-push any local-only record to server vault silently if not yet synced
+  for (const rec of localById.values()) {
+    if (!rec.syncedToServer && rec.sizeBytes <= 50 * 1024 * 1024) {
+      uploadMediaBlobToServer(rec, ownerKey)
+        .then((serverUrl) => {
+          if (serverUrl) {
+            rec.syncedToServer = true;
+            rec.serverUrl = serverUrl;
+            putLocalMediaRecord(rec).catch(() => {});
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
+  const hydrated: HydratedStudioMediaItem[] = Array.from(localById.values())
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .map((rec) => ({
+      id: rec.id,
+      name: rec.name,
+      kind: rec.kind,
+      mimeType: rec.mimeType,
+      sizeBytes: rec.sizeBytes,
+      createdAt: rec.createdAt,
+      url: URL.createObjectURL(rec.blob),
+      syncedToServer: Boolean(rec.syncedToServer),
+    }));
+
+  return hydrated;
+}
+
+export async function deleteStudioMediaItem(id: string): Promise<void> {
+  const ownerKey = getActiveStudioOwnerKey();
+  await deleteLocalMediaRecord(id);
+  try {
+    await fetch(`/api/studio-media/${encodeURIComponent(ownerKey)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch {
+    // ignore remote delete error when offline
+  }
+}

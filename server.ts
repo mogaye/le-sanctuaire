@@ -1216,6 +1216,151 @@ async function startServer() {
   });
 
   // ============================================================================
+  // 3.7. PERSISTENT STUDIO MEDIA LIBRARY VAULT (Images & Videos saved on site)
+  // ============================================================================
+
+  const studioVaultRoot = path.join(process.cwd(), '.studio-media-vault');
+
+  const safeVaultOwner = (raw: any): string =>
+    String(raw || 'default_local')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_@.-]/g, '_')
+      .slice(0, 80) || 'default_local';
+
+  const safeVaultId = (raw: any): string =>
+    String(raw || '')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(0, 80);
+
+  app.get('/api/studio-media', async (req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const owner = safeVaultOwner(req.query.owner);
+      const manifestPath = path.join(studioVaultRoot, owner, 'manifest.json');
+      const raw = await fs.readFile(manifestPath, 'utf-8').catch(() => '[]');
+      const list = JSON.parse(raw);
+      return res.json({ items: Array.isArray(list) ? list : [] });
+    } catch {
+      return res.json({ items: [] });
+    }
+  });
+
+  app.post(
+    '/api/studio-media',
+    express.raw({ type: '*/*', limit: '55mb' }),
+    async (req, res) => {
+      try {
+        const fs = await import('fs/promises');
+        const owner = safeVaultOwner(decodeURIComponent(String(req.headers['x-media-owner'] || 'default_local')));
+        const id = safeVaultId(req.headers['x-media-id']) || `media_${Date.now()}`;
+        const rawName = String(req.headers['x-media-name'] || 'Media');
+        let name = rawName;
+        try {
+          name = decodeURIComponent(rawName);
+        } catch {}
+        const kind = req.headers['x-media-kind'] === 'video' ? 'video' : 'image';
+        const mimeType = String(
+          req.headers['x-media-mime'] ||
+            req.headers['content-type'] ||
+            (kind === 'video' ? 'video/mp4' : 'image/jpeg')
+        );
+        const createdAt = Number(req.headers['x-media-created']) || Date.now();
+        const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+
+        if (bodyBuf.length === 0) {
+          return res.status(400).json({ error: 'Empty media payload' });
+        }
+
+        const ownerDir = path.join(studioVaultRoot, owner);
+        await fs.mkdir(ownerDir, { recursive: true });
+        await fs.writeFile(path.join(ownerDir, `${id}.bin`), bodyBuf);
+
+        const manifestPath = path.join(ownerDir, 'manifest.json');
+        const existingRaw = await fs.readFile(manifestPath, 'utf-8').catch(() => '[]');
+        let manifest: any[] = [];
+        try {
+          const parsed = JSON.parse(existingRaw);
+          if (Array.isArray(parsed)) manifest = parsed;
+        } catch {}
+
+        const item = {
+          id,
+          name: name.slice(0, 120),
+          kind,
+          mimeType,
+          sizeBytes: bodyBuf.length,
+          createdAt,
+          url: `/api/studio-media/file/${encodeURIComponent(owner)}/${encodeURIComponent(id)}`,
+        };
+
+        manifest = [item, ...manifest.filter((m) => m?.id !== id)];
+        await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+        return res.json({ ok: true, item });
+      } catch (err: any) {
+        console.error('Failed saving studio media:', err);
+        return res.status(500).json({ error: 'Failed to store studio media' });
+      }
+    }
+  );
+
+  app.get('/api/studio-media/file/:owner/:id', async (req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const owner = safeVaultOwner(req.params.owner);
+      const id = safeVaultId(req.params.id);
+      if (!id) return res.status(400).end();
+
+      const ownerDir = path.join(studioVaultRoot, owner);
+      const filePath = path.join(ownerDir, `${id}.bin`);
+      const manifestRaw = await fs.readFile(path.join(ownerDir, 'manifest.json'), 'utf-8').catch(() => '[]');
+      let mimeType = 'application/octet-stream';
+      try {
+        const list = JSON.parse(manifestRaw);
+        const found = Array.isArray(list) ? list.find((m: any) => m?.id === id) : null;
+        if (found?.mimeType) mimeType = found.mimeType;
+      } catch {}
+
+      const stat = await fs.stat(filePath);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', String(stat.size));
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Cache-Control', 'public, max-age=31536000');
+      return res.sendFile(filePath);
+    } catch {
+      return res.status(404).json({ error: 'Media not found' });
+    }
+  });
+
+  app.delete('/api/studio-media/:owner/:id', async (req, res) => {
+    try {
+      const fs = await import('fs/promises');
+      const owner = safeVaultOwner(req.params.owner);
+      const id = safeVaultId(req.params.id);
+      if (!id) return res.status(400).json({ error: 'Invalid id' });
+
+      const ownerDir = path.join(studioVaultRoot, owner);
+      await fs.unlink(path.join(ownerDir, `${id}.bin`)).catch(() => {});
+
+      const manifestPath = path.join(ownerDir, 'manifest.json');
+      const existingRaw = await fs.readFile(manifestPath, 'utf-8').catch(() => '[]');
+      try {
+        const list = JSON.parse(existingRaw);
+        if (Array.isArray(list)) {
+          const updated = list.filter((m: any) => m?.id !== id);
+          await fs.writeFile(manifestPath, JSON.stringify(updated, null, 2), 'utf-8');
+        }
+      } catch {}
+
+      return res.json({ ok: true });
+    } catch {
+      return res.status(500).json({ error: 'Failed to delete media' });
+    }
+  });
+
+  // ============================================================================
   // 4. PAYDUNYA INVOICE CREATION ROUTE
   // ============================================================================
 
