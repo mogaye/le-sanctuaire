@@ -36,6 +36,7 @@ import {
   Eye,
   Moon,
   Sun,
+  Film,
 } from 'lucide-react';
 import { CompleteSurahItem, ALL_114_SURAHS } from '../data/quranSurahs';
 import { SURAH_ENGLISH_TITLES } from '../data/surahEnglishTitles';
@@ -48,6 +49,7 @@ import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
 import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUtils';
 import { toggleQuranFavorite } from '../lib/supabase';
 import { QuranCinematicReader } from './QuranCinematicReader';
+import { MobileVerseVideoStudio } from './MobileVerseVideoStudio';
 import { cleanAyahArabic } from '../utils/tajweedColorizer';
 import { getAyahAudioUrl, getSurahAudioUrl } from '../utils/quranAudioUtils';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -268,11 +270,12 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     return null;
   });
 
-  // Immersive Cinematic Fullscreen Reader State
+  // Immersive Cinematic Fullscreen Reader State & Mobile Video Studio
   const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(() => Boolean(startInCinematic));
+  const [isMobileVideoStudioOpen, setIsMobileVideoStudioOpen] = useState<boolean>(false);
 
   // Screen Wake Lock : Empêche la mise en veille de l'écran pendant la lecture et la récitation
-  useWakeLock(isPlayingAudio || isCinematicReaderOpen);
+  useWakeLock(isPlayingAudio || isCinematicReaderOpen || isMobileVideoStudioOpen);
 
   const handleOpenCinematic = async () => {
     try {
@@ -1010,28 +1013,26 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           TOP NAVIGATION BAR
          ======================================================== */}
       <header
-        className={`shrink-0 z-30 w-full px-2.5 sm:px-6 md:px-8 py-2 sm:py-3 border-b ${themeClasses.border} flex items-center justify-between gap-1.5 sm:gap-4 ${themeClasses.headerBg} backdrop-blur-md select-none shadow-2xs transition-colors`}
+        className={`shrink-0 z-30 w-full px-2 sm:px-6 md:px-8 py-2 sm:py-3 border-b ${themeClasses.border} flex items-center justify-between gap-1 sm:gap-4 ${themeClasses.headerBg} backdrop-blur-md select-none shadow-2xs transition-colors overflow-hidden`}
       >
           {/* Left: Brand Name, Quran Title, Sidebar Toggle & Reading Mode */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-3 min-w-0">
             {/* Brand Logo & Name: Le Sanctuaire (returns to home) */}
             <button
               id="btn-brand-logo-quran"
               onClick={onBackToHome}
-              className="inline-flex items-center gap-2 bg-white/95 dark:bg-[#183022] hover:bg-white dark:hover:bg-[#20402E] text-neutral-900 dark:text-white text-xs sm:text-sm font-bold px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-full border border-neutral-200/80 dark:border-emerald-700/50 shadow-xs hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95 shrink-0 whitespace-nowrap"
+              aria-label="Accueil Le Sanctuaire"
+              className="inline-flex items-center gap-1.5 sm:gap-2 bg-white/95 dark:bg-[#183022] hover:bg-white dark:hover:bg-[#20402E] text-neutral-900 dark:text-white text-xs sm:text-sm font-bold p-1.5 sm:px-3.5 sm:py-2 rounded-full border border-neutral-200/80 dark:border-emerald-700/50 shadow-xs hover:border-emerald-500/40 transition-all cursor-pointer group active:scale-95 shrink-0 whitespace-nowrap"
               title="Retour à l'accueil Le Sanctuaire"
             >
               <img
                 src="/images/sanctuaire_logo.jpg"
                 alt="Logo Le Sanctuaire"
                 referrerPolicy="no-referrer"
-                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover ring-1 ring-emerald-600/40 group-hover:scale-105 transition-transform shrink-0"
+                className="w-5 h-5 rounded-full object-cover ring-1 ring-emerald-600/40 group-hover:scale-105 transition-transform shrink-0"
               />
               <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none hidden sm:inline">
                 Le Sanctuaire
-              </span>
-              <span className="text-neutral-950 dark:text-white font-extrabold tracking-tight select-none sm:hidden text-xs">
-                Accueil
               </span>
             </button>
 
@@ -1090,7 +1091,8 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                 backgroundColor: isDark ? '#193226' : '#FFFFFF',
                 opacity: 1,
               }}
-              className={`lg:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold cursor-pointer shrink-0 shadow-xs ${
+              aria-label={`Changer de sourate (${currentSurahMeta.number}. ${currentSurahMeta.name})`}
+              className={`lg:hidden inline-flex items-center gap-1 px-2 py-1.5 rounded-xl border text-[11px] font-bold cursor-pointer shrink-0 shadow-xs ${
                 isDark
                   ? 'bg-[#193226] text-emerald-200 border-emerald-500/40 hover:bg-emerald-950'
                   : 'bg-white text-neutral-800 border-neutral-300 hover:bg-neutral-100'
@@ -1098,15 +1100,16 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               title="Menu déroulant des sourates"
             >
               <Menu className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-              <span className="max-w-[92px] sm:max-w-[140px] truncate">
+              <span className="sm:hidden font-mono">{currentSurahMeta.number}</span>
+              <span className="hidden sm:inline max-w-[140px] truncate">
                 {currentSurahMeta.number}. {currentSurahMeta.name}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-80" />
+              <ChevronDown className="w-3 h-3 shrink-0 opacity-80" />
             </button>
 
             {/* Reading Mode Switcher Pill */}
             <div
-              className={`flex items-center rounded-xl p-0.5 text-[11px] sm:text-xs font-semibold border shrink-0 ml-0.5 sm:ml-1 ${
+              className={`flex items-center rounded-xl p-0.5 text-[11px] sm:text-xs font-semibold border shrink-0 ${
                 isDark
                   ? 'bg-[#14281E] border-emerald-500/25 text-neutral-300'
                   : 'bg-neutral-100 border-neutral-200/60 text-neutral-600'
@@ -1114,7 +1117,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
             >
               <button
                 onClick={() => setReadingMode('verseByVerse')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 rounded-lg transition-all cursor-pointer ${
                   readingMode === 'verseByVerse'
                     ? isDark
                       ? 'bg-emerald-800 text-white shadow-xs font-bold'
@@ -1124,13 +1127,13 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                     : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
-                <BookText className="w-3.5 h-3.5 shrink-0" />
+                <BookText className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Étude & Traduction</span>
                 <span className="sm:hidden">Étude</span>
               </button>
               <button
                 onClick={() => setReadingMode('mushaf')}
-                className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1 rounded-lg transition-all cursor-pointer ${
                   readingMode === 'mushaf'
                     ? isDark
                       ? 'bg-emerald-800 text-white shadow-xs font-bold'
@@ -1140,16 +1143,17 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                     : 'text-neutral-600 hover:text-neutral-900'
                 }`}
               >
-                <Layers className="w-3.5 h-3.5 shrink-0" />
+                <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Page Mushaf</span>
                 <span className="sm:hidden">Mushaf</span>
               </button>
             </div>
 
-            {/* Cinematic Fullscreen Trigger */}
+            {/* Cinematic Fullscreen Trigger (Desktop/Tablet header; mobile uses prominent Cinéma 4K in Surah banner right below) */}
             <button
               onClick={handleOpenCinematic}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
+              aria-label="Mode Cinéma 9:16"
+              className="hidden sm:flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-[11px] sm:text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
               title="Activer le mode de lecture plein écran immersif et cinématique (sans onglets ni barres)"
             >
               <Maximize2 className="w-3.5 h-3.5" />
@@ -1300,7 +1304,20 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                   className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
                 >
                   <Maximize2 className="w-4 h-4 stroke-[2.4]" />
-                  <span>Ouvrir en Plein Écran Cinématique (4K)</span>
+                  <span>Ouvrir en Plein Écran Cinématique (9:16)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileSidebarOpen(false);
+                    stopAudio();
+                    setIsMobileVideoStudioOpen(true);
+                  }}
+                  className="md:hidden w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
+                >
+                  <Film className="w-4 h-4 stroke-[2.4]" />
+                  <span>Créer Vidéo Continue de Versets (9:16)</span>
                 </button>
               </div>
             )}
@@ -1585,6 +1602,10 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               isDark={isDark}
               onOpenSurahSelector={() => setIsMobileSidebarOpen(true)}
               onOpenCinematic={handleOpenCinematic}
+              onOpenMobileVideoStudio={() => {
+                stopAudio();
+                setIsMobileVideoStudioOpen(true);
+              }}
             />
 
             {/* Centered Classic Bismillah Calligraphy (Shown for all except At-Tawbah 9) */}
@@ -2566,6 +2587,20 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         onSelectSurah={(num) => handleSelectSurah(num)}
         getAyahAudioUrl={getAyahAudioUrl}
       />
+
+      {/* Mobile-Only Continuous Verse Video Creator Studio */}
+      {isMobileVideoStudioOpen && (
+        <div className="md:hidden">
+          <MobileVerseVideoStudio
+            isOpen={isMobileVideoStudioOpen}
+            onClose={() => setIsMobileVideoStudioOpen(false)}
+            initialSurahNum={selectedSurahNumber}
+            initialStartAyah={activeAyahNum}
+            initialReciter={selectedReciter}
+            onSyncReciter={onSelectReciter}
+          />
+        </div>
+      )}
     </div>
   );
 };

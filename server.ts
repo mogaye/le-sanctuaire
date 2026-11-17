@@ -1177,6 +1177,45 @@ async function startServer() {
   });
 
   // ============================================================================
+  // 3.6. SAME-ORIGIN QURAN AUDIO PROXY (Enables gapless Web Audio & 9:16 Video Export)
+  // ============================================================================
+
+  app.get('/api/quran-audio', async (req, res) => {
+    try {
+      const surah = Math.floor(Number(req.query.surah));
+      const ayah = Math.floor(Number(req.query.ayah));
+      const reciter = String(req.query.reciter || 'mishary').trim();
+
+      if (!Number.isFinite(surah) || surah < 1 || surah > 114) {
+        return res.status(400).json({ error: 'Invalid surah number (1-114)' });
+      }
+      if (!Number.isFinite(ayah) || ayah < 1 || ayah > 286) {
+        return res.status(400).json({ error: 'Invalid ayah number (1-286)' });
+      }
+      if (!/^[a-z0-9_]{1,40}$/.test(reciter)) {
+        return res.status(400).json({ error: 'Invalid reciter id' });
+      }
+
+      const { getAyahAudioUrl } = await import('./src/utils/quranAudioUtils.ts');
+      const targetUrl = getAyahAudioUrl(surah, ayah, reciter);
+
+      const upstream = await fetch(targetUrl);
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({ error: 'Upstream audio fetch failed' });
+      }
+
+      const arrayBuf = await upstream.arrayBuffer();
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.send(Buffer.from(arrayBuf));
+    } catch (error: any) {
+      console.error('Error proxying quran audio:', error);
+      return res.status(502).json({ error: 'Failed to fetch quran audio' });
+    }
+  });
+
+  // ============================================================================
   // 4. PAYDUNYA INVOICE CREATION ROUTE
   // ============================================================================
 

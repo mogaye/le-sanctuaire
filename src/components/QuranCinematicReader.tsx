@@ -24,6 +24,7 @@ import {
   Layers,
   Search,
   Sun,
+  Film,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
@@ -37,10 +38,8 @@ import {
   isLightCinematicSurface,
   isMobileViewport,
 } from '../utils/cinematicLayoutUtils';
-import mobileNoirMinimalImg from '../assets/images/mobile_noir_minimal_916_1794914415661.jpg';
-import mobileNoirVelvetImg from '../assets/images/mobile_noir_velvet_916_1794914417829.jpg';
-import mobileBlancMinimalImg from '../assets/images/mobile_blanc_minimal_916_1794914417723.jpg';
-import mobileBlancMarbreImg from '../assets/images/mobile_blanc_marbre_916_1794914417486.jpg';
+import { MOBILE_VERTICAL_BACKGROUNDS } from '../data/mobileCinematicBackgrounds';
+import { MobileVerseVideoStudio } from './MobileVerseVideoStudio';
 
 interface AyahData {
   num: number;
@@ -307,41 +306,8 @@ export interface CinematicBackground {
   polarity?: 'dark' | 'light';
 }
 
-// Mobile-only 9:16 vertical pure black & pure white backgrounds engineered for zero visual clutter behind text
-export const MOBILE_VERTICAL_BACKGROUNDS: CinematicBackground[] = [
-  {
-    id: 'mobile_noir_minimal',
-    name: 'Noir Pur & Liseré Or (9:16)',
-    category: 'noir',
-    url: mobileNoirMinimalImg,
-    recommendedTheme: 'oled',
-    polarity: 'dark',
-  },
-  {
-    id: 'mobile_noir_velvet',
-    name: 'Noir Velours & Arabesques (9:16)',
-    category: 'noir',
-    url: mobileNoirVelvetImg,
-    recommendedTheme: 'oled',
-    polarity: 'dark',
-  },
-  {
-    id: 'mobile_blanc_minimal',
-    name: 'Blanc Pur & Liseré Or (9:16)',
-    category: 'blanc',
-    url: mobileBlancMinimalImg,
-    recommendedTheme: 'pure_white',
-    polarity: 'light',
-  },
-  {
-    id: 'mobile_blanc_marbre',
-    name: 'Blanc Albâtre & Ogive (9:16)',
-    category: 'blanc',
-    url: mobileBlancMarbreImg,
-    recommendedTheme: 'pure_white',
-    polarity: 'light',
-  },
-];
+// Re-export mobile 9:16 backgrounds catalog (20 curated pure black & pure white images)
+export { MOBILE_VERTICAL_BACKGROUNDS };
 
 export const CINEMATIC_BACKGROUNDS: CinematicBackground[] = [
   // Émeraude & Nuit (4K)
@@ -488,6 +454,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
   const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
   const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
+  const [isVideoStudioOpen, setIsVideoStudioOpen] = useState<boolean>(false);
 
   // Fullscreen State (Tracks browser native fullscreen + pure immersive fullscreen on iOS/mobile)
   const [isNativeFullscreen, setIsNativeFullscreen] = useState<boolean>(() => {
@@ -651,6 +618,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     setIsReciterPickerOpen(false);
     setIsAppearanceModalOpen(false);
     setIsTajweedGuideOpen(false);
+    setIsVideoStudioOpen(false);
   };
 
   const handleChooseSurah = (num: number) => {
@@ -916,7 +884,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     isSurahPickerOpen ||
     isReciterPickerOpen ||
     isAppearanceModalOpen ||
-    isTajweedGuideOpen;
+    isTajweedGuideOpen ||
+    isVideoStudioOpen;
 
   // Auto-hide HUD icons after 3.5 seconds of inactivity (and immediately on fullscreen)
   const resetHudTimer = (forceShow: boolean = true) => {
@@ -1336,7 +1305,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }`}
       >
         {/* Left Floating Icons: Surah & Reciter */}
-        <div className={`flex items-center gap-2 min-w-0 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+        <div className={`flex items-center gap-1.5 sm:gap-2 min-w-0 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {/* Surah Quick Picker Button */}
           <button
             onClick={(e) => {
@@ -1345,11 +1314,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               setIsSurahPickerOpen(true);
             }}
             aria-label={`Changer de sourate : ${currentSurahMeta.number}. ${currentSurahMeta.name}`}
-            className="h-9 sm:h-10 px-3 rounded-full bg-black/65 hover:bg-black/80 text-amber-300 border border-white/25 backdrop-blur-xl flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer min-w-0"
+            className="h-9 sm:h-10 px-2.5 sm:px-3 rounded-full bg-black/65 hover:bg-black/80 text-amber-300 border border-white/25 backdrop-blur-xl flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer min-w-0"
             title={`Sourate ${currentSurahMeta.number}. ${currentSurahMeta.name} (cliquer pour changer)`}
           >
-            <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
-            <span className="text-xs font-mono font-bold text-white tracking-tight max-w-[120px] sm:max-w-none truncate">
+            <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+            <span className="text-[11px] sm:text-xs font-mono font-bold text-white tracking-tight max-w-[104px] sm:max-w-none truncate">
               {currentSurahMeta.number}. {currentSurahMeta.name}
             </span>
           </button>
@@ -1362,15 +1331,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               setIsReciterPickerOpen(true);
             }}
             aria-label={`Choisir le récitateur : ${selectedReciter.name}`}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/65 hover:bg-black/80 text-white/90 hover:text-white border border-white/25 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer shrink-0"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/65 hover:bg-black/80 text-white/90 hover:text-white border border-white/25 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer shrink-0"
             title={`Récitateur : ${selectedReciter.name} (cliquer pour changer)`}
           >
-            <Headphones className="w-4 h-4 text-amber-300" />
+            <Headphones className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300" />
           </button>
         </div>
 
         {/* Right Floating Icons: Plein Écran, Apparence & Réglages, Quitter */}
-        <div className={`flex items-center gap-1.5 sm:gap-2 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+        <div className={`flex items-center gap-1 sm:gap-2 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
 
           {/* Fullscreen Toggle (Covers the ENTIRE SCREEN in 9:16 vertical on mobile and hides all floating controls) */}
           <button
@@ -1396,6 +1365,28 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               <Maximize className="w-4 h-4 stroke-[2.4]" />
             )}
           </button>
+
+          {/* Mobile-only 9:16 Continuous Verse Video Creator */}
+          {isMobile && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (audioRef.current) {
+                  audioRef.current.pause();
+                }
+                setIsPlayingAudio(false);
+                closeAllPopovers();
+                setIsVideoStudioOpen(true);
+              }}
+              data-testid="cinematic-open-video-studio-btn"
+              aria-label="Créer une vidéo continue de versets"
+              className="h-9 px-2.5 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-[11px]"
+              title="Créer une vidéo 9:16 à partir de versets"
+            >
+              <Film className="w-3.5 h-3.5 shrink-0" />
+              <span>Vidéo</span>
+            </button>
+          )}
 
           {/* Unified Apparence & Réglages (Unites Theme, Backgrounds 4K, Tajweed, and Text Size) */}
           <button
@@ -2095,7 +2086,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                           : 'bg-white/5 hover:bg-white/10 text-neutral-300'
                       }`}
                     >
-                      Fonds Noirs (9:16)
+                      Noirs (10)
                     </button>
                     <button
                       onClick={() => setMobileBgCategoryFilter('blanc')}
@@ -2105,7 +2096,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                           : 'bg-white/5 hover:bg-white/10 text-neutral-200'
                       }`}
                     >
-                      Fonds Blancs (9:16)
+                      Blancs (10)
                     </button>
                   </div>
                 ) : (
@@ -2597,6 +2588,18 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         </div>
       )}
 
+      {/* Mobile-Only Continuous Verse Video Creator Studio */}
+      {isMobile && isVideoStudioOpen && (
+        <MobileVerseVideoStudio
+          isOpen={isVideoStudioOpen}
+          onClose={() => setIsVideoStudioOpen(false)}
+          initialSurahNum={currentSurahMeta.number}
+          initialStartAyah={currentAyah?.num || 1}
+          initialReciter={selectedReciter}
+          initialBgId={selectedMobileBgId}
+          onSyncReciter={onSelectReciter}
+        />
+      )}
     </div>
   );
 };

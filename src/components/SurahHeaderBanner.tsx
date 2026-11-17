@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Volume2, ChevronDown, Maximize2, Sparkles } from 'lucide-react';
+import { Play, Pause, Volume2, ChevronDown, Maximize2, Film } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 
 interface SurahHeaderBannerProps {
@@ -10,6 +10,7 @@ interface SurahHeaderBannerProps {
   isDark?: boolean;
   onOpenSurahSelector?: () => void;
   onOpenCinematic?: () => void;
+  onOpenMobileVideoStudio?: () => void;
 }
 
 export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
@@ -20,6 +21,7 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
   isDark = false,
   onOpenSurahSelector,
   onOpenCinematic,
+  onOpenMobileVideoStudio,
 }) => {
   return (
     <div
@@ -76,6 +78,21 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
                 <Maximize2 className="w-3.5 h-3.5 stroke-[2.3]" />
                 <span className="hidden sm:inline">Plein Écran Cinématique</span>
                 <span className="sm:hidden">Cinéma 4K</span>
+              </button>
+            )}
+            {onOpenMobileVideoStudio && (
+              <button
+                type="button"
+                data-testid="surah-banner-mobile-video-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenMobileVideoStudio();
+                }}
+                className="md:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
+                title="Créer une vidéo continue 9:16 à partir de versets"
+              >
+                <Film className="w-3.5 h-3.5 stroke-[2.3]" />
+                <span>Créer Vidéo</span>
               </button>
             )}
             {onOpenSurahSelector && (
