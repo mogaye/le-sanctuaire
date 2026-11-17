@@ -256,7 +256,7 @@ export interface ScheduledPlaybackHandle {
  * with micro-crossfade overlap so there is zero audible gap between verses.
  */
 export function scheduleContinuousAudioSequence(
-  audioCtx: AudioContext,
+  audioCtx: BaseAudioContext,
   decodedBuffers: DecodedVerseBuffer[],
   segmentStartTimesSec: number[],
   segmentDurationsSec: number[],

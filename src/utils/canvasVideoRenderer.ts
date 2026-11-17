@@ -4,9 +4,11 @@ import {
   computeContinuousScrollY,
   computeCoverDrawRect,
   findActiveTimelineEntry,
-  formatTimeMMSS,
   wrapTextLines,
 } from './mobileVideoStudioUtils';
+
+export const MANDATORY_WATERMARK_BRAND = 'Le Sanctuaire';
+export const MANDATORY_WATERMARK_TAGLINE = 'La Voie de la Sérénité';
 
 export interface VideoCanvasRenderOptions {
   width: number;
@@ -68,10 +70,12 @@ export function precomputeVideoCanvasLayout(
   ayahs: StudioAyahItem[],
   opts: VideoCanvasRenderOptions
 ): PrecomputedCanvasLayout {
+  const resScale = Math.max(0.5, opts.width / 720);
   const scaleFactor =
-    opts.textScale === 'compact' ? 0.88 : opts.textScale === 'grand' ? 1.14 : 1.0;
+    (opts.textScale === 'compact' ? 0.88 : opts.textScale === 'grand' ? 1.14 : 1.0) * resScale;
 
-  const contentWidth = opts.width - 96; // 48px horizontal padding at 720w
+  const horizontalPad = Math.round(48 * resScale);
+  const contentWidth = opts.width - horizontalPad * 2;
   const arFontPx = Math.round(44 * scaleFactor);
   const arLineHeightPx = Math.round(arFontPx * 1.78);
   const trFontPx = Math.round(23 * scaleFactor);
@@ -80,7 +84,7 @@ export function precomputeVideoCanvasLayout(
   const frLineHeightPx = Math.round(frFontPx * 1.5);
 
   const blocks: LaidOutVerseBlock[] = [];
-  let cursorY = 196; // Top margin spacing before first verse in ribbon
+  let cursorY = Math.round(196 * resScale);
 
   for (let i = 0; i < ayahs.length; i++) {
     const ayah = ayahs[i];
@@ -107,12 +111,12 @@ export function precomputeVideoCanvasLayout(
         ? wrapTextLines(`${ayah.num}. ${ayah.fr}`, contentWidth, (txt) => ctx.measureText(txt).width)
         : [];
 
-    let blockHeight = 26; // Top/bottom padding inside block
-    if (arLines.length > 0) blockHeight += arLines.length * arLineHeightPx + 18;
-    if (trLines.length > 0) blockHeight += trLines.length * trLineHeightPx + 12;
-    if (frLines.length > 0) blockHeight += frLines.length * frLineHeightPx + 10;
+    let blockHeight = Math.round(26 * resScale);
+    if (arLines.length > 0) blockHeight += arLines.length * arLineHeightPx + Math.round(18 * resScale);
+    if (trLines.length > 0) blockHeight += trLines.length * trLineHeightPx + Math.round(12 * resScale);
+    if (frLines.length > 0) blockHeight += frLines.length * frLineHeightPx + Math.round(10 * resScale);
 
-    const gapAfter = opts.flowMode === 'stream' ? 38 : 64;
+    const gapAfter = Math.round((opts.flowMode === 'stream' ? 38 : 64) * resScale);
     blocks.push({
       ayahNum: ayah.num,
       yStart: blockStart,
@@ -134,7 +138,7 @@ export function precomputeVideoCanvasLayout(
 
   return {
     blocks,
-    totalRibbonHeight: cursorY + 260,
+    totalRibbonHeight: cursorY + Math.round(260 * resScale),
     centersPx: blocks.map((b) => b.centerY),
   };
 }
@@ -156,6 +160,77 @@ function drawRtlTajweedLine(
   ctx.direction = 'ltr';
 }
 
+/**
+ * Draws the mandatory, non-removable "Le Sanctuaire" watermark at the bottom of the video,
+ * positioned directly beneath the reading viewport so it accompanies the bottom verse/surah.
+ */
+function drawMandatoryBottomWatermark(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  resScale: number,
+  isLightSurface: boolean
+) {
+  ctx.save();
+  const centerX = width / 2;
+  const dividerY = height - Math.round(146 * resScale);
+  const dividerW = Math.round(168 * resScale);
+
+  // Subtle ornamental rule right below the reading viewport
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.34)' : 'rgba(251, 191, 36, 0.42)';
+  ctx.fillRect(centerX - dividerW / 2, dividerY, dividerW, Math.max(2, Math.round(2 * resScale)));
+
+  // Soft legibility shadow over any custom background
+  ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.88)' : 'rgba(0, 0, 0, 0.84)';
+  ctx.shadowBlur = Math.round(10 * resScale);
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = Math.round(1 * resScale);
+
+  const brandFontPx = Math.round(22 * resScale);
+  const subFontPx = Math.round(13.5 * resScale);
+  const brandY = height - Math.round(112 * resScale);
+  const subY = height - Math.round(82 * resScale);
+
+  // Measure brand text to center crescent emblem + brand cleanly as a single unit
+  ctx.font = `800 ${brandFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  const brandTextWidth = ctx.measureText(MANDATORY_WATERMARK_BRAND).width;
+  const iconR = Math.round(8.5 * resScale);
+  const gap = Math.round(9 * resScale);
+  const totalUnitW = iconR * 2 + gap + brandTextWidth;
+  const unitLeft = centerX - totalUnitW / 2;
+
+  // Vector crescent emblem (guaranteed to render identically on every OS/font)
+  const crescentCx = unitLeft + iconR;
+  const crescentCy = brandY;
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
+  ctx.beginPath();
+  ctx.arc(crescentCx, crescentCy, iconR, 0.35 * Math.PI, 1.65 * Math.PI, false);
+  ctx.arc(
+    crescentCx + iconR * 0.42,
+    crescentCy - iconR * 0.12,
+    iconR * 0.78,
+    1.55 * Math.PI,
+    0.45 * Math.PI,
+    true
+  );
+  ctx.closePath();
+  ctx.fill();
+
+  // Brand name
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)';
+  ctx.fillText(MANDATORY_WATERMARK_BRAND, unitLeft + iconR * 2 + gap, brandY);
+
+  // Tagline directly below
+  ctx.font = `600 ${subFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = isLightSurface ? 'rgba(51, 65, 85, 0.85)' : 'rgba(226, 232, 240, 0.82)';
+  ctx.fillText(MANDATORY_WATERMARK_TAGLINE, centerX, subY);
+
+  ctx.restore();
+}
+
 export function renderVideoCanvasFrame(
   ctx: CanvasRenderingContext2D,
   layout: PrecomputedCanvasLayout,
@@ -164,6 +239,10 @@ export function renderVideoCanvasFrame(
   opts: VideoCanvasRenderOptions
 ) {
   const { width, height, isLightSurface } = opts;
+  const resScale = Math.max(0.5, width / 720);
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // 1. Solid base
   ctx.fillStyle = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
@@ -196,24 +275,26 @@ export function renderVideoCanvasFrame(
   }
 
   // 3. Continuous scroll position across the entire verse ribbon
-  const { activeIndex, totalProgress } = findActiveTimelineEntry(timeline, currentSec);
+  const { activeIndex } = findActiveTimelineEntry(timeline, currentSec);
   const scrollY = computeContinuousScrollY(layout.centersPx, timeline, currentSec, height);
 
-  // Clip vertical reading safe area when header is visible
-  const topSafeY = opts.showSurahHeader ? 142 : 56;
-  const bottomSafeY = height - 92;
+  // Clip vertical reading safe area above the mandatory bottom watermark
+  const topSafeY = Math.round((opts.showSurahHeader ? 142 : 56) * resScale);
+  const bottomSafeY = height - Math.round(168 * resScale);
 
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, topSafeY, width, bottomSafeY - topSafeY);
   ctx.clip();
 
+  const hasMediaBg = Boolean(videoEl || opts.bgImage);
+
   // 4. Render all verses in continuous vertical flow
   for (let i = 0; i < layout.blocks.length; i++) {
     const block = layout.blocks[i];
     const screenY = block.yStart - scrollY;
 
-    if (screenY + block.height < topSafeY - 60 || screenY > bottomSafeY + 60) {
+    if (screenY + block.height < topSafeY - 60 * resScale || screenY > bottomSafeY + 60 * resScale) {
       continue;
     }
 
@@ -230,13 +311,24 @@ export function renderVideoCanvasFrame(
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Subtle active accent bar on the side (never a heavy card box)
-    if (isActive) {
-      ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.18)' : 'rgba(251, 191, 36, 0.25)';
-      ctx.fillRect(30, screenY + 8, 4, Math.max(36, block.height - 24));
+    if (hasMediaBg) {
+      ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.72)';
+      ctx.shadowBlur = Math.round(6 * resScale);
+      ctx.shadowOffsetY = Math.round(1 * resScale);
     }
 
-    let yCursor = screenY + 28;
+    // Subtle active accent bar on the side
+    if (isActive) {
+      ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.28)' : 'rgba(251, 191, 36, 0.42)';
+      ctx.fillRect(
+        Math.round(28 * resScale),
+        screenY + Math.round(8 * resScale),
+        Math.max(3, Math.round(4 * resScale)),
+        Math.max(Math.round(36 * resScale), block.height - Math.round(24 * resScale))
+      );
+    }
+
+    let yCursor = screenY + Math.round(28 * resScale);
     const centerX = width / 2;
 
     // Arabic calligraphy lines
@@ -245,7 +337,7 @@ export function renderVideoCanvasFrame(
       yCursor += block.arLineHeightPx;
     }
     if (block.arLines.length > 0) {
-      yCursor += 14;
+      yCursor += Math.round(14 * resScale);
     }
 
     // Phonetic transcription lines
@@ -258,7 +350,7 @@ export function renderVideoCanvasFrame(
         ctx.fillText(line, centerX, yCursor);
         yCursor += block.trLineHeightPx;
       }
-      yCursor += 10;
+      yCursor += Math.round(10 * resScale);
     }
 
     // French translation lines
@@ -278,42 +370,28 @@ export function renderVideoCanvasFrame(
 
   ctx.restore();
 
-  // 5. Optional top Surah watermark pill
+  // 5. Optional top Surah header
   if (opts.showSurahHeader) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `700 20px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    ctx.fillStyle = isLightSurface ? 'rgba(23, 23, 23, 0.84)' : 'rgba(251, 191, 36, 0.94)';
+    if (hasMediaBg) {
+      ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.75)' : 'rgba(0, 0, 0, 0.75)';
+      ctx.shadowBlur = Math.round(6 * resScale);
+    }
+    ctx.font = `700 ${Math.round(20 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = isLightSurface ? 'rgba(23, 23, 23, 0.88)' : 'rgba(251, 191, 36, 0.96)';
     ctx.fillText(
       `Sourate ${opts.surahName} (${opts.surahNumber})  •  Versets ${opts.startAyah}–${opts.endAyah}`,
       width / 2,
-      88
+      Math.round(88 * resScale)
     );
-    ctx.font = `500 15px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    ctx.fillStyle = isLightSurface ? 'rgba(82, 82, 82, 0.78)' : 'rgba(226, 232, 240, 0.72)';
-    ctx.fillText(opts.reciterName, width / 2, 116);
+    ctx.font = `500 ${Math.round(15 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = isLightSurface ? 'rgba(82, 82, 82, 0.82)' : 'rgba(226, 232, 240, 0.78)';
+    ctx.fillText(opts.reciterName, width / 2, Math.round(116 * resScale));
     ctx.restore();
   }
 
-  // 6. Subtle bottom continuous progress bar & timecode
-  ctx.save();
-  const barW = width - 96;
-  const barX = 48;
-  const barY = height - 48;
-  ctx.fillStyle = isLightSurface ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.14)';
-  ctx.fillRect(barX, barY, barW, 4);
-  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
-  ctx.fillRect(barX, barY, barW * totalProgress, 4);
-
-  ctx.font = `600 14px ui-monospace, SFMono-Regular, monospace`;
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  ctx.fillStyle = isLightSurface ? 'rgba(23, 23, 23, 0.6)' : 'rgba(255, 255, 255, 0.55)';
-  ctx.fillText(
-    `${formatTimeMMSS(currentSec)} / ${formatTimeMMSS(timeline.totalDurationSec)}`,
-    width - 48,
-    barY - 8
-  );
-  ctx.restore();
+  // 6. Mandatory non-removable bottom watermark (no progress bar or timer!)
+  drawMandatoryBottomWatermark(ctx, width, height, resScale, isLightSurface);
 }

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  VIDEO_EXPORT_HEIGHT,
+  VIDEO_EXPORT_WIDTH,
   buildContinuousTimeline,
   computeContinuousScrollY,
   computeCoverDrawRect,
@@ -85,27 +87,42 @@ test('wrapTextLines and formatTimeMMSS behave deterministically', () => {
   assert.equal(formatTimeMMSS(75), '01:15');
 });
 
-test('selectPreferredVideoMimeType avoids Chromium bare video/mp4 when WebM Opus audio is supported', () => {
-  const chromeSupported = new Set(['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']);
-  assert.deepEqual(selectPreferredVideoMimeType((m) => chromeSupported.has(m)), {
+test('export dimensions target Full HD 1080x1920 9:16 resolution', () => {
+  assert.equal(VIDEO_EXPORT_WIDTH, 1080);
+  assert.equal(VIDEO_EXPORT_HEIGHT, 1920);
+});
+
+test('selectPreferredVideoMimeType prioritizes explicit H.264+AAC MP4 and avoids Opus-in-MP4 / bare video/mp4 over WebM Opus', () => {
+  const mp4AndWebm = new Set([
+    'video/mp4;codecs=avc1.4d002a,mp4a.40.2',
+    'video/webm;codecs=vp9,opus',
+  ]);
+  assert.deepEqual(selectPreferredVideoMimeType((m) => mp4AndWebm.has(m)), {
+    mimeType: 'video/mp4;codecs=avc1.4d002a,mp4a.40.2',
+    extension: 'mp4',
+  });
+
+  const chromeBareOrOpusMp4 = new Set([
+    'video/mp4;codecs=avc1.42E01E,opus',
+    'video/mp4',
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ]);
+  assert.deepEqual(selectPreferredVideoMimeType((m) => chromeBareOrOpusMp4.has(m)), {
     mimeType: 'video/webm;codecs=vp9,opus',
     extension: 'webm',
   });
-
-  const safariSupported = new Set(['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4']);
-  assert.deepEqual(selectPreferredVideoMimeType((m) => safariSupported.has(m)), {
-    mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-    extension: 'mp4',
-  });
 });
 
-test('computeCoverDrawRect cover-fits landscape video or tall media inside 720x1280 9:16 frame', () => {
-  const landscape = computeCoverDrawRect(1920, 1080, 720, 1280);
-  assert.equal(landscape.h, 1280);
-  assert.ok(landscape.w > 720);
+test('computeCoverDrawRect cover-fits landscape video or tall media inside 1080x1920 9:16 frame', () => {
+  const landscape = computeCoverDrawRect(1920, 1080, 1080, 1920);
+  assert.equal(landscape.h, 1920);
+  assert.ok(landscape.w > 1080);
   assert.ok(landscape.x < 0);
 
-  const exact = computeCoverDrawRect(720, 1280, 720, 1280);
-  assert.deepEqual(exact, { x: 0, y: 0, w: 720, h: 1280 });
+  const exact = computeCoverDrawRect(1080, 1920, 1080, 1920);
+  assert.deepEqual(exact, { x: 0, y: 0, w: 1080, h: 1920 });
 });
+
 

@@ -190,19 +190,23 @@ export function formatTimeMMSS(totalSec: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+export const VIDEO_EXPORT_WIDTH = 1080;
+export const VIDEO_EXPORT_HEIGHT = 1920;
+
 /**
- * Selects a MediaRecorder MIME type that explicitly guarantees an audio+video codec pair
- * before falling back to bare containers (e.g. avoids Chromium's bare `video/mp4` dropping WebAudio).
+ * Selects a MediaRecorder MIME type that explicitly guarantees an audio+video codec pair,
+ * preferring H.264 + AAC MP4 first when natively supported, while avoiding bare `video/mp4`
+ * over WebM Opus so WebAudio tracks are never silently dropped before FFmpeg MP4 muxing.
  */
 export function selectPreferredVideoMimeType(
   isTypeSupported: (mime: string) => boolean
 ): { mimeType: string; extension: 'mp4' | 'webm' } {
   const orderedCandidates: Array<{ mimeType: string; extension: 'mp4' | 'webm' }> = [
+    { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', extension: 'mp4' },
+    { mimeType: 'video/mp4;codecs=avc1.4d002a,mp4a.40.2', extension: 'mp4' },
+    { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2', extension: 'mp4' },
     { mimeType: 'video/webm;codecs=vp9,opus', extension: 'webm' },
     { mimeType: 'video/webm;codecs=vp8,opus', extension: 'webm' },
-    { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', extension: 'mp4' },
-    { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2', extension: 'mp4' },
-    { mimeType: 'video/mp4;codecs=avc1.42E01E,opus', extension: 'mp4' },
     { mimeType: 'video/webm', extension: 'webm' },
     { mimeType: 'video/mp4', extension: 'mp4' },
   ];

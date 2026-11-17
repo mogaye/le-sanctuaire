@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
-import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
 import {
   getOrCreateUser,
   upsertConnectedProfile,
@@ -22,7 +22,7 @@ import {
   getSentEmailsFromDb,
   insertDonorReviewInDb,
   getDonorReviewsFromDb,
-  DonorReviewRecord,
+  type DonorReviewRecord,
 } from './src/db/users.ts';
 
 dotenv.config();
@@ -1361,6 +1361,150 @@ async function startServer() {
   });
 
   // ============================================================================
+  // 3.8. FULL HD H.264 + AAC MP4 VIDEO TRANSCODE & MUXING ROUTES (FFmpeg)
+  // ============================================================================
+
+  app.post(
+    '/api/video/convert-mp4',
+    express.raw({ type: '*/*', limit: '250mb' }),
+    async (req, res) => {
+      const fs = await import('fs/promises');
+      const os = await import('os');
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+
+      const jobId = `mp4conv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const tmpDir = os.tmpdir();
+      const inputPath = path.join(tmpDir, `${jobId}.webm`);
+      const outputPath = path.join(tmpDir, `${jobId}.mp4`);
+
+      try {
+        const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+        if (bodyBuf.length < 256) {
+          return res.status(400).json({ error: 'Empty video payload' });
+        }
+
+        await fs.writeFile(inputPath, bodyBuf);
+
+        await execFileAsync(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            inputPath,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'veryfast',
+            '-crf',
+            '18',
+            '-r',
+            '30',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-ar',
+            '48000',
+            '-movflags',
+            '+faststart',
+            outputPath,
+          ],
+          { maxBuffer: 64 * 1024 * 1024 }
+        );
+
+        const outData = await fs.readFile(outputPath);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', String(outData.length));
+        return res.send(outData);
+      } catch (err: any) {
+        console.error('FFmpeg convert-mp4 failed:', err?.stderr || err?.message || err);
+        return res.status(500).json({ error: 'MP4 transcode failed' });
+      } finally {
+        await fs.unlink(inputPath).catch(() => {});
+        await fs.unlink(outputPath).catch(() => {});
+      }
+    }
+  );
+
+  app.post(
+    '/api/video/mux-mp4',
+    express.raw({ type: '*/*', limit: '250mb' }),
+    async (req, res) => {
+      const fs = await import('fs/promises');
+      const os = await import('os');
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+
+      const jobId = `mp4mux_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const tmpDir = os.tmpdir();
+      const videoPath = path.join(tmpDir, `${jobId}_video.mp4`);
+      const audioPath = path.join(tmpDir, `${jobId}_audio.wav`);
+      const outputPath = path.join(tmpDir, `${jobId}_final.mp4`);
+
+      try {
+        const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+        if (bodyBuf.length < 16) {
+          return res.status(400).json({ error: 'Invalid mux payload' });
+        }
+
+        const videoLen = bodyBuf.readUInt32BE(0);
+        if (videoLen <= 0 || 4 + videoLen >= bodyBuf.length) {
+          return res.status(400).json({ error: 'Malformed mux packet bounds' });
+        }
+
+        const videoBuf = bodyBuf.subarray(4, 4 + videoLen);
+        const audioBuf = bodyBuf.subarray(4 + videoLen);
+
+        await Promise.all([
+          fs.writeFile(videoPath, videoBuf),
+          fs.writeFile(audioPath, audioBuf),
+        ]);
+
+        await execFileAsync(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            videoPath,
+            '-i',
+            audioPath,
+            '-c:v',
+            'copy',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-ar',
+            '48000',
+            '-shortest',
+            '-movflags',
+            '+faststart',
+            outputPath,
+          ],
+          { maxBuffer: 64 * 1024 * 1024 }
+        );
+
+        const outData = await fs.readFile(outputPath);
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', String(outData.length));
+        return res.send(outData);
+      } catch (err: any) {
+        console.error('FFmpeg mux-mp4 failed:', err?.stderr || err?.message || err);
+        return res.status(500).json({ error: 'MP4 muxing failed' });
+      } finally {
+        await fs.unlink(videoPath).catch(() => {});
+        await fs.unlink(audioPath).catch(() => {});
+        await fs.unlink(outputPath).catch(() => {});
+      }
+    }
+  );
+
+  // ============================================================================
   // 4. PAYDUNYA INVOICE CREATION ROUTE
   // ============================================================================
 
@@ -1408,6 +1552,157 @@ async function startServer() {
       });
     }
   });
+
+  // ============================================================================
+  // 4.5. SERVER-SIDE MP4 TRANSCODER (FFmpeg H.264 High Quality + AAC 192kbps)
+  // ============================================================================
+
+  app.post(
+    '/api/video/convert-mp4',
+    express.raw({ type: '*/*', limit: '150mb' }),
+    async (req, res) => {
+      const os = await import('os');
+      const fs = await import('fs/promises');
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+
+      const inputBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+      if (inputBuf.length < 256) {
+        return res.status(400).json({ error: 'Flux vidéo vide ou invalide.' });
+      }
+
+      const id = crypto.randomUUID();
+      const tmpDir = os.tmpdir();
+      const inPath = path.join(tmpDir, `sanctuaire_in_${id}.webm`);
+      const outPath = path.join(tmpDir, `sanctuaire_out_${id}.mp4`);
+
+      try {
+        await fs.writeFile(inPath, inputBuf);
+        await execFileAsync(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            inPath,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'fast',
+            '-crf',
+            '18',
+            '-pix_fmt',
+            'yuv420p',
+            '-movflags',
+            '+faststart',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-ar',
+            '48000',
+            outPath,
+          ],
+          { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 }
+        );
+
+        const mp4Buf = await fs.readFile(outPath);
+        if (!mp4Buf || mp4Buf.length < 256) {
+          return res.status(500).json({ error: 'Fichier MP4 généré vide.' });
+        }
+
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', String(mp4Buf.length));
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(mp4Buf);
+      } catch (err: any) {
+        console.error('FFmpeg MP4 conversion failed:', err?.message || err);
+        return res.status(500).json({ error: 'Conversion MP4 impossible sur le serveur.' });
+      } finally {
+        await fs.unlink(inPath).catch(() => {});
+        await fs.unlink(outPath).catch(() => {});
+      }
+    }
+  );
+
+  app.post(
+    '/api/video/mux-mp4',
+    express.raw({ type: 'application/octet-stream', limit: '200mb' }),
+    async (req, res) => {
+      const os = await import('os');
+      const fs = await import('fs/promises');
+      const { execFile } = await import('child_process');
+      const { promisify } = await import('util');
+      const execFileAsync = promisify(execFile);
+
+      const payload = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+      if (payload.length < 16) {
+        return res.status(400).json({ error: 'Flux mux invalide.' });
+      }
+
+      const videoLen = payload.readUInt32BE(0);
+      if (videoLen < 128 || 4 + videoLen >= payload.length) {
+        return res.status(400).json({ error: 'En-tête vidéo/audio invalide.' });
+      }
+
+      const videoBuf = payload.subarray(4, 4 + videoLen);
+      const wavBuf = payload.subarray(4 + videoLen);
+
+      const id = crypto.randomUUID();
+      const tmpDir = os.tmpdir();
+      const inVideoPath = path.join(tmpDir, `sanctuaire_v_${id}.mp4`);
+      const inAudioPath = path.join(tmpDir, `sanctuaire_a_${id}.wav`);
+      const outPath = path.join(tmpDir, `sanctuaire_mux_${id}.mp4`);
+
+      try {
+        await Promise.all([
+          fs.writeFile(inVideoPath, videoBuf),
+          fs.writeFile(inAudioPath, wavBuf),
+        ]);
+
+        await execFileAsync(
+          'ffmpeg',
+          [
+            '-y',
+            '-i',
+            inVideoPath,
+            '-i',
+            inAudioPath,
+            '-c:v',
+            'copy',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '192k',
+            '-ar',
+            '48000',
+            '-movflags',
+            '+faststart',
+            '-shortest',
+            outPath,
+          ],
+          { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 }
+        );
+
+        const mp4Buf = await fs.readFile(outPath);
+        if (!mp4Buf || mp4Buf.length < 256) {
+          return res.status(500).json({ error: 'Fichier MP4 final vide.' });
+        }
+
+        res.setHeader('Content-Type', 'video/mp4');
+        res.setHeader('Content-Length', String(mp4Buf.length));
+        res.setHeader('Cache-Control', 'no-store');
+        return res.send(mp4Buf);
+      } catch (err: any) {
+        console.error('FFmpeg mux-mp4 failed:', err?.message || err);
+        return res.status(500).json({ error: 'Muxage MP4 impossible sur le serveur.' });
+      } finally {
+        await fs.unlink(inVideoPath).catch(() => {});
+        await fs.unlink(inAudioPath).catch(() => {});
+        await fs.unlink(outPath).catch(() => {});
+      }
+    }
+  );
 
   // ============================================================================
   // 5. VITE MIDDLEWARE / STATIC ASSETS
