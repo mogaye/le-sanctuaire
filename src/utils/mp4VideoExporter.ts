@@ -541,9 +541,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
           recorder.requestData();
         } catch {}
       }
-      if (recorder.state !== 'inactive') {
-        recorder.stop();
-      }
+      recorder.stop();
       return;
     }
     rafId = requestAnimationFrame(renderLoop);

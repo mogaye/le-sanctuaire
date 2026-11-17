@@ -39,6 +39,7 @@ function createMockCanvasContext() {
       addColorStop: () => {},
     }),
     beginPath: () => {},
+    closePath: () => {},
     rect: () => {},
     arc: () => {},
     moveTo: () => {},
