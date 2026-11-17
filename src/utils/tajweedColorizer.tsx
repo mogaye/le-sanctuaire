@@ -241,6 +241,7 @@ interface TajweedTextProps {
   enabled?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  variant?: 'dark' | 'light';
 }
 
 export const TajweedText: React.FC<TajweedTextProps> = ({
@@ -248,8 +249,10 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
   enabled = true,
   className = '',
   style = {},
+  variant = 'dark',
 }) => {
   const sanitized = cleanAyahArabic(text);
+  const isLight = variant === 'light';
 
   if (!enabled || !sanitized) {
     return (
@@ -279,9 +282,9 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
                   <span
                     key={index}
                     style={{
-                      color: '#FF6B6B',
+                      color: isLight ? '#B91C1C' : '#FF6B6B',
                       fontWeight: 600,
-                      textShadow: '0 0 14px rgba(255, 107, 107, 0.45)',
+                      textShadow: isLight ? 'none' : '0 0 14px rgba(255, 107, 107, 0.45)',
                     }}
                     title="Madd : Prolongation 4 à 6 temps"
                   >
@@ -294,9 +297,9 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
                   <span
                     key={index}
                     style={{
-                      color: '#34D399',
+                      color: isLight ? '#047857' : '#34D399',
                       fontWeight: 600,
-                      textShadow: '0 0 14px rgba(52, 211, 153, 0.45)',
+                      textShadow: isLight ? 'none' : '0 0 14px rgba(52, 211, 153, 0.45)',
                     }}
                     title="Ghunnah : Nasalisation 2 temps"
                   >
@@ -309,9 +312,9 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
                   <span
                     key={index}
                     style={{
-                      color: '#38BDF8',
+                      color: isLight ? '#0369A1' : '#38BDF8',
                       fontWeight: 600,
-                      textShadow: '0 0 14px rgba(56, 189, 248, 0.45)',
+                      textShadow: isLight ? 'none' : '0 0 14px rgba(56, 189, 248, 0.45)',
                     }}
                     title="Qalqalah : Rebond sonore sur lettre avec sukoon"
                   >
@@ -324,9 +327,9 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
                   <span
                     key={index}
                     style={{
-                      color: '#FBBF24',
+                      color: isLight ? '#B45309' : '#FBBF24',
                       fontWeight: 600,
-                      textShadow: '0 0 14px rgba(251, 191, 36, 0.45)',
+                      textShadow: isLight ? 'none' : '0 0 14px rgba(251, 191, 36, 0.45)',
                     }}
                     title="Tafkhîm : Lettre emphatique prononcée pleine bouche"
                   >
@@ -338,7 +341,7 @@ export const TajweedText: React.FC<TajweedTextProps> = ({
                 return (
                   <span
                     key={index}
-                    style={{ opacity: 0.5, color: '#94A3B8' }}
+                    style={{ opacity: isLight ? 0.55 : 0.5, color: isLight ? '#64748B' : '#94A3B8' }}
                     title="Lettre muette / assimilée"
                   >
                     {token.text}

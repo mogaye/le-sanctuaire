@@ -34,8 +34,13 @@ import {
   getCinematicOrientationMode,
   getDynamicArabicStyleConfig,
   getDynamicTranslationStyleConfig,
+  isLightCinematicSurface,
   isMobileViewport,
 } from '../utils/cinematicLayoutUtils';
+import mobileNoirMinimalImg from '../assets/images/mobile_noir_minimal_916_1794914415661.jpg';
+import mobileNoirVelvetImg from '../assets/images/mobile_noir_velvet_916_1794914417829.jpg';
+import mobileBlancMinimalImg from '../assets/images/mobile_blanc_minimal_916_1794914417723.jpg';
+import mobileBlancMarbreImg from '../assets/images/mobile_blanc_marbre_916_1794914417486.jpg';
 
 interface AyahData {
   num: number;
@@ -76,6 +81,7 @@ export type CinematicThemeId =
   | 'emerald'
   | 'midnight'
   | 'oled'
+  | 'pure_white'
   | 'amber'
   | 'amethyst'
   | 'ocean'
@@ -153,6 +159,23 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
     swatch: '#000000',
     glow1: 'rgba(255, 255, 255, 0.04)',
     glow2: 'rgba(255, 255, 255, 0.03)',
+  },
+  pure_white: {
+    id: 'pure_white',
+    name: 'Blanc Pur Éditorial',
+    bg: 'bg-[#FCFCFB]',
+    inlineBg: '#FCFCFB',
+    cardBg: 'bg-neutral-100/90 border-neutral-300',
+    textAr: 'text-neutral-950 selection:bg-amber-300 selection:text-neutral-950',
+    textTr: 'text-emerald-800',
+    textFr: 'text-neutral-800',
+    hudBg: 'bg-neutral-900/90 border-neutral-700/40 text-white',
+    badge: 'bg-neutral-900/5 text-neutral-800 border-neutral-900/15',
+    activeBorder: 'border-neutral-900/60 shadow-md',
+    accent: '#047857',
+    swatch: '#FFFFFF',
+    glow1: 'transparent',
+    glow2: 'transparent',
   },
   amber: {
     id: 'amber',
@@ -278,10 +301,47 @@ export const CINEMATIC_THEMES: Record<CinematicThemeId, ThemeConfig> = {
 export interface CinematicBackground {
   id: string;
   name: string;
-  category: 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire';
+  category: 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire' | 'noir' | 'blanc';
   url: string;
   recommendedTheme?: CinematicThemeId;
+  polarity?: 'dark' | 'light';
 }
+
+// Mobile-only 9:16 vertical pure black & pure white backgrounds engineered for zero visual clutter behind text
+export const MOBILE_VERTICAL_BACKGROUNDS: CinematicBackground[] = [
+  {
+    id: 'mobile_noir_minimal',
+    name: 'Noir Pur & Liseré Or (9:16)',
+    category: 'noir',
+    url: mobileNoirMinimalImg,
+    recommendedTheme: 'oled',
+    polarity: 'dark',
+  },
+  {
+    id: 'mobile_noir_velvet',
+    name: 'Noir Velours & Arabesques (9:16)',
+    category: 'noir',
+    url: mobileNoirVelvetImg,
+    recommendedTheme: 'oled',
+    polarity: 'dark',
+  },
+  {
+    id: 'mobile_blanc_minimal',
+    name: 'Blanc Pur & Liseré Or (9:16)',
+    category: 'blanc',
+    url: mobileBlancMinimalImg,
+    recommendedTheme: 'pure_white',
+    polarity: 'light',
+  },
+  {
+    id: 'mobile_blanc_marbre',
+    name: 'Blanc Albâtre & Ogive (9:16)',
+    category: 'blanc',
+    url: mobileBlancMarbreImg,
+    recommendedTheme: 'pure_white',
+    polarity: 'light',
+  },
+];
 
 export const CINEMATIC_BACKGROUNDS: CinematicBackground[] = [
   // Émeraude & Nuit (4K)
@@ -617,7 +677,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [isAppearanceModalOpen, setIsAppearanceModalOpen] = useState<boolean>(false);
   const [appearanceTab, setAppearanceTab] = useState<'themes' | 'backgrounds' | 'tajweed'>('themes');
 
-  // Cinematic Background Wallpapers State
+  // Cinematic Background Wallpapers State (Desktop 4K vs Mobile 9:16 Black/White)
   const [selectedBgId, setSelectedBgId] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('sanctuaire_cinematic_bg');
@@ -629,6 +689,29 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
     return 'emerald_fanous_archway';
   });
+  const [selectedMobileBgId, setSelectedMobileBgId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_mobile_bg');
+      if (
+        saved &&
+        (saved === 'none' || MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === saved))
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'mobile_noir_minimal';
+  });
+  const [mobileTheme, setMobileTheme] = useState<CinematicThemeId>(() => {
+    try {
+      const saved = localStorage.getItem('sanctuaire_cinematic_mobile_theme') as CinematicThemeId;
+      if (saved === 'oled' || saved === 'pure_white') return saved;
+    } catch {
+      // ignore
+    }
+    return 'oled';
+  });
   const [bgOpacity, setBgOpacity] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('sanctuaire_cinematic_bg_opacity');
@@ -638,7 +721,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
     return 0.55;
   });
-  const [bgCategoryFilter, setBgCategoryFilter] = useState<'all' | 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire'>('all');
+  const [bgCategoryFilter, setBgCategoryFilter] = useState<
+    'all' | 'emeraude' | 'obsidienne' | 'saphir' | 'ivoire'
+  >('all');
+  const [mobileBgCategoryFilter, setMobileBgCategoryFilter] = useState<'all' | 'noir' | 'blanc'>(
+    'all'
+  );
 
   // Tajweed Coloring & Guide state
   const [isTajweedEnabled, setIsTajweedEnabled] = useState<boolean>(() => {
@@ -739,6 +827,30 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const handleSelectTheme = (themeId: CinematicThemeId) => {
+    if (isMobile) {
+      const normalized: CinematicThemeId = themeId === 'pure_white' ? 'pure_white' : 'oled';
+      setMobileTheme(normalized);
+      try {
+        localStorage.setItem('sanctuaire_cinematic_mobile_theme', normalized);
+      } catch {
+        // ignore
+      }
+      if (selectedMobileBgId !== 'none') {
+        const currentMobileBg = MOBILE_VERTICAL_BACKGROUNDS.find((b) => b.id === selectedMobileBgId);
+        if (normalized === 'pure_white' && currentMobileBg?.polarity !== 'light') {
+          setSelectedMobileBgId('mobile_blanc_minimal');
+          try {
+            localStorage.setItem('sanctuaire_cinematic_mobile_bg', 'mobile_blanc_minimal');
+          } catch {}
+        } else if (normalized === 'oled' && currentMobileBg?.polarity !== 'dark') {
+          setSelectedMobileBgId('mobile_noir_minimal');
+          try {
+            localStorage.setItem('sanctuaire_cinematic_mobile_bg', 'mobile_noir_minimal');
+          } catch {}
+        }
+      }
+      return;
+    }
     setTheme(themeId);
     try {
       localStorage.setItem('sanctuaire_cinematic_theme', themeId);
@@ -748,6 +860,19 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   };
 
   const handleSelectBackground = (bgId: string) => {
+    if (isMobile) {
+      setSelectedMobileBgId(bgId);
+      try {
+        localStorage.setItem('sanctuaire_cinematic_mobile_bg', bgId);
+      } catch {
+        // ignore
+      }
+      const mBg = MOBILE_VERTICAL_BACKGROUNDS.find((b) => b.id === bgId);
+      if (mBg?.recommendedTheme) {
+        handleSelectTheme(mBg.recommendedTheme);
+      }
+      return;
+    }
     setSelectedBgId(bgId);
     try {
       localStorage.setItem('sanctuaire_cinematic_bg', bgId);
@@ -1026,7 +1151,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
   if (!isOpen) return null;
 
-  const currentTheme = CINEMATIC_THEMES[theme] || CINEMATIC_THEMES.emerald;
+  const activeThemeId: CinematicThemeId = isMobile ? mobileTheme : theme;
+  const currentTheme = CINEMATIC_THEMES[activeThemeId] || CINEMATIC_THEMES.emerald;
 
   // Responsive fluid typography calculator tuned for 9:16 vertical mobile and desktop
   const getDynamicArabicStyle = (arText: string) =>
@@ -1062,15 +1188,28 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
   };
 
-  const themeList = Object.values(CINEMATIC_THEMES);
+  const themeList = isMobile
+    ? [CINEMATIC_THEMES.oled, CINEMATIC_THEMES.pure_white]
+    : Object.values(CINEMATIC_THEMES);
+
+  const activeBgId = isMobile ? selectedMobileBgId : selectedBgId;
   const selectedBg =
-    selectedBgId === 'none'
+    activeBgId === 'none'
       ? null
-      : CINEMATIC_BACKGROUNDS.find((b) => b.id === selectedBgId) || CINEMATIC_BACKGROUNDS[0];
-  const filteredBackgrounds =
-    bgCategoryFilter === 'all'
-      ? CINEMATIC_BACKGROUNDS
-      : CINEMATIC_BACKGROUNDS.filter((b) => b.category === bgCategoryFilter);
+      : isMobile
+      ? MOBILE_VERTICAL_BACKGROUNDS.find((b) => b.id === activeBgId) ||
+        MOBILE_VERTICAL_BACKGROUNDS[0]
+      : CINEMATIC_BACKGROUNDS.find((b) => b.id === activeBgId) || CINEMATIC_BACKGROUNDS[0];
+
+  const isLightSurface = isLightCinematicSurface(currentTheme.id, selectedBg?.polarity);
+
+  const filteredBackgrounds = isMobile
+    ? mobileBgCategoryFilter === 'all'
+      ? MOBILE_VERTICAL_BACKGROUNDS
+      : MOBILE_VERTICAL_BACKGROUNDS.filter((b) => b.category === mobileBgCategoryFilter)
+    : bgCategoryFilter === 'all'
+    ? CINEMATIC_BACKGROUNDS
+    : CINEMATIC_BACKGROUNDS.filter((b) => b.category === bgCategoryFilter);
 
   const filteredSurahs = (allSurahs || []).filter((s) => {
     const q = surahSearchQuery.toLowerCase().trim();
@@ -1088,12 +1227,16 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       ref={containerRef}
       data-testid="cinematic-reader-root"
       data-orientation={orientationMode}
+      data-surface={isLightSurface ? 'light' : 'dark'}
+      data-bg-id={activeBgId}
       data-fullscreen={isFullscreen ? 'true' : 'false'}
       data-hud-visible={isHudVisible ? 'true' : 'false'}
       style={{
-        background: currentTheme.inlineBg,
+        background: isLightSurface ? '#FCFCFB' : currentTheme.inlineBg,
       }}
-      className={`fixed inset-0 w-full h-[100dvh] min-h-[100dvh] z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
+      className={`fixed inset-0 w-full h-[100dvh] min-h-[100dvh] z-[9999] ${
+        isLightSurface ? 'bg-[#FCFCFB]' : currentTheme.bg
+      } flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
         !isHudVisible ? 'cursor-none' : 'cursor-default'
       }`}
       onClick={(e) => {
@@ -1120,36 +1263,59 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }
       }}
     >
-      {/* Dynamic Islamic Photographic Background Wallpaper Layer (Full-bleed 9:16 vertical on mobile & desktop) */}
-      {selectedBg && selectedBgId !== 'none' && (
+      {/* Dynamic Islamic Background Wallpaper Layer (Vertical 9:16 Black/White on mobile, 4K on desktop) */}
+      {selectedBg && activeBgId !== 'none' && (
         <div className="block absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
           <img
             src={selectedBg.url}
             alt={selectedBg.name}
-            className="w-full h-full object-cover object-center transition-opacity duration-700"
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover object-center transition-opacity duration-500"
           />
-          {/* Tone-matched darkening veil to guarantee immaculate contrast for Tajweed and translations */}
-          <div
-            className="absolute inset-0 transition-opacity duration-300"
-            style={{
-              backgroundColor: currentTheme.swatch || '#000000',
-              opacity: isMobile ? Math.max(bgOpacity, 0.52) : bgOpacity,
-            }}
-          />
-          {/* Radial vignette overlay */}
-          <div className="absolute inset-0 bg-radial-gradient from-transparent via-black/25 to-black/75 pointer-events-none" />
+          {isLightSurface ? (
+            <div
+              className="absolute inset-0 transition-opacity duration-300"
+              style={{
+                backgroundColor: '#FFFFFF',
+                opacity: isMobile ? 0.12 : 0.25,
+              }}
+            />
+          ) : (
+            <>
+              {/* Tone-matched darkening veil to guarantee immaculate contrast for Tajweed and translations */}
+              <div
+                className="absolute inset-0 transition-opacity duration-300"
+                style={{
+                  backgroundColor: currentTheme.swatch || '#000000',
+                  opacity: isMobile ? Math.min(bgOpacity, 0.28) : bgOpacity,
+                }}
+              />
+              {/* Radial vignette overlay (subtle on mobile black, rich on desktop) */}
+              <div
+                className={`absolute inset-0 pointer-events-none ${
+                  isMobile
+                    ? 'bg-radial-gradient from-transparent via-transparent to-black/35'
+                    : 'bg-radial-gradient from-transparent via-black/25 to-black/75'
+                }`}
+              />
+            </>
+          )}
         </div>
       )}
 
-      {/* Ambient background soft light glows for cinema feel */}
-      <div
-        className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-700"
-        style={{ backgroundColor: currentTheme.glow1 }}
-      />
-      <div
-        className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full blur-[120px] pointer-events-none transition-all duration-700"
-        style={{ backgroundColor: currentTheme.glow2 }}
-      />
+      {/* Ambient background soft light glows (Desktop cinema only - disabled on mobile for pure clean black/white reading) */}
+      {!isMobile && !isLightSurface && (
+        <>
+          <div
+            className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] rounded-full blur-[140px] pointer-events-none transition-all duration-700"
+            style={{ backgroundColor: currentTheme.glow1 }}
+          />
+          <div
+            className="absolute bottom-10 right-10 w-[450px] h-[450px] rounded-full blur-[120px] pointer-events-none transition-all duration-700"
+            style={{ backgroundColor: currentTheme.glow2 }}
+          />
+        </>
+      )}
 
       {/* ========================================================
           TOP FLOATING ACTION ICONS (NO BACKGROUND BAND, PURE ICONS)
@@ -1281,7 +1447,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
              ======================================================== */
           <div
             data-cinematic-canvas="true"
-            className="w-full max-w-[460px] md:max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0"
+            className="w-full max-w-[480px] md:max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0"
           >
             {/* Top Verse Badge pill - Hides cleanly when HUD is hidden in fullscreen */}
             <div
@@ -1289,7 +1455,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                 isHudVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
               }`}
             >
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-medium tracking-wider shadow-xs">
+              <div
+                className={`inline-flex items-center gap-2 px-3.5 py-1 rounded-full border text-xs font-mono font-medium tracking-wider shadow-xs ${
+                  isLightSurface
+                    ? 'bg-neutral-900/5 border-neutral-900/15 text-neutral-800'
+                    : 'bg-white/5 border-white/15 text-amber-300'
+                }`}
+              >
                 <span>Sourate {currentSurahMeta.name}</span>
                 <span className="opacity-40">•</span>
                 <span className="tabular-nums">
@@ -1301,11 +1473,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING */}
             <div
               data-cinematic-canvas="true"
-              className="w-full flex items-center justify-center px-1 sm:px-4 my-1.5 sm:my-2.5"
+              className="w-full flex items-center justify-center px-0.5 sm:px-4 my-2 sm:my-2.5"
             >
               <div
                 dir="rtl"
-                className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-500 ease-out break-words [word-break:keep-all] ${
+                data-testid="cinematic-arabic-text"
+                className={`w-full font-arabic ${
+                  isLightSurface ? 'text-neutral-950' : currentTheme.textAr
+                } tracking-normal text-center font-normal transition-all duration-500 ease-out break-words [word-break:keep-all] ${
                   isVerseFading ? 'opacity-30 blur-[0.5px]' : 'opacity-100 blur-0'
                 }`}
                 style={{
@@ -1313,16 +1488,20 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   ...getDynamicArabicStyle(cleanAyahArabic(currentAyah?.ar || '')),
                 }}
               >
-                <TajweedText text={cleanAyahArabic(currentAyah?.ar || '')} enabled={isTajweedEnabled} />
+                <TajweedText
+                  text={cleanAyahArabic(currentAyah?.ar || '')}
+                  enabled={isTajweedEnabled}
+                  variant={isLightSurface ? 'light' : 'dark'}
+                />
               </div>
             </div>
 
             {/* Thin subtle horizontal divider line */}
             {(showPhonetics || showTranslation) && (
               <div
-                className={`w-full max-w-[240px] sm:max-w-sm border-t border-white/15 my-2.5 sm:my-3 transition-opacity duration-500 ease-out ${
-                  isVerseFading ? 'opacity-20' : 'opacity-100'
-                }`}
+                className={`w-full max-w-[260px] sm:max-w-sm border-t my-3 sm:my-3.5 transition-opacity duration-500 ease-out ${
+                  isLightSurface ? 'border-neutral-900/15' : 'border-white/15'
+                } ${isVerseFading ? 'opacity-20' : 'opacity-100'}`}
               />
             )}
 
@@ -1330,13 +1509,16 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {(showPhonetics || showTranslation) && (
               <div
                 data-cinematic-canvas="true"
-                className={`w-full max-w-[440px] md:max-w-3xl space-y-2 sm:space-y-2.5 px-2 sm:px-3 transition-all duration-500 ease-out ${
+                className={`w-full max-w-[460px] md:max-w-3xl space-y-2.5 sm:space-y-2.5 px-1 sm:px-3 transition-all duration-500 ease-out ${
                   isVerseFading ? 'opacity-30 blur-[0.4px]' : 'opacity-100 blur-0'
                 }`}
               >
                 {showPhonetics && currentAyah?.tr && (
                   <p
-                    className={`italic font-serif ${currentTheme.textTr} leading-relaxed text-center text-sm sm:text-base md:text-lg tracking-wide`}
+                    data-testid="cinematic-phonetic-text"
+                    className={`italic font-serif ${
+                      isLightSurface ? 'text-emerald-800' : currentTheme.textTr
+                    } leading-relaxed text-center tracking-wide`}
                     style={getDynamicTranslationStyle(currentAyah.tr.length)}
                   >
                     « {currentAyah.tr} »
@@ -1345,7 +1527,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
                 {showTranslation && currentAyah?.fr && (
                   <p
-                    className="font-normal text-white/95 leading-relaxed text-center tracking-normal text-xs sm:text-sm md:text-base"
+                    data-testid="cinematic-french-text"
+                    className={`font-normal ${
+                      isLightSurface ? 'text-neutral-900' : currentTheme.textFr
+                    } leading-relaxed text-center tracking-normal`}
                     style={getDynamicTranslationStyle(currentAyah.fr.length)}
                   >
                     {currentAyah.fr}
@@ -1406,7 +1591,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             }`}
           >
             {currentSurahMeta.number !== 9 && (
-              <div className="text-center text-amber-200/80 font-arabic text-2xl sm:text-3xl pb-4">
+              <div
+                className={`text-center font-arabic text-2xl sm:text-3xl pb-4 ${
+                  isLightSurface ? 'text-neutral-800' : 'text-amber-200/80'
+                }`}
+              >
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
               </div>
             )}
@@ -1423,11 +1612,19 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   className={`p-5 sm:p-7 rounded-3xl transition-all duration-300 cursor-pointer ${
                     isCurrent
                       ? `${currentTheme.cardBg} ${currentTheme.activeBorder} scale-[1.01]`
+                      : isLightSurface
+                      ? 'hover:bg-neutral-900/5 border border-transparent'
                       : 'hover:bg-white/5 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between pb-3">
-                    <span className="w-7 h-7 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 flex items-center justify-center font-mono font-bold text-xs">
+                    <span
+                      className={`w-7 h-7 rounded-full flex items-center justify-center font-mono font-bold text-xs border ${
+                        isLightSurface
+                          ? 'bg-neutral-900/10 text-neutral-900 border-neutral-900/20'
+                          : 'bg-amber-400/20 text-amber-300 border-amber-400/30'
+                      }`}
+                    >
                       {ayah.num}
                     </span>
                     <button
@@ -1435,7 +1632,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                         e.stopPropagation();
                         transitionToVerse(idx, true, true);
                       }}
-                      className="p-2 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white transition"
+                      className={`p-2 rounded-xl transition ${
+                        isLightSurface
+                          ? 'bg-neutral-900/10 hover:bg-neutral-900 hover:text-white text-neutral-900'
+                          : 'bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-white'
+                      }`}
                       title="Écouter ce verset"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" />
@@ -1445,20 +1646,32 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   {/* Clean Arabic verse with Tajweed coloring */}
                   <div
                     dir="rtl"
-                    className={`font-arabic ${currentTheme.textAr} text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
+                    className={`font-arabic ${
+                      isLightSurface ? 'text-neutral-950' : currentTheme.textAr
+                    } text-right font-normal transition-all duration-300 break-words [word-break:keep-all]`}
                     style={{
                       fontFamily: "'Amiri', 'Traditional Arabic', serif",
                       ...getDynamicArabicStyle(cleanAyahArabic(ayah.ar)),
                     }}
                   >
-                    <TajweedText text={cleanAyahArabic(ayah.ar)} enabled={isTajweedEnabled} />
+                    <TajweedText
+                      text={cleanAyahArabic(ayah.ar)}
+                      enabled={isTajweedEnabled}
+                      variant={isLightSurface ? 'light' : 'dark'}
+                    />
                   </div>
 
                   {(showPhonetics || showTranslation) && (
-                    <div className="pt-3 space-y-1.5 border-t border-white/10 mt-3 text-left">
+                    <div
+                      className={`pt-3 space-y-1.5 border-t mt-3 text-left ${
+                        isLightSurface ? 'border-neutral-900/10' : 'border-white/10'
+                      }`}
+                    >
                       {showPhonetics && ayah.tr && (
                         <p
-                          className={`italic ${currentTheme.textTr} leading-relaxed`}
+                          className={`italic ${
+                            isLightSurface ? 'text-emerald-800' : currentTheme.textTr
+                          } leading-relaxed`}
                           style={getDynamicTranslationStyle(ayah.tr.length)}
                         >
                           {ayah.tr}
@@ -1466,7 +1679,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                       )}
                       {showTranslation && ayah.fr && (
                         <p
-                          className={`font-medium ${currentTheme.textFr} leading-relaxed`}
+                          className={`font-medium ${
+                            isLightSurface ? 'text-neutral-900' : currentTheme.textFr
+                          } leading-relaxed`}
                           style={getDynamicTranslationStyle(ayah.fr.length)}
                         >
                           {ayah.fr}
@@ -1810,7 +2025,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                 }`}
               >
                 <ImageIcon className="w-3.5 h-3.5" />
-                <span>Fonds 4K</span>
+                <span>{isMobile ? 'Fonds 9:16' : 'Fonds 4K'}</span>
               </button>
               <button
                 onClick={() => setAppearanceTab('tajweed')}
@@ -1830,7 +2045,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               <div className="flex-1 overflow-y-auto space-y-2 pr-1 no-scrollbar">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {themeList.map((t) => {
-                    const isSelected = t.id === theme;
+                    const isSelected = t.id === currentTheme.id;
                     return (
                       <button
                         key={t.id}
@@ -1856,99 +2071,141 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               </div>
             )}
 
-            {/* TAB 2: BACKGROUNDS 4K */}
+            {/* TAB 2: BACKGROUNDS (Mobile 9:16 Black/White vs Desktop 4K) */}
             {appearanceTab === 'backgrounds' && (
               <div className="flex-1 overflow-y-auto space-y-3.5 pr-1 no-scrollbar">
                 {/* Categories */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-semibold shrink-0">
-                  <button
-                    onClick={() => setBgCategoryFilter('all')}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'all'
-                        ? 'bg-amber-400 text-neutral-950 font-bold shadow-xs'
-                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                    }`}
-                  >
-                    Tous ({CINEMATIC_BACKGROUNDS.length})
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('emeraude')}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'emeraude'
-                        ? 'bg-emerald-500 text-white font-bold shadow-xs'
-                        : 'bg-white/5 hover:bg-white/10 text-emerald-300'
-                    }`}
-                  >
-                    Émeraude
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('obsidienne')}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'obsidienne'
-                        ? 'bg-neutral-200 text-neutral-950 font-bold shadow-xs'
-                        : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                    }`}
-                  >
-                    Obsidienne
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('saphir')}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'saphir'
-                        ? 'bg-sky-500 text-white font-bold shadow-xs'
-                        : 'bg-white/5 hover:bg-white/10 text-sky-300'
-                    }`}
-                  >
-                    Saphir
-                  </button>
-                  <button
-                    onClick={() => setBgCategoryFilter('ivoire')}
-                    className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
-                      bgCategoryFilter === 'ivoire'
-                        ? 'bg-amber-200 text-neutral-950 font-bold shadow-xs'
-                        : 'bg-white/5 hover:bg-white/10 text-amber-200'
-                    }`}
-                  >
-                    Ivoire & Or
-                  </button>
-                </div>
+                {isMobile ? (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-semibold shrink-0">
+                    <button
+                      onClick={() => setMobileBgCategoryFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        mobileBgCategoryFilter === 'all'
+                          ? 'bg-amber-400 text-neutral-950 font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      }`}
+                    >
+                      Tous ({MOBILE_VERTICAL_BACKGROUNDS.length})
+                    </button>
+                    <button
+                      onClick={() => setMobileBgCategoryFilter('noir')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        mobileBgCategoryFilter === 'noir'
+                          ? 'bg-neutral-950 text-white font-bold border border-white/30 shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      }`}
+                    >
+                      Fonds Noirs (9:16)
+                    </button>
+                    <button
+                      onClick={() => setMobileBgCategoryFilter('blanc')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        mobileBgCategoryFilter === 'blanc'
+                          ? 'bg-white text-neutral-950 font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-200'
+                      }`}
+                    >
+                      Fonds Blancs (9:16)
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs font-semibold shrink-0">
+                    <button
+                      onClick={() => setBgCategoryFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        bgCategoryFilter === 'all'
+                          ? 'bg-amber-400 text-neutral-950 font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      }`}
+                    >
+                      Tous ({CINEMATIC_BACKGROUNDS.length})
+                    </button>
+                    <button
+                      onClick={() => setBgCategoryFilter('emeraude')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        bgCategoryFilter === 'emeraude'
+                          ? 'bg-emerald-500 text-white font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-emerald-300'
+                      }`}
+                    >
+                      Émeraude
+                    </button>
+                    <button
+                      onClick={() => setBgCategoryFilter('obsidienne')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        bgCategoryFilter === 'obsidienne'
+                          ? 'bg-neutral-200 text-neutral-950 font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
+                      }`}
+                    >
+                      Obsidienne
+                    </button>
+                    <button
+                      onClick={() => setBgCategoryFilter('saphir')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        bgCategoryFilter === 'saphir'
+                          ? 'bg-sky-500 text-white font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-sky-300'
+                      }`}
+                    >
+                      Saphir
+                    </button>
+                    <button
+                      onClick={() => setBgCategoryFilter('ivoire')}
+                      className={`px-3 py-1.5 rounded-xl shrink-0 transition cursor-pointer ${
+                        bgCategoryFilter === 'ivoire'
+                          ? 'bg-amber-200 text-neutral-950 font-bold shadow-xs'
+                          : 'bg-white/5 hover:bg-white/10 text-amber-200'
+                      }`}
+                    >
+                      Ivoire & Or
+                    </button>
+                  </div>
+                )}
 
-                {/* Option: Pure Gradient (No photo) */}
+                {/* Option: Pure Solid Background (No image) */}
                 <button
                   onClick={() => handleSelectBackground('none')}
                   className={`w-full px-3.5 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer flex items-center justify-between border ${
-                    selectedBgId === 'none'
+                    activeBgId === 'none'
                       ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
                       : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
                   }`}
                 >
                   <span className="flex items-center gap-2">
                     <span className="w-3.5 h-3.5 rounded-full border border-current opacity-60 inline-block" />
-                    <span>Dégradé pur (sans image photographique)</span>
+                    <span>
+                      {isMobile
+                        ? 'Fond uni pur (noir ou blanc sans motif)'
+                        : 'Dégradé pur (sans image photographique)'}
+                    </span>
                   </span>
-                  {selectedBgId === 'none' && <Check className="w-4 h-4 stroke-[3]" />}
+                  {activeBgId === 'none' && <Check className="w-4 h-4 stroke-[3]" />}
                 </button>
 
-                {/* Thumbnail Grid - 2 columns so cards are large, clear, and names never overlap! */}
+                {/* Thumbnail Grid */}
                 <div className="grid grid-cols-2 gap-2.5">
                   {filteredBackgrounds.map((bg) => {
-                    const isSelected = selectedBgId === bg.id;
+                    const isSelected = activeBgId === bg.id;
                     return (
                       <button
                         key={bg.id}
                         onClick={() => handleSelectBackground(bg.id)}
-                        className={`group relative aspect-video rounded-2xl overflow-hidden border text-left transition cursor-pointer flex flex-col justify-end p-2.5 ${
+                        className={`group relative ${
+                          isMobile ? 'aspect-[9/14]' : 'aspect-video'
+                        } rounded-2xl overflow-hidden border text-left transition cursor-pointer flex flex-col justify-end p-2.5 ${
                           isSelected
                             ? 'border-amber-400 ring-2 ring-amber-400/50 shadow-md'
-                            : 'border-white/10 hover:border-white/30'
+                            : 'border-white/15 hover:border-white/35'
                         }`}
                       >
                         <img
                           src={bg.url}
                           alt={bg.name}
+                          referrerPolicy="no-referrer"
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
                         <div className="relative z-10 flex items-center justify-between w-full">
                           <span className="text-xs font-bold text-white truncate drop-shadow-xs">
                             {bg.name}
@@ -1964,47 +2221,49 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
                   })}
                 </div>
 
-                {/* Opacity Veil Presets */}
-                <div className="pt-2 border-t border-white/10">
-                  <div className="flex items-center justify-between text-xs mb-2 text-neutral-300">
-                    <span className="font-semibold">Voile d'ombrage (lisibilité texte) :</span>
-                    <span className="text-amber-300 font-mono font-bold">
-                      {Math.round(bgOpacity * 100)}%
-                    </span>
+                {/* Opacity Veil Presets (Desktop or Dark Mobile) */}
+                {!isLightSurface && (
+                  <div className="pt-2 border-t border-white/10">
+                    <div className="flex items-center justify-between text-xs mb-2 text-neutral-300">
+                      <span className="font-semibold">Voile d'ombrage (lisibilité texte) :</span>
+                      <span className="text-amber-300 font-mono font-bold">
+                        {Math.round(bgOpacity * 100)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs font-bold">
+                      <button
+                        onClick={() => handleSelectBgOpacity(0.38)}
+                        className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                          bgOpacity <= 0.42
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        Léger (38%)
+                      </button>
+                      <button
+                        onClick={() => handleSelectBgOpacity(0.55)}
+                        className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                          bgOpacity > 0.42 && bgOpacity <= 0.65
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        Équilibré (55%)
+                      </button>
+                      <button
+                        onClick={() => handleSelectBgOpacity(0.75)}
+                        className={`py-1.5 rounded-xl border transition cursor-pointer ${
+                          bgOpacity > 0.65
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        Sombre (75%)
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs font-bold">
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.38)}
-                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
-                        bgOpacity <= 0.42
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Léger (38%)
-                    </button>
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.55)}
-                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
-                        bgOpacity > 0.42 && bgOpacity <= 0.65
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Équilibré (55%)
-                    </button>
-                    <button
-                      onClick={() => handleSelectBgOpacity(0.75)}
-                      className={`py-1.5 rounded-xl border transition cursor-pointer ${
-                        bgOpacity > 0.65
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-xs'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      Sombre (75%)
-                    </button>
-                  </div>
-                </div>
+                )}
               </div>
             )}
 
