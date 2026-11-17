@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import {
   VIDEO_EXPORT_HEIGHT,
   VIDEO_EXPORT_WIDTH,
+  VIDEO_TEMPLATE_PRESETS,
   buildContinuousTimeline,
   computeContinuousScrollY,
   computeCoverDrawRect,
   findActiveTimelineEntry,
   formatTimeMMSS,
+  generateYouTubePublishPack,
+  getResolutionFallbackTiers,
+  getVideoFormatPreset,
   normalizeVerseRange,
   selectPreferredVideoMimeType,
   sliceSelectedAyahs,
@@ -124,5 +128,80 @@ test('computeCoverDrawRect cover-fits landscape video or tall media inside 1080x
   const exact = computeCoverDrawRect(1080, 1920, 1080, 1920);
   assert.deepEqual(exact, { x: 0, y: 0, w: 1080, h: 1920 });
 });
+
+test('getVideoFormatPreset unlocks YouTube 16:9 & Square 1:1 on PC while strictly locking Mobile to 9:16', () => {
+  const pcYt1080 = getVideoFormatPreset('youtube_1080p', false);
+  assert.equal(pcYt1080.width, 1920);
+  assert.equal(pcYt1080.height, 1080);
+  assert.equal(pcYt1080.aspectLabel, '16:9');
+
+  const pcYt720 = getVideoFormatPreset('youtube_720p', false);
+  assert.equal(pcYt720.width, 1280);
+  assert.equal(pcYt720.height, 720);
+
+  const pcSquare = getVideoFormatPreset('square_1080', false);
+  assert.equal(pcSquare.width, 1080);
+  assert.equal(pcSquare.height, 1080);
+
+  // Mobile MUST stay locked to 9:16 even if PC saved youtube_1080p
+  const mobileForced = getVideoFormatPreset('youtube_1080p', true);
+  assert.equal(mobileForced.id, 'shorts_916');
+  assert.equal(mobileForced.width, 1080);
+  assert.equal(mobileForced.height, 1920);
+  assert.equal(mobileForced.aspectLabel, '9:16');
+});
+
+test('getResolutionFallbackTiers preserves 16:9, 1:1, and 9:16 aspect ratios across all fallback tiers', () => {
+  const tiers169 = getResolutionFallbackTiers(1920, 1080);
+  for (const t of tiers169) {
+    assert.ok(Math.abs(t.w / t.h - 16 / 9) < 0.01, `Expected 16:9, got ${t.w}x${t.h}`);
+  }
+
+  const tiers11 = getResolutionFallbackTiers(1080, 1080);
+  for (const t of tiers11) {
+    assert.equal(t.w, t.h);
+  }
+
+  const tiers916 = getResolutionFallbackTiers(1080, 1920);
+  for (const t of tiers916) {
+    assert.ok(Math.abs(t.w / t.h - 9 / 16) < 0.01, `Expected 9:16, got ${t.w}x${t.h}`);
+  }
+});
+
+test('VIDEO_TEMPLATE_PRESETS exposes 6 distinct templates (2 existing + 4 new)', () => {
+  assert.equal(VIDEO_TEMPLATE_PRESETS.length, 6);
+  const ids = new Set(VIDEO_TEMPLATE_PRESETS.map((t) => t.id));
+  assert.equal(ids.size, 6);
+  assert.ok(ids.has('spotlight_card'));
+  assert.ok(ids.has('cinema_subtitles'));
+  assert.ok(ids.has('mushaf_split'));
+  assert.ok(ids.has('meditation_minimal'));
+});
+
+test('generateYouTubePublishPack creates timestamped chapters and full surah metadata', () => {
+  const ayahs = Array.from({ length: 7 }, (_, i) => ({
+    num: i + 1,
+    ar: 'بِسْمِ اللَّهِ',
+    fr: 'Texte',
+  }));
+  const timeline = buildContinuousTimeline(ayahs, [5, 5, 5, 5, 5, 5, 5], 1);
+  const pack = generateYouTubePublishPack({
+    surahName: 'Al-Fatiha',
+    surahArabicName: 'الفاتحة',
+    surahNumber: 1,
+    startAyah: 1,
+    endAyah: 7,
+    totalAyahsInSurah: 7,
+    reciterName: 'Mishary Rashid Alafasy',
+    timeline,
+  });
+
+  assert.ok(pack.title.includes('Al-Fatiha'));
+  assert.ok(pack.title.includes('Sourate complète (7 versets)'));
+  assert.ok(pack.description.includes('00:00 Verset 1'));
+  assert.ok(pack.description.includes('00:10 Verset 3'));
+  assert.ok(pack.description.includes('00:30 Verset 7'));
+});
+
 
 

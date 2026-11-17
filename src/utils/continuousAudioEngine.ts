@@ -181,38 +181,30 @@ export function computeAudioTrimBounds(buffer: AudioBuffer): {
   return { trimStartSec, effectiveDurationSec };
 }
 
-export async function decodeVerseAudioSequence(
+async function fetchAndDecodeSingleAyah(
   audioCtx: AudioContext,
   surahNum: number,
-  ayahs: StudioAyahItem[],
+  ayahNum: number,
   reciterId: string,
-  onProgress?: (loaded: number, total: number) => void,
   signal?: AbortSignal
-): Promise<DecodedVerseBuffer[]> {
-  const results: DecodedVerseBuffer[] = [];
+): Promise<DecodedVerseBuffer> {
+  let decoded: AudioBuffer | null = null;
+  const urlsToTry = [
+    `/api/quran-audio?surah=${surahNum}&ayah=${ayahNum}&reciter=${encodeURIComponent(reciterId)}`,
+    getAyahAudioUrl(surahNum, ayahNum, reciterId),
+  ];
 
-  for (let i = 0; i < ayahs.length; i++) {
-    if (signal?.aborted) break;
-    const ayah = ayahs[i];
-    let decoded: AudioBuffer | null = null;
-
-    const urlsToTry = [
-      `/api/quran-audio?surah=${surahNum}&ayah=${ayah.num}&reciter=${encodeURIComponent(reciterId)}`,
-      getAyahAudioUrl(surahNum, ayah.num, reciterId),
-    ];
-
+  // Up to 2 passes across fallback URLs for resilience on long full-surah exports
+  for (let attempt = 0; attempt < 2 && !decoded; attempt++) {
     for (const url of urlsToTry) {
       if (signal?.aborted || decoded) break;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const onOuterAbort = () => controller.abort();
+      signal?.addEventListener('abort', onOuterAbort, { once: true });
+
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 9000);
-        const onOuterAbort = () => controller.abort();
-        signal?.addEventListener('abort', onOuterAbort, { once: true });
-
         const resp = await fetch(url, { signal: controller.signal });
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', onOuterAbort);
-
         if (resp.ok) {
           const arr = await resp.arrayBuffer();
           if (arr.byteLength > 256) {
@@ -221,27 +213,75 @@ export async function decodeVerseAudioSequence(
         }
       } catch {
         decoded = null;
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onOuterAbort);
       }
     }
+  }
 
-    if (decoded) {
-      const { trimStartSec, effectiveDurationSec } = computeAudioTrimBounds(decoded);
-      results.push({
-        ayahNum: ayah.num,
-        buffer: decoded,
-        trimStartSec,
-        effectiveDurationSec,
-      });
-    } else {
-      results.push({
-        ayahNum: ayah.num,
+  if (decoded) {
+    const { trimStartSec, effectiveDurationSec } = computeAudioTrimBounds(decoded);
+    return {
+      ayahNum,
+      buffer: decoded,
+      trimStartSec,
+      effectiveDurationSec,
+    };
+  }
+
+  return {
+    ayahNum,
+    buffer: null,
+    trimStartSec: 0,
+    effectiveDurationSec: 0,
+  };
+}
+
+export async function decodeVerseAudioSequence(
+  audioCtx: AudioContext,
+  surahNum: number,
+  ayahs: StudioAyahItem[],
+  reciterId: string,
+  onProgress?: (loaded: number, total: number) => void,
+  signal?: AbortSignal
+): Promise<DecodedVerseBuffer[]> {
+  if (ayahs.length === 0) return [];
+
+  const results: DecodedVerseBuffer[] = new Array(ayahs.length);
+  const concurrency = Math.min(4, ayahs.length);
+  let nextIndex = 0;
+  let completed = 0;
+
+  const runWorker = async () => {
+    while (true) {
+      if (signal?.aborted) return;
+      const idx = nextIndex++;
+      if (idx >= ayahs.length) return;
+      const ayah = ayahs[idx];
+      results[idx] = await fetchAndDecodeSingleAyah(
+        audioCtx,
+        surahNum,
+        ayah.num,
+        reciterId,
+        signal
+      );
+      completed++;
+      onProgress?.(completed, ayahs.length);
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => runWorker()));
+
+  for (let i = 0; i < ayahs.length; i++) {
+    if (!results[i]) {
+      results[i] = {
+        ayahNum: ayahs[i].num,
         buffer: null,
         trimStartSec: 0,
         effectiveDurationSec: 0,
-      });
+      };
     }
-
-    onProgress?.(i + 1, ayahs.length);
   }
 
   return results;

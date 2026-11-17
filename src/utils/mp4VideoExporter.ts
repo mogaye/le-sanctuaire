@@ -2,6 +2,7 @@ import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import {
   ContinuousTimeline,
   StudioAyahItem,
+  getResolutionFallbackTiers,
   selectPreferredVideoMimeType,
 } from './mobileVideoStudioUtils';
 import {
@@ -128,14 +129,8 @@ async function resolveSupportedH264Config(
     return null;
   }
 
-  // Try crisp Full HD 1080x1920 first, then gracefully step down bitrate or to 720x1280 / 540x960 9:16
-  // for mobile SoCs whose hardware H.264 encoder caps below Level 4.2.
-  const resolutionTiers = [
-    { w: requestedWidth, h: requestedHeight, bitrate: 8_000_000 },
-    { w: requestedWidth, h: requestedHeight, bitrate: 5_000_000 },
-    { w: 720, h: 1280, bitrate: 4_500_000 },
-    { w: 540, h: 960, bitrate: 3_000_000 },
-  ];
+  // Try crisp requested resolution first, then gracefully step down while preserving aspect ratio (16:9, 9:16, or 1:1)
+  const resolutionTiers = getResolutionFallbackTiers(requestedWidth, requestedHeight);
 
   const codecs = [
     'avc1.4d402a', // Main Profile L4.2
@@ -343,14 +338,26 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
   let opusConfig: AudioEncoderConfig | null = null;
 
   if (!aacConfig) {
-    serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
-    if (params.abortSignal.aborted) return null;
-    if (!serverMuxAvailable) {
+    // For long YouTube videos (> 2 min), prefer client-side Opus in MP4 before uploading huge raw WAVs
+    if (params.timeline.totalDurationSec > 120) {
       opusConfig = await resolveSupportedOpusConfig(
         renderedAudio.sampleRate,
         renderedAudio.numberOfChannels
       );
+      if (!opusConfig) {
+        serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
+      }
+    } else {
+      serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
+      if (params.abortSignal.aborted) return null;
+      if (!serverMuxAvailable) {
+        opusConfig = await resolveSupportedOpusConfig(
+          renderedAudio.sampleRate,
+          renderedAudio.numberOfChannels
+        );
+      }
     }
+    if (params.abortSignal.aborted) return null;
   }
 
   // If neither client AAC, nor server mux, nor client Opus is available, cannot build MP4 audio here
@@ -509,7 +516,7 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
       throw encoderError;
     }
 
-    await withTimeout(videoEncoder.flush(), 15000, 'videoEncoder.flush');
+    await withTimeout(videoEncoder.flush(), 30000, 'videoEncoder.flush');
     muxer.finalize();
   } finally {
     try {
@@ -687,7 +694,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     params.onProgress(
       pct,
       elapsed,
-      `Capture vidéo 9:16 (${Math.round((elapsed / totalSec) * 100)}%)...`
+      `Capture vidéo (${renderOpts.width}×${renderOpts.height}) ${Math.round((elapsed / totalSec) * 100)}%...`
     );
     if (elapsed >= totalSec) {
       if (recorder.state === 'recording') {

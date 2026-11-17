@@ -21,6 +21,10 @@ import {
   Trash2,
   Volume2,
   VolumeX,
+  Monitor,
+  Smartphone,
+  Plus,
+  Clock,
 } from 'lucide-react';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
 import { RECITERS } from '../data/islamicData';
@@ -33,10 +37,13 @@ import {
 import { TajweedText, cleanAyahArabic } from '../utils/tajweedColorizer';
 import {
   StudioAyahItem,
-  VIDEO_EXPORT_HEIGHT,
-  VIDEO_EXPORT_WIDTH,
+  VIDEO_FORMAT_PRESETS,
+  VIDEO_TEMPLATE_PRESETS,
+  VideoFormatId,
+  VideoTemplateId,
   buildContinuousTimeline,
   formatTimeMMSS,
+  getVideoFormatPreset,
   normalizeVerseRange,
   sliceSelectedAyahs,
 } from '../utils/mobileVideoStudioUtils';
@@ -58,6 +65,7 @@ import {
 } from '../utils/canvasVideoRenderer';
 import { exportQuranVideoToMp4 } from '../utils/mp4VideoExporter';
 import { useWakeLock } from '../hooks/useWakeLock';
+import { useMobileDevice } from '../hooks/useMobileDevice';
 import {
   deleteStudioMediaItem,
   formatStudioBytes,
@@ -66,6 +74,9 @@ import {
   saveStudioBgPreferences,
   saveStudioMediaFile,
 } from '../utils/studioMediaLibrary';
+import { StudioTemplateGrid } from './video-studio/StudioTemplateGrid';
+import { StudioLiveMonitor } from './video-studio/StudioLiveMonitor';
+import { YouTubePublishCard } from './video-studio/YouTubePublishCard';
 
 interface MobileVerseVideoStudioProps {
   isOpen: boolean;
@@ -87,6 +98,7 @@ interface CustomBackgroundMedia {
 }
 
 type StudioStage = 'setup' | 'player' | 'export';
+type StudioTab = 'verses' | 'style' | 'bg' | 'audio';
 
 function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null> {
   return new Promise((resolve) => {
@@ -141,6 +153,30 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   initialBgId = 'mobile_noir_minimal',
   onSyncReciter,
 }) => {
+  const { isMobile, width: viewportWidth } = useMobileDevice();
+  // PC-only dimensions are strictly gated to non-mobile desktop viewports (>= 768px)
+  const isPcMode = !isMobile && viewportWidth >= 768;
+
+  // Format (PC-only selectable; Mobile strictly locked to 9:16)
+  const [videoFormatId, setVideoFormatId] = useState<VideoFormatId>(() => {
+    const prefs = loadStudioBgPreferences();
+    if (
+      prefs.videoFormatId &&
+      VIDEO_FORMAT_PRESETS.some((f) => f.id === prefs.videoFormatId)
+    ) {
+      return prefs.videoFormatId as VideoFormatId;
+    }
+    return 'youtube_1080p';
+  });
+
+  const activeFormat = useMemo(
+    () => getVideoFormatPreset(videoFormatId, !isPcMode),
+    [videoFormatId, isPcMode]
+  );
+
+  // Active workspace tab
+  const [activeTab, setActiveTab] = useState<StudioTab>('verses');
+
   // Configuration State
   const [surahNum, setSurahNum] = useState<number>(initialSurahNum || 1);
   const [surahVerses, setSurahVerses] = useState<StudioAyahItem[]>([]);
@@ -152,7 +188,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   );
   const [reciterId, setReciterId] = useState<string>(initialReciter?.id || 'mishary');
 
-  // Background Selection + Persistent Site Media Library (Images & Videos saved for future sessions)
+  // Background Selection + Persistent Site Media Library
   const [customMedia, setCustomMedia] = useState<CustomBackgroundMedia[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState<boolean>(false);
   const [isSavingMedia, setIsSavingMedia] = useState<boolean>(false);
@@ -189,7 +225,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [showFrench, setShowFrench] = useState<boolean>(true);
   const [showSurahHeader, setShowSurahHeader] = useState<boolean>(true);
   const [textScale, setTextScale] = useState<'compact' | 'standard' | 'grand'>('standard');
-  const [flowMode, setFlowMode] = useState<'teleprompter' | 'stream'>('teleprompter');
+  const [flowMode, setFlowMode] = useState<VideoTemplateId>(() => {
+    const prefs = loadStudioBgPreferences();
+    if (
+      prefs.flowMode &&
+      VIDEO_TEMPLATE_PRESETS.some((t) => t.id === prefs.flowMode)
+    ) {
+      return prefs.flowMode as VideoTemplateId;
+    }
+    return 'teleprompter';
+  });
   const [paceMultiplier, setPaceMultiplier] = useState<number>(1.0);
   const [monitorAudioDuringExport, setMonitorAudioDuringExport] = useState<boolean>(true);
 
@@ -230,7 +275,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   } | null>(null);
   const [exportErrorMsg, setExportErrorMsg] = useState<string | null>(null);
 
-  // Refs for audio, background media & live 9:16 video player canvas
+  // Refs for audio, background media & live video player canvas
   const audioCtxRef = useRef<AudioContext | null>(null);
   const decodedBuffersRef = useRef<DecodedVerseBuffer[]>([]);
   const playbackHandleRef = useRef<ScheduledPlaybackHandle | null>(null);
@@ -247,11 +292,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const hudHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const sectionVersesRef = useRef<HTMLElement | null>(null);
-  const sectionAudioRef = useRef<HTMLElement | null>(null);
-  const sectionBgRef = useRef<HTMLElement | null>(null);
-  const sectionStyleRef = useRef<HTMLElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const playerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -259,7 +300,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   useWakeLock(isOpen && stage !== 'setup');
 
-  // Load persistent media library from site storage (IndexedDB + Server Vault) when studio opens
+  // Load persistent media library when studio opens
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
@@ -274,7 +315,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           }
           return;
         }
-        // Revoke previous object URLs before replacing
         for (const prev of customMediaRef.current) {
           try {
             URL.revokeObjectURL(prev.url);
@@ -301,12 +341,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     };
   }, [isOpen]);
 
-  // Persist user's active background selection & contrast choices across future sessions
+  // Persist background, template & PC format choices across sessions
   useEffect(() => {
-    saveStudioBgPreferences({ bgId, textColorOverride, bgVeilOpacity });
-  }, [bgId, textColorOverride, bgVeilOpacity]);
+    saveStudioBgPreferences({
+      bgId,
+      textColorOverride,
+      bgVeilOpacity,
+      videoFormatId,
+      flowMode,
+    });
+  }, [bgId, textColorOverride, bgVeilOpacity, videoFormatId, flowMode]);
 
-  // Sync Surah / Reciter defaults on open without clobbering saved custom backgrounds
+  // Sync Surah / Reciter defaults on open
   useEffect(() => {
     if (!isOpen) return;
     setSurahNum(initialSurahNum || 1);
@@ -335,6 +381,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (!isOpen) return;
     let active = true;
     setIsLoadingVerses(true);
+    setMeasuredDurations([]);
     fetchSurahVersesForStudio(surahMeta)
       .then((data) => {
         if (!active) return;
@@ -363,7 +410,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [surahVerses, normalizedRange]
   );
 
-  // Resolve Active Background (Custom Video/Image, 9:16 Vertical, 4K Desktop, or Solid Color)
+  // Resolve Active Background
   const activeCustomMedia = useMemo(
     () => customMedia.find((m) => m.id === bgId) || null,
     [customMedia, bgId]
@@ -394,8 +441,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     : activeVerticalBg?.name || active4kBg?.name || activeSolidBg?.name || 'Fond uni';
 
   const isLightSurface = useMemo(() => {
-    if (textColorOverride === 'dark') return true; // Dark text -> light background polarity
-    if (textColorOverride === 'light') return false; // White text -> dark background polarity
+    if (textColorOverride === 'dark') return true;
+    if (textColorOverride === 'light') return false;
     if (activeSolidBg) return activeSolidBg.polarity === 'light';
     if (activeVerticalBg) return activeVerticalBg.polarity === 'light';
     if (active4kBg) return active4kBg.polarity === 'light';
@@ -407,7 +454,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     return isLightSurface ? '#FCFCFB' : '#050505';
   }, [activeSolidBg, isLightSurface]);
 
-  // Combined Background Cards List matching chosen filter
   const visibleBackgroundCards = useMemo(() => {
     const customCards = customMedia.map((m) => ({
       id: m.id,
@@ -457,6 +503,24 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [selectedVerses, measuredDurations, paceMultiplier]
   );
 
+  // Quick range presets including long YouTube presets on PC or large surahs
+  const rangePresets = useMemo(() => {
+    const list: Array<{ label: string; s: number; e: number }> = [
+      { label: '1 → 5', s: 1, e: Math.min(5, maxAyahNum) },
+    ];
+    if (maxAyahNum >= 10) {
+      list.push({ label: '1 → 15', s: 1, e: Math.min(15, maxAyahNum) });
+    }
+    if (maxAyahNum >= 20) {
+      list.push({ label: '1 → 30', s: 1, e: Math.min(30, maxAyahNum) });
+    }
+    if (maxAyahNum >= 45) {
+      list.push({ label: '1 → 60', s: 1, e: Math.min(60, maxAyahNum) });
+    }
+    list.push({ label: `Toute (${maxAyahNum})`, s: 1, e: maxAyahNum });
+    return list;
+  }, [maxAyahNum]);
+
   const handleImportDeviceMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList || fileList.length === 0) return;
@@ -497,7 +561,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   };
 
-  // Stop all running audio / animation / recording cleanly
   const stopAllMedia = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -575,7 +638,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   }, [isOpen]);
 
-  // Auto-hide Stage 2 video controls cleanly after 3s during playback
   useEffect(() => {
     if (hudHideTimerRef.current) {
       clearTimeout(hudHideTimerRef.current);
@@ -606,8 +668,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   // =========================================================================
-  // REAL-TIME 9:16 VIDEO PLAYER (Stage = 'player' — "Lire le contenu")
-  // Plays the actual generated 9:16 video canvas synced to seamless audio
+  // STAGE 2 — REAL-TIME CONTINUOUS VIDEO PLAYER ("Lire le contenu")
   // =========================================================================
   const startContinuousPlayer = async () => {
     if (selectedVerses.length === 0) return;
@@ -677,8 +738,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const exactTimeline = buildContinuousTimeline(selectedVerses, durations, paceMultiplier);
     playerTimelineRef.current = exactTimeline;
 
-    const liveWidth = 720;
-    const liveHeight = 1280;
+    const liveWidth = activeFormat.previewWidth;
+    const liveHeight = activeFormat.previewHeight;
     const canvas = playerCanvasRef.current;
     if (canvas) {
       canvas.width = liveWidth;
@@ -844,8 +905,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   // =========================================================================
-  // REAL 9:16 FULL HD MP4 VIDEO CREATION & EXPORT (Stage = 'export')
-  // Always renders crisp 1080x1920 (9:16) with H.264 + AAC audio & mandatory watermark
+  // STAGE 3 — MP4 EXPORT AT ACTIVE FORMAT RESOLUTION (16:9 / 9:16 / 1:1)
   // =========================================================================
   const startVideoExport = async () => {
     if (selectedVerses.length === 0) return;
@@ -868,6 +928,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
 
+    const exportW = activeFormat.width;
+    const exportH = activeFormat.height;
+
     try {
       const AudioContextCtor =
         window.AudioContext || (window as any).webkitAudioContext;
@@ -877,7 +940,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         await ctx.resume().catch(() => {});
       }
 
-      // 1. Decode all verses & load background media (Image or looping Video) concurrently
       const bgImgPromise =
         activeMediaKind === 'image' && activeMediaUrl
           ? loadCanvasBackgroundImage(activeMediaUrl)
@@ -937,16 +999,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       if (!canvas) {
         throw new Error('Surface vidéo indisponible.');
       }
-      canvas.width = VIDEO_EXPORT_WIDTH;
-      canvas.height = VIDEO_EXPORT_HEIGHT;
+      canvas.width = exportW;
+      canvas.height = exportH;
       const canvasCtx = canvas.getContext('2d');
       if (!canvasCtx) {
         throw new Error('Contexte graphique 2D indisponible.');
       }
 
       const renderOpts: VideoCanvasRenderOptions = {
-        width: VIDEO_EXPORT_WIDTH,
-        height: VIDEO_EXPORT_HEIGHT,
+        width: exportW,
+        height: exportH,
         surahName: surahMeta.name,
         surahNumber: surahMeta.number,
         startAyah: normalizedRange.startAyah,
@@ -971,7 +1033,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
       setExportStatus('recording');
       setExportStatusMessage(
-        `Création de la vidéo MP4 Full HD (${okAudioCount}/${selectedVerses.length} versets)...`
+        `Encodage MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${selectedVerses.length} versets...`
       );
 
       const exportResult = await exportQuranVideoToMp4({
@@ -1026,7 +1088,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       setExportProgressPct(100);
       setExportStatus('ready');
       setExportStatusMessage(
-        `Votre vidéo MP4 Full HD (${VIDEO_EXPORT_WIDTH}×${VIDEO_EXPORT_HEIGHT}) avec son continu (${okAudioCount}/${selectedVerses.length} versets) est prête !`
+        `Vidéo MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) prête avec son continu (${okAudioCount}/${selectedVerses.length} versets) !`
       );
     } catch (err: any) {
       if (!abortCtrl.signal.aborted) {
@@ -1062,7 +1124,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   const handleShareVideo = async () => {
     if (!exportedVideoBlob) return;
-    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}.${exportedFileExt}`;
+    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}-${activeFormat.aspectLabel.replace(':', 'x')}.${exportedFileExt}`;
     const file = new File([exportedVideoBlob], filename, { type: exportedVideoBlob.type });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
@@ -1077,42 +1139,60 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   };
 
-  const scrollToSection = (ref: React.RefObject<HTMLElement | null>) => {
-    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const switchTab = (tab: StudioTab) => {
+    setActiveTab(tab);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (!isOpen) return null;
 
+  // Dynamic container sizing for Player & Export based on active aspect ratio
+  const playerFrameClass =
+    activeFormat.aspectLabel === '16:9'
+      ? 'w-full max-w-[min(94vw,calc(86dvh*16/9))] aspect-video'
+      : activeFormat.aspectLabel === '1:1'
+      ? 'w-full max-w-[min(94vw,86dvh)] aspect-square'
+      : 'w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] md:max-h-[94dvh] aspect-[9/16]';
+
+  const exportPreviewFrameClass =
+    activeFormat.aspectLabel === '16:9'
+      ? 'w-full max-w-xl aspect-video'
+      : activeFormat.aspectLabel === '1:1'
+      ? 'h-[42vh] max-h-[380px] aspect-square'
+      : 'h-[46vh] max-h-[430px] aspect-[9/16]';
+
   // =========================================================================
-  // RENDER: STAGE 2 — CLEAN 9:16 VIDEO PLAYER ("Lire le contenu")
-  // Renders the actual generated 9:16 canvas video directly with zero clutter
+  // RENDER: STAGE 2 — CLEAN VIDEO PLAYER ("Lire le contenu")
   // =========================================================================
   if (stage === 'player') {
     return (
       <div
         data-testid="mobile-video-continuous-player"
         data-surface={isLightSurface ? 'light' : 'dark'}
-        className="fixed inset-0 z-[10050] w-full h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none"
+        data-format={activeFormat.id}
+        className="fixed inset-0 z-[10050] w-full h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none p-0 md:p-4"
         onClick={() => setPlayerHudVisible((v) => !v)}
       >
-        {/* Crisp 9:16 Theater Stage (Live Rendered Video Canvas Itself) */}
-        <div className="relative w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] md:max-h-[96dvh] aspect-[9/16] bg-black overflow-hidden flex items-center justify-center md:rounded-3xl md:border md:border-white/15 md:shadow-2xl">
+        <div
+          className={`relative ${playerFrameClass} bg-black overflow-hidden flex items-center justify-center md:rounded-2xl md:border md:border-white/15 md:shadow-2xl`}
+        >
           <canvas
             ref={playerCanvasRef}
             data-testid="studio-video-player-canvas"
-            width={720}
-            height={1280}
+            width={activeFormat.previewWidth}
+            height={activeFormat.previewHeight}
             className={`w-full h-full object-contain transition-opacity duration-300 ${
               playerStatus === 'loading' ? 'opacity-0' : 'opacity-100'
             }`}
           />
 
-          {/* Minimal Loading Indicator while assembling continuous audio */}
           {playerStatus === 'loading' && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center gap-3 bg-black text-white">
               <Loader2 className="w-10 h-10 animate-spin text-amber-300" />
               <div className="space-y-1">
-                <p className="text-sm font-extrabold">Préparation de la vidéo...</p>
+                <p className="text-sm font-extrabold">
+                  Préparation de la vidéo ({activeFormat.aspectLabel})...
+                </p>
                 <p className="text-xs text-neutral-400 tabular-nums">
                   {playerLoadProgress.loaded}/{playerLoadProgress.total} versets
                 </p>
@@ -1120,7 +1200,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             </div>
           )}
 
-          {/* Minimal Floating Header (Top corner actions only, auto-hides on playback) */}
+          {/* Minimal Floating Header */}
           <div
             className={`absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 transition-opacity duration-200 ${
               playerHudVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
@@ -1134,7 +1214,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 setStage('setup');
               }}
               aria-label="Retour au studio vidéo"
-              className="h-9 px-3 rounded-full bg-black/65 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+              className="h-9 px-3 rounded-full bg-black/70 hover:bg-black/85 text-white border border-white/20 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
               <span>Studio</span>
@@ -1147,13 +1227,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 onClose();
               }}
               aria-label="Fermer la lecture vidéo"
-              className="w-9 h-9 rounded-full bg-black/65 hover:bg-rose-600/90 text-white border border-white/20 backdrop-blur-md flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-full bg-black/70 hover:bg-rose-600/90 text-white border border-white/20 backdrop-blur-md flex items-center justify-center cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Minimal Bottom Transport Pill (Zero extra cards/badges) */}
+          {/* Minimal Bottom Transport Bar */}
           <div
             className={`absolute bottom-0 inset-x-0 z-30 px-3.5 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-2 transition-opacity duration-200 ${
               playerHudVisible && playerStatus !== 'loading'
@@ -1162,7 +1242,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-black/70 border border-white/15 backdrop-blur-xl rounded-full px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
+            <div className="max-w-xl mx-auto bg-black/75 border border-white/15 backdrop-blur-xl rounded-full px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
               <button
                 type="button"
                 onClick={togglePlayPauseContinuous}
@@ -1192,14 +1272,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               />
 
               <span className="text-xs font-mono text-neutral-300 tabular-nums shrink-0">
-                {formatTimeMMSS(currentTimeSec)}
+                {formatTimeMMSS(currentTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
               </span>
 
               <button
                 type="button"
                 onClick={startVideoExport}
                 aria-label="Exporter en MP4"
-                className="h-8 px-3 rounded-full bg-emerald-500 text-neutral-950 font-black text-xs flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition"
+                className="h-8 px-3 rounded-full bg-emerald-500 text-neutral-950 font-black text-xs flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition whitespace-nowrap"
               >
                 <Download className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>MP4</span>
@@ -1212,42 +1292,46 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   }
 
   // =========================================================================
-  // RENDER: STAGE 3 — VIDEO EXPORT & DOWNLOAD RESULT (ALWAYS 9:16 MP4)
+  // RENDER: STAGE 3 — VIDEO EXPORT & YOUTUBE PUBLISH PACK
   // =========================================================================
   if (stage === 'export') {
-    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}.${exportedFileExt}`;
+    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}-${activeFormat.aspectLabel.replace(':', 'x')}.${exportedFileExt}`;
     return (
       <div
         data-testid="mobile-video-export-view"
-        className="fixed inset-0 z-[10050] bg-neutral-950 text-white flex flex-col justify-between p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)] overflow-y-auto"
+        className="fixed inset-0 z-[10050] bg-[#080C0A] text-white flex flex-col justify-between p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)] overflow-y-auto"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0 max-w-3xl w-full mx-auto">
-          <div className="flex items-center gap-2">
-            <Film className="w-5 h-5 text-amber-400" />
+        <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0 max-w-4xl w-full mx-auto">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-400/15 border border-amber-400/35 text-amber-300 flex items-center justify-center shrink-0">
+              <Film className="w-5 h-5" />
+            </div>
             <div>
               <h2 className="text-sm font-black">
-                Export Vidéo MP4 9:16 Full HD ({VIDEO_EXPORT_WIDTH}×{VIDEO_EXPORT_HEIGHT})
+                Export MP4 {activeFormat.label} ({activeFormat.width}×{activeFormat.height})
               </h2>
               <p className="text-[11px] text-neutral-400">
-                Sourate {surahMeta.name} ({normalizedRange.startAyah}–{normalizedRange.endAyah}) • MP4 Audio inclus
+                Sourate {surahMeta.name} ({normalizedRange.startAyah}–{normalizedRange.endAyah}) • Audio continu inclus
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => {
               stopAllMedia();
               setStage('setup');
             }}
             aria-label="Retour à la configuration vidéo"
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold cursor-pointer whitespace-nowrap"
           >
-            Retour
+            Retour au studio
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center py-4 gap-4 min-h-0 max-w-3xl w-full mx-auto">
-          {/* Live 9:16 Canvas Preview during recording OR Ready Video Player */}
-          <div className="relative h-[48vh] max-h-[440px] aspect-[9/16] rounded-3xl overflow-hidden border border-white/20 bg-black shadow-2xl shrink-0">
+        <div className="flex-1 flex flex-col items-center justify-center py-4 gap-4 min-h-0 max-w-4xl w-full mx-auto">
+          <div
+            className={`relative ${exportPreviewFrameClass} rounded-2xl overflow-hidden border border-white/20 bg-black shadow-2xl shrink-0`}
+          >
             {exportStatus === 'ready' && exportedVideoUrl ? (
               <video
                 data-testid="exported-video-preview"
@@ -1266,19 +1350,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             )}
 
             {exportStatus === 'preparing_audio' && (
-              <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center p-4 text-center gap-2">
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-4 text-center gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-                <span className="text-xs font-bold">
+                <span className="text-xs font-bold tabular-nums">
                   Assemblage audio ({playerLoadProgress.loaded}/{playerLoadProgress.total})
                 </span>
               </div>
             )}
           </div>
 
-          {/* Progress, Audio Verification Badge & Live Sound Monitor */}
-          <div className="w-full max-w-sm space-y-2.5 text-center">
+          <div className="w-full max-w-md space-y-2.5 text-center">
             {exportStatus === 'error' ? (
-              <div className="p-3 rounded-2xl bg-rose-950/70 border border-rose-500/40 text-xs text-rose-200">
+              <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-xs text-rose-200">
                 {exportErrorMsg}
               </div>
             ) : (
@@ -1290,7 +1373,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     style={{ width: `${exportProgressPct}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
+                <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 tabular-nums">
                   <span>{exportProgressPct}%</span>
                   <span>
                     {formatTimeMMSS(exportElapsedSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
@@ -1320,9 +1403,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 {exportStatus === 'ready' && exportedAudioInfo && (
                   <div
                     data-testid="exported-video-audio-badge"
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-[11px] font-bold text-emerald-300"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300"
                   >
-                    <Volume2 className="w-3.5 h-3.5" />
+                    <Volume2 className="w-4 h-4" />
                     <span>
                       Audio continu inclus : {exportedAudioInfo.okCount}/{exportedAudioInfo.totalCount} versets
                     </span>
@@ -1331,16 +1414,29 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               </>
             )}
           </div>
+
+          {exportStatus === 'ready' && (
+            <YouTubePublishCard
+              surahName={surahMeta.name}
+              surahArabicName={surahMeta.arabicName}
+              surahNumber={surahMeta.number}
+              startAyah={normalizedRange.startAyah}
+              endAyah={normalizedRange.endAyah}
+              totalAyahsInSurah={maxAyahNum}
+              reciterName={selectedReciter.name}
+              timeline={timeline}
+            />
+          )}
         </div>
 
         {/* Bottom Actions */}
-        <div className="shrink-0 space-y-2 pt-2 border-t border-white/10 max-w-md w-full mx-auto">
+        <div className="shrink-0 space-y-2 pt-3 border-t border-white/10 max-w-md w-full mx-auto">
           {exportStatus === 'recording' && (
             <button
               type="button"
               data-testid="export-finish-early-btn"
               onClick={finishRecordingEarly}
-              className="w-full py-3 rounded-2xl bg-amber-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 rounded-xl bg-amber-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
             >
               <Square className="w-4 h-4 fill-current" />
               <span>Terminer &amp; Sauvegarder maintenant</span>
@@ -1348,20 +1444,20 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           )}
 
           {exportStatus === 'ready' && exportedVideoUrl && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2.5">
               <a
                 href={exportedVideoUrl}
                 download={filename}
                 data-testid="download-exported-video-link"
-                className="py-3 rounded-2xl bg-amber-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg"
+                className="py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg transition"
               >
                 <Download className="w-4 h-4" />
-                <span>Télécharger</span>
+                <span>Télécharger MP4</span>
               </a>
               <button
                 type="button"
                 onClick={handleShareVideo}
-                className="py-3 rounded-2xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Partager</span>
@@ -1375,7 +1471,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               stopAllMedia();
               setStage('setup');
             }}
-            className="w-full py-2.5 rounded-2xl bg-white/10 text-neutral-200 font-bold text-xs cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 font-bold text-xs cursor-pointer"
           >
             Modifier les réglages
           </button>
@@ -1385,16 +1481,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   }
 
   // =========================================================================
-  // RENDER: STAGE 1 — STUDIO CONFIGURATOR (PC 2-Column 9:16 Preview & Mobile Scrollable)
+  // RENDER: STAGE 1 — REFURBISHED PRO NLE STUDIO CONFIGURATOR
   // =========================================================================
-  const previewVerses = selectedVerses.slice(0, 3);
+  const previewVerses = selectedVerses.slice(0, 2);
 
   return (
     <div
       data-testid="mobile-video-studio-modal"
-      className="fixed inset-0 z-[10040] bg-neutral-950 text-white flex flex-col h-[100dvh] overflow-hidden"
+      className="fixed inset-0 z-[10040] bg-[#080C0A] text-white flex flex-col h-[100dvh] overflow-hidden"
     >
-      {/* Hidden device file input for custom Photo/Video uploads */}
       <input
         ref={mediaFileInputRef}
         type="file"
@@ -1405,763 +1500,779 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         className="hidden"
       />
 
-      {/* Top Studio Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.65rem)] pb-2.5 border-b border-white/10 bg-neutral-900/90 backdrop-blur-md">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-amber-400/20 border border-amber-400/40 text-amber-300 flex items-center justify-center shrink-0">
+      {/* Welcoming Pro Top Studio Header */}
+      <header className="shrink-0 flex items-center justify-between gap-2 md:gap-3 px-3.5 md:px-6 pt-[calc(env(safe-area-inset-top)+0.65rem)] pb-2.5 border-b border-white/10 bg-[#0D1411]/95 backdrop-blur-md">
+        <div className="flex items-center gap-2.5 md:gap-3 min-w-0 flex-1 md:flex-initial">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/25 to-emerald-500/15 border border-amber-400/40 text-amber-300 flex items-center justify-center shrink-0">
             <Film className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-black leading-tight truncate">
-              Studio Vidéo Coran (Format 9:16)
+            <h2 className="text-sm md:text-base font-black leading-tight tracking-tight truncate">
+              Studio Vidéo Coran
             </h2>
-            <p className="text-xs text-neutral-400 truncate">
-              Vidéos verticales 9:16 continues • PC &amp; Mobile • Fonds personnalisés
+            <p className="text-[11px] text-neutral-400 truncate">
+              {isPcMode
+                ? 'Formats YouTube longs 16:9, Shorts 9:16 & 6 modèles graphiques'
+                : 'Vidéos verticales 9:16 • Fonds personnalisés'}
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fermer le studio vidéo"
-          className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 cursor-pointer shrink-0"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </header>
 
-      {/* Quick Section Jump Navigation */}
-      <nav
-        aria-label="Sections du studio vidéo"
-        className="shrink-0 grid grid-cols-4 gap-1.5 px-3 md:px-4 py-2 bg-neutral-900/60 border-b border-white/10"
-      >
-        {[
-          { shortLabel: '1. Versets', longLabel: '1. Versets', ref: sectionVersesRef, id: 'jump-verses' },
-          { shortLabel: '2. Audio', longLabel: '2. Récitateur', ref: sectionAudioRef, id: 'jump-audio' },
-          { shortLabel: '3. Fond', longLabel: '3. Fond & Médias', ref: sectionBgRef, id: 'jump-bg' },
-          { shortLabel: '4. Style', longLabel: '4. Style & Cadence', ref: sectionStyleRef, id: 'jump-style' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            data-testid={`studio-${tab.id}-btn`}
-            onClick={() => scrollToSection(tab.ref)}
-            className="px-2 py-2 rounded-lg bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-xs font-bold text-neutral-200 text-center truncate transition cursor-pointer"
+        {/* PC-ONLY FORMAT & DIMENSION SWITCHER (Strictly hidden on Mobile) */}
+        {isPcMode && (
+          <div
+            data-testid="studio-format-selector"
+            role="group"
+            aria-label="Dimensions vidéo (Mode PC)"
+            className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-black/50 border border-white/10"
           >
-            <span className="md:hidden">{tab.shortLabel}</span>
-            <span className="hidden md:inline">{tab.longLabel}</span>
-          </button>
-        ))}
-      </nav>
-
-      {/* Main Responsive Content: Scrollable Settings (Left) + Live 9:16 Preview on PC (Right) */}
-      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[1.12fr_0.88fr] md:max-w-6xl md:w-full md:mx-auto md:gap-6 md:px-6 md:py-4 overflow-hidden">
-        {/* Scrollable Configurator */}
-        <div
-          data-testid="studio-settings-scroll"
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 py-3.5 pb-12 md:px-1 md:py-0 md:pb-8 space-y-4"
-        >
-          {/* 1. Sourate & Plage de Versets */}
-          <section
-            ref={sectionVersesRef}
-            className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3 scroll-mt-2"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>1. Sourate &amp; Plage de Versets</span>
-              </span>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 whitespace-nowrap shrink-0">
-                {normalizedRange.count} verset{normalizedRange.count > 1 ? 's' : ''}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              data-testid="studio-surah-picker-btn"
-              onClick={() => setIsSurahPickerOpen(true)}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-black/50 border border-white/15 text-left cursor-pointer"
-            >
-              <div>
-                <div className="text-sm font-bold text-white">
-                  {surahMeta.number}. {surahMeta.name}
-                </div>
-                <div className="text-[11px] text-neutral-400">
-                  {surahMeta.frenchTranslation} • {maxAyahNum} versets
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-arabic text-base text-amber-200" dir="rtl">
-                  {surahMeta.arabicName}
-                </span>
-                <ChevronRight className="w-4 h-4 text-neutral-400" />
-              </div>
-            </button>
-
-            {/* From -> To Verse Range */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label
-                  htmlFor="studio-start-ayah"
-                  className="block text-[11px] font-bold text-neutral-300"
-                >
-                  Du verset
-                </label>
-                <select
-                  id="studio-start-ayah"
-                  value={normalizedRange.startAyah}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setStartAyah(val);
-                    if (endAyah < val) setEndAyah(val);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
-                >
-                  {Array.from({ length: maxAyahNum }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      Verset {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label
-                  htmlFor="studio-end-ayah"
-                  className="block text-[11px] font-bold text-neutral-300"
-                >
-                  Au verset
-                </label>
-                <select
-                  id="studio-end-ayah"
-                  value={normalizedRange.endAyah}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setEndAyah(Math.max(normalizedRange.startAyah, val));
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
-                >
-                  {Array.from(
-                    { length: maxAyahNum - normalizedRange.startAyah + 1 },
-                    (_, i) => normalizedRange.startAyah + i
-                  ).map((n) => (
-                    <option key={n} value={n}>
-                      Verset {n}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Quick Range Presets */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-              {[
-                { label: '1 → 3', s: 1, e: Math.min(3, maxAyahNum) },
-                { label: '1 → 5', s: 1, e: Math.min(5, maxAyahNum) },
-                { label: '1 → 7', s: 1, e: Math.min(7, maxAyahNum) },
-                { label: '1 → 10', s: 1, e: Math.min(10, maxAyahNum) },
-                { label: `Toute (${maxAyahNum})`, s: 1, e: maxAyahNum },
-              ].map((preset) => (
+            {VIDEO_FORMAT_PRESETS.map((fmt) => {
+              const active = activeFormat.id === fmt.id;
+              return (
                 <button
-                  key={preset.label}
+                  key={fmt.id}
                   type="button"
-                  onClick={() => {
-                    setStartAyah(preset.s);
-                    setEndAyah(preset.e);
-                  }}
-                  className={`px-2.5 py-1 rounded-lg shrink-0 border cursor-pointer ${
-                    normalizedRange.startAyah === preset.s &&
-                    normalizedRange.endAyah === preset.e
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                      : 'bg-white/5 text-neutral-300 border-white/10'
+                  data-testid={`studio-format-${fmt.id}`}
+                  onClick={() => setVideoFormatId(fmt.id)}
+                  title={fmt.platformHint}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition ${
+                    active
+                      ? 'bg-amber-400 text-neutral-950 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  {preset.label}
+                  {fmt.aspectLabel === '16:9' ? (
+                    <Monitor className="w-3.5 h-3.5 shrink-0" />
+                  ) : fmt.aspectLabel === '9:16' ? (
+                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <Square className="w-3 h-3 shrink-0" />
+                  )}
+                  <span>{fmt.shortLabel}</span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
+        )}
 
-            {isLoadingVerses && (
-              <div className="text-[11px] text-amber-300 flex items-center gap-1.5">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Chargement des versets...</span>
-              </div>
-            )}
-          </section>
-
-          {/* 2. Récitateur */}
-          <section
-            ref={sectionAudioRef}
-            className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-2.5 scroll-mt-2"
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-neutral-300 tabular-nums pr-1">
+            <Clock className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{formatTimeMMSS(timeline.totalDurationSec)}</span>
+            <span className="text-neutral-600">•</span>
+            <span>{normalizedRange.count} v.</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer le studio vidéo"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 cursor-pointer shrink-0 transition"
           >
-            <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <Headphones className="w-3.5 h-3.5" />
-              <span>2. Récitateur &amp; Audio</span>
-            </span>
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Studio Navigation Tabs */}
+      <nav
+        aria-label="Sections du studio vidéo"
+        className="shrink-0 grid grid-cols-4 gap-1.5 px-3 md:px-6 py-2 bg-[#0B110E] border-b border-white/10"
+      >
+        {[
+          { id: 'verses' as const, testId: 'jump-verses', shortLabel: '1. Versets', longLabel: '1. Contenu & Durée' },
+          { id: 'style' as const, testId: 'jump-style', shortLabel: '2. Style', longLabel: '2. Modèles (6) & Style' },
+          { id: 'bg' as const, testId: 'jump-bg', shortLabel: '3. Fond', longLabel: '3. Fond & Médias' },
+          { id: 'audio' as const, testId: 'jump-audio', shortLabel: '4. Audio', longLabel: '4. Récitateur & Audio' },
+        ].map((tab) => {
+          const isCurrent = activeTab === tab.id;
+          return (
             <button
+              key={tab.id}
               type="button"
-              data-testid="studio-reciter-picker-btn"
-              onClick={() => setIsReciterPickerOpen(true)}
-              className="w-full flex items-center justify-between p-3 rounded-xl bg-black/50 border border-white/15 text-left cursor-pointer"
+              data-testid={`studio-${tab.testId}-btn`}
+              onClick={() => switchTab(tab.id)}
+              className={`px-2.5 py-2 rounded-xl text-xs font-bold text-center truncate transition cursor-pointer border ${
+                isCurrent
+                  ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
+                  : 'bg-white/[0.04] hover:bg-white/10 text-neutral-300 border-white/10'
+              }`}
             >
-              <div>
-                <div className="text-sm font-bold text-white">{selectedReciter.name}</div>
-                <div className="text-[11px] text-neutral-400">{selectedReciter.style}</div>
-              </div>
-              <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
+              <span className="md:hidden">{tab.shortLabel}</span>
+              <span className="hidden md:inline">{tab.longLabel}</span>
             </button>
-          </section>
+          );
+        })}
+      </nav>
 
-          {/* 3. Fond 9:16 Personnalisable (Appareil / 20 Fonds 9:16 / 16 Fonds 4K / Couleurs) */}
-          <section
-            ref={sectionBgRef}
-            className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3 scroll-mt-2"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
+      {/* Main Responsive Workspace: Tabbed Configurator (Left) + True WYSIWYG Canvas Monitor (Right on PC) */}
+      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[1.02fr_0.98fr] md:max-w-7xl md:w-full md:mx-auto md:gap-5 md:px-6 md:py-4 overflow-hidden">
+        {/* Left Configurator Column */}
+        <div
+          ref={scrollContainerRef}
+          data-testid="studio-settings-scroll"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 py-3.5 pb-10 md:px-1 md:py-0 md:pb-4 space-y-4"
+        >
+          {/* Compact Mobile 9:16 Quick Preview Card (Hidden on PC where Live Canvas Monitor sits right next to it) */}
+          <div className="md:hidden rounded-xl border border-white/10 bg-[#0D1411] p-3 flex items-center gap-3">
+            <div
+              className="relative w-14 aspect-[9/16] rounded-lg overflow-hidden border border-white/20 shrink-0 flex flex-col justify-between p-1.5 text-center"
+              style={{ backgroundColor: bgSurfaceColor }}
+            >
+              {activeMediaKind === 'image' && activeMediaUrl && (
+                <img
+                  src={activeMediaUrl}
+                  alt={activeMediaName}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
+              <div className="relative z-10 text-[6px] font-bold text-amber-300 truncate">
+                {surahMeta.name}
+              </div>
+              {previewVerses[0] && (
+                <div className="relative z-10 text-[7px] font-arabic text-white line-clamp-2" dir="rtl">
+                  <TajweedText
+                    text={cleanAyahArabic(previewVerses[0].ar)}
+                    enabled={useTajweed}
+                    variant={isLightSurface ? 'light' : 'dark'}
+                  />
+                </div>
+              )}
+              <div className="relative z-10 text-[5px] font-bold text-neutral-300">
+                {MANDATORY_WATERMARK_BRAND}
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <div className="text-xs font-extrabold text-white truncate">
+                Vidéo 9:16 • {surahMeta.name} ({normalizedRange.startAyah}–{normalizedRange.endAyah})
+              </div>
+              <div className="text-[11px] text-neutral-400 truncate">
+                Modèle : {VIDEO_TEMPLATE_PRESETS.find((t) => t.id === flowMode)?.name}
+              </div>
+              <div className="text-[11px] text-emerald-300 font-semibold tabular-nums">
+                Durée estimée : {formatTimeMMSS(timeline.totalDurationSec)} • {activeMediaName}
+              </div>
+            </div>
+          </div>
+
+          {/* TAB 1: CONTENU & DURÉE */}
+          {activeTab === 'verses' && (
+            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Sélection de la Sourate &amp; Plage</span>
+                  </span>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                    {isPcMode
+                      ? 'Sélectionnez quelques versets ou toute une sourate pour une vidéo YouTube longue.'
+                      : 'Choisissez les versets à inclure dans votre récitation continue.'}
+                  </p>
+                </div>
+                <div className="text-right shrink-0 tabular-nums">
+                  <div className="text-xs font-extrabold text-emerald-300">
+                    {normalizedRange.count} verset{normalizedRange.count > 1 ? 's' : ''}
+                  </div>
+                  <div className="text-[11px] font-mono text-neutral-400">
+                    ~{formatTimeMMSS(timeline.totalDurationSec)}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                data-testid="studio-surah-picker-btn"
+                onClick={() => setIsSurahPickerOpen(true)}
+                className="w-full flex items-center justify-between p-3.5 rounded-xl bg-black/45 hover:bg-black/65 border border-white/15 text-left cursor-pointer transition"
+              >
+                <div>
+                  <div className="text-sm font-bold text-white">
+                    {surahMeta.number}. {surahMeta.name}
+                  </div>
+                  <div className="text-[11px] text-neutral-400">
+                    {surahMeta.frenchTranslation} • {maxAyahNum} versets au total
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <span className="font-arabic text-lg text-amber-200" dir="rtl">
+                    {surahMeta.arabicName}
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-neutral-400" />
+                </div>
+              </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="studio-start-ayah"
+                    className="block text-[11px] font-bold text-neutral-300"
+                  >
+                    Du verset
+                  </label>
+                  <select
+                    id="studio-start-ayah"
+                    value={normalizedRange.startAyah}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setStartAyah(val);
+                      if (endAyah < val) setEndAyah(val);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
+                  >
+                    {Array.from({ length: maxAyahNum }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>
+                        Verset {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="studio-end-ayah"
+                    className="block text-[11px] font-bold text-neutral-300"
+                  >
+                    Au verset
+                  </label>
+                  <select
+                    id="studio-end-ayah"
+                    value={normalizedRange.endAyah}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setEndAyah(Math.max(normalizedRange.startAyah, val));
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
+                  >
+                    {Array.from(
+                      { length: maxAyahNum - normalizedRange.startAyah + 1 },
+                      (_, i) => normalizedRange.startAyah + i
+                    ).map((n) => (
+                      <option key={n} value={n}>
+                        Verset {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Long Video YouTube Presets + Quick Extender */}
+              <div className="space-y-2 pt-1">
+                <div className="text-[11px] font-bold text-neutral-300">
+                  Plages rapides (Shorts ou Vidéo longue YouTube)
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+                  {rangePresets.map((preset) => {
+                    const active =
+                      normalizedRange.startAyah === preset.s &&
+                      normalizedRange.endAyah === preset.e;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        data-testid={
+                          preset.e === maxAyahNum && preset.s === 1
+                            ? 'studio-range-full-surah-btn'
+                            : undefined
+                        }
+                        onClick={() => {
+                          setStartAyah(preset.s);
+                          setEndAyah(preset.e);
+                        }}
+                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition whitespace-nowrap ${
+                          active
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                            : 'bg-white/5 hover:bg-white/10 text-neutral-200 border-white/10'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+
+                  {normalizedRange.endAyah < maxAyahNum && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEndAyah((prev) => Math.min(maxAyahNum, prev + 10))
+                      }
+                      className="px-2.5 py-1.5 rounded-lg border border-emerald-400/35 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>10 versets</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {isPcMode && (
+                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-white">
+                      Format actif : {activeFormat.label} ({activeFormat.width}×{activeFormat.height})
+                    </div>
+                    <div className="text-[11px] text-neutral-400">
+                      {activeFormat.platformHint} • Chapitres YouTube générés automatiquement après export
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isLoadingVerses && (
+                <div className="text-xs text-amber-300 flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Chargement complet de la sourate...</span>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* TAB 2: 6 MODÈLES DE VIDÉO & STYLE */}
+          {activeTab === 'style' && (
+            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-4">
               <div>
                 <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  <span>3. Fond 9:16 &amp; Bibliothèque du Site</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Modèles Graphiques (6 Styles)</span>
                 </span>
-                <p
-                  data-testid="studio-library-status"
-                  className="text-[11px] text-neutral-400 mt-0.5"
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  Choisissez la mise en scène adaptée à votre format et observez le rendu en direct à droite.
+                </p>
+              </div>
+
+              <StudioTemplateGrid
+                selectedTemplate={flowMode}
+                onSelect={setFlowMode}
+                isLandscape={activeFormat.aspectLabel !== '9:16'}
+              />
+
+              <div className="space-y-2 pt-2 border-t border-white/10">
+                <div className="text-[11px] font-bold text-neutral-300">Éléments affichés</div>
+                <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                  {[
+                    { label: 'Calligraphie Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
+                    { label: 'Couleurs Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
+                    { label: 'Phonétique', val: showPhonetics, toggle: () => setShowPhonetics((v) => !v) },
+                    { label: 'Traduction FR', val: showFrench, toggle: () => setShowFrench((v) => !v) },
+                    { label: 'Titre Sourate', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={item.toggle}
+                      className={`px-3 py-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                        item.val
+                          ? 'bg-amber-400/15 border-amber-400/70 text-amber-200'
+                          : 'bg-black/40 border-white/10 text-neutral-400 hover:text-neutral-200'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.val && <Check className="w-3.5 h-3.5 text-amber-300" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-neutral-300">Taille du texte</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                    {(['compact', 'standard', 'grand'] as const).map((sz) => (
+                      <button
+                        key={sz}
+                        type="button"
+                        data-testid={`studio-text-scale-${sz}`}
+                        onClick={() => setTextScale(sz)}
+                        className={`py-2 rounded-lg border cursor-pointer transition ${
+                          textScale === sz
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                            : 'bg-white/5 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        {sz === 'compact' ? 'S' : sz === 'standard' ? 'M' : 'L'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-neutral-300">Cadence audio</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                    {([0.9, 1.0, 1.15] as const).map((pace) => (
+                      <button
+                        key={pace}
+                        type="button"
+                        data-testid={`studio-pace-${pace}`}
+                        onClick={() => setPaceMultiplier(pace)}
+                        className={`py-2 rounded-lg border cursor-pointer transition tabular-nums ${
+                          paceMultiplier === pace
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                            : 'bg-white/5 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        {pace}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile-visible Watermark Notice */}
+              <div className="md:hidden px-3 py-2 rounded-xl border border-emerald-400/35 bg-emerald-500/10 flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-bold text-emerald-100 truncate">
+                  Filigrane « {MANDATORY_WATERMARK_BRAND} » inclus en bas du rendu
+                </span>
+                <span className="text-emerald-300 font-extrabold uppercase text-[10px] shrink-0">
+                  Inclus
+                </span>
+              </div>
+            </section>
+          )}
+
+          {/* TAB 3: FOND & MÉDIAS */}
+          {activeTab === 'bg' && (
+            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Arrière-Plan &amp; Bibliothèque</span>
+                  </span>
+                  <p
+                    data-testid="studio-library-status"
+                    className="text-[11px] text-neutral-400 mt-0.5"
+                  >
+                    {isSavingMedia
+                      ? 'Enregistrement dans la bibliothèque...'
+                      : isLoadingLibrary
+                      ? 'Chargement de vos médias enregistrés...'
+                      : customMedia.length > 0
+                      ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} personnel${customMedia.length > 1 ? 's' : ''} (${formatStudioBytes(
+                          customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
+                        )})`
+                      : 'Importez vos propres photos ou vidéos bouclées sur le site'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  data-testid="studio-upload-media-btn"
+                  disabled={isSavingMedia}
+                  onClick={() => mediaFileInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md cursor-pointer transition active:scale-95 disabled:opacity-60 whitespace-nowrap"
                 >
-                  {isSavingMedia
-                    ? 'Enregistrement dans la bibliothèque du site...'
-                    : isLoadingLibrary
-                    ? 'Chargement de vos médias enregistrés...'
-                    : customMedia.length > 0
-                    ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} stocké${customMedia.length > 1 ? 's' : ''} sur le site (${formatStudioBytes(
-                        customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
-                      )}) • Réutilisable à tout moment`
-                    : 'Vos images & vidéos importées sont stockées sur le site pour vos prochaines vidéos'}
+                  {isSavingMedia ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                  )}
+                  <span>Importer Photo / Vidéo</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+                {[
+                  { id: 'all' as const, label: 'Tous' },
+                  { id: 'custom' as const, label: `Mes Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
+                  { id: 'noir' as const, label: 'Noirs (10)' },
+                  { id: 'blanc' as const, label: 'Blancs (10)' },
+                  { id: '4k' as const, label: 'Fonds 4K (16)' },
+                ].map((flt) => (
+                  <button
+                    key={flt.id}
+                    type="button"
+                    data-testid={flt.testId}
+                    onClick={() => setBgFilter(flt.id)}
+                    className={`px-2.5 py-1.5 rounded-lg shrink-0 cursor-pointer transition ${
+                      bgFilter === flt.id
+                        ? 'bg-amber-400 text-neutral-950'
+                        : 'bg-white/10 hover:bg-white/15 text-neutral-300'
+                    }`}
+                  >
+                    {flt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Solid Swatches */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+                {STUDIO_SOLID_BACKGROUNDS.map((swatch) => (
+                  <button
+                    key={swatch.id}
+                    type="button"
+                    onClick={() => setBgId(swatch.id)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer ${
+                      bgId === swatch.id
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                        : 'bg-black/40 text-neutral-200 border-white/15'
+                    }`}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full border border-white/40 shrink-0"
+                      style={{ backgroundColor: swatch.color }}
+                    />
+                    <span>{swatch.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              {bgFilter === 'custom' && customMedia.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => mediaFileInputRef.current?.click()}
+                  className="w-full py-5 px-4 rounded-xl border border-dashed border-emerald-400/50 bg-emerald-500/5 text-center space-y-1.5 cursor-pointer hover:bg-emerald-500/10 transition"
+                >
+                  <Upload className="w-5 h-5 text-emerald-400 mx-auto" />
+                  <div className="text-xs font-bold text-white">
+                    Importer et sauvegarder vos images ou vidéos
+                  </div>
+                  <div className="text-[11px] text-neutral-400">
+                    Vos fichiers restent sauvegardés pour vos prochaines vidéos YouTube ou Shorts.
+                  </div>
+                </button>
+              )}
+
+              {visibleBackgroundCards.length > 0 && (
+                <div
+                  data-testid="studio-backgrounds-strip"
+                  className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[260px] overflow-y-auto pr-1"
+                >
+                  {visibleBackgroundCards.map((bg) => {
+                    const active = bgId === bg.id;
+                    return (
+                      <div
+                        key={bg.id}
+                        onClick={() => setBgId(bg.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setBgId(bg.id);
+                          }
+                        }}
+                        data-testid={`studio-bg-card-${bg.id}`}
+                        className={`relative aspect-[4/5] rounded-xl overflow-hidden border text-left flex flex-col justify-between p-2 cursor-pointer transition ${
+                          active ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-white/15 hover:border-white/35'
+                        }`}
+                      >
+                        {bg.kind === 'video' ? (
+                          <video
+                            src={bg.url}
+                            muted
+                            loop
+                            playsInline
+                            autoPlay
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={bg.url}
+                            alt={bg.name}
+                            referrerPolicy="no-referrer"
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
+                        <div className="relative z-10 flex items-center justify-between gap-1">
+                          {bg.kind === 'video' ? (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[9px] font-black inline-flex items-center gap-0.5">
+                              <Video className="w-2.5 h-2.5" />
+                              VIDÉO
+                            </span>
+                          ) : (
+                            <span />
+                          )}
+                          {bg.isCustom && (
+                            <button
+                              type="button"
+                              aria-label={`Supprimer ${bg.name}`}
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                handleRemoveCustomMedia(bg.id);
+                              }}
+                              className="w-5 h-5 rounded-full bg-black/75 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative z-10 flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-bold text-white leading-tight line-clamp-2">
+                            {bg.name}
+                          </span>
+                          {active && (
+                            <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-neutral-300">Couleur du texte</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                    {[
+                      { id: 'auto' as const, label: 'Auto' },
+                      { id: 'light' as const, label: 'Blanc' },
+                      { id: 'dark' as const, label: 'Noir' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setTextColorOverride(opt.id)}
+                        className={`py-1.5 rounded-lg border cursor-pointer ${
+                          textColorOverride === opt.id
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                            : 'bg-white/5 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-neutral-300">Voile de contraste</div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs font-bold tabular-nums">
+                    {[0, 0.25, 0.45, 0.65].map((alpha) => (
+                      <button
+                        key={alpha}
+                        type="button"
+                        onClick={() => setBgVeilOpacity(alpha)}
+                        className={`py-1.5 rounded-lg border cursor-pointer ${
+                          Math.abs(bgVeilOpacity - alpha) < 0.02
+                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                            : 'bg-white/5 text-neutral-300 border-white/10'
+                        }`}
+                      >
+                        {Math.round(alpha * 100)}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* TAB 4: RÉCITATEUR & AUDIO */}
+          {activeTab === 'audio' && (
+            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-3.5">
+              <div>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                  <Headphones className="w-3.5 h-3.5" />
+                  <span>Récitateur &amp; Qualité Sonore</span>
+                </span>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  Les silences entre versets sont automatiquement ajustés pour une récitation fluide sans coupures.
                 </p>
               </div>
 
               <button
                 type="button"
-                data-testid="studio-upload-media-btn"
-                disabled={isSavingMedia}
-                onClick={() => mediaFileInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-[11px] shadow-md cursor-pointer transition active:scale-95 disabled:opacity-60"
+                data-testid="studio-reciter-picker-btn"
+                onClick={() => setIsReciterPickerOpen(true)}
+                className="w-full flex items-center justify-between p-3.5 rounded-xl bg-black/45 hover:bg-black/65 border border-white/15 text-left cursor-pointer transition"
               >
-                {isSavingMedia ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
-                )}
-                <span>Importer &amp; Sauvegarder</span>
-              </button>
-            </div>
-
-            {/* Category Filters (wrapped nicely so mobile never clips) */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-              <button
-                type="button"
-                onClick={() => setBgFilter('all')}
-                className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer ${
-                  bgFilter === 'all' ? 'bg-amber-400 text-neutral-950' : 'bg-white/10 text-neutral-300'
-                }`}
-              >
-                Tous
-              </button>
-              <button
-                type="button"
-                data-testid="studio-bg-filter-custom"
-                onClick={() => setBgFilter('custom')}
-                className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer ${
-                  bgFilter === 'custom'
-                    ? 'bg-emerald-400 text-neutral-950'
-                    : 'bg-white/10 text-emerald-300'
-                }`}
-              >
-                Mes Médias ({customMedia.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setBgFilter('noir')}
-                className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer ${
-                  bgFilter === 'noir'
-                    ? 'bg-neutral-950 text-white border border-white/40'
-                    : 'bg-white/10 text-neutral-300'
-                }`}
-              >
-                Noirs 9:16 (10)
-              </button>
-              <button
-                type="button"
-                onClick={() => setBgFilter('blanc')}
-                className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer ${
-                  bgFilter === 'blanc' ? 'bg-white text-neutral-950' : 'bg-white/10 text-neutral-300'
-                }`}
-              >
-                Blancs 9:16 (10)
-              </button>
-              <button
-                type="button"
-                onClick={() => setBgFilter('4k')}
-                className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer ${
-                  bgFilter === '4k' ? 'bg-amber-400 text-neutral-950' : 'bg-white/10 text-neutral-300'
-                }`}
-              >
-                Fonds 4K (16)
-              </button>
-            </div>
-
-            {/* Solid Colour Swatches */}
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-              {STUDIO_SOLID_BACKGROUNDS.map((swatch) => (
-                <button
-                  key={swatch.id}
-                  type="button"
-                  onClick={() => setBgId(swatch.id)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border cursor-pointer ${
-                    bgId === swatch.id
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                      : 'bg-black/40 text-neutral-200 border-white/15'
-                  }`}
-                >
-                  <span
-                    className="w-3 h-3 rounded-full border border-white/40 shrink-0"
-                    style={{ backgroundColor: swatch.color }}
-                  />
-                  <span>{swatch.name}</span>
-                </button>
-              ))}
-            </div>
-
-            {bgFilter === 'custom' && customMedia.length === 0 && (
-              <button
-                type="button"
-                onClick={() => mediaFileInputRef.current?.click()}
-                className="w-full py-5 px-4 rounded-2xl border border-dashed border-emerald-400/50 bg-emerald-500/5 text-center space-y-1.5 cursor-pointer hover:bg-emerald-500/10 transition"
-              >
-                <Upload className="w-5 h-5 text-emerald-400 mx-auto" />
-                <div className="text-xs font-bold text-white">
-                  Appuyez ici pour importer et sauvegarder vos images ou vidéos
+                <div>
+                  <div className="text-sm font-bold text-white">{selectedReciter.name}</div>
+                  <div className="text-[11px] text-neutral-400">{selectedReciter.style}</div>
                 </div>
-                <div className="text-[11px] text-neutral-400">
-                  Vos fichiers restent enregistrés dans cette bibliothèque du site pour les prochaines utilisations.
-                </div>
+                <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
               </button>
-            )}
 
-            {/* Background Gallery Cards Strip */}
-            {visibleBackgroundCards.length > 0 && (
-              <div
-                data-testid="studio-backgrounds-strip"
-                className="flex items-stretch gap-2.5 overflow-x-auto pb-2"
-              >
-                {visibleBackgroundCards.map((bg) => {
-                  const active = bgId === bg.id;
-                  return (
-                    <div
-                      key={bg.id}
-                      onClick={() => setBgId(bg.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setBgId(bg.id);
-                        }
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold text-neutral-300">Accès rapide aux récitateurs</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
+                  {RECITERS.map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setReciterId(r.id);
+                        onSyncReciter?.(r);
                       }}
-                      data-testid={`studio-bg-card-${bg.id}`}
-                      className={`relative shrink-0 w-24 aspect-[9/16] rounded-2xl overflow-hidden border text-left flex flex-col justify-between p-2 cursor-pointer transition ${
-                        active ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-white/15'
+                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 cursor-pointer transition ${
+                        r.id === reciterId
+                          ? 'bg-amber-400/15 border-amber-400 text-amber-200'
+                          : 'bg-white/[0.03] border-white/10 text-neutral-300 hover:bg-white/[0.07]'
                       }`}
                     >
-                      {bg.kind === 'video' ? (
-                        <video
-                          src={bg.url}
-                          muted
-                          loop
-                          playsInline
-                          autoPlay
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                      ) : (
-                        <img
-                          src={bg.url}
-                          alt={bg.name}
-                          referrerPolicy="no-referrer"
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
-                      <div className="relative z-10 flex items-center justify-between gap-1">
-                        {bg.kind === 'video' ? (
-                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-neutral-950 text-[9px] font-black inline-flex items-center gap-0.5">
-                            <Video className="w-2.5 h-2.5" />
-                            VIDÉO
-                          </span>
-                        ) : (
-                          <span />
-                        )}
-                        {bg.isCustom && (
-                          <button
-                            type="button"
-                            aria-label={`Supprimer ${bg.name}`}
-                            onClick={(ev) => {
-                              ev.stopPropagation();
-                              handleRemoveCustomMedia(bg.id);
-                            }}
-                            className="w-5 h-5 rounded-full bg-black/75 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold truncate">{r.name}</div>
+                        <div className="text-[10px] opacity-75 truncate">{r.style}</div>
                       </div>
-                      <div className="relative z-10 flex items-center justify-between gap-1">
-                        <span className="text-[10px] font-bold text-white leading-tight line-clamp-2">
-                          {bg.name}
-                        </span>
-                        {active && (
-                          <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0">
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Text Color & Contrast Veil Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-white/10">
-              <div className="space-y-1">
-                <div className="text-[11px] font-bold text-neutral-300">Couleur du texte</div>
-                <div className="grid grid-cols-3 gap-1 text-[11px] font-bold">
-                  {[
-                    { id: 'auto' as const, label: 'Auto' },
-                    { id: 'light' as const, label: 'Blanc' },
-                    { id: 'dark' as const, label: 'Noir' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setTextColorOverride(opt.id)}
-                      className={`py-1.5 rounded-lg border cursor-pointer ${
-                        textColorOverride === opt.id
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      {opt.label}
+                      {r.id === reciterId && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <div className="text-[11px] font-bold text-neutral-300">Voile de contraste</div>
-                <div className="grid grid-cols-4 gap-1 text-[11px] font-bold">
-                  {[0, 0.25, 0.45, 0.65].map((alpha) => (
-                    <button
-                      key={alpha}
-                      type="button"
-                      onClick={() => setBgVeilOpacity(alpha)}
-                      className={`py-1.5 rounded-lg border cursor-pointer ${
-                        Math.abs(bgVeilOpacity - alpha) < 0.02
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      {Math.round(alpha * 100)}%
-                    </button>
-                  ))}
+              <button
+                type="button"
+                onClick={() => setMonitorAudioDuringExport((v) => !v)}
+                className="w-full p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 text-left cursor-pointer"
+              >
+                <div>
+                  <div className="text-xs font-bold text-white">Écoute audio pendant l’export</div>
+                  <div className="text-[11px] text-neutral-400">
+                    La piste audio continue est toujours incluse dans le fichier MP4.
+                  </div>
                 </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 4. Style, Taille du texte & Cadence */}
-          <section
-            ref={sectionStyleRef}
-            className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3 scroll-mt-2"
-          >
-            <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>4. Style, Taille du texte &amp; Cadence</span>
-            </span>
-
-            <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-              {[
-                { label: 'Calligraphie Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
-                { label: 'Couleurs Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
-                { label: 'Phonétique', val: showPhonetics, toggle: () => setShowPhonetics((v) => !v) },
-                { label: 'Traduction FR', val: showFrench, toggle: () => setShowFrench((v) => !v) },
-                { label: 'Titre Sourate', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
-              ].map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.toggle}
-                  className={`px-3 py-2 rounded-xl border flex items-center justify-between cursor-pointer ${
-                    item.val
-                      ? 'bg-amber-400/20 border-amber-400 text-amber-200'
-                      : 'bg-black/40 border-white/10 text-neutral-400'
+                <span
+                  className={`text-xs font-extrabold px-2.5 py-1 rounded-lg shrink-0 ${
+                    monitorAudioDuringExport
+                      ? 'bg-emerald-500/20 text-emerald-300'
+                      : 'bg-white/10 text-neutral-400'
                   }`}
                 >
-                  <span>{item.label}</span>
-                  {item.val && <Check className="w-3.5 h-3.5 text-amber-300" />}
-                </button>
-              ))}
-            </div>
-
-            {/* Mandatory watermark notice (non-removable) */}
-            <div
-              data-testid="studio-mandatory-watermark-notice"
-              className="px-3 py-2 rounded-xl border border-emerald-400/35 bg-emerald-500/10 flex items-center justify-between gap-2 text-[11px]"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <Check className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                <span className="font-bold text-emerald-100 truncate">
-                  Filigrane « {MANDATORY_WATERMARK_BRAND} » inclus automatiquement en bas de la lecture
+                  {monitorAudioDuringExport ? 'Actif' : 'Muet'}
                 </span>
-              </div>
-              <span className="px-2 py-0.5 rounded-md bg-emerald-500/25 text-emerald-200 font-extrabold uppercase text-[9px] tracking-wider shrink-0">
-                Obligatoire
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-bold text-neutral-300">Mode visuel continu</div>
-              <div className="grid grid-cols-2 gap-2 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setFlowMode('teleprompter')}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    flowMode === 'teleprompter'
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                      : 'bg-white/5 text-neutral-300 border-white/10'
-                  }`}
-                >
-                  <div>Téléprompteur</div>
-                  <div className="text-[10px] opacity-75">Glissement continu</div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFlowMode('stream')}
-                  className={`p-2.5 rounded-xl border text-left cursor-pointer ${
-                    flowMode === 'stream'
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                      : 'bg-white/5 text-neutral-300 border-white/10'
-                  }`}
-                >
-                  <div>Flux Intégral</div>
-                  <div className="text-[10px] opacity-75">Page unifiée continue</div>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <div className="text-[11px] font-bold text-neutral-300">Taille du texte</div>
-                <div className="grid grid-cols-3 gap-1 text-[11px] font-bold">
-                  {(['compact', 'standard', 'grand'] as const).map((sz) => (
-                    <button
-                      key={sz}
-                      type="button"
-                      data-testid={`studio-text-scale-${sz}`}
-                      onClick={() => setTextScale(sz)}
-                      className={`py-2 rounded-lg border capitalize cursor-pointer ${
-                        textScale === sz
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      {sz === 'compact' ? 'S' : sz === 'standard' ? 'M' : 'L'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="text-[11px] font-bold text-neutral-300">Cadence</div>
-                <div className="grid grid-cols-3 gap-1 text-[11px] font-bold">
-                  {([0.9, 1.0, 1.15] as const).map((pace) => (
-                    <button
-                      key={pace}
-                      type="button"
-                      data-testid={`studio-pace-${pace}`}
-                      onClick={() => setPaceMultiplier(pace)}
-                      className={`py-2 rounded-lg border cursor-pointer ${
-                        paceMultiplier === pace
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-white/5 text-neutral-300 border-white/10'
-                      }`}
-                    >
-                      {pace}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
+              </button>
+            </section>
+          )}
         </div>
 
-        {/* Desktop Live 9:16 Preview Panel */}
-        <aside
-          data-testid="studio-desktop-916-preview"
-          className="hidden md:flex flex-col items-center justify-center min-h-0 p-3 rounded-3xl bg-white/[0.03] border border-white/10"
-        >
-          <div className="w-full flex items-center justify-between px-2 pb-2 text-[11px] font-bold text-neutral-400 shrink-0">
-            <span>
-              Aperçu MP4 9:16 ({VIDEO_EXPORT_WIDTH}×{VIDEO_EXPORT_HEIGHT} Full HD)
-            </span>
-            <span className="text-amber-300 truncate max-w-[180px]">{activeMediaName}</span>
-          </div>
-          <div
-            className="relative h-full max-h-[540px] aspect-[9/16] rounded-3xl overflow-hidden border border-white/25 shadow-2xl flex flex-col justify-between p-4"
-            style={{ backgroundColor: bgSurfaceColor }}
-          >
-            {activeMediaKind === 'video' && activeMediaUrl && (
-              <video
-                key={activeMediaUrl}
-                src={activeMediaUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            )}
-            {activeMediaKind === 'image' && activeMediaUrl && (
-              <img
-                src={activeMediaUrl}
-                alt={activeMediaName}
-                referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            )}
-            {activeMediaUrl && (
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  backgroundColor: isLightSurface ? '#FFFFFF' : '#000000',
-                  opacity: bgVeilOpacity,
-                }}
-              />
-            )}
-
-            {/* Preview Header */}
-            <div className="relative z-10 text-center pt-1 min-h-[28px]">
-              {showSurahHeader && (
-                <>
-                  <div
-                    className={`text-[11px] font-extrabold ${
-                      isLightSurface ? 'text-neutral-900' : 'text-amber-300'
-                    }`}
-                  >
-                    Sourate {surahMeta.name} ({surahMeta.number}) • {normalizedRange.startAyah}–
-                    {normalizedRange.endAyah}
-                  </div>
-                  <div
-                    className={`text-[9px] opacity-75 ${
-                      isLightSurface ? 'text-neutral-700' : 'text-slate-200'
-                    }`}
-                  >
-                    {selectedReciter.name}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Preview Verses */}
-            <div className="relative z-10 flex-1 flex flex-col justify-center gap-3 overflow-hidden py-2">
-              {previewVerses.map((ayah, idx) => (
-                <div
-                  key={ayah.num}
-                  className={`text-center space-y-1 transition ${
-                    idx === 0 ? 'opacity-100' : flowMode === 'stream' ? 'opacity-65' : 'opacity-35'
-                  }`}
-                >
-                  {showArabic && (
-                    <div
-                      dir="rtl"
-                      className={`font-arabic ${
-                        textScale === 'compact'
-                          ? 'text-[14px]'
-                          : textScale === 'grand'
-                          ? 'text-[19px]'
-                          : 'text-[16px]'
-                      } ${isLightSurface ? 'text-neutral-950' : 'text-white'}`}
-                      style={{ fontFamily: "'Amiri', serif" }}
-                    >
-                      <TajweedText
-                        text={cleanAyahArabic(ayah.ar)}
-                        enabled={useTajweed}
-                        variant={isLightSurface ? 'light' : 'dark'}
-                      />{' '}
-                      <span className="text-[0.7em] font-mono">﴿{ayah.num}﴾</span>
-                    </div>
-                  )}
-                  {showPhonetics && ayah.tr && (
-                    <p
-                      className={`italic text-[9px] line-clamp-2 ${
-                        isLightSurface ? 'text-emerald-800' : 'text-slate-300'
-                      }`}
-                    >
-                      « {ayah.tr} »
-                    </p>
-                  )}
-                  {showFrench && ayah.fr && (
-                    <p
-                      className={`text-[10px] font-medium line-clamp-2 ${
-                        isLightSurface ? 'text-neutral-900' : 'text-neutral-100'
-                      }`}
-                    >
-                      {ayah.num}. {ayah.fr}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Mandatory Bottom Watermark (Directly beneath reading area, no progress bar or timer) */}
-            <div
-              data-testid="studio-preview-mandatory-watermark"
-              className="relative z-10 pt-2 pb-1 text-center pointer-events-none"
-            >
-              <div
-                className={`mx-auto mb-1.5 h-px w-24 ${
-                  isLightSurface
-                    ? 'bg-gradient-to-r from-transparent via-emerald-700/50 to-transparent'
-                    : 'bg-gradient-to-r from-transparent via-amber-400/55 to-transparent'
-                }`}
-              />
-              <div
-                className={`text-[11px] font-bold tracking-wide flex items-center justify-center gap-1 ${
-                  isLightSurface ? 'text-neutral-900' : 'text-white'
-                }`}
-              >
-                <span className={isLightSurface ? 'text-emerald-700' : 'text-amber-400'}>☾</span>
-                <span>{MANDATORY_WATERMARK_BRAND}</span>
-              </div>
-              <div
-                className={`text-[8px] font-semibold ${
-                  isLightSurface ? 'text-emerald-800/80' : 'text-amber-300/85'
-                }`}
-              >
-                {MANDATORY_WATERMARK_TAGLINE}
-              </div>
-            </div>
-          </div>
-        </aside>
+        {/* Right Column (Desktop Only): Real WYSIWYG Canvas Monitor */}
+        <StudioLiveMonitor
+          format={activeFormat}
+          ayahs={selectedVerses}
+          timeline={timeline}
+          surahName={surahMeta.name}
+          surahNumber={surahMeta.number}
+          startAyah={normalizedRange.startAyah}
+          endAyah={normalizedRange.endAyah}
+          reciterName={selectedReciter.name}
+          activeMediaKind={activeMediaKind}
+          activeMediaUrl={activeMediaUrl}
+          activeMediaName={activeMediaName}
+          isLightSurface={isLightSurface}
+          bgSurfaceColor={bgSurfaceColor}
+          bgVeilOpacity={bgVeilOpacity}
+          showArabic={showArabic}
+          useTajweed={useTajweed}
+          showPhonetics={showPhonetics}
+          showFrench={showFrench}
+          showSurahHeader={showSurahHeader}
+          textScale={textScale}
+          flowMode={flowMode}
+        />
       </div>
 
       {/* Bottom Sticky Dual Action Bar */}
-      <footer className="shrink-0 p-3.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] border-t border-white/10 bg-neutral-900/95 backdrop-blur-xl">
-        <div className="max-w-3xl mx-auto grid grid-cols-2 gap-2.5">
+      <footer className="shrink-0 p-3.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] border-t border-white/10 bg-[#0D1411]/95 backdrop-blur-xl">
+        <div className="max-w-4xl mx-auto grid grid-cols-2 gap-3">
           <button
             type="button"
             data-testid="studio-play-continuous-btn"
             disabled={isLoadingVerses || selectedVerses.length === 0}
             onClick={startContinuousPlayer}
-            className="py-3.5 px-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+            className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs md:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
           >
             <Play className="w-4 h-4 fill-current text-amber-300 shrink-0" />
             <span>Lire le contenu</span>
@@ -2172,10 +2283,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-create-video-btn"
             disabled={isLoadingVerses || selectedVerses.length === 0}
             onClick={startVideoExport}
-            className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 font-black text-xs md:text-sm flex items-center justify-center gap-1.5 shadow-lg cursor-pointer disabled:opacity-40"
+            className="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
           >
             <Film className="w-4 h-4 shrink-0" />
-            <span>Créer la Vidéo MP4 (9:16)</span>
+            <span>
+              {isPcMode
+                ? `Créer Vidéo MP4 (${activeFormat.aspectLabel})`
+                : 'Créer la Vidéo MP4 (9:16)'}
+            </span>
           </button>
         </div>
       </footer>
@@ -2187,12 +2302,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           onClick={() => setIsSurahPickerOpen(false)}
         >
           <div
-            className="w-full max-w-md max-h-[82vh] bg-neutral-900 border border-white/20 rounded-3xl p-4 flex flex-col gap-3"
+            className="w-full max-w-md max-h-[82vh] bg-[#0F1714] border border-white/20 rounded-2xl p-4 flex flex-col gap-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black">Choisir la Sourate</h3>
               <button
+                type="button"
                 onClick={() => setIsSurahPickerOpen(false)}
                 className="p-1.5 rounded-xl bg-white/10 cursor-pointer"
               >
@@ -2205,7 +2321,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 type="text"
                 value={surahQuery}
                 onChange={(e) => setSurahQuery(e.target.value)}
-                placeholder="Rechercher..."
+                placeholder="Rechercher une sourate (nom ou numéro)..."
                 className="w-full pl-9 pr-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
               />
             </div>
@@ -2217,13 +2333,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   onClick={() => {
                     setSurahNum(s.number);
                     setStartAyah(1);
-                    setEndAyah(Math.min(5, s.numberOfAyahs));
+                    setEndAyah(Math.min(isPcMode ? 10 : 5, s.numberOfAyahs));
                     setIsSurahPickerOpen(false);
                   }}
                   className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left border cursor-pointer ${
                     s.number === surahNum
                       ? 'bg-amber-400 text-neutral-950 border-amber-300 font-bold'
-                      : 'bg-white/5 text-white border-white/5'
+                      : 'bg-white/5 text-white border-white/5 hover:bg-white/10'
                   }`}
                 >
                   <div>
@@ -2251,12 +2367,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           onClick={() => setIsReciterPickerOpen(false)}
         >
           <div
-            className="w-full max-w-md max-h-[82vh] bg-neutral-900 border border-white/20 rounded-3xl p-4 flex flex-col gap-3"
+            className="w-full max-w-md max-h-[82vh] bg-[#0F1714] border border-white/20 rounded-2xl p-4 flex flex-col gap-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black">Choisir le Récitateur</h3>
               <button
+                type="button"
                 onClick={() => setIsReciterPickerOpen(false)}
                 className="p-1.5 rounded-xl bg-white/10 cursor-pointer"
               >
@@ -2276,7 +2393,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   className={`w-full flex items-center justify-between p-3 rounded-xl text-left border cursor-pointer ${
                     r.id === reciterId
                       ? 'bg-amber-400 text-neutral-950 border-amber-300 font-bold'
-                      : 'bg-white/5 text-white border-white/5'
+                      : 'bg-white/5 text-white border-white/5 hover:bg-white/10'
                   }`}
                 >
                   <div>

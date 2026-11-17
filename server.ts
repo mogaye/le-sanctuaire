@@ -1370,7 +1370,7 @@ async function startServer() {
 
   app.post(
     '/api/video/convert-mp4',
-    express.raw({ type: '*/*', limit: '250mb' }),
+    express.raw({ type: '*/*', limit: '512mb' }),
     async (req, res) => {
       const fs = await import('fs/promises');
       const os = await import('os');
@@ -1436,7 +1436,7 @@ async function startServer() {
 
   app.post(
     '/api/video/mux-mp4',
-    express.raw({ type: '*/*', limit: '250mb' }),
+    express.raw({ type: '*/*', limit: '512mb' }),
     async (req, res) => {
       const fs = await import('fs/promises');
       const os = await import('os');
