@@ -21,7 +21,6 @@ import {
   Headphones,
   Languages,
   FileText,
-  RotateCw,
   Layers,
   Search,
   Sun,
@@ -31,6 +30,12 @@ import { Reciter } from '../types';
 import { RECITERS } from '../data/islamicData';
 import { TajweedText, TAJWEED_RULES_EXPLANATIONS, cleanAyahArabic } from '../utils/tajweedColorizer';
 import { useWakeLock } from '../hooks/useWakeLock';
+import {
+  getCinematicOrientationMode,
+  getDynamicArabicStyleConfig,
+  getDynamicTranslationStyleConfig,
+  isMobileViewport,
+} from '../utils/cinematicLayoutUtils';
 
 interface AyahData {
   num: number;
@@ -424,17 +429,65 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
   const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
 
-  // Fullscreen State (Tracks browser native fullscreen so reader covers 100% of physical display)
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+  // Fullscreen State (Tracks browser native fullscreen + pure immersive fullscreen on iOS/mobile)
+  const [isNativeFullscreen, setIsNativeFullscreen] = useState<boolean>(() => {
     if (typeof document !== 'undefined') {
       return Boolean(document.fullscreenElement);
     }
     return false;
   });
+  const [isPureFullscreen, setIsPureFullscreen] = useState<boolean>(false);
+  const isFullscreen = isNativeFullscreen || isPureFullscreen;
+
+  const [viewportWidth, setViewportWidth] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth;
+    }
+    return 390;
+  });
+  const isMobile = isMobileViewport(viewportWidth);
+  const orientationMode = getCinematicOrientationMode(viewportWidth);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
+  const lockPortraitOrientationOnMobile = async () => {
+    if (typeof window === 'undefined' || !isMobileViewport(window.innerWidth)) return;
+    try {
+      if (screen.orientation && (screen.orientation as any).lock) {
+        await (screen.orientation as any).lock('portrait').catch(() => {});
+      } else if ((screen as any).lockOrientation) {
+        (screen as any).lockOrientation('portrait');
+      }
+    } catch {
+      // ignore unsupported orientation lock
+    }
+  };
 
   useEffect(() => {
     const onFullscreenChange = () => {
-      setIsFullscreen(Boolean(document.fullscreenElement));
+      const active = Boolean(document.fullscreenElement);
+      setIsNativeFullscreen(active);
+      if (active) {
+        setIsPureFullscreen(true);
+        setIsHudVisible(false);
+        if (hideTimerRef.current) {
+          clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+        lockPortraitOrientationOnMobile();
+      } else {
+        setIsPureFullscreen(false);
+      }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
@@ -454,6 +507,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           await (el as any).webkitRequestFullscreen().catch(() => {});
         }
       }
+      await lockPortraitOrientationOnMobile();
     } catch (err) {
       console.warn('Native fullscreen error:', err);
     }
@@ -468,43 +522,40 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           await (document as any).webkitExitFullscreen().catch(() => {});
         }
       }
+      if (screen.orientation && (screen.orientation as any).unlock) {
+        try {
+          (screen.orientation as any).unlock();
+        } catch {}
+      }
     } catch (err) {
       console.warn('Exit fullscreen error:', err);
     }
   };
 
   const toggleFullscreen = async () => {
-    if (document.fullscreenElement) {
+    if (isFullscreen) {
+      setIsPureFullscreen(false);
       await exitNativeFullscreen();
+      resetHudTimer(true);
     } else {
+      closeAllPopovers();
+      setIsPureFullscreen(true);
+      // Immediately hide all floating pills, buttons and chevrons in fullscreen
+      setIsHudVisible(false);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
       await enterNativeFullscreen();
     }
   };
 
-  // Landscape Mode & Fullscreen (requested for mobile/tablet)
-  const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
-  const [isPortrait, setIsPortrait] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerHeight > window.innerWidth;
+  // Auto-request fullscreen and lock vertical 9:16 portrait upon opening reader on mobile
+  useEffect(() => {
+    if (!isOpen) {
+      setIsPureFullscreen(false);
+      return;
     }
-    return false;
-  });
-
-  useEffect(() => {
-    const handleOrientation = () => {
-      setIsPortrait(window.innerHeight > window.innerWidth);
-    };
-    window.addEventListener('resize', handleOrientation);
-    window.addEventListener('orientationchange', handleOrientation);
-    return () => {
-      window.removeEventListener('resize', handleOrientation);
-      window.removeEventListener('orientationchange', handleOrientation);
-    };
-  }, []);
-
-  // Auto-request fullscreen upon opening reader
-  useEffect(() => {
-    if (!isOpen) return;
     enterNativeFullscreen();
   }, [isOpen]);
 
@@ -540,40 +591,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     setIsReciterPickerOpen(false);
     setIsAppearanceModalOpen(false);
     setIsTajweedGuideOpen(false);
-  };
-
-  const toggleLandscapeFullscreen = async () => {
-    try {
-      const next = !isLandscapeMode;
-      setIsLandscapeMode(next);
-
-      if (next) {
-        await enterNativeFullscreen();
-
-        if (screen.orientation && (screen.orientation as any).lock) {
-          await (screen.orientation as any).lock('landscape').catch(() => {});
-        } else if ((screen as any).lockOrientation) {
-          try {
-            (screen as any).lockOrientation('landscape');
-          } catch {}
-        }
-      } else {
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
-        }
-        if (screen.orientation && (screen.orientation as any).unlock) {
-          try {
-            (screen.orientation as any).unlock();
-          } catch {}
-        } else if ((screen as any).unlockOrientation) {
-          try {
-            (screen as any).unlockOrientation();
-          } catch {}
-        }
-      }
-    } catch (err) {
-      console.warn('Landscape toggle error:', err);
-    }
   };
 
   const handleChooseSurah = (num: number) => {
@@ -688,6 +705,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const verseListRef = useRef<HTMLDivElement | null>(null);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Setup initial ayah index
   useEffect(() => {
@@ -775,7 +793,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     isAppearanceModalOpen ||
     isTajweedGuideOpen;
 
-  // Auto-hide HUD icons after 4.5 seconds of inactivity (both in silent reading and audio playback)
+  // Auto-hide HUD icons after 3.5 seconds of inactivity (and immediately on fullscreen)
   const resetHudTimer = (forceShow: boolean = true) => {
     if (forceShow) {
       setIsHudVisible(true);
@@ -789,12 +807,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       setIsHudVisible(true);
       return;
     }
-    // Auto-hide after 4500ms (4.5s) of inactivity in all modes
+    const hideDelayMs = isFullscreen ? 2600 : 3800;
     hideTimerRef.current = setTimeout(() => {
       if (!anyModalOpen) {
         setIsHudVisible(false);
       }
-    }, 4500);
+    }, hideDelayMs);
   };
 
   useEffect(() => {
@@ -809,21 +827,24 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       return;
     }
 
-    // Schedule auto-hide after 4.5s of inactivity
-    resetHudTimer(true);
+    // In pure fullscreen, keep HUD hidden until the user taps the screen; otherwise auto-hide after 3.8s
+    if (!isFullscreen) {
+      resetHudTimer(true);
+    }
 
-    const onUserActivity = () => {
+    const onUserActivity = (e: Event) => {
+      // On mobile/touch fullscreen, only tapping reveals the HUD (avoid accidental pointermove pops)
+      if (isFullscreen && e.type === 'pointermove') return;
+      if (isFullscreen && e.type === 'mousemove' && isMobile) return;
       resetHudTimer(true);
     };
 
     window.addEventListener('mousemove', onUserActivity);
-    window.addEventListener('touchstart', onUserActivity, { passive: true });
     window.addEventListener('pointermove', onUserActivity);
     window.addEventListener('keydown', onUserActivity);
 
     return () => {
       window.removeEventListener('mousemove', onUserActivity);
-      window.removeEventListener('touchstart', onUserActivity);
       window.removeEventListener('pointermove', onUserActivity);
       window.removeEventListener('keydown', onUserActivity);
       if (hideTimerRef.current) {
@@ -831,7 +852,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         hideTimerRef.current = null;
       }
     };
-  }, [isOpen, anyModalOpen]);
+  }, [isOpen, anyModalOpen, isFullscreen, isMobile]);
 
   const ayahs = (surahData?.ayahs || []).map((a) => ({
     ...a,
@@ -1007,89 +1028,38 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
 
   const currentTheme = CINEMATIC_THEMES[theme] || CINEMATIC_THEMES.emerald;
 
-  // Responsive fluid typography calculator: adapts to BOTH viewport width AND height
-  // so text never overflows the frame, regardless of screen aspect ratio or verse length
-  const getDynamicArabicStyle = (arText: string) => {
-    const len = arText?.length || 0;
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  // Responsive fluid typography calculator tuned for 9:16 vertical mobile and desktop
+  const getDynamicArabicStyle = (arText: string) =>
+    getDynamicArabicStyleConfig(arText, isMobile, fontSizeLevel);
 
-    let minPx = 18;
-    let preferredVw = 3.6;
-    let preferredVh = 4.8;
-    let maxPx = 48;
-    let lineHt = 1.75;
+  const getDynamicTranslationStyle = (len: number) =>
+    getDynamicTranslationStyleConfig(len, isMobile, fontSizeLevel);
 
-    if (len > 350) {
-      // Extremely long verses (e.g. Ayat ad-Dayn, Ayat al-Kursi)
-      minPx = isMobile ? 15 : 14;
-      preferredVw = isMobile ? 3.8 : 1.8;
-      preferredVh = 2.8;
-      maxPx = isMobile ? 22 : 24;
-      lineHt = 1.6;
-    } else if (len > 220) {
-      // Long verses
-      minPx = isMobile ? 17 : 16;
-      preferredVw = isMobile ? 4.2 : 2.2;
-      preferredVh = 3.3;
-      maxPx = isMobile ? 25 : 28;
-      lineHt = 1.65;
-    } else if (len > 130) {
-      // Medium-long verses (e.g. Al-Kahf 5 has ~137 chars)
-      minPx = isMobile ? 19 : 17;
-      preferredVw = isMobile ? 4.8 : 2.6;
-      preferredVh = 3.8;
-      maxPx = isMobile ? 29 : 34;
-      lineHt = 1.7;
-    } else if (len > 60) {
-      // Medium verses
-      minPx = isMobile ? 22 : 19;
-      preferredVw = isMobile ? 5.4 : 3.0;
-      preferredVh = 4.4;
-      maxPx = isMobile ? 34 : 40;
-      lineHt = 1.75;
-    } else {
-      // Short verses (e.g. Al-Kahf 4)
-      minPx = isMobile ? 25 : 22;
-      preferredVw = isMobile ? 6.2 : 3.8;
-      preferredVh = 5.2;
-      maxPx = isMobile ? 42 : 50;
-      lineHt = 1.8;
+  // Touch swipe navigation on mobile 9:16 vertical screen
+  const handleMainTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    // Ignore left-edge back gesture region
+    if (x <= 32) {
+      swipeStartRef.current = null;
+      return;
     }
-
-    const multipliers = [0.85, 1.0, 1.15, 1.3];
-    const m = multipliers[fontSizeLevel] || 1.0;
-
-    const finalMin = Math.round(minPx * m);
-    const finalVw = (preferredVw * m).toFixed(2);
-    const finalVh = (preferredVh * m).toFixed(2);
-    const finalMax = Math.round(maxPx * m);
-
-    return {
-      fontSize: `clamp(${finalMin}px, min(${finalVw}vw, ${finalVh}vh), ${finalMax}px)`,
-      lineHeight: lineHt,
-    };
+    swipeStartRef.current = { x, y };
   };
 
-  const getDynamicTranslationStyle = (len: number) => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    const multipliers = [0.85, 1.0, 1.15, 1.3];
-    const m = multipliers[fontSizeLevel] || 1.0;
-    let minPx = isMobile ? 12 : 12;
-    let preferredVw = isMobile ? 3.4 : 1.2;
-    let preferredVh = isMobile ? 2.2 : 1.9;
-    let maxPx = isMobile ? 15 : 16;
-
-    if (len > 280) {
-      minPx = isMobile ? 11 : 10.5;
-      preferredVw = isMobile ? 3.0 : 1.0;
-      preferredVh = isMobile ? 1.8 : 1.5;
-      maxPx = isMobile ? 13 : 13.5;
+  const handleMainTouchEnd = (e: React.TouchEvent) => {
+    if (!swipeStartRef.current || e.changedTouches.length !== 1) return;
+    const dx = e.changedTouches[0].clientX - swipeStartRef.current.x;
+    const dy = Math.abs(e.changedTouches[0].clientY - swipeStartRef.current.y);
+    swipeStartRef.current = null;
+    if (Math.abs(dx) >= 60 && dy < 70) {
+      if (dx < 0) {
+        handleNextVerse();
+      } else {
+        handlePrevVerse();
+      }
     }
-
-    return {
-      fontSize: `clamp(${Math.round(minPx * m)}px, min(${(preferredVw * m).toFixed(2)}vw, ${(preferredVh * m).toFixed(2)}vh), ${Math.round(maxPx * m)}px)`,
-      lineHeight: 1.5,
-    };
   };
 
   const themeList = Object.values(CINEMATIC_THEMES);
@@ -1113,34 +1083,28 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     );
   });
 
-  const isEmulatedLandscape = isLandscapeMode && isPortrait;
-
   return (
     <div
       ref={containerRef}
+      data-testid="cinematic-reader-root"
+      data-orientation={orientationMode}
+      data-fullscreen={isFullscreen ? 'true' : 'false'}
+      data-hud-visible={isHudVisible ? 'true' : 'false'}
       style={{
         background: currentTheme.inlineBg,
-        ...(isEmulatedLandscape
-          ? {
-              position: 'fixed',
-              top: 0,
-              left: '100vw',
-              width: '100vh',
-              height: '100vw',
-              transform: 'rotate(90deg)',
-              transformOrigin: 'top left',
-              zIndex: 9999,
-            }
-          : {}),
       }}
-      className={`fixed inset-0 w-screen h-screen min-h-[100dvh] z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
+      className={`fixed inset-0 w-full h-[100dvh] min-h-[100dvh] z-[9999] ${currentTheme.bg} flex flex-col justify-between overflow-hidden select-none transition-colors duration-500 ${
         !isHudVisible ? 'cursor-none' : 'cursor-default'
       }`}
       onClick={(e) => {
         if (!isHudVisible) {
           resetHudTimer(true);
-        } else if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'MAIN') {
-          // Tapping empty background toggles HUD immediately for distraction-free reading
+        } else if (
+          e.target === e.currentTarget ||
+          (e.target as HTMLElement).tagName === 'MAIN' ||
+          (e.target as HTMLElement).dataset?.cinematicCanvas === 'true'
+        ) {
+          // Tapping canvas toggles HUD immediately off for clean distraction-free 9:16 reading
           setIsHudVisible(false);
           if (hideTimerRef.current) {
             clearTimeout(hideTimerRef.current);
@@ -1151,23 +1115,25 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         }
       }}
       onMouseMove={() => {
-        resetHudTimer(true);
+        if (!isFullscreen && !isMobile) {
+          resetHudTimer(true);
+        }
       }}
     >
-      {/* Dynamic Islamic Photographic Background Wallpaper Layer (Desktop & Tablet only; mobile uses pure serene spiritual gradient for flawless readability and fluid performance) */}
+      {/* Dynamic Islamic Photographic Background Wallpaper Layer (Full-bleed 9:16 vertical on mobile & desktop) */}
       {selectedBg && selectedBgId !== 'none' && (
-        <div className="hidden md:block absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+        <div className="block absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
           <img
             src={selectedBg.url}
             alt={selectedBg.name}
-            className="w-full h-full object-cover transition-opacity duration-700"
+            className="w-full h-full object-cover object-center transition-opacity duration-700"
           />
           {/* Tone-matched darkening veil to guarantee immaculate contrast for Tajweed and translations */}
           <div
             className="absolute inset-0 transition-opacity duration-300"
             style={{
               backgroundColor: currentTheme.swatch || '#000000',
-              opacity: bgOpacity,
+              opacity: isMobile ? Math.max(bgOpacity, 0.52) : bgOpacity,
             }}
           />
           {/* Radial vignette overlay */}
@@ -1196,14 +1162,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         onMouseLeave={() => {
           resetHudTimer(false);
         }}
-        className={`fixed top-3 sm:top-5 left-3 sm:left-6 right-3 sm:right-6 z-[100] flex items-center justify-between pointer-events-none transition-all duration-500 ${
+        aria-hidden={!isHudVisible}
+        className={`fixed top-3 sm:top-5 left-3 sm:left-6 right-3 sm:right-6 z-[100] flex items-center justify-between pointer-events-none transition-all duration-200 ${
           isHudVisible
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 -translate-y-6 pointer-events-none'
         }`}
       >
         {/* Left Floating Icons: Surah & Reciter */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className={`flex items-center gap-2 min-w-0 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
           {/* Surah Quick Picker Button */}
           <button
             onClick={(e) => {
@@ -1211,11 +1178,12 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               closeAllPopovers();
               setIsSurahPickerOpen(true);
             }}
-            className="h-9 sm:h-10 px-3 rounded-full bg-black/55 hover:bg-black/75 text-amber-300 border border-white/20 backdrop-blur-xl flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer"
+            aria-label={`Changer de sourate : ${currentSurahMeta.number}. ${currentSurahMeta.name}`}
+            className="h-9 sm:h-10 px-3 rounded-full bg-black/65 hover:bg-black/80 text-amber-300 border border-white/25 backdrop-blur-xl flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer min-w-0"
             title={`Sourate ${currentSurahMeta.number}. ${currentSurahMeta.name} (cliquer pour changer)`}
           >
             <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
-            <span className="text-xs font-mono font-bold text-white tracking-tight">
+            <span className="text-xs font-mono font-bold text-white tracking-tight max-w-[120px] sm:max-w-none truncate">
               {currentSurahMeta.number}. {currentSurahMeta.name}
             </span>
           </button>
@@ -1227,22 +1195,24 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               closeAllPopovers();
               setIsReciterPickerOpen(true);
             }}
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/55 hover:bg-black/75 text-white/90 hover:text-white border border-white/20 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer"
+            aria-label={`Choisir le récitateur : ${selectedReciter.name}`}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/65 hover:bg-black/80 text-white/90 hover:text-white border border-white/25 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer shrink-0"
             title={`Récitateur : ${selectedReciter.name} (cliquer pour changer)`}
           >
             <Headphones className="w-4 h-4 text-amber-300" />
           </button>
         </div>
 
-        {/* Right Floating Icons: Plein Écran, Apparence & Réglages, Rotation (Mobile), Quitter */}
-        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+        {/* Right Floating Icons: Plein Écran, Apparence & Réglages, Quitter */}
+        <div className={`flex items-center gap-1.5 sm:gap-2 ${isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'}`}>
 
-          {/* Fullscreen Toggle (Covers the ENTIRE SCREEN, including the top browser bar on PC, tablet, and mobile) */}
+          {/* Fullscreen Toggle (Covers the ENTIRE SCREEN in 9:16 vertical on mobile and hides all floating controls) */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               toggleFullscreen();
             }}
+            aria-label={isFullscreen ? 'Quitter le plein écran' : 'Activer le plein écran sans boutons'}
             className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer border ${
               isFullscreen
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.6)]'
@@ -1251,7 +1221,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             title={
               isFullscreen
                 ? 'Quitter le plein écran (F ou Échap)'
-                : 'Plein écran complet (couvrir tout l’écran y compris le haut) (F)'
+                : 'Plein écran complet (masque tous les boutons) (F)'
             }
           >
             {isFullscreen ? (
@@ -1268,6 +1238,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               closeAllPopovers();
               setIsAppearanceModalOpen(true);
             }}
+            aria-label="Apparence et réglages"
             className="h-9 sm:h-10 px-3 rounded-full bg-black/55 hover:bg-black/75 text-amber-300 border border-white/20 backdrop-blur-xl flex items-center gap-2 transition active:scale-95 shadow-xl cursor-pointer"
             title="Apparence & Réglages (Thèmes, Fonds 4K, Tajweed, Taille de texte)"
           >
@@ -1275,22 +1246,13 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             <span className="text-xs font-semibold text-white/95 hidden sm:inline">Apparence</span>
           </button>
 
-          {/* Landscape / Fullscreen Rotation Button (STRICTLY ON MOBILE ONLY as requested by user) */}
-          <button
-            onClick={toggleLandscapeFullscreen}
-            className={`md:hidden w-9 h-9 sm:w-10 sm:h-10 rounded-full backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer border ${
-              isLandscapeMode
-                ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.6)]'
-                : 'bg-black/55 hover:bg-black/75 text-white/90 hover:text-white border-white/20'
-            }`}
-            title={isLandscapeMode ? 'Quitter mode paysage plein écran' : 'Mode paysage plein écran'}
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
-
           {/* Close / Exit Reader */}
           <button
-            onClick={handleExit}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleExit();
+            }}
+            aria-label="Quitter le mode cinématique"
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-600/85 hover:bg-rose-600 text-white border border-rose-400/40 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer"
             title="Quitter le mode cinématique (Échap)"
           >
@@ -1300,17 +1262,33 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
       </div>
 
       {/* ========================================================
-          CENTER CONTENT: CINEMATIC READING CANVAS
-          Adapted with fluid auto-scaling so that NOTHING overflows or clips
+          CENTER CONTENT: CINEMATIC 9:16 VERTICAL READING CANVAS
+          Covers full screen on mobile portrait with zero horizontal overflow
          ======================================================== */}
-      <main className="relative z-10 flex-1 w-full h-full overflow-y-auto px-4 sm:px-8 md:px-12 py-14 sm:py-16 flex flex-col items-center justify-center no-scrollbar">
+      <main
+        data-cinematic-canvas="true"
+        onTouchStart={handleMainTouchStart}
+        onTouchEnd={handleMainTouchEnd}
+        className={`relative z-10 flex-1 w-full h-full overflow-y-auto overflow-x-hidden px-5 sm:px-8 md:px-12 flex flex-col items-center justify-center no-scrollbar ${
+          isHudVisible
+            ? 'pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:py-16'
+            : 'pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:py-10'
+        }`}
+      >
         {displayMode === 'focus' ? (
           /* ========================================================
-             1. FOCUS MODE: PURE CLEAN ELEVATED TYPOGRAPHY (ANCHORED & SERENE)
+             1. FOCUS MODE: PURE 9:16 VERTICAL ELEVATED TYPOGRAPHY
              ======================================================== */
-          <div className="w-full max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0">
-            {/* Top Verse Badge pill - Stably anchored, does not jump */}
-            <div className="shrink-0 mb-2.5 sm:mb-3 select-none">
+          <div
+            data-cinematic-canvas="true"
+            className="w-full max-w-[460px] md:max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0"
+          >
+            {/* Top Verse Badge pill - Hides cleanly when HUD is hidden in fullscreen */}
+            <div
+              className={`shrink-0 mb-3 sm:mb-4 select-none transition-all duration-200 ${
+                isHudVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
+              }`}
+            >
               <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/5 border border-white/15 text-xs text-amber-300 font-mono font-medium tracking-wider shadow-xs">
                 <span>Sourate {currentSurahMeta.name}</span>
                 <span className="opacity-40">•</span>
@@ -1320,8 +1298,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               </div>
             </div>
 
-            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING (Flexible stage, clean rendering without rogue characters) */}
-            <div className="w-full flex items-center justify-center px-2 sm:px-4 my-1 sm:my-2">
+            {/* GIANT ARABIC SCRIPT WITH TAJWEED COLORING */}
+            <div
+              data-cinematic-canvas="true"
+              className="w-full flex items-center justify-center px-1 sm:px-4 my-1.5 sm:my-2.5"
+            >
               <div
                 dir="rtl"
                 className={`w-full font-arabic ${currentTheme.textAr} tracking-normal text-center font-normal transition-all duration-500 ease-out break-words [word-break:keep-all] ${
@@ -1339,7 +1320,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* Thin subtle horizontal divider line */}
             {(showPhonetics || showTranslation) && (
               <div
-                className={`w-full max-w-sm border-t border-white/15 my-1.5 sm:my-2 transition-opacity duration-500 ease-out ${
+                className={`w-full max-w-[240px] sm:max-w-sm border-t border-white/15 my-2.5 sm:my-3 transition-opacity duration-500 ease-out ${
                   isVerseFading ? 'opacity-20' : 'opacity-100'
                 }`}
               />
@@ -1348,7 +1329,8 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* Phonetics & French Translation - Pure text without any boxes, smooth dissolve */}
             {(showPhonetics || showTranslation) && (
               <div
-                className={`w-full max-w-3xl space-y-1.5 sm:space-y-2 px-3 transition-all duration-500 ease-out ${
+                data-cinematic-canvas="true"
+                className={`w-full max-w-[440px] md:max-w-3xl space-y-2 sm:space-y-2.5 px-2 sm:px-3 transition-all duration-500 ease-out ${
                   isVerseFading ? 'opacity-30 blur-[0.4px]' : 'opacity-100 blur-0'
                 }`}
               >
@@ -1373,8 +1355,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             )}
 
             {/* ========================================================
-                SIDE CHEVRONS (AUTOHIDE WHEN PLAYING AUDIO)
-                "et aussi les deux crochet suivant et precedant"
+                SIDE CHEVRONS (DESKTOP ONLY - HIDDEN ON MOBILE 9:16 & WHEN HUD HIDDEN)
                ======================================================== */}
             <button
               onClick={handlePrevVerse}
@@ -1385,13 +1366,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               onMouseLeave={() => {
                 resetHudTimer(false);
               }}
+              aria-label="Verset précédent"
               disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
-              className={`fixed left-3 sm:left-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+              className={`hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
               }`}
               title="Verset précédent (Flèche Gauche)"
             >
-              <ChevronLeft className="w-6 h-6 sm:w-7 sm:h-7" />
+              <ChevronLeft className="w-7 h-7" />
             </button>
 
             <button
@@ -1403,20 +1385,26 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               onMouseLeave={() => {
                 resetHudTimer(false);
               }}
+              aria-label="Verset suivant"
               disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
-              className={`fixed right-3 sm:right-6 top-1/2 -translate-y-1/2 p-3 sm:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+              className={`hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
                 isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
               }`}
               title="Verset suivant (Flèche Droite)"
             >
-              <ChevronRight className="w-6 h-6 sm:w-7 sm:h-7" />
+              <ChevronRight className="w-7 h-7" />
             </button>
           </div>
         ) : (
           /* ========================================================
-             2. CONTINUOUS SCROLL MODE: ALL VERSES IN GIANT TYPE
+             2. CONTINUOUS SCROLL MODE: ALL VERSES IN VERTICAL 9:16
              ======================================================== */
-          <div ref={verseListRef} className="w-full max-w-4xl mx-auto space-y-8 pt-20 pb-28">
+          <div
+            ref={verseListRef}
+            className={`w-full max-w-[480px] md:max-w-4xl mx-auto space-y-6 sm:space-y-8 ${
+              isHudVisible ? 'pt-10 pb-20 sm:pt-20 sm:pb-28' : 'pt-4 pb-8'
+            }`}
+          >
             {currentSurahMeta.number !== 9 && (
               <div className="text-center text-amber-200/80 font-arabic text-2xl sm:text-3xl pb-4">
                 بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
@@ -1504,17 +1492,23 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         onMouseLeave={() => {
           resetHudTimer(false);
         }}
-        className={`fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none transition-all duration-500 ${
+        aria-hidden={!isHudVisible}
+        className={`fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none transition-all duration-200 ${
           isHudVisible
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 translate-y-6 pointer-events-none'
         }`}
       >
-        <div className="pointer-events-auto flex items-center gap-1 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full bg-black/60 backdrop-blur-2xl border border-white/20 shadow-2xl">
+        <div
+          className={`${
+            isHudVisible ? 'pointer-events-auto' : 'pointer-events-none'
+          } flex items-center gap-1 sm:gap-2 px-3 py-2 sm:px-4 sm:py-2.5 rounded-full bg-black/70 backdrop-blur-2xl border border-white/25 shadow-2xl`}
+        >
           {/* Prev Surah (desktop/tablet) */}
           <button
             onClick={() => onSelectSurah(Math.max(1, currentSurahMeta.number - 1))}
             disabled={currentSurahMeta.number <= 1}
+            aria-label="Sourate précédente"
             className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Sourate précédente"
           >
@@ -1525,6 +1519,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           <button
             onClick={handlePrevVerse}
             disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
+            aria-label="Verset précédent"
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white flex items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Verset précédent"
           >
@@ -1534,6 +1529,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           {/* Center Play/Pause button */}
           <button
             onClick={togglePlayAudio}
+            aria-label={isPlayingAudio ? 'Mettre en pause la récitation' : 'Écouter la récitation'}
             className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black shadow-lg transition active:scale-95 cursor-pointer flex items-center justify-center mx-1"
             title={isPlayingAudio ? 'Mettre en pause (Espace)' : 'Écouter la récitation (Espace)'}
           >
@@ -1548,6 +1544,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           <button
             onClick={handleNextVerse}
             disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
+            aria-label="Verset suivant"
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white flex items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Verset suivant"
           >
@@ -1558,6 +1555,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           <button
             onClick={() => onSelectSurah(Math.min(114, currentSurahMeta.number + 1))}
             disabled={currentSurahMeta.number >= 114}
+            aria-label="Sourate suivante"
             className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Sourate suivante"
           >
@@ -1570,6 +1568,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           {/* French Translation Toggle */}
           <button
             onClick={handleToggleTranslation}
+            aria-label={showTranslation ? 'Masquer la traduction française' : 'Afficher la traduction française'}
             className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
               showTranslation
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
@@ -1583,6 +1582,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
           {/* Phonetics / Transcription Toggle - VISIBLE EVERYWHERE */}
           <button
             onClick={handleTogglePhonetics}
+            aria-label={showPhonetics ? 'Masquer la transcription phonétique' : 'Afficher la transcription phonétique'}
             className={`flex w-8 h-8 sm:w-9 sm:h-9 rounded-full items-center justify-center transition active:scale-95 cursor-pointer border ${
               showPhonetics
                 ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
@@ -1601,6 +1601,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               }
               setIsAudioMuted(!isAudioMuted);
             }}
+            aria-label={isAudioMuted ? 'Activer le son' : 'Couper le son'}
             className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition active:scale-95 cursor-pointer border ${
               isAudioMuted
                 ? 'bg-rose-500/25 text-rose-300 border-rose-400/50'

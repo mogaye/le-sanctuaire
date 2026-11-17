@@ -1139,7 +1139,7 @@ export default function App() {
     <div
       className={`${
         currentView === 'quran'
-          ? 'h-screen max-h-screen overflow-hidden'
+          ? 'h-[100dvh] max-h-[100dvh] overflow-hidden'
           : 'min-h-screen overflow-x-hidden'
       } relative font-sans bg-[#F4F7F5] dark:bg-[#14261C] ${isDarkMode ? 'dark' : ''}`}
     >
@@ -1273,12 +1273,14 @@ export default function App() {
         selectedCity={liveSelectedCity}
       />
 
-      {/* Persistent 5-minute Guest Reminder for unauthenticated visitors */}
-      <GuestAccountReminderToast
-        currentUser={currentUser}
-        currentView={currentView}
-        onOpenSignUp={() => setCurrentView('login')}
-      />
+      {/* Persistent 5-minute Guest Reminder for unauthenticated visitors (hidden in Quran & reading views) */}
+      {currentView !== 'quran' && !isReadingBook && (
+        <GuestAccountReminderToast
+          currentUser={currentUser}
+          currentView={currentView}
+          onOpenSignUp={() => setCurrentView('login')}
+        />
+      )}
     </div>
   );
 }
