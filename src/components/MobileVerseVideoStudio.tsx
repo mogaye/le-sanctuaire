@@ -13,7 +13,6 @@ import {
   Check,
   Search,
   ChevronRight,
-  RotateCcw,
   Square,
   SlidersHorizontal,
   Loader2,
@@ -37,7 +36,6 @@ import {
   VIDEO_EXPORT_HEIGHT,
   VIDEO_EXPORT_WIDTH,
   buildContinuousTimeline,
-  findActiveTimelineEntry,
   formatTimeMMSS,
   normalizeVerseRange,
   sliceSelectedAyahs,
@@ -232,18 +230,22 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   } | null>(null);
   const [exportErrorMsg, setExportErrorMsg] = useState<string | null>(null);
 
-  // Refs for audio, background media & scroll sections
+  // Refs for audio, background media & live 9:16 video player canvas
   const audioCtxRef = useRef<AudioContext | null>(null);
   const decodedBuffersRef = useRef<DecodedVerseBuffer[]>([]);
   const playbackHandleRef = useRef<ScheduledPlaybackHandle | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof attachAudioStreamKeepalive> | null>(null);
   const exportBgVideoRef = useRef<HTMLVideoElement | null>(null);
+  const playerBgVideoRef = useRef<HTMLVideoElement | null>(null);
+  const playerBgImageRef = useRef<HTMLImageElement | null>(null);
+  const playerLayoutRef = useRef<ReturnType<typeof precomputeVideoCanvasLayout> | null>(null);
+  const playerRenderOptsRef = useRef<VideoCanvasRenderOptions | null>(null);
+  const playerTimelineRef = useRef<ReturnType<typeof buildContinuousTimeline> | null>(null);
   const playbackStartCtxTimeRef = useRef<number>(0);
   const playbackStartOffsetRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
+  const hudHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const verseItemRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sectionVersesRef = useRef<HTMLElement | null>(null);
@@ -251,6 +253,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const sectionBgRef = useRef<HTMLElement | null>(null);
   const sectionStyleRef = useRef<HTMLElement | null>(null);
 
+  const playerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -512,6 +515,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       keepaliveRef.current.dispose();
       keepaliveRef.current = null;
     }
+    if (hudHideTimerRef.current) {
+      clearTimeout(hudHideTimerRef.current);
+      hudHideTimerRef.current = null;
+    }
     if (exportBgVideoRef.current) {
       try {
         exportBgVideoRef.current.pause();
@@ -521,6 +528,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       } catch {}
       exportBgVideoRef.current = null;
     }
+    if (playerBgVideoRef.current) {
+      try {
+        playerBgVideoRef.current.pause();
+        playerBgVideoRef.current.removeAttribute('src');
+        playerBgVideoRef.current.load();
+        playerBgVideoRef.current.remove();
+      } catch {}
+      playerBgVideoRef.current = null;
+    }
+    playerBgImageRef.current = null;
+    playerLayoutRef.current = null;
+    playerRenderOptsRef.current = null;
+    playerTimelineRef.current = null;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       try {
         mediaRecorderRef.current.stop();
@@ -555,9 +575,39 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   }, [isOpen]);
 
+  // Auto-hide Stage 2 video controls cleanly after 3s during playback
+  useEffect(() => {
+    if (hudHideTimerRef.current) {
+      clearTimeout(hudHideTimerRef.current);
+      hudHideTimerRef.current = null;
+    }
+    if (stage === 'player' && playerStatus === 'playing' && playerHudVisible) {
+      hudHideTimerRef.current = setTimeout(() => {
+        setPlayerHudVisible(false);
+      }, 3000);
+    }
+    return () => {
+      if (hudHideTimerRef.current) {
+        clearTimeout(hudHideTimerRef.current);
+        hudHideTimerRef.current = null;
+      }
+    };
+  }, [stage, playerStatus, playerHudVisible]);
+
+  const drawLivePlayerFrame = (atSec: number) => {
+    const canvas = playerCanvasRef.current;
+    const layout = playerLayoutRef.current;
+    const opts = playerRenderOptsRef.current;
+    const activeTimeline = playerTimelineRef.current;
+    if (!canvas || !layout || !opts || !activeTimeline) return;
+    const ctx2d = canvas.getContext('2d');
+    if (!ctx2d) return;
+    renderVideoCanvasFrame(ctx2d, layout, activeTimeline, atSec, opts);
+  };
+
   // =========================================================================
-  // CONTINUOUS FULL-RANGE PLAYER (Stage = 'player')
-  // Pre-decodes & schedules ALL selected verses as ONE seamless stream
+  // REAL-TIME 9:16 VIDEO PLAYER (Stage = 'player' — "Lire le contenu")
+  // Plays the actual generated 9:16 video canvas synced to seamless audio
   // =========================================================================
   const startContinuousPlayer = async () => {
     if (selectedVerses.length === 0) return;
@@ -579,24 +629,93 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       await ctx.resume().catch(() => {});
     }
 
-    const decoded = await decodeVerseAudioSequence(
-      ctx,
-      surahNum,
-      selectedVerses,
-      reciterId,
-      (loaded, total) => setPlayerLoadProgress({ loaded, total }),
-      abortCtrl.signal
-    );
+    const bgImgPromise =
+      activeMediaKind === 'image' && activeMediaUrl
+        ? loadCanvasBackgroundImage(activeMediaUrl)
+        : Promise.resolve(null);
+    const bgVideoPromise =
+      activeMediaKind === 'video' && activeMediaUrl
+        ? loadCanvasBackgroundVideo(activeMediaUrl)
+        : Promise.resolve(null);
 
-    if (abortCtrl.signal.aborted) return;
+    const [decoded, bgImg, bgVideo] = await Promise.all([
+      decodeVerseAudioSequence(
+        ctx,
+        surahNum,
+        selectedVerses,
+        reciterId,
+        (loaded, total) => setPlayerLoadProgress({ loaded, total }),
+        abortCtrl.signal
+      ),
+      bgImgPromise,
+      bgVideoPromise,
+    ]);
 
+    if (abortCtrl.signal.aborted) {
+      if (bgVideo) {
+        try {
+          bgVideo.pause();
+          bgVideo.remove();
+        } catch {}
+      }
+      return;
+    }
+
+    playerBgImageRef.current = bgImg;
+    playerBgVideoRef.current = bgVideo;
     decodedBuffersRef.current = decoded;
+
     const durations = decoded.map((d) =>
       d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
     );
     setMeasuredDurations(durations);
 
+    if (document.fonts?.ready) {
+      await document.fonts.ready.catch(() => {});
+    }
+
     const exactTimeline = buildContinuousTimeline(selectedVerses, durations, paceMultiplier);
+    playerTimelineRef.current = exactTimeline;
+
+    const liveWidth = 720;
+    const liveHeight = 1280;
+    const canvas = playerCanvasRef.current;
+    if (canvas) {
+      canvas.width = liveWidth;
+      canvas.height = liveHeight;
+      const canvasCtx = canvas.getContext('2d');
+      if (canvasCtx) {
+        const renderOpts: VideoCanvasRenderOptions = {
+          width: liveWidth,
+          height: liveHeight,
+          surahName: surahMeta.name,
+          surahNumber: surahMeta.number,
+          startAyah: normalizedRange.startAyah,
+          endAyah: normalizedRange.endAyah,
+          isLightSurface,
+          bgSurfaceColor,
+          bgVeilOpacity,
+          bgImage: bgImg,
+          bgVideo,
+          showArabic,
+          useTajweed,
+          showPhonetics,
+          showFrench,
+          showSurahHeader,
+          textScale,
+          flowMode,
+          reciterName: selectedReciter.name,
+        };
+        playerRenderOptsRef.current = renderOpts;
+        playerLayoutRef.current = precomputeVideoCanvasLayout(
+          canvasCtx,
+          selectedVerses,
+          renderOpts
+        );
+        renderVideoCanvasFrame(canvasCtx, playerLayoutRef.current, exactTimeline, 0, renderOpts);
+      }
+    }
+
     beginContinuousAudioFromOffset(ctx, decoded, exactTimeline, 0);
   };
 
@@ -613,6 +732,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
+    }
+
+    playerTimelineRef.current = exactTimeline;
+
+    if (playerBgVideoRef.current) {
+      try {
+        const dur = playerBgVideoRef.current.duration;
+        if (Number.isFinite(dur) && dur > 0) {
+          playerBgVideoRef.current.currentTime = offsetSec % dur;
+        }
+        playerBgVideoRef.current.play().catch(() => {});
+      } catch {}
     }
 
     const segStarts = exactTimeline.segments.map((s) => s.startSec);
@@ -639,6 +770,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         (audioCtxRef.current.currentTime - playbackStartCtxTimeRef.current);
       if (elapsed >= exactTimeline.totalDurationSec) {
         setCurrentTimeSec(exactTimeline.totalDurationSec);
+        drawLivePlayerFrame(exactTimeline.totalDurationSec);
+        if (playerBgVideoRef.current) {
+          try {
+            playerBgVideoRef.current.pause();
+          } catch {}
+        }
         setPlayerStatus('ended');
         setPlayerHudVisible(true);
         playbackHandleRef.current?.stop();
@@ -646,6 +783,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         return;
       }
       setCurrentTimeSec(elapsed);
+      drawLivePlayerFrame(elapsed);
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -662,6 +800,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       }
       playbackHandleRef.current?.stop();
       playbackHandleRef.current = null;
+      if (playerBgVideoRef.current) {
+        try {
+          playerBgVideoRef.current.pause();
+        } catch {}
+      }
       setPlayerStatus('paused');
     } else if (playerStatus === 'paused' || playerStatus === 'ended') {
       if (ctx.state === 'suspended') {
@@ -686,30 +829,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     );
     const clamped = Math.max(0, Math.min(exactTimeline.totalDurationSec, targetSec));
     setCurrentTimeSec(clamped);
+    if (playerBgVideoRef.current) {
+      try {
+        const dur = playerBgVideoRef.current.duration;
+        if (Number.isFinite(dur) && dur > 0) {
+          playerBgVideoRef.current.currentTime = clamped % dur;
+        }
+      } catch {}
+    }
+    drawLivePlayerFrame(clamped);
     if (ctx && playerStatus === 'playing') {
       beginContinuousAudioFromOffset(ctx, decodedBuffersRef.current, exactTimeline, clamped);
     }
   };
-
-  // Smooth continuous teleprompter scroll in Stage = 'player'
-  const { activeIndex: activePlayerIndex } = useMemo(
-    () => findActiveTimelineEntry(timeline, currentTimeSec),
-    [timeline, currentTimeSec]
-  );
-
-  useEffect(() => {
-    if (stage !== 'player') return;
-    const container = scrollContainerRef.current;
-    const el = verseItemRefs.current[activePlayerIndex];
-    if (container && el) {
-      const targetTop =
-        el.offsetTop - container.clientHeight * 0.34 + el.clientHeight * 0.22;
-      container.scrollTo({
-        top: Math.max(0, targetTop),
-        behavior: 'smooth',
-      });
-    }
-  }, [activePlayerIndex, stage]);
 
   // =========================================================================
   // REAL 9:16 FULL HD MP4 VIDEO CREATION & EXPORT (Stage = 'export')
@@ -846,6 +978,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         canvas,
         canvasCtx,
         layout,
+        ayahs: selectedVerses,
         timeline: exactTimeline,
         renderOpts,
         audioCtx: ctx,
@@ -951,318 +1084,127 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   if (!isOpen) return null;
 
   // =========================================================================
-  // RENDER: STAGE 2 — FULLSCREEN 9:16 CONTINUOUS PLAYER
+  // RENDER: STAGE 2 — CLEAN 9:16 VIDEO PLAYER ("Lire le contenu")
+  // Renders the actual generated 9:16 canvas video directly with zero clutter
   // =========================================================================
   if (stage === 'player') {
     return (
       <div
         data-testid="mobile-video-continuous-player"
         data-surface={isLightSurface ? 'light' : 'dark'}
-        className={`fixed inset-0 z-[10050] w-full h-[100dvh] flex flex-col justify-between overflow-hidden select-none ${
-          isLightSurface ? 'text-neutral-950' : 'text-white'
-        }`}
-        style={{ backgroundColor: bgSurfaceColor }}
+        className="fixed inset-0 z-[10050] w-full h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none"
         onClick={() => setPlayerHudVisible((v) => !v)}
       >
-        {/* Chosen Background (Custom Video, Custom Image, 9:16 Wallpaper, 4K, or Solid) */}
-        {activeMediaKind === 'video' && activeMediaUrl && (
-          <div className="absolute inset-0 z-0 pointer-events-none">
-            <video
-              key={activeMediaUrl}
-              src={activeMediaUrl}
-              autoPlay
-              loop
-              muted
-              playsInline
-              className="w-full h-full object-cover object-center"
-            />
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: isLightSurface ? '#FFFFFF' : '#000000',
-                opacity: bgVeilOpacity,
-              }}
-            />
-          </div>
-        )}
-        {activeMediaKind === 'image' && activeMediaUrl && (
-          <div className="absolute inset-0 z-0 pointer-events-none">
-            <img
-              src={activeMediaUrl}
-              alt={activeMediaName}
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover object-center"
-            />
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: isLightSurface ? '#FFFFFF' : '#000000',
-                opacity: bgVeilOpacity,
-              }}
-            />
-          </div>
-        )}
-
-        {/* Minimal Floating Header (Hides cleanly on tap) */}
-        <div
-          className={`relative z-30 flex items-center justify-between px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 transition-opacity duration-200 ${
-            playerHudVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              stopAllMedia();
-              setStage('setup');
-            }}
-            aria-label="Retour au studio vidéo"
-            className="h-9 px-3 rounded-full bg-black/65 text-white border border-white/20 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold cursor-pointer"
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
-            <span>Studio</span>
-          </button>
-
-          <div
-            className={`px-3 py-1 rounded-full text-[11px] font-bold border backdrop-blur-md ${
-              isLightSurface
-                ? 'bg-white/80 text-neutral-900 border-neutral-300'
-                : 'bg-black/60 text-amber-300 border-white/20'
+        {/* Crisp 9:16 Theater Stage (Live Rendered Video Canvas Itself) */}
+        <div className="relative w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] sm:max-h-[96dvh] aspect-[9/16] bg-black overflow-hidden flex items-center justify-center sm:rounded-3xl sm:border sm:border-white/15 sm:shadow-2xl">
+          <canvas
+            ref={playerCanvasRef}
+            data-testid="studio-video-player-canvas"
+            width={720}
+            height={1280}
+            className={`w-full h-full object-contain transition-opacity duration-300 ${
+              playerStatus === 'loading' ? 'opacity-0' : 'opacity-100'
             }`}
-          >
-            Sourate {surahMeta.name} • {normalizedRange.startAyah}–{normalizedRange.endAyah}
-          </div>
+          />
 
-          <button
-            onClick={() => {
-              stopAllMedia();
-              onClose();
-            }}
-            aria-label="Fermer le lecteur continu"
-            className="w-9 h-9 rounded-full bg-rose-600/85 text-white border border-rose-400/40 flex items-center justify-center cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Loading Overlay while assembling continuous audio */}
-        {playerStatus === 'loading' && (
-          <div className="relative z-20 flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
-            <Loader2
-              className={`w-10 h-10 animate-spin ${
-                isLightSurface ? 'text-emerald-700' : 'text-amber-300'
-              }`}
-            />
-            <div className="space-y-1">
-              <p className="text-base font-extrabold">
-                Préparation de la lecture continue...
-              </p>
-              <p className="text-xs opacity-75">
-                Assemblage sans coupure des versets {normalizedRange.startAyah} à{' '}
-                {normalizedRange.endAyah} ({playerLoadProgress.loaded}/{playerLoadProgress.total})
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Continuous Unified Verse Ribbon (All verses flowing smoothly together!) */}
-        {playerStatus !== 'loading' && (
-          <div
-            ref={scrollContainerRef}
-            className="relative z-10 flex-1 overflow-y-auto px-5 pt-20 pb-52 no-scrollbar"
-          >
-            {showSurahHeader && (
-              <div className="text-center mb-10">
-                <div
-                  className={`text-sm font-extrabold tracking-wide ${
-                    isLightSurface ? 'text-emerald-800' : 'text-amber-300'
-                  }`}
-                >
-                  Sourate {surahMeta.name} — {surahMeta.frenchTranslation}
-                </div>
-                <div className="text-xs opacity-65 mt-0.5">
-                  Versets {normalizedRange.startAyah} à {normalizedRange.endAyah} •{' '}
-                  {selectedReciter.name}
-                </div>
+          {/* Minimal Loading Indicator while assembling continuous audio */}
+          {playerStatus === 'loading' && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center gap-3 bg-black text-white">
+              <Loader2 className="w-10 h-10 animate-spin text-amber-300" />
+              <div className="space-y-1">
+                <p className="text-sm font-extrabold">Préparation de la vidéo...</p>
+                <p className="text-xs text-neutral-400 tabular-nums">
+                  {playerLoadProgress.loaded}/{playerLoadProgress.total} versets
+                </p>
               </div>
-            )}
+            </div>
+          )}
 
-            <div
-              data-testid="continuous-verses-ribbon"
-              className={`max-w-[440px] mx-auto ${
-                flowMode === 'stream' ? 'space-y-6' : 'space-y-9'
-              }`}
+          {/* Minimal Floating Header (Top corner actions only, auto-hides on playback) */}
+          <div
+            className={`absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 transition-opacity duration-200 ${
+              playerHudVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                stopAllMedia();
+                setStage('setup');
+              }}
+              aria-label="Retour au studio vidéo"
+              className="h-9 px-3 rounded-full bg-black/65 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold cursor-pointer"
             >
-              {selectedVerses.map((ayah, idx) => {
-                const isActive = idx === activePlayerIndex;
-                const arSizeClass =
-                  textScale === 'compact'
-                    ? 'text-[26px] leading-[1.7]'
-                    : textScale === 'grand'
-                    ? 'text-[36px] leading-[1.8]'
-                    : 'text-[31px] leading-[1.75]';
-                const subSizeClass =
-                  textScale === 'compact'
-                    ? 'text-[14px]'
-                    : textScale === 'grand'
-                    ? 'text-[18px]'
-                    : 'text-[16px]';
+              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
+              <span>Studio</span>
+            </button>
 
-                return (
-                  <div
-                    key={ayah.num}
-                    ref={(el) => {
-                      verseItemRefs.current[idx] = el;
-                    }}
-                    data-testid={`continuous-verse-item-${ayah.num}`}
-                    data-active={isActive ? 'true' : 'false'}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const targetStart = timeline.segments[idx]?.startSec ?? 0;
-                      seekContinuousPlayer(targetStart);
-                    }}
-                    className={`transition-all duration-500 cursor-pointer pl-3 border-l-2 ${
-                      isActive
-                        ? isLightSurface
-                          ? 'opacity-100 border-emerald-700'
-                          : 'opacity-100 border-amber-400'
-                        : flowMode === 'stream'
-                        ? 'opacity-65 border-transparent'
-                        : 'opacity-35 border-transparent'
-                    }`}
-                  >
-                    {showArabic && (
-                      <div
-                        dir="rtl"
-                        className={`font-arabic text-center ${arSizeClass} ${
-                          isLightSurface ? 'text-neutral-950' : 'text-white'
-                        }`}
-                        style={{ fontFamily: "'Amiri', 'Traditional Arabic', serif" }}
-                      >
-                        <TajweedText
-                          text={cleanAyahArabic(ayah.ar)}
-                          enabled={useTajweed}
-                          variant={isLightSurface ? 'light' : 'dark'}
-                        />{' '}
-                        <span
-                          className={`text-[0.65em] font-mono ${
-                            isLightSurface ? 'text-emerald-700' : 'text-amber-300'
-                          }`}
-                        >
-                          ﴿{ayah.num}﴾
-                        </span>
-                      </div>
-                    )}
-
-                    {showPhonetics && ayah.tr && (
-                      <p
-                        className={`italic font-serif text-center mt-2 leading-relaxed ${subSizeClass} ${
-                          isLightSurface ? 'text-emerald-800' : 'text-slate-300'
-                        }`}
-                      >
-                        « {ayah.tr} »
-                      </p>
-                    )}
-
-                    {showFrench && ayah.fr && (
-                      <p
-                        className={`text-center mt-1.5 leading-relaxed font-medium ${subSizeClass} ${
-                          isLightSurface ? 'text-neutral-900' : 'text-neutral-100'
-                        }`}
-                      >
-                        {ayah.num}. {ayah.fr}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                stopAllMedia();
+                onClose();
+              }}
+              aria-label="Fermer la lecture vidéo"
+              className="w-9 h-9 rounded-full bg-black/65 hover:bg-rose-600/90 text-white border border-white/20 backdrop-blur-md flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        )}
 
-        {/* Bottom Continuous Scrubber & Transport */}
-        <div
-          className={`relative z-30 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-2 max-w-xl w-full mx-auto transition-opacity duration-200 ${
-            playerHudVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          }`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-black/75 border border-white/20 backdrop-blur-xl rounded-2xl p-3 text-white space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-300">
-              <span>
-                Verset {selectedVerses[activePlayerIndex]?.num ?? normalizedRange.startAyah} /{' '}
-                {normalizedRange.endAyah}
-              </span>
-              <span>
-                {formatTimeMMSS(currentTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
-              </span>
-            </div>
-            <input
-              type="range"
-              aria-label="Progression de la lecture continue"
-              min={0}
-              max={Math.max(1, timeline.totalDurationSec)}
-              step={0.1}
-              value={Math.min(currentTimeSec, timeline.totalDurationSec)}
-              onChange={(e) => seekContinuousPlayer(Number(e.target.value))}
-              className="w-full accent-amber-400 h-1.5 rounded-lg cursor-pointer"
-            />
-            <div className="flex items-center justify-between pt-0.5">
+          {/* Minimal Bottom Transport Pill (Zero extra cards/badges) */}
+          <div
+            className={`absolute bottom-0 inset-x-0 z-30 px-3.5 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-2 transition-opacity duration-200 ${
+              playerHudVisible && playerStatus !== 'loading'
+                ? 'opacity-100'
+                : 'opacity-0 pointer-events-none'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-black/70 border border-white/15 backdrop-blur-xl rounded-full px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
               <button
-                onClick={() => seekContinuousPlayer(0)}
-                aria-label="Recommencer au début"
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer"
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-
-              <button
+                type="button"
                 onClick={togglePlayPauseContinuous}
                 aria-label={
                   playerStatus === 'playing'
-                    ? 'Mettre en pause la lecture continue'
-                    : 'Reprendre la lecture continue'
+                    ? 'Mettre en pause la vidéo'
+                    : 'Lire la vidéo'
                 }
-                className="px-5 py-2 rounded-full bg-amber-400 text-neutral-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-md"
+                className="w-8 h-8 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 transition"
               >
                 {playerStatus === 'playing' ? (
-                  <>
-                    <Pause className="w-4 h-4 fill-current" />
-                    <span>Pause</span>
-                  </>
+                  <Pause className="w-4 h-4 fill-current" />
                 ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>{playerStatus === 'ended' ? 'Rejouer' : 'Continuer'}</span>
-                  </>
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
                 )}
               </button>
 
+              <input
+                type="range"
+                aria-label="Progression de la vidéo"
+                min={0}
+                max={Math.max(1, timeline.totalDurationSec)}
+                step={0.1}
+                value={Math.min(currentTimeSec, timeline.totalDurationSec)}
+                onChange={(e) => seekContinuousPlayer(Number(e.target.value))}
+                className="flex-1 min-w-0 accent-amber-400 h-1.5 rounded-lg cursor-pointer"
+              />
+
+              <span className="text-[11px] font-mono text-neutral-300 tabular-nums shrink-0">
+                {formatTimeMMSS(currentTimeSec)}
+              </span>
+
               <button
+                type="button"
                 onClick={startVideoExport}
-                className="px-3 py-2 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                aria-label="Exporter en MP4"
+                className="h-8 px-2.5 rounded-full bg-emerald-500 text-neutral-950 font-black text-[11px] flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition"
               >
-                <Film className="w-3.5 h-3.5" />
-                <span>Créer 9:16</span>
+                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>MP4</span>
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Mandatory Bottom Watermark in Continuous Reading View */}
-        <div className="relative z-10 text-center pb-3 pointer-events-none">
-          <div
-            className={`text-xs font-bold tracking-wide ${
-              isLightSurface ? 'text-neutral-900/90' : 'text-white/90'
-            }`}
-          >
-            {MANDATORY_WATERMARK_BRAND}
-          </div>
-          <div
-            className={`text-[10px] font-semibold ${
-              isLightSurface ? 'text-emerald-700/85' : 'text-amber-300/85'
-            }`}
-          >
-            {MANDATORY_WATERMARK_TAGLINE}
           </div>
         </div>
       </div>
@@ -2222,7 +2164,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             className="py-3 px-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
           >
             <Play className="w-4 h-4 fill-current text-amber-300 shrink-0" />
-            <span>Lire en Continu</span>
+            <span>Lire le contenu</span>
           </button>
 
           <button

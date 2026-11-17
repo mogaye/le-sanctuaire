@@ -6,12 +6,16 @@
   html {
     scroll-behavior: smooth;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overflow-x: clip;
+    max-width: 100%;
   }
 
-  /* Confort de lecture mobile : agrandissement équilibré sans casser les grilles ni le design */
-  @media (max-width: 767px) {
+  /* Confort de lecture mobile : garde les proportions lisibles sur téléphone réel */
+  @media (max-width: 767px), (pointer: coarse) and (max-height: 600px) {
     html {
-      font-size: 16.5px;
+      font-size: 17px;
     }
   }
 
@@ -32,19 +36,19 @@
   }
 }
 
-/* Harmonisation mobile douce des petites tailles de texte sans déborder des cartes */
-@media (max-width: 767px) {
+/* Harmonisation mobile lisible des petites tailles de texte sur téléphone réel */
+@media (max-width: 767px), (pointer: coarse) and (max-height: 600px) {
   .text-\[9px\] {
-    font-size: 10.5px;
-    line-height: 1.3;
+    font-size: 11px;
+    line-height: 1.32;
   }
   .text-\[10px\] {
-    font-size: 11.5px;
-    line-height: 1.35;
+    font-size: 12px;
+    line-height: 1.38;
   }
   .text-\[11px\] {
-    font-size: 12.5px;
-    line-height: 1.4;
+    font-size: 13px;
+    line-height: 1.42;
   }
 }
 
@@ -63,13 +67,13 @@
 
 /* ========================================================
    MASQUAGE DE LA BARRE DE DÉFILEMENT NATIVE DU NAVIGATEUR
-   Supprime l'ascenseur gris/blanc Windows avec flèches tout en
-   conservant un défilement 100% fluide à la molette et au tactile.
    ======================================================== */
 html,
 body {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE et Edge */
+  overflow-x: clip;
+  max-width: 100%;
 }
 
 html::-webkit-scrollbar,

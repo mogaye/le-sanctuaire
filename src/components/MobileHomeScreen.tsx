@@ -382,7 +382,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   };
 
   return (
-    <div className="w-full bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 pb-6 font-['Plus_Jakarta_Sans',sans-serif] select-none min-h-screen transition-colors duration-200">
+    <div className="w-full bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 pb-24 font-['Plus_Jakarta_Sans',sans-serif] select-none min-h-screen transition-colors duration-200">
       
       {/* ========================================================
           1. TOP APP BAR (Menu Hamburger à gauche, Thème & Cloche à droite)
@@ -403,11 +403,11 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         <button
           type="button"
           onClick={() => setIsCityModalOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/95 dark:bg-[#193226] border border-neutral-200/80 dark:border-emerald-500/30 text-xs sm:text-sm font-semibold text-neutral-900 dark:text-emerald-100 active:scale-95 transition-transform cursor-pointer shadow-xs"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/95 dark:bg-[#193226] border border-neutral-200/80 dark:border-emerald-500/30 text-[13px] font-semibold text-neutral-900 dark:text-emerald-100 active:scale-95 transition-transform cursor-pointer shadow-xs"
         >
           <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span className="font-bold text-neutral-900 dark:text-white">{selectedCity.name}</span>
-          <span className="text-[11px] bg-emerald-600 dark:bg-emerald-700 text-white font-mono px-2 py-0.5 rounded-full font-bold">
+          <span className="text-xs bg-emerald-600 dark:bg-emerald-700 text-white font-mono px-2 py-0.5 rounded-full font-bold">
             {liveClockString}
           </span>
         </button>
@@ -432,14 +432,14 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             2. GREETING & AVATAR SECTION
            ======================================================== */}
         <div className="flex items-center justify-between pt-1">
-          <div className="space-y-1 max-w-[260px]">
-            <p className="text-xs sm:text-sm font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+          <div className="space-y-1 max-w-[78%]">
+            <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
               Assalamu Alaykum,{' '}
               <span className="font-bold text-emerald-800 dark:text-emerald-200">
                 {currentUser?.firstName || (currentUser?.name ? currentUser.name.split(' ')[0] : '') || 'Cher Croyant'}
               </span>
             </p>
-            <h1 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight leading-tight">
+            <h1 className="text-[23px] sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight leading-[1.18]">
               Nourrissez votre{' '}
               <span className="text-emerald-600 dark:text-emerald-300">spiritualité.</span>
             </h1>
@@ -525,11 +525,11 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               Prochaine Prière
             </div>
 
-            <h2 className="text-xl font-extrabold text-white tracking-tight leading-tight">
-              {nextPrayer.name} <span className="text-emerald-300 font-serif text-base">{nextPrayer.arabicName}</span>
+            <h2 className="text-[22px] font-extrabold text-white tracking-tight leading-tight">
+              {nextPrayer.name} <span className="text-emerald-300 font-serif text-lg">{nextPrayer.arabicName}</span>
             </h2>
 
-            <p className="text-xs text-emerald-100/95 leading-snug">
+            <p className="text-[13px] text-emerald-100/95 leading-snug">
               Dans <span className="font-bold text-amber-200">{nextPrayer.remainingStr}</span> • {selectedCity.name}
             </p>
 
@@ -537,7 +537,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <button
                 type="button"
                 onClick={onOpenPrayerGuide}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white text-emerald-950 text-xs font-bold shadow-xs hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-emerald-950 text-[13px] font-bold shadow-xs hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
               >
                 <span>Guide de prière</span>
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-800" />
@@ -551,11 +551,11 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
            ======================================================== */}
         <div className="space-y-2.5 pt-1">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Nos Espaces</h3>
+            <h3 className="text-[13px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Nos Espaces</h3>
             <button
               type="button"
               onClick={onOpenQuran}
-              className="text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white cursor-pointer flex items-center gap-0.5"
+              className="text-[13px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white cursor-pointer flex items-center gap-0.5"
             >
               <span>Voir tout</span>
               <ChevronRight className="w-4 h-4" />
@@ -572,8 +572,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
                 <BookOpen className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-xs font-extrabold text-neutral-900 dark:text-white leading-tight">Coran</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-none">114 Sourates</span>
+              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Coran</span>
+              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">114 Sourates</span>
             </button>
 
             {/* 2. Prières */}
@@ -585,8 +585,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/70 border border-blue-300/80 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 flex items-center justify-center">
                 <Clock className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-xs font-extrabold text-neutral-900 dark:text-white leading-tight">Prières</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-none">5 Salats</span>
+              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Prières</span>
+              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">5 Salats</span>
             </button>
 
             {/* 3. Qibla */}
@@ -598,8 +598,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300/80 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center">
                 <Compass className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-xs font-extrabold text-neutral-900 dark:text-white leading-tight">Qibla</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-none">Boussole</span>
+              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Qibla</span>
+              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">Boussole</span>
             </button>
 
             {/* 4. Dhikr */}
@@ -611,8 +611,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
                 <Sparkles className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-xs font-extrabold text-neutral-900 dark:text-white leading-tight">Dhikr</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-none">Tasbih</span>
+              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Dhikr</span>
+              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">Tasbih</span>
             </button>
           </div>
         </div>

@@ -15,6 +15,7 @@ import {
   Calendar,
   Maximize2,
 } from 'lucide-react';
+import { useMobileDevice } from '../hooks/useMobileDevice';
 
 export interface MobileBottomNavProps {
   currentView: string;
@@ -48,9 +49,10 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenPrayerSettings,
   isDarkMode = false,
 }) => {
+  const { isMobile } = useMobileDevice();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
-  const [barWidth, setBarWidth] = useState(360);
+  const [barWidth, setBarWidth] = useState(368);
   const lastScrollYRef = useRef(0);
   const barContainerRef = useRef<HTMLDivElement>(null);
 
@@ -209,14 +211,14 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
   ];
 
-  // Géométrie 1:1 en pixels réels (aucune distorsion horizontale)
-  const barHeight = 66;
+  // Géométrie 1:1 en pixels réels (barre mobile généreuse & confortable au pouce)
+  const barHeight = 74;
   const sidePad = 8;
   const colWidth = (barWidth - sidePad * 2) / 5;
   const cx = sidePad + activeIndex * colWidth + colWidth / 2;
-  const notchHalfWidth = 36;
-  const notchDepth = 29;
-  const cornerRadius = 22;
+  const notchHalfWidth = 40;
+  const notchDepth = 32;
+  const cornerRadius = 24;
 
   const leftStart = Math.max(cornerRadius, cx - notchHalfWidth);
   const rightEnd = Math.min(barWidth - cornerRadius, cx + notchHalfWidth);
@@ -224,8 +226,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const svgPath = `
     M ${cornerRadius} 0
     L ${leftStart} 0
-    C ${cx - 21} 0, ${cx - 19} ${notchDepth}, ${cx} ${notchDepth}
-    C ${cx + 19} ${notchDepth}, ${cx + 21} 0, ${rightEnd} 0
+    C ${cx - 24} 0, ${cx - 21} ${notchDepth}, ${cx} ${notchDepth}
+    C ${cx + 21} ${notchDepth}, ${cx + 24} 0, ${rightEnd} 0
     L ${barWidth - cornerRadius} 0
     A ${cornerRadius} ${cornerRadius} 0 0 1 ${barWidth} ${cornerRadius}
     L ${barWidth} ${barHeight - cornerRadius}
@@ -237,21 +239,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     Z
   `;
 
+  if (!isMobile) return null;
+
   return (
     <>
       <nav
         id="sanctuary-bottom-nav"
         role="navigation"
         aria-label="Navigation principale"
-        className={`fixed bottom-2.5 left-0 right-0 z-40 md:hidden px-3 pointer-events-none select-none transition-all duration-300 ease-out ${
+        className={`fixed bottom-[calc(env(safe-area-inset-bottom)+10px)] left-0 right-0 z-40 px-2.5 sm:px-4 pointer-events-none select-none transition-all duration-300 ease-out ${
           isVisible || isMoreOpen
             ? 'translate-y-0 opacity-100'
-            : 'translate-y-[140%] opacity-0'
+            : 'translate-y-[145%] opacity-0'
         }`}
       >
         <div
           ref={barContainerRef}
-          className="relative w-full max-w-md mx-auto h-[66px] pointer-events-auto"
+          className="relative w-full max-w-lg mx-auto h-[74px] pointer-events-auto"
         >
           {/* Fond SVG avec encoche incurvée 1:1 en pixels réels */}
           <svg
@@ -294,28 +298,28 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   id={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="flex-1 h-full flex flex-col items-center justify-end pb-[9px] relative cursor-pointer group focus:outline-none"
+                  className="flex-1 h-full flex flex-col items-center justify-end pb-[10px] relative cursor-pointer group focus:outline-none"
                 >
                   {/* Icône : surélevée dans son cercle émeraude & or si actif, sinon centrée dans la barre */}
                   <div
                     className={`transition-all duration-300 ease-out flex items-center justify-center ${
                       isActive
-                        ? 'absolute -top-[20px] w-[44px] h-[44px] rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_16px_rgba(5,150,105,0.45)]'
+                        ? 'absolute -top-[21px] w-[48px] h-[48px] rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_18px_rgba(5,150,105,0.48)]'
                         : 'mb-[5px] text-neutral-600 dark:text-emerald-100/80 group-hover:text-emerald-700 dark:group-hover:text-amber-300 active:scale-90'
                     }`}
                   >
                     <IconComponent
                       className={`transition-transform duration-300 ${
                         isActive
-                          ? 'w-[20px] h-[20px] text-amber-300 stroke-[2.3]'
-                          : 'w-[19px] h-[19px] stroke-[2]'
+                          ? 'w-[22px] h-[22px] text-amber-300 stroke-[2.3]'
+                          : 'w-[21px] h-[21px] stroke-[2]'
                       }`}
                     />
                   </div>
 
                   {/* Texte lisible sous chaque icône */}
                   <span
-                    className={`text-[11.5px] tracking-tight leading-none transition-all duration-200 whitespace-nowrap ${
+                    className={`text-[12.5px] tracking-tight leading-none transition-all duration-200 whitespace-nowrap ${
                       isActive
                         ? 'font-extrabold text-emerald-800 dark:text-amber-300'
                         : 'font-semibold text-neutral-700 dark:text-emerald-100/85'
@@ -337,7 +341,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <div
           id="mobile-more-backdrop"
           onClick={() => setIsMoreOpen(false)}
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150 md:hidden"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-150"
         >
           <div
             id="mobile-more-sheet"

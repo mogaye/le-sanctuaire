@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  detectIsMobileDeviceContext,
   isMobileViewport,
   getCinematicOrientationMode,
   getDynamicArabicStyleConfig,
@@ -16,6 +17,56 @@ test('mobile viewport detection triggers vertical 9:16 mode', () => {
   assert.equal(isMobileViewport(768), false);
   assert.equal(getCinematicOrientationMode(390), 'vertical-9-16');
   assert.equal(getCinematicOrientationMode(1440), 'desktop-fullscreen');
+});
+
+test('detectIsMobileDeviceContext keeps rotated/fullscreen smartphones in mobile mode while preserving desktop mode on PC', () => {
+  // Rotated smartphone in landscape or fullscreen (e.g. 844x390 iPhone / 915x412 Android)
+  assert.equal(
+    detectIsMobileDeviceContext({
+      width: 844,
+      height: 390,
+      isCoarsePointer: true,
+      maxTouchPoints: 5,
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    }),
+    true
+  );
+
+  // Android phone in fullscreen landscape
+  assert.equal(
+    detectIsMobileDeviceContext({
+      width: 915,
+      height: 412,
+      isCoarsePointer: true,
+      maxTouchPoints: 5,
+      userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari/537.36',
+    }),
+    true
+  );
+
+  // Mobile UA with desktop-site zoom viewport (980x1742)
+  assert.equal(
+    detectIsMobileDeviceContext({
+      width: 980,
+      height: 1742,
+      isCoarsePointer: true,
+      maxTouchPoints: 5,
+      userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile Safari/537.36',
+    }),
+    true
+  );
+
+  // Standard desktop monitor / laptop stays desktop even if short window height >= 768
+  assert.equal(
+    detectIsMobileDeviceContext({
+      width: 1440,
+      height: 900,
+      isCoarsePointer: false,
+      maxTouchPoints: 0,
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/125.0.0.0',
+    }),
+    false
+  );
 });
 
 test('mobile Arabic typography is substantially larger than desktop while preserving desktop scale', () => {

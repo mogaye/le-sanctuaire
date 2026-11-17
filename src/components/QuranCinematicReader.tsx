@@ -40,6 +40,7 @@ import {
 } from '../utils/cinematicLayoutUtils';
 import { MOBILE_VERTICAL_BACKGROUNDS } from '../data/mobileCinematicBackgrounds';
 import { MobileVerseVideoStudio } from './MobileVerseVideoStudio';
+import { useMobileDevice } from '../hooks/useMobileDevice';
 
 interface AyahData {
   num: number;
@@ -466,29 +467,20 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [isPureFullscreen, setIsPureFullscreen] = useState<boolean>(false);
   const isFullscreen = isNativeFullscreen || isPureFullscreen;
 
-  const [viewportWidth, setViewportWidth] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth;
-    }
-    return 390;
-  });
-  const isMobile = isMobileViewport(viewportWidth);
-  const orientationMode = getCinematicOrientationMode(viewportWidth);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setViewportWidth(window.innerWidth);
-    };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
-    };
-  }, []);
+  const {
+    isMobile,
+    width: viewportWidth,
+    height: viewportHeight,
+  } = useMobileDevice();
+  const orientationMode = getCinematicOrientationMode(viewportWidth, viewportHeight);
 
   const lockPortraitOrientationOnMobile = async () => {
-    if (typeof window === 'undefined' || !isMobileViewport(window.innerWidth)) return;
+    if (
+      typeof window === 'undefined' ||
+      !isMobileViewport(window.innerWidth, window.innerHeight)
+    ) {
+      return;
+    }
     try {
       if (screen.orientation && (screen.orientation as any).lock) {
         await (screen.orientation as any).lock('portrait').catch(() => {});
@@ -577,13 +569,11 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     }
   };
 
-  // Auto-request fullscreen and lock vertical 9:16 portrait upon opening reader on mobile
+  // Reset pure fullscreen flag when closing; only enter native OS fullscreen on explicit user tap
   useEffect(() => {
     if (!isOpen) {
       setIsPureFullscreen(false);
-      return;
     }
-    enterNativeFullscreen();
   }, [isOpen]);
 
   const [isTajweedGuideOpen, setIsTajweedGuideOpen] = useState<boolean>(false);
@@ -1424,9 +1414,15 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
         data-cinematic-canvas="true"
         onTouchStart={handleMainTouchStart}
         onTouchEnd={handleMainTouchEnd}
-        className={`relative z-10 flex-1 w-full h-full overflow-y-auto overflow-x-hidden px-5 sm:px-8 md:px-12 flex flex-col items-center justify-center no-scrollbar ${
+        className={`relative z-10 flex-1 w-full h-full overflow-y-auto overflow-x-hidden ${
+          isMobile ? 'px-4' : 'px-5 sm:px-8 md:px-12'
+        } flex flex-col items-center justify-center no-scrollbar ${
           isHudVisible
-            ? 'pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:py-16'
+            ? isMobile
+              ? 'pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'
+              : 'pt-[calc(env(safe-area-inset-top)+3.75rem)] pb-[calc(env(safe-area-inset-bottom)+4.5rem)] sm:py-16'
+            : isMobile
+            ? 'pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)]'
             : 'pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-[calc(env(safe-area-inset-bottom)+1.25rem)] sm:py-10'
         }`}
       >
@@ -1436,7 +1432,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
              ======================================================== */
           <div
             data-cinematic-canvas="true"
-            className="w-full max-w-[480px] md:max-w-4xl mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0"
+            className={`w-full ${
+              isMobile ? 'max-w-[520px]' : 'max-w-[480px] md:max-w-4xl'
+            } mx-auto flex flex-col items-center text-center my-auto py-1 sm:py-2 shrink-0`}
           >
             {/* Top Verse Badge pill - Hides cleanly when HUD is hidden in fullscreen */}
             <div
@@ -1498,7 +1496,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {(showPhonetics || showTranslation) && (
               <div
                 data-cinematic-canvas="true"
-                className={`w-full max-w-[460px] md:max-w-3xl space-y-2.5 sm:space-y-2.5 px-1 sm:px-3 transition-all duration-500 ease-out ${
+                className={`w-full ${
+                  isMobile ? 'max-w-[500px]' : 'max-w-[460px] md:max-w-3xl'
+                } space-y-2.5 sm:space-y-2.5 px-1 sm:px-3 transition-all duration-500 ease-out ${
                   isVerseFading ? 'opacity-30 blur-[0.4px]' : 'opacity-100 blur-0'
                 }`}
               >
@@ -1531,43 +1531,47 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             {/* ========================================================
                 SIDE CHEVRONS (DESKTOP ONLY - HIDDEN ON MOBILE 9:16 & WHEN HUD HIDDEN)
                ======================================================== */}
-            <button
-              onClick={handlePrevVerse}
-              onMouseEnter={() => {
-                if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-                setIsHudVisible(true);
-              }}
-              onMouseLeave={() => {
-                resetHudTimer(false);
-              }}
-              aria-label="Verset précédent"
-              disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
-              className={`hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
-                isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
-              }`}
-              title="Verset précédent (Flèche Gauche)"
-            >
-              <ChevronLeft className="w-7 h-7" />
-            </button>
+            {!isMobile && (
+              <>
+                <button
+                  onClick={handlePrevVerse}
+                  onMouseEnter={() => {
+                    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+                    setIsHudVisible(true);
+                  }}
+                  onMouseLeave={() => {
+                    resetHudTimer(false);
+                  }}
+                  aria-label="Verset précédent"
+                  disabled={currentAyahIndex === 0 && currentSurahMeta.number === 1}
+                  className={`hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+                    isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12 pointer-events-none'
+                  }`}
+                  title="Verset précédent (Flèche Gauche)"
+                >
+                  <ChevronLeft className="w-7 h-7" />
+                </button>
 
-            <button
-              onClick={handleNextVerse}
-              onMouseEnter={() => {
-                if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-                setIsHudVisible(true);
-              }}
-              onMouseLeave={() => {
-                resetHudTimer(false);
-              }}
-              aria-label="Verset suivant"
-              disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
-              className={`hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
-                isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
-              }`}
-              title="Verset suivant (Flèche Droite)"
-            >
-              <ChevronRight className="w-7 h-7" />
-            </button>
+                <button
+                  onClick={handleNextVerse}
+                  onMouseEnter={() => {
+                    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+                    setIsHudVisible(true);
+                  }}
+                  onMouseLeave={() => {
+                    resetHudTimer(false);
+                  }}
+                  aria-label="Verset suivant"
+                  disabled={currentAyahIndex === ayahs.length - 1 && currentSurahMeta.number === 114}
+                  className={`hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 p-4 rounded-full bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition-all duration-500 cursor-pointer disabled:opacity-20 active:scale-90 z-40 backdrop-blur-xs border border-white/10 ${
+                    isHudVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12 pointer-events-none'
+                  }`}
+                  title="Verset suivant (Flèche Droite)"
+                >
+                  <ChevronRight className="w-7 h-7" />
+                </button>
+              </>
+            )}
           </div>
         ) : (
           /* ========================================================
@@ -1575,8 +1579,14 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
              ======================================================== */
           <div
             ref={verseListRef}
-            className={`w-full max-w-[480px] md:max-w-4xl mx-auto space-y-6 sm:space-y-8 ${
-              isHudVisible ? 'pt-10 pb-20 sm:pt-20 sm:pb-28' : 'pt-4 pb-8'
+            className={`w-full ${
+              isMobile ? 'max-w-[520px]' : 'max-w-[480px] md:max-w-4xl'
+            } mx-auto space-y-6 sm:space-y-8 ${
+              isHudVisible
+                ? isMobile
+                  ? 'pt-10 pb-20'
+                  : 'pt-10 pb-20 sm:pt-20 sm:pb-28'
+                : 'pt-4 pb-8'
             }`}
           >
             {currentSurahMeta.number !== 9 && (

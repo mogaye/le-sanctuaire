@@ -5,12 +5,67 @@ export interface DynamicTextStyle {
 
 export type CinematicOrientationMode = 'vertical-9-16' | 'desktop-fullscreen';
 
-export function isMobileViewport(width: number): boolean {
-  return width < 768;
+export interface MobileDeviceSignals {
+  width: number;
+  height?: number;
+  isCoarsePointer?: boolean;
+  maxTouchPoints?: number;
+  userAgent?: string;
 }
 
-export function getCinematicOrientationMode(viewportWidth: number): CinematicOrientationMode {
-  return isMobileViewport(viewportWidth) ? 'vertical-9-16' : 'desktop-fullscreen';
+const MOBILE_UA_REGEX =
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i;
+
+export function detectIsMobileDeviceContext(signals: MobileDeviceSignals): boolean {
+  const w = Math.max(0, signals.width || 0);
+  const h = Math.max(0, signals.height || 0);
+
+  // Classic narrow phone/tablet portrait check
+  if (w > 0 && w < 768) {
+    return true;
+  }
+
+  const isTouchCapable =
+    Boolean(signals.isCoarsePointer) || (signals.maxTouchPoints ?? 0) > 0;
+  const isMobileUa = Boolean(signals.userAgent && MOBILE_UA_REGEX.test(signals.userAgent));
+
+  // Real smartphone rotated to landscape or entering fullscreen landscape (e.g. 844x390, 915x412)
+  if (h > 0 && Math.min(w, h) < 768 && (isTouchCapable || isMobileUa)) {
+    return true;
+  }
+
+  // Mobile phone with desktop-site zoom / wider reported layout viewport (e.g. standard 980px mobile viewport)
+  if (isMobileUa && isTouchCapable && Math.min(w || 9999, h || 9999) <= 1024) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isMobileViewport(width: number, height?: number): boolean {
+  if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+    const isCoarse =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(pointer: coarse)').matches
+        : false;
+    return detectIsMobileDeviceContext({
+      width,
+      height: height ?? window.innerHeight,
+      isCoarsePointer: isCoarse,
+      maxTouchPoints: navigator.maxTouchPoints || 0,
+      userAgent: navigator.userAgent || '',
+    });
+  }
+  return detectIsMobileDeviceContext({ width, height });
+}
+
+export function getCinematicOrientationMode(
+  viewportWidth: number,
+  viewportHeight?: number
+): CinematicOrientationMode {
+  return isMobileViewport(viewportWidth, viewportHeight)
+    ? 'vertical-9-16'
+    : 'desktop-fullscreen';
 }
 
 export function getDynamicArabicStyleConfig(

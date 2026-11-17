@@ -248,14 +248,19 @@ export function renderVideoCanvasFrame(
   ctx.fillStyle = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Background Video OR Image (cover fit inside 9:16 frame)
+  // 2. Background Video OR Image (cover fit inside 9:16 frame + gentle Ken Burns motion on still images)
   const videoEl = opts.bgVideo;
   if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
     const rect = computeCoverDrawRect(videoEl.videoWidth, videoEl.videoHeight, width, height);
     ctx.drawImage(videoEl, rect.x, rect.y, rect.w, rect.h);
   } else if (opts.bgImage) {
     const rect = computeCoverDrawRect(opts.bgImage.width, opts.bgImage.height, width, height);
-    ctx.drawImage(opts.bgImage, rect.x, rect.y, rect.w, rect.h);
+    const kbZoom = 1 + Math.min(0.055, Math.max(0, currentSec) * 0.0024);
+    const zoomedW = rect.w * kbZoom;
+    const zoomedH = rect.h * kbZoom;
+    const zoomedX = rect.x - (zoomedW - rect.w) / 2;
+    const zoomedY = rect.y - (zoomedH - rect.h) / 2;
+    ctx.drawImage(opts.bgImage, zoomedX, zoomedY, zoomedW, zoomedH);
   }
 
   // Subtle veil to preserve spotless text contrast over user photos or videos
@@ -311,6 +316,23 @@ export function renderVideoCanvasFrame(
     ctx.save();
     ctx.globalAlpha = alpha;
 
+    // Warm subtle ambient aura behind active verse for cinema depth
+    if (isActive && typeof ctx.createRadialGradient === 'function') {
+      const auraCx = width / 2;
+      const auraCy = screenY + block.height / 2;
+      const auraR = Math.max(width * 0.48, block.height * 0.65);
+      const auraGrad = ctx.createRadialGradient(auraCx, auraCy, 10 * resScale, auraCx, auraCy, auraR);
+      if (isLightSurface) {
+        auraGrad.addColorStop(0, 'rgba(4, 120, 87, 0.06)');
+        auraGrad.addColorStop(1, 'rgba(4, 120, 87, 0)');
+      } else {
+        auraGrad.addColorStop(0, 'rgba(251, 191, 36, 0.08)');
+        auraGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      }
+      ctx.fillStyle = auraGrad;
+      ctx.fillRect(0, screenY - 24 * resScale, width, block.height + 48 * resScale);
+    }
+
     if (hasMediaBg) {
       ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.72)';
       ctx.shadowBlur = Math.round(6 * resScale);
@@ -319,7 +341,7 @@ export function renderVideoCanvasFrame(
 
     // Subtle active accent bar on the side
     if (isActive) {
-      ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.28)' : 'rgba(251, 191, 36, 0.42)';
+      ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.34)' : 'rgba(251, 191, 36, 0.5)';
       ctx.fillRect(
         Math.round(28 * resScale),
         screenY + Math.round(8 * resScale),
@@ -331,12 +353,22 @@ export function renderVideoCanvasFrame(
     let yCursor = screenY + Math.round(28 * resScale);
     const centerX = width / 2;
 
-    // Arabic calligraphy lines
+    // Arabic calligraphy lines (connected intact Arabic words, never split letters)
     for (const line of block.arLines) {
       drawRtlTajweedLine(ctx, line, centerX, yCursor, opts, block.arFontPx);
       yCursor += block.arLineHeightPx;
     }
-    if (block.arLines.length > 0) {
+
+    // Fine ornamental rule between Arabic script & translation/phonetics
+    if (block.arLines.length > 0 && (block.trLines.length > 0 || block.frLines.length > 0)) {
+      const ruleW = Math.round(120 * resScale);
+      const ruleY = yCursor - Math.round(block.arLineHeightPx * 0.25);
+      ctx.fillStyle = isLightSurface
+        ? 'rgba(4, 120, 87, 0.22)'
+        : 'rgba(251, 191, 36, 0.28)';
+      ctx.fillRect(centerX - ruleW / 2, ruleY, ruleW, Math.max(1.5, Math.round(1.5 * resScale)));
+      yCursor += Math.round(14 * resScale);
+    } else if (block.arLines.length > 0) {
       yCursor += Math.round(14 * resScale);
     }
 
@@ -366,6 +398,28 @@ export function renderVideoCanvasFrame(
     }
 
     ctx.restore();
+  }
+
+  // Smooth fade-edge mask when background is solid (keeps verses gliding seamlessly without abrupt clip edge)
+  if (!hasMediaBg && typeof ctx.createLinearGradient === 'function') {
+    const baseColor = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
+    if (baseColor === '#000000' || baseColor === '#FCFCFB' || baseColor.startsWith('#')) {
+      const fadeH = Math.round(44 * resScale);
+      const rgb = isLightSurface ? '252, 252, 251' : baseColor === '#050505' ? '5, 5, 5' : '0, 0, 0';
+      if (baseColor === '#000000' || baseColor === '#050505' || baseColor === '#FCFCFB') {
+        const topGrad = ctx.createLinearGradient(0, topSafeY, 0, topSafeY + fadeH);
+        topGrad.addColorStop(0, `rgba(${rgb}, 0.96)`);
+        topGrad.addColorStop(1, `rgba(${rgb}, 0)`);
+        ctx.fillStyle = topGrad;
+        ctx.fillRect(0, topSafeY, width, fadeH);
+
+        const botGrad = ctx.createLinearGradient(0, bottomSafeY - fadeH, 0, bottomSafeY);
+        botGrad.addColorStop(0, `rgba(${rgb}, 0)`);
+        botGrad.addColorStop(1, `rgba(${rgb}, 0.96)`);
+        ctx.fillStyle = botGrad;
+        ctx.fillRect(0, bottomSafeY - fadeH, width, fadeH);
+      }
+    }
   }
 
   ctx.restore();

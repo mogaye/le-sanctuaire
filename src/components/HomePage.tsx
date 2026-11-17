@@ -54,6 +54,7 @@ import {
 } from '../utils/prayerTrackerUtils';
 import { getDailyHadith, getDailyReflection } from '../utils/dailyRenewal';
 import { getAyahAudioUrl } from '../utils/quranAudioUtils';
+import { useMobileDevice } from '../hooks/useMobileDevice';
 
 interface HomePageProps {
   currentUser: UserProfile | null;
@@ -139,6 +140,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   isDarkMode = true,
   onToggleDarkMode,
 }) => {
+  const { isMobile: isMobileDevice } = useMobileDevice();
   const [cityNow, setCityNow] = useState<Date>(() => getCityCurrentDate(selectedCity.timezone));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSharePosterOpen, setIsSharePosterOpen] = useState(false);
@@ -432,9 +434,9 @@ export const HomePage: React.FC<HomePageProps> = ({
   return (
     <div className="min-h-screen w-full bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 transition-colors duration-200">
       {/* ========================================================
-          MOBILE VIEWPORT (< 768px)
+          MOBILE DEVICE / VIEWPORT
          ======================================================== */}
-      <div className="md:hidden">
+      {isMobileDevice ? (
         <MobileHomeScreen
           currentUser={currentUser}
           selectedCity={selectedCity}
@@ -470,12 +472,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           isDarkMode={isDarkMode}
           onToggleDarkMode={onToggleDarkMode}
         />
-      </div>
-
-      {/* ========================================================
-          DESKTOP VIEWPORT (>= 768px)
-         ======================================================== */}
-      <div className="hidden md:block">
+      ) : (
+        <div>
         <Header
           selectedCity={selectedCity}
           onSelectCity={onSelectCity}
@@ -1027,6 +1025,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </main>
       </div>
+      )}
 
       {/* Prayer Settings Modal */}
       <PrayerTimeSettingsModal

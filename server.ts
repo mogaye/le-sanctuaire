@@ -1364,6 +1364,10 @@ async function startServer() {
   // 3.8. FULL HD H.264 + AAC MP4 VIDEO TRANSCODE & MUXING ROUTES (FFmpeg)
   // ============================================================================
 
+  app.get('/api/video/health', (_req, res) => {
+    res.json({ ffmpeg: true });
+  });
+
   app.post(
     '/api/video/convert-mp4',
     express.raw({ type: '*/*', limit: '250mb' }),

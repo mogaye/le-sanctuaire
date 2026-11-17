@@ -1,5 +1,6 @@
 import React from 'react';
 import { Clock, Heart, BookOpen, Compass, Sparkles, Moon, Sun, Library, Flame, Calendar } from 'lucide-react';
+import { useMobileDevice } from '../hooks/useMobileDevice';
 
 interface VerticalDockProps {
   activeSection: string;
@@ -28,6 +29,9 @@ export const VerticalDock: React.FC<VerticalDockProps> = ({
   onOpenFaith,
   onOpenLibrary,
 }) => {
+  const { isMobile } = useMobileDevice();
+  if (isMobile) return null;
+
   return (
     <aside className="hidden md:flex fixed left-3 sm:left-6 top-32 sm:top-36 z-30 flex-col items-center gap-3 select-none">
       {/* Main Capsule */}

@@ -1,5 +1,9 @@
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { ContinuousTimeline, selectPreferredVideoMimeType } from './mobileVideoStudioUtils';
+import {
+  ContinuousTimeline,
+  StudioAyahItem,
+  selectPreferredVideoMimeType,
+} from './mobileVideoStudioUtils';
 import {
   DecodedVerseBuffer,
   attachAudioStreamKeepalive,
@@ -8,6 +12,7 @@ import {
 import {
   PrecomputedCanvasLayout,
   VideoCanvasRenderOptions,
+  precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
 } from './canvasVideoRenderer';
 
@@ -15,6 +20,7 @@ export interface Mp4ExportParams {
   canvas: HTMLCanvasElement;
   canvasCtx: CanvasRenderingContext2D;
   layout: PrecomputedCanvasLayout;
+  ayahs?: StudioAyahItem[];
   timeline: ContinuousTimeline;
   renderOpts: VideoCanvasRenderOptions;
   audioCtx: AudioContext;
@@ -31,6 +37,12 @@ export interface Mp4ExportResult {
   blob: Blob;
   extension: 'mp4' | 'webm';
   mimeType: string;
+}
+
+interface ResolvedH264Candidate {
+  config: VideoEncoderConfig;
+  encodeWidth: number;
+  encodeHeight: number;
 }
 
 function encodeAudioBufferToWavBytes(audioBuffer: AudioBuffer): Uint8Array {
@@ -108,39 +120,54 @@ async function renderTimelineOfflineAudio(
 }
 
 async function resolveSupportedH264Config(
-  width: number,
-  height: number,
-  fps: number,
-  bitrate: number
-): Promise<VideoEncoderConfig | null> {
+  requestedWidth: number,
+  requestedHeight: number,
+  fps: number
+): Promise<ResolvedH264Candidate | null> {
   if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
     return null;
   }
 
-  // Main Profile L4.2 first: 35% faster software encoding than High Profile and universally playable on mobile/desktop
+  // Try crisp Full HD 1080x1920 first, then gracefully step down bitrate or to 720x1280 9:16
+  // for mobile SoCs whose hardware H.264 encoder caps below Level 4.2.
+  const resolutionTiers = [
+    { w: requestedWidth, h: requestedHeight, bitrate: 8_000_000 },
+    { w: requestedWidth, h: requestedHeight, bitrate: 5_000_000 },
+    { w: 720, h: 1280, bitrate: 4_500_000 },
+  ];
+
   const codecs = [
-    'avc1.4d402a', // Main Profile L4.2 (1080p)
+    'avc1.4d402a', // Main Profile L4.2
     'avc1.64002a', // High Profile L4.2
-    'avc1.42e02a', // Baseline L4.2
+    'avc1.42e02a', // Constrained Baseline L4.2
+    'avc1.4d401f', // Main Profile L3.1 (universal mobile hardware)
+    'avc1.42e01f', // Constrained Baseline L3.1 (universal Android/iOS)
+    'avc1.42001f', // Baseline L3.1
     'avc1.42002a',
   ];
 
-  for (const codec of codecs) {
-    try {
-      const candidate: VideoEncoderConfig = {
-        codec,
-        width,
-        height,
-        bitrate,
-        framerate: fps,
-        avc: { format: 'avc' },
-      };
-      const support = await VideoEncoder.isConfigSupported(candidate);
-      if (support.supported) {
-        return support.config || candidate;
+  for (const tier of resolutionTiers) {
+    for (const codec of codecs) {
+      try {
+        const candidate: VideoEncoderConfig = {
+          codec,
+          width: tier.w,
+          height: tier.h,
+          bitrate: tier.bitrate,
+          framerate: fps,
+          avc: { format: 'avc' },
+        };
+        const support = await VideoEncoder.isConfigSupported(candidate);
+        if (support.supported) {
+          return {
+            config: support.config || candidate,
+            encodeWidth: tier.w,
+            encodeHeight: tier.h,
+          };
+        }
+      } catch {
+        // try next profile
       }
-    } catch {
-      // try next profile
     }
   }
   return null;
@@ -153,12 +180,38 @@ async function resolveSupportedAacConfig(
   if (typeof AudioEncoder === 'undefined' || typeof AudioData === 'undefined') {
     return null;
   }
+  for (const bitrate of [192_000, 128_000]) {
+    try {
+      const candidate: AudioEncoderConfig = {
+        codec: 'mp4a.40.2',
+        sampleRate,
+        numberOfChannels,
+        bitrate,
+      };
+      const support = await AudioEncoder.isConfigSupported(candidate);
+      if (support.supported) {
+        return support.config || candidate;
+      }
+    } catch {
+      // unsupported
+    }
+  }
+  return null;
+}
+
+async function resolveSupportedOpusConfig(
+  sampleRate: number,
+  numberOfChannels: number
+): Promise<AudioEncoderConfig | null> {
+  if (typeof AudioEncoder === 'undefined' || typeof AudioData === 'undefined') {
+    return null;
+  }
   try {
     const candidate: AudioEncoderConfig = {
-      codec: 'mp4a.40.2',
+      codec: 'opus',
       sampleRate,
       numberOfChannels,
-      bitrate: 192_000,
+      bitrate: 128_000,
     };
     const support = await AudioEncoder.isConfigSupported(candidate);
     if (support.supported) {
@@ -168,6 +221,54 @@ async function resolveSupportedAacConfig(
     // unsupported
   }
   return null;
+}
+
+async function canServerMuxMp4(abortSignal: AbortSignal): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const onOuterAbort = () => controller.abort();
+    abortSignal.addEventListener('abort', onOuterAbort, { once: true });
+    try {
+      const res = await fetch('/api/video/health', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      if (!res.ok) return false;
+      const json = await res.json().catch(() => null);
+      return Boolean(json?.ffmpeg);
+    } finally {
+      clearTimeout(timer);
+      abortSignal.removeEventListener('abort', onOuterAbort);
+    }
+  } catch {
+    return false;
+  }
+}
+
+async function seekVideoToTime(videoEl: HTMLVideoElement, targetTime: number): Promise<void> {
+  const duration = Number.isFinite(videoEl.duration) && videoEl.duration > 0 ? videoEl.duration : 0;
+  if (duration <= 0) return;
+  const wrapped = Math.max(0, Math.min(duration - 0.01, targetTime % duration));
+  if (Math.abs(videoEl.currentTime - wrapped) < 0.015) return;
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      videoEl.removeEventListener('seeked', done);
+      resolve();
+    };
+    const timer = setTimeout(done, 160);
+    videoEl.addEventListener('seeked', done, { once: true });
+    try {
+      videoEl.currentTime = wrapped;
+    } catch {
+      done();
+    }
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -187,21 +288,42 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 /**
- * Tier 1: Deterministic offline WebCodecs H.264 1080x1920 encoding (8 Mbps).
- * Uses in-browser AudioEncoder (AAC) when supported, or pairs with server-side lossless H.264+WAV->AAC muxing.
+ * Tier 1: Deterministic offline WebCodecs H.264 9:16 MP4 encoding.
+ * Supports:
+ *   A) Client H.264 + client AAC -> pure client-side .mp4
+ *   B) Client H.264 + server FFmpeg WAV->AAC -> universal H.264+AAC .mp4
+ *   C) Client H.264 + client Opus (in MP4 via mp4-muxer) -> pure client-side .mp4 (Android Chrome / Vercel)
  */
 async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4ExportResult | null> {
-  // Video background needs real-time/seek playback; let MediaRecorder handle looping user bg videos smoothly
-  if (params.renderOpts.bgVideo) {
-    return null;
-  }
-
-  const { width, height } = params.renderOpts;
   const fps = 30;
-  const videoBitrate = 8_000_000;
+  const resolvedVideo = await resolveSupportedH264Config(
+    params.renderOpts.width,
+    params.renderOpts.height,
+    fps
+  );
+  if (!resolvedVideo) return null;
 
-  const videoConfig = await resolveSupportedH264Config(width, height, fps, videoBitrate);
-  if (!videoConfig) return null;
+  const { config: videoConfig, encodeWidth, encodeHeight } = resolvedVideo;
+
+  // Adapt canvas and precomputed layout cleanly if device hardware capped at 720x1280
+  let effectiveRenderOpts = params.renderOpts;
+  let effectiveLayout = params.layout;
+  if (encodeWidth !== params.renderOpts.width || encodeHeight !== params.renderOpts.height) {
+    params.canvas.width = encodeWidth;
+    params.canvas.height = encodeHeight;
+    effectiveRenderOpts = {
+      ...params.renderOpts,
+      width: encodeWidth,
+      height: encodeHeight,
+    };
+    if (params.ayahs && params.ayahs.length > 0) {
+      effectiveLayout = precomputeVideoCanvasLayout(
+        params.canvasCtx,
+        params.ayahs,
+        effectiveRenderOpts
+      );
+    }
+  }
 
   const renderedAudio = await renderTimelineOfflineAudio(
     params.decodedBuffers,
@@ -216,17 +338,43 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
     renderedAudio.numberOfChannels
   );
 
+  let serverMuxAvailable = false;
+  let opusConfig: AudioEncoderConfig | null = null;
+
+  if (!aacConfig) {
+    serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
+    if (params.abortSignal.aborted) return null;
+    if (!serverMuxAvailable) {
+      opusConfig = await resolveSupportedOpusConfig(
+        renderedAudio.sampleRate,
+        renderedAudio.numberOfChannels
+      );
+    }
+  }
+
+  // If neither client AAC, nor server mux, nor client Opus is available, cannot build MP4 audio here
+  if (!aacConfig && !serverMuxAvailable && !opusConfig) {
+    return null;
+  }
+
+  const clientAudioConfig = aacConfig || opusConfig;
+  const clientAudioMuxCodec: 'aac' | 'opus' | null = aacConfig
+    ? 'aac'
+    : opusConfig
+    ? 'opus'
+    : null;
+
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
     target,
     video: {
       codec: 'avc',
-      width,
-      height,
+      width: encodeWidth,
+      height: encodeHeight,
     },
-    audio: aacConfig
+    audio: clientAudioMuxCodec
       ? {
-          codec: 'aac',
+          codec: clientAudioMuxCodec,
           numberOfChannels: renderedAudio.numberOfChannels,
           sampleRate: renderedAudio.sampleRate,
         }
@@ -251,22 +399,28 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
   videoEncoder.configure(videoConfig);
 
   let audioEncoder: AudioEncoder | null = null;
-  if (aacConfig) {
+  if (clientAudioConfig) {
     audioEncoder = new AudioEncoder({
       output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
       error: (err) => {
         encoderError = err instanceof Error ? err : new Error(String(err));
       },
     });
-    audioEncoder.configure(aacConfig);
+    audioEncoder.configure(clientAudioConfig);
   }
 
   const totalSec = Math.max(1.5, params.timeline.totalDurationSec);
   const totalFrames = Math.max(1, Math.ceil(totalSec * fps));
   const frameDurationUs = Math.round(1_000_000 / fps);
 
+  if (effectiveRenderOpts.bgVideo) {
+    try {
+      effectiveRenderOpts.bgVideo.pause();
+    } catch {}
+  }
+
   try {
-    // Encode audio chunks first if client-side AAC AudioEncoder is available
+    // Encode audio chunks first if client-side AudioEncoder (AAC or Opus) is active
     if (audioEncoder) {
       const sampleRate = renderedAudio.sampleRate;
       const numChannels = renderedAudio.numberOfChannels;
@@ -297,20 +451,23 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
       await withTimeout(audioEncoder.flush(), 8000, 'audioEncoder.flush');
     }
 
-    // Reset progress clock right as video frame encoding begins
     const videoLoopStartAt = Date.now();
     lastChunkAdvanceAt = videoLoopStartAt;
 
-    // Encode Full HD 1080x1920 frames deterministically
     for (let f = 0; f < totalFrames; f++) {
       if (params.abortSignal.aborted || encoderError) break;
       const tSec = f / fps;
+
+      if (effectiveRenderOpts.bgVideo) {
+        await seekVideoToTime(effectiveRenderOpts.bgVideo, tSec);
+      }
+
       renderVideoCanvasFrame(
         params.canvasCtx,
-        params.layout,
+        effectiveLayout,
         params.timeline,
         tSec,
-        params.renderOpts
+        effectiveRenderOpts
       );
 
       const frame = new VideoFrame(params.canvas, {
@@ -322,17 +479,15 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
       videoEncoder.encode(frame, { keyFrame });
       frame.close();
 
-      // Throttle backpressure at queue >= 3 so software OpenH264 encodes steadily without overflowing memory
       while (videoEncoder.encodeQueueSize >= 3 && !params.abortSignal.aborted && !encoderError) {
-        if (Date.now() - lastChunkAdvanceAt > 6000) {
-          throw new Error('VideoEncoder stalled without output for 6s');
+        if (Date.now() - lastChunkAdvanceAt > 7000) {
+          throw new Error('VideoEncoder stalled without output for 7s');
         }
         await new Promise((r) => setTimeout(r, 15));
       }
 
-      // Fail fast only if zero chunks arrive within 5s of starting frame emission
-      if (videoChunkCount === 0 && Date.now() - videoLoopStartAt > 5000) {
-        throw new Error('VideoEncoder produced no initial output within 5s');
+      if (videoChunkCount === 0 && Date.now() - videoLoopStartAt > 6000) {
+        throw new Error('VideoEncoder produced no initial output within 6s');
       }
 
       if (f % 2 === 0 || f === totalFrames - 1) {
@@ -340,7 +495,7 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
         params.onProgress(
           Math.min(90, pct),
           tSec,
-          `Encodage MP4 Full HD 1080×1920 (${Math.round(((f + 1) / totalFrames) * 100)}%)...`
+          `Encodage MP4 (${encodeWidth}×${encodeHeight}) ${Math.round(((f + 1) / totalFrames) * 100)}%...`
         );
         await new Promise((r) => setTimeout(r, 0));
       }
@@ -368,9 +523,9 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
 
   const mp4Bytes = new Uint8Array(target.buffer);
 
-  // If browser encoded both H.264 video and AAC audio directly
-  if (aacConfig) {
-    params.onProgress(98, totalSec, 'Finalisation MP4 Full HD...');
+  // If browser encoded both H.264 video and audio (AAC or Opus) directly into MP4
+  if (clientAudioConfig) {
+    params.onProgress(98, totalSec, 'Finalisation de la vidéo MP4...');
     return {
       blob: new Blob([mp4Bytes], { type: 'video/mp4' }),
       extension: 'mp4',
@@ -378,7 +533,7 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
     };
   }
 
-  // Otherwise send lossless H.264 MP4 track + WAV PCM to /api/video/mux-mp4 for fast AAC muxing (-c:v copy)
+  // Otherwise send lossless H.264 MP4 track + WAV PCM to /api/video/mux-mp4 for fast AAC muxing
   params.onProgress(92, totalSec, 'Assemblage audio AAC haute fidélité dans le fichier MP4...');
   const wavBytes = encodeAudioBufferToWavBytes(renderedAudio);
   const packet = new Uint8Array(4 + mp4Bytes.byteLength + wavBytes.byteLength);
@@ -402,7 +557,7 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
     throw new Error('Fichier MP4 généré invalide.');
   }
 
-  params.onProgress(100, totalSec, 'Vidéo MP4 Full HD 1080×1920 prête !');
+  params.onProgress(100, totalSec, `Vidéo MP4 (${encodeWidth}×${encodeHeight}) prête !`);
   return {
     blob: new Blob([outBuf], { type: 'video/mp4' }),
     extension: 'mp4',
@@ -411,18 +566,18 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
 }
 
 /**
- * Tier 2: Reliable MediaRecorder capture + server-side ffmpeg H.264+AAC MP4 transcode when needed.
+ * Tier 2: MediaRecorder capture (preferring native MP4 on iOS/Safari, or transcoding to MP4 via server FFmpeg).
+ * Never silently returns a .webm file when the user expects an .mp4 file.
  */
 async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4ExportResult> {
   const { canvas, canvasCtx, layout, timeline, renderOpts, audioCtx, decodedBuffers } = params;
 
   if (typeof (canvas as any).captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
     throw new Error(
-      'Votre navigateur ne supporte pas l’enregistrement vidéo. Essayez Safari/Chrome récent.'
+      'Votre navigateur ne supporte pas l’enregistrement vidéo MP4. Essayez Chrome Android ou Safari iOS à jour.'
     );
   }
 
-  // Paint initial frame synchronously before starting captureStream
   renderVideoCanvasFrame(canvasCtx, layout, timeline, 0, renderOpts);
 
   const videoStream: MediaStream = (canvas as any).captureStream(30);
@@ -446,8 +601,6 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     MediaRecorder.isTypeSupported(m)
   );
 
-  // Cap VP9 software MediaRecorder bitrate at 4 Mbps (10 Mbps on 1080x1920 causes 0-byte stalls in Chromium);
-  // /api/video/convert-mp4 re-encodes WebM captures to crisp libx264 CRF 18 Full HD MP4.
   const targetVideoBps = chosenMime.includes('mp4')
     ? 8_000_000
     : chosenMime.includes('vp9')
@@ -533,7 +686,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     params.onProgress(
       pct,
       elapsed,
-      `Capture vidéo Full HD 1080×1920 (${Math.round((elapsed / totalSec) * 100)}%)...`
+      `Capture vidéo 9:16 (${Math.round((elapsed / totalSec) * 100)}%)...`
     );
     if (elapsed >= totalSec) {
       if (recorder.state === 'recording') {
@@ -555,8 +708,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     throw new Error('Export annulé.');
   }
 
-  // If browser recorded genuine H.264 + AAC MP4 natively (Safari/iOS), return directly
-  if (rawMime.includes('mp4') && rawMime.includes('mp4a')) {
+  // Safari / iOS native MP4 recording
+  if (rawMime.includes('mp4')) {
     return {
       blob: rawBlob,
       extension: 'mp4',
@@ -564,7 +717,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     };
   }
 
-  // Convert recorded WebM/fallback stream to crisp H.264 + AAC MP4 via server ffmpeg
+  // Convert WebM capture to H.264 + AAC MP4 via server FFmpeg
   params.onProgress(92, totalSec, 'Conversion en MP4 H.264 + AAC haute qualité...');
   const convRes = await fetch('/api/video/convert-mp4', {
     method: 'POST',
@@ -574,7 +727,9 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   });
 
   if (!convRes.ok) {
-    throw new Error(`Conversion MP4 impossible (${convRes.status}).`);
+    throw new Error(
+      `Conversion MP4 indisponible sur ce serveur (${convRes.status}). Utilisez Chrome Android récent ou Safari iOS pour un export MP4 direct.`
+    );
   }
 
   const mp4Buf = await convRes.arrayBuffer();
