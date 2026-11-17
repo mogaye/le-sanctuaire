@@ -72,12 +72,12 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
                   e.stopPropagation();
                   onOpenCinematic();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95 shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95 shrink-0"
                 title="Lire en mode plein écran immersif et cinématique"
               >
                 <Maximize2 className="w-3.5 h-3.5 stroke-[2.3]" />
-                <span className="hidden sm:inline">Plein Écran Cinématique</span>
-                <span className="sm:hidden">Cinéma 4K</span>
+                <span className="hidden md:inline">Plein Écran Cinématique</span>
+                <span className="md:hidden">Cinéma 4K</span>
               </button>
             )}
             {onOpenMobileVideoStudio && (
@@ -88,12 +88,12 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
                   e.stopPropagation();
                   onOpenMobileVideoStudio();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
                 title="Créer une vidéo continue 9:16 à partir de versets"
               >
                 <Film className="w-3.5 h-3.5 stroke-[2.3]" />
-                <span className="hidden sm:inline">Créer Vidéo 9:16</span>
-                <span className="sm:hidden">Créer Vidéo</span>
+                <span className="hidden md:inline">Créer Vidéo 9:16</span>
+                <span className="md:hidden">Créer Vidéo</span>
               </button>
             )}
             {onOpenSurahSelector && (
@@ -147,12 +147,12 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
               سُورَةُ {surah.arabicName}
             </div>
             <div
-              className={`text-[11px] mt-1 flex items-center gap-1.5 md:justify-end ${
+              className={`text-xs mt-1 flex items-center gap-1.5 md:justify-end ${
                 isDark ? 'text-emerald-300/80' : 'text-neutral-500'
               }`}
             >
               <Volume2 className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-emerald-400' : 'text-neutral-400'}`} />
-              <span className="truncate max-w-[200px]">{reciterName}</span>
+              <span className="truncate max-w-[14rem]">{reciterName}</span>
             </div>
           </div>
 

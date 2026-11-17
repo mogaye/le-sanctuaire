@@ -59,6 +59,28 @@ export function isMobileViewport(width: number, height?: number): boolean {
   return detectIsMobileDeviceContext({ width, height });
 }
 
+/**
+ * Computes a proportional root `html` font-size (in px) for mobile devices so a
+ * real smartphone reporting a wider CSS layout width (e.g. 640–720px on wide-DPI Android)
+ * renders typography, bottom navigation, and cards at the same physical proportion
+ * as a standard 390px mobile preview.
+ * Returns `null` on desktop so desktop root sizing remains untouched.
+ */
+export function computeMobileRootFontSizePx(
+  width: number,
+  height: number,
+  isMobile: boolean
+): number | null {
+  if (!isMobile) return null;
+  const safeW = Math.max(0, width || 0);
+  const safeH = Math.max(0, height || 0);
+  const portraitBasis = safeH > 0 ? Math.min(safeW, safeH) : safeW;
+  const clampedBasis = Math.max(280, portraitBasis || 390);
+  const scaled = (clampedBasis / 390) * 16.5;
+  const bounded = Math.max(16.0, Math.min(28.0, scaled));
+  return Math.round(bounded * 10) / 10;
+}
+
 export function getCinematicOrientationMode(
   viewportWidth: number,
   viewportHeight?: number
@@ -85,31 +107,31 @@ export function getDynamicArabicStyleConfig(
     minPx = isMobile ? 22 : 14;
     preferredVw = isMobile ? 5.8 : 1.8;
     preferredVh = isMobile ? 3.5 : 2.8;
-    maxPx = isMobile ? 30 : 24;
+    maxPx = isMobile ? 46 : 24;
     lineHt = 1.62;
   } else if (len > 220) {
     minPx = isMobile ? 25 : 16;
     preferredVw = isMobile ? 6.7 : 2.2;
     preferredVh = isMobile ? 4.0 : 3.3;
-    maxPx = isMobile ? 35 : 28;
+    maxPx = isMobile ? 54 : 28;
     lineHt = 1.68;
   } else if (len > 130) {
     minPx = isMobile ? 29 : 17;
     preferredVw = isMobile ? 7.8 : 2.6;
     preferredVh = isMobile ? 4.6 : 3.8;
-    maxPx = isMobile ? 41 : 34;
+    maxPx = isMobile ? 64 : 34;
     lineHt = 1.72;
   } else if (len > 60) {
     minPx = isMobile ? 33 : 19;
     preferredVw = isMobile ? 8.9 : 3.0;
     preferredVh = isMobile ? 5.3 : 4.4;
-    maxPx = isMobile ? 47 : 40;
+    maxPx = isMobile ? 74 : 40;
     lineHt = 1.78;
   } else {
     minPx = isMobile ? 38 : 22;
     preferredVw = isMobile ? 10.2 : 3.8;
     preferredVh = isMobile ? 6.2 : 5.2;
-    maxPx = isMobile ? 56 : 50;
+    maxPx = isMobile ? 88 : 50;
     lineHt = 1.85;
   }
 
@@ -137,14 +159,14 @@ export function getDynamicTranslationStyleConfig(
   let minPx = isMobile ? 17 : 12;
   let preferredVw = isMobile ? 4.8 : 1.2;
   let preferredVh = isMobile ? 2.8 : 1.9;
-  let maxPx = isMobile ? 22 : 16;
+  let maxPx = isMobile ? 34 : 16;
   let lineHt = isMobile ? 1.56 : 1.55;
 
   if (len > 280) {
     minPx = isMobile ? 15 : 10.5;
     preferredVw = isMobile ? 4.2 : 1.0;
     preferredVh = isMobile ? 2.4 : 1.5;
-    maxPx = isMobile ? 19 : 13.5;
+    maxPx = isMobile ? 30 : 13.5;
     lineHt = isMobile ? 1.5 : 1.55;
   }
 

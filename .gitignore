@@ -7,4 +7,6 @@ coverage/
 .env*
 !.env.example
 .studio-media-vault/
+.playwright-cli/
+.aistudio/
 

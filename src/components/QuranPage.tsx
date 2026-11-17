@@ -277,21 +277,13 @@ export const QuranPage: React.FC<QuranPageProps> = ({
   // Screen Wake Lock : Empêche la mise en veille de l'écran pendant la lecture et la récitation
   useWakeLock(isPlayingAudio || isCinematicReaderOpen || isMobileVideoStudioOpen);
 
-  const handleOpenCinematic = async (fromUserGesture: boolean = true) => {
-    if (fromUserGesture) {
-      try {
-        const el = document.documentElement;
-        if (!document.fullscreenElement && el.requestFullscreen) {
-          await el.requestFullscreen({ navigationUI: 'hide' } as any).catch(() => {});
-        }
-      } catch {}
-    }
+  const handleOpenCinematic = () => {
     setIsCinematicReaderOpen(true);
   };
 
   useEffect(() => {
     if (startInCinematic) {
-      handleOpenCinematic(false);
+      handleOpenCinematic();
     }
   }, [startInCinematic]);
 

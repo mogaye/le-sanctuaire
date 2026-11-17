@@ -382,12 +382,12 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   };
 
   return (
-    <div className="w-full bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 pb-24 font-['Plus_Jakarta_Sans',sans-serif] select-none min-h-screen transition-colors duration-200">
+    <div className="w-full bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-neutral-100 pb-[6.5rem] font-['Plus_Jakarta_Sans',sans-serif] select-none min-h-screen transition-colors duration-200">
       
       {/* ========================================================
           1. TOP APP BAR (Menu Hamburger à gauche, Thème & Cloche à droite)
          ======================================================== */}
-      <header className="px-4 sm:px-5 pt-3.5 pb-2.5 flex items-center justify-between">
+      <header className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
         {/* Hamburger Menu Icon */}
         <button
           id="mobile-btn-drawer"
@@ -403,7 +403,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         <button
           type="button"
           onClick={() => setIsCityModalOpen(true)}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/95 dark:bg-[#193226] border border-neutral-200/80 dark:border-emerald-500/30 text-[13px] font-semibold text-neutral-900 dark:text-emerald-100 active:scale-95 transition-transform cursor-pointer shadow-xs"
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/95 dark:bg-[#193226] border border-neutral-200/80 dark:border-emerald-500/30 text-[0.8125rem] font-semibold text-neutral-900 dark:text-emerald-100 active:scale-95 transition-transform cursor-pointer shadow-xs"
         >
           <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span className="font-bold text-neutral-900 dark:text-white">{selectedCity.name}</span>
@@ -426,20 +426,20 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         </div>
       </header>
 
-      <div className="px-4 sm:px-5 space-y-4.5 pt-1">
+      <div className="px-4 space-y-4.5 pt-1">
         
         {/* ========================================================
             2. GREETING & AVATAR SECTION
            ======================================================== */}
         <div className="flex items-center justify-between pt-1">
           <div className="space-y-1 max-w-[78%]">
-            <p className="text-[13px] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
+            <p className="text-[0.8125rem] font-semibold text-emerald-700 dark:text-emerald-300 truncate">
               Assalamu Alaykum,{' '}
               <span className="font-bold text-emerald-800 dark:text-emerald-200">
                 {currentUser?.firstName || (currentUser?.name ? currentUser.name.split(' ')[0] : '') || 'Cher Croyant'}
               </span>
             </p>
-            <h1 className="text-[23px] sm:text-2xl font-black text-neutral-900 dark:text-white tracking-tight leading-[1.18]">
+            <h1 className="text-[1.4375rem] font-black text-neutral-900 dark:text-white tracking-tight leading-[1.18]">
               Nourrissez votre{' '}
               <span className="text-emerald-600 dark:text-emerald-300">spiritualité.</span>
             </h1>
@@ -475,7 +475,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             className="flex-1 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-white dark:bg-[#193226] border border-neutral-200/90 dark:border-emerald-500/25 shadow-xs cursor-pointer active:scale-99 transition-transform"
           >
             <Search className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400/80 shrink-0" />
-            <span className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-200 font-medium truncate">
+            <span className="text-[0.8125rem] text-neutral-600 dark:text-neutral-200 font-medium truncate">
               Rechercher une sourate, prière, verset...
             </span>
           </div>
@@ -494,7 +494,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             4. HERO BANNER CARD (Next Prayer Countdown)
            ======================================================== */}
         <div
-          className="relative rounded-2xl overflow-hidden p-4.5 sm:p-5 shadow-[0_10px_25px_rgba(16,115,75,0.2)] flex flex-col justify-between min-h-[155px] border border-emerald-600/30 dark:border-emerald-500/30"
+          className="relative rounded-2xl overflow-hidden p-4.5 shadow-[0_10px_25px_rgba(16,115,75,0.2)] flex flex-col justify-between min-h-[9.75rem] border border-emerald-600/30 dark:border-emerald-500/30"
           style={{
             background: 'linear-gradient(135deg, #1B5E39 0%, #174E30 45%, #0F3721 100%)',
           }}
@@ -520,16 +520,16 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
 
           {/* Left Content */}
           <div className="relative z-10 max-w-[68%] space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-semibold text-emerald-200">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md text-[0.75rem] font-semibold text-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
               Prochaine Prière
             </div>
 
-            <h2 className="text-[22px] font-extrabold text-white tracking-tight leading-tight">
+            <h2 className="text-[1.375rem] font-extrabold text-white tracking-tight leading-tight">
               {nextPrayer.name} <span className="text-emerald-300 font-serif text-lg">{nextPrayer.arabicName}</span>
             </h2>
 
-            <p className="text-[13px] text-emerald-100/95 leading-snug">
+            <p className="text-[0.8125rem] text-emerald-100/95 leading-snug">
               Dans <span className="font-bold text-amber-200">{nextPrayer.remainingStr}</span> • {selectedCity.name}
             </p>
 
@@ -537,7 +537,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <button
                 type="button"
                 onClick={onOpenPrayerGuide}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-emerald-950 text-[13px] font-bold shadow-xs hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-emerald-950 text-[0.8125rem] font-bold shadow-xs hover:bg-emerald-50 active:scale-95 transition-all cursor-pointer"
               >
                 <span>Guide de prière</span>
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-800" />
@@ -551,11 +551,11 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
            ======================================================== */}
         <div className="space-y-2.5 pt-1">
           <div className="flex items-center justify-between">
-            <h3 className="text-[13px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Nos Espaces</h3>
+            <h3 className="text-[0.8125rem] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Nos Espaces</h3>
             <button
               type="button"
               onClick={onOpenQuran}
-              className="text-[13px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white cursor-pointer flex items-center gap-0.5"
+              className="text-[0.8125rem] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-white cursor-pointer flex items-center gap-0.5"
             >
               <span>Voir tout</span>
               <ChevronRight className="w-4 h-4" />
@@ -572,8 +572,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
                 <BookOpen className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Coran</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">114 Sourates</span>
+              <span className="text-[0.8125rem] font-extrabold text-neutral-900 dark:text-white leading-tight">Coran</span>
+              <span className="text-[0.6875rem] text-neutral-500 dark:text-emerald-200/75 leading-tight">114 Sourates</span>
             </button>
 
             {/* 2. Prières */}
@@ -585,8 +585,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/70 border border-blue-300/80 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 flex items-center justify-center">
                 <Clock className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Prières</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">5 Salats</span>
+              <span className="text-[0.8125rem] font-extrabold text-neutral-900 dark:text-white leading-tight">Prières</span>
+              <span className="text-[0.6875rem] text-neutral-500 dark:text-emerald-200/75 leading-tight">5 Salats</span>
             </button>
 
             {/* 3. Qibla */}
@@ -598,8 +598,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/70 border border-amber-300/80 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center justify-center">
                 <Compass className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Qibla</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">Boussole</span>
+              <span className="text-[0.8125rem] font-extrabold text-neutral-900 dark:text-white leading-tight">Qibla</span>
+              <span className="text-[0.6875rem] text-neutral-500 dark:text-emerald-200/75 leading-tight">Boussole</span>
             </button>
 
             {/* 4. Dhikr */}
@@ -611,8 +611,8 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300/80 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
                 <Sparkles className="w-5 h-5 stroke-[2.1]" />
               </div>
-              <span className="text-[13px] font-extrabold text-neutral-900 dark:text-white leading-tight">Dhikr</span>
-              <span className="text-[10px] text-neutral-500 dark:text-emerald-200/75 leading-tight">Tasbih</span>
+              <span className="text-[0.8125rem] font-extrabold text-neutral-900 dark:text-white leading-tight">Dhikr</span>
+              <span className="text-[0.6875rem] text-neutral-500 dark:text-emerald-200/75 leading-tight">Tasbih</span>
             </button>
           </div>
         </div>
@@ -632,15 +632,15 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                  <span className="text-[0.6875rem] font-black uppercase tracking-wider text-amber-300 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30">
                     Mode Immersif 4K
                   </span>
-                  <span className="text-[10px] text-emerald-200/80 font-medium">Sans distraction</span>
+                  <span className="text-[0.6875rem] text-emerald-200/80 font-medium">Sans distraction</span>
                 </div>
                 <h4 className="text-sm font-black text-white tracking-tight mt-1">
                   Lecture Plein Écran Cinématique
                 </h4>
-                <p className="text-[11px] text-emerald-200/90 leading-tight line-clamp-1 mt-0.5">
+                <p className="text-[0.75rem] text-emerald-200/90 leading-tight line-clamp-1 mt-0.5">
                   Grand texte arabe, Tajweed coloré, récitation & fonds animés
                 </p>
               </div>
@@ -719,15 +719,15 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-xs sm:text-sm text-neutral-900 dark:text-white">{p.name}</span>
+                        <span className="font-extrabold text-[0.875rem] text-neutral-900 dark:text-white">{p.name}</span>
                         <span className="font-serif text-xs text-emerald-700 dark:text-emerald-300">{p.arabicName}</span>
                         {p.isNext && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold text-[9px] border border-amber-300/80 dark:border-amber-500/40">
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold text-[0.6875rem] border border-amber-300/80 dark:border-amber-500/40">
                             À venir
                           </span>
                         )}
                       </div>
-                      <span className="text-[10px] text-neutral-500 dark:text-emerald-200/60 font-medium block">
+                      <span className="text-[0.6875rem] text-neutral-500 dark:text-emerald-200/60 font-medium block">
                         {p.key === 'F' && '2 Rakats (voix haute)'}
                         {p.key === 'D' && '4 Rakats (silencieux)'}
                         {p.key === 'A' && '4 Rakats (silencieux)'}
@@ -738,7 +738,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className={`font-mono font-extrabold text-xs sm:text-sm ${
+                    <span className={`font-mono font-extrabold text-[0.875rem] ${
                       p.isNext ? 'text-amber-700 dark:text-amber-300 font-black' : 'text-neutral-700 dark:text-neutral-200'
                     }`}>
                       {p.time}
@@ -767,7 +767,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
           </div>
 
           {/* Buttons: Exporter l'affiche illustrée & Calendrier */}
-          <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex flex-col md:flex-row gap-2">
             {onOpenSharePoster && (
               <button
                 type="button"
@@ -1307,7 +1307,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-[280px] bg-white dark:bg-[#14261C] border-r border-neutral-200 dark:border-emerald-500/25 h-full p-5 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-200 text-neutral-900 dark:text-neutral-100"
+            className="w-[17.5rem] bg-white dark:bg-[#14261C] border-r border-neutral-200 dark:border-emerald-500/25 h-full p-5 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-200 text-neutral-900 dark:text-neutral-100"
           >
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-neutral-200 dark:border-emerald-800/40">

@@ -1096,7 +1096,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         onClick={() => setPlayerHudVisible((v) => !v)}
       >
         {/* Crisp 9:16 Theater Stage (Live Rendered Video Canvas Itself) */}
-        <div className="relative w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] sm:max-h-[96dvh] aspect-[9/16] bg-black overflow-hidden flex items-center justify-center sm:rounded-3xl sm:border sm:border-white/15 sm:shadow-2xl">
+        <div className="relative w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] md:max-h-[96dvh] aspect-[9/16] bg-black overflow-hidden flex items-center justify-center md:rounded-3xl md:border md:border-white/15 md:shadow-2xl">
           <canvas
             ref={playerCanvasRef}
             data-testid="studio-video-player-canvas"
@@ -1191,7 +1191,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 className="flex-1 min-w-0 accent-amber-400 h-1.5 rounded-lg cursor-pointer"
               />
 
-              <span className="text-[11px] font-mono text-neutral-300 tabular-nums shrink-0">
+              <span className="text-xs font-mono text-neutral-300 tabular-nums shrink-0">
                 {formatTimeMMSS(currentTimeSec)}
               </span>
 
@@ -1199,7 +1199,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 type="button"
                 onClick={startVideoExport}
                 aria-label="Exporter en MP4"
-                className="h-8 px-2.5 rounded-full bg-emerald-500 text-neutral-950 font-black text-[11px] flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition"
+                className="h-8 px-3 rounded-full bg-emerald-500 text-neutral-950 font-black text-xs flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition"
               >
                 <Download className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>MP4</span>
@@ -1415,7 +1415,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             <h2 className="text-sm font-black leading-tight truncate">
               Studio Vidéo Coran (Format 9:16)
             </h2>
-            <p className="text-[11px] text-neutral-400 truncate">
+            <p className="text-xs text-neutral-400 truncate">
               Vidéos verticales 9:16 continues • PC &amp; Mobile • Fonds personnalisés
             </p>
           </div>
@@ -1433,7 +1433,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       {/* Quick Section Jump Navigation */}
       <nav
         aria-label="Sections du studio vidéo"
-        className="shrink-0 grid grid-cols-4 gap-1.5 px-3 sm:px-4 py-2 bg-neutral-900/60 border-b border-white/10"
+        className="shrink-0 grid grid-cols-4 gap-1.5 px-3 md:px-4 py-2 bg-neutral-900/60 border-b border-white/10"
       >
         {[
           { shortLabel: '1. Versets', longLabel: '1. Versets', ref: sectionVersesRef, id: 'jump-verses' },
@@ -1446,10 +1446,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             type="button"
             data-testid={`studio-${tab.id}-btn`}
             onClick={() => scrollToSection(tab.ref)}
-            className="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-[11px] font-bold text-neutral-200 text-center truncate transition cursor-pointer"
+            className="px-2 py-2 rounded-lg bg-white/10 hover:bg-amber-400 hover:text-neutral-950 text-xs font-bold text-neutral-200 text-center truncate transition cursor-pointer"
           >
-            <span className="sm:hidden">{tab.shortLabel}</span>
-            <span className="hidden sm:inline">{tab.longLabel}</span>
+            <span className="md:hidden">{tab.shortLabel}</span>
+            <span className="hidden md:inline">{tab.longLabel}</span>
           </button>
         ))}
       </nav>
@@ -2161,7 +2161,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-play-continuous-btn"
             disabled={isLoadingVerses || selectedVerses.length === 0}
             onClick={startContinuousPlayer}
-            className="py-3 px-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
+            className="py-3.5 px-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40"
           >
             <Play className="w-4 h-4 fill-current text-amber-300 shrink-0" />
             <span>Lire le contenu</span>
@@ -2172,7 +2172,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-create-video-btn"
             disabled={isLoadingVerses || selectedVerses.length === 0}
             onClick={startVideoExport}
-            className="py-3 px-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg cursor-pointer disabled:opacity-40"
+            className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-neutral-950 font-black text-xs md:text-sm flex items-center justify-center gap-1.5 shadow-lg cursor-pointer disabled:opacity-40"
           >
             <Film className="w-4 h-4 shrink-0" />
             <span>Créer la Vidéo MP4 (9:16)</span>

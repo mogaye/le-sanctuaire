@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { detectIsMobileDeviceContext } from '../utils/cinematicLayoutUtils';
+import {
+  computeMobileRootFontSizePx,
+  detectIsMobileDeviceContext,
+} from '../utils/cinematicLayoutUtils';
 
 export interface MobileDeviceState {
   isMobile: boolean;
@@ -29,12 +32,26 @@ function readCurrentDeviceState(): MobileDeviceState {
   return { isMobile, width, height };
 }
 
+function applyRootMobileFontScale(state: MobileDeviceState) {
+  if (typeof document === 'undefined') return;
+  const rootPx = computeMobileRootFontSizePx(state.width, state.height, state.isMobile);
+  const nextFontSize = rootPx !== null ? `${rootPx}px` : '';
+  if (document.documentElement.style.fontSize !== nextFontSize) {
+    document.documentElement.style.fontSize = nextFontSize;
+  }
+}
+
 export function useMobileDevice(): MobileDeviceState {
-  const [state, setState] = useState<MobileDeviceState>(() => readCurrentDeviceState());
+  const [state, setState] = useState<MobileDeviceState>(() => {
+    const initial = readCurrentDeviceState();
+    applyRootMobileFontScale(initial);
+    return initial;
+  });
 
   useEffect(() => {
     const sync = () => {
       const next = readCurrentDeviceState();
+      applyRootMobileFontScale(next);
       setState((prev) =>
         prev.isMobile === next.isMobile &&
         prev.width === next.width &&

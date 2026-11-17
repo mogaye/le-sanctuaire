@@ -13,9 +13,14 @@
   }
 
   /* Confort de lecture mobile : garde les proportions lisibles sur téléphone réel */
-  @media (max-width: 767px), (pointer: coarse) and (max-height: 600px) {
+  @media (max-width: 767px) {
     html {
-      font-size: 17px;
+      font-size: clamp(16px, 4.23vw, 28px);
+    }
+  }
+  @media (pointer: coarse) and (max-height: 600px) {
+    html {
+      font-size: 16.5px;
     }
   }
 
@@ -36,18 +41,18 @@
   }
 }
 
-/* Harmonisation mobile lisible des petites tailles de texte sur téléphone réel */
+/* Harmonisation mobile lisible des petites tailles de texte sur téléphone réel (basée sur rem) */
 @media (max-width: 767px), (pointer: coarse) and (max-height: 600px) {
   .text-\[9px\] {
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.32;
   }
   .text-\[10px\] {
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.38;
   }
   .text-\[11px\] {
-    font-size: 13px;
+    font-size: 0.8125rem;
     line-height: 1.42;
   }
 }

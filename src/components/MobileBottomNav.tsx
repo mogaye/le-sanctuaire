@@ -53,6 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [barWidth, setBarWidth] = useState(368);
+  const [barHeight, setBarHeight] = useState(76);
   const lastScrollYRef = useRef(0);
   const barContainerRef = useRef<HTMLDivElement>(null);
 
@@ -77,26 +78,29 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     return () => window.removeEventListener('sanctuaire-close-overlays', handleCloseMore);
   }, [isMoreOpen]);
 
-  // Mesure exacte en pixels de la barre pour une encoche 100% circulaire sans déformation
+  // Mesure exacte en pixels de la barre (largeur + hauteur rem-scalée) pour une encoche 100% circulaire sans déformation
   useEffect(() => {
     const el = barContainerRef.current;
     if (!el) return;
 
-    const updateWidth = () => {
-      const w = el.getBoundingClientRect().width;
-      if (w > 180) {
-        setBarWidth(Math.round(w));
+    const updateDimensions = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 180) {
+        setBarWidth(Math.round(rect.width));
+      }
+      if (rect.height > 40) {
+        setBarHeight(Math.round(rect.height));
       }
     };
 
-    updateWidth();
-    const observer = new ResizeObserver(updateWidth);
+    updateDimensions();
+    const observer = new ResizeObserver(updateDimensions);
     observer.observe(el);
-    window.addEventListener('resize', updateWidth);
+    window.addEventListener('resize', updateDimensions);
 
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', updateWidth);
+      window.removeEventListener('resize', updateDimensions);
     };
   }, []);
 
@@ -211,14 +215,16 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
   ];
 
-  // Géométrie 1:1 en pixels réels (barre mobile généreuse & confortable au pouce)
-  const barHeight = 74;
-  const sidePad = 8;
+  // Géométrie 1:1 proportionnelle à barHeight (qui suit 1rem pour rester identique sur tout téléphone)
+  const scaleRatio = Math.max(0.95, barHeight / 74);
+  const sidePad = Math.round(8 * scaleRatio);
   const colWidth = (barWidth - sidePad * 2) / 5;
   const cx = sidePad + activeIndex * colWidth + colWidth / 2;
-  const notchHalfWidth = 40;
-  const notchDepth = 32;
-  const cornerRadius = 24;
+  const notchHalfWidth = Math.round(40 * scaleRatio);
+  const notchDepth = Math.round(32 * scaleRatio);
+  const cornerRadius = Math.round(24 * scaleRatio);
+  const c1 = Math.round(24 * scaleRatio);
+  const c2 = Math.round(21 * scaleRatio);
 
   const leftStart = Math.max(cornerRadius, cx - notchHalfWidth);
   const rightEnd = Math.min(barWidth - cornerRadius, cx + notchHalfWidth);
@@ -226,8 +232,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const svgPath = `
     M ${cornerRadius} 0
     L ${leftStart} 0
-    C ${cx - 24} 0, ${cx - 21} ${notchDepth}, ${cx} ${notchDepth}
-    C ${cx + 21} ${notchDepth}, ${cx + 24} 0, ${rightEnd} 0
+    C ${cx - c1} 0, ${cx - c2} ${notchDepth}, ${cx} ${notchDepth}
+    C ${cx + c2} ${notchDepth}, ${cx + c1} 0, ${rightEnd} 0
     L ${barWidth - cornerRadius} 0
     A ${cornerRadius} ${cornerRadius} 0 0 1 ${barWidth} ${cornerRadius}
     L ${barWidth} ${barHeight - cornerRadius}
@@ -247,7 +253,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         id="sanctuary-bottom-nav"
         role="navigation"
         aria-label="Navigation principale"
-        className={`fixed bottom-[calc(env(safe-area-inset-bottom)+10px)] left-0 right-0 z-40 px-2.5 sm:px-4 pointer-events-none select-none transition-all duration-300 ease-out ${
+        className={`fixed bottom-[calc(env(safe-area-inset-bottom)+0.625rem)] left-0 right-0 z-40 px-[0.625rem] pointer-events-none select-none transition-all duration-300 ease-out ${
           isVisible || isMoreOpen
             ? 'translate-y-0 opacity-100'
             : 'translate-y-[145%] opacity-0'
@@ -255,7 +261,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       >
         <div
           ref={barContainerRef}
-          className="relative w-full max-w-lg mx-auto h-[74px] pointer-events-auto"
+          className="relative w-full max-w-[32rem] mx-auto h-[4.625rem] pointer-events-auto"
         >
           {/* Fond SVG avec encoche incurvée 1:1 en pixels réels */}
           <svg
@@ -287,7 +293,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           </svg>
 
           {/* Les 5 boutons de navigation alignés exactement sur [sidePad .. barWidth - sidePad] */}
-          <div className="relative z-10 w-full h-full flex items-center justify-between px-[8px]">
+          <div className="relative z-10 w-full h-full flex items-center justify-between px-[0.5rem]">
             {navItems.map((item, idx) => {
               const IconComponent = item.icon;
               const isActive = idx === activeIndex;
@@ -298,28 +304,28 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   id={item.id}
                   type="button"
                   onClick={item.onClick}
-                  className="flex-1 h-full flex flex-col items-center justify-end pb-[10px] relative cursor-pointer group focus:outline-none"
+                  className="flex-1 h-full flex flex-col items-center justify-end pb-[0.625rem] relative cursor-pointer group focus:outline-none"
                 >
                   {/* Icône : surélevée dans son cercle émeraude & or si actif, sinon centrée dans la barre */}
                   <div
                     className={`transition-all duration-300 ease-out flex items-center justify-center ${
                       isActive
-                        ? 'absolute -top-[21px] w-[48px] h-[48px] rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_18px_rgba(5,150,105,0.48)]'
-                        : 'mb-[5px] text-neutral-600 dark:text-emerald-100/80 group-hover:text-emerald-700 dark:group-hover:text-amber-300 active:scale-90'
+                        ? 'absolute -top-[1.3125rem] w-[3rem] h-[3rem] rounded-full bg-gradient-to-br from-emerald-600 via-emerald-700 to-[#0B3B24] dark:from-emerald-500 dark:via-emerald-600 dark:to-[#0F3D26] text-amber-300 border-2 border-amber-400/90 shadow-[0_6px_18px_rgba(5,150,105,0.48)]'
+                        : 'mb-[0.3125rem] text-neutral-600 dark:text-emerald-100/80 group-hover:text-emerald-700 dark:group-hover:text-amber-300 active:scale-90'
                     }`}
                   >
                     <IconComponent
                       className={`transition-transform duration-300 ${
                         isActive
-                          ? 'w-[22px] h-[22px] text-amber-300 stroke-[2.3]'
-                          : 'w-[21px] h-[21px] stroke-[2]'
+                          ? 'w-[1.375rem] h-[1.375rem] text-amber-300 stroke-[2.3]'
+                          : 'w-[1.3125rem] h-[1.3125rem] stroke-[2]'
                       }`}
                     />
                   </div>
 
                   {/* Texte lisible sous chaque icône */}
                   <span
-                    className={`text-[12.5px] tracking-tight leading-none transition-all duration-200 whitespace-nowrap ${
+                    className={`text-[0.78rem] tracking-tight leading-none transition-all duration-200 whitespace-nowrap ${
                       isActive
                         ? 'font-extrabold text-emerald-800 dark:text-amber-300'
                         : 'font-semibold text-neutral-700 dark:text-emerald-100/85'
@@ -346,7 +352,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <div
             id="mobile-more-sheet"
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md mx-auto bg-white/98 dark:bg-[#14261C]/98 backdrop-blur-xl text-neutral-900 dark:text-white rounded-t-3xl p-5 pb-8 shadow-2xl border-t border-emerald-500/30 space-y-4 animate-in slide-in-from-bottom duration-200"
+            className="w-full max-w-[28rem] mx-auto bg-white/98 dark:bg-[#14261C]/98 backdrop-blur-xl text-neutral-900 dark:text-white rounded-t-3xl p-5 pb-8 shadow-2xl border-t border-emerald-500/30 space-y-4 animate-in slide-in-from-bottom duration-200"
           >
             {/* Poignée */}
             <div className="w-12 h-1.5 bg-neutral-300 dark:bg-emerald-800 rounded-full mx-auto" />

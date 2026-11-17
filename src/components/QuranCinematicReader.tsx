@@ -468,16 +468,41 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const isFullscreen = isNativeFullscreen || isPureFullscreen;
 
   const {
-    isMobile,
+    isMobile: detectedMobile,
     width: viewportWidth,
     height: viewportHeight,
   } = useMobileDevice();
-  const orientationMode = getCinematicOrientationMode(viewportWidth, viewportHeight);
+
+  // Preserve mobile 9:16 layout across native fullscreen if the reader was opened from a mobile device
+  const openedOnMobileRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (isOpen && detectedMobile) {
+      openedOnMobileRef.current = true;
+    } else if (!isOpen) {
+      openedOnMobileRef.current = false;
+    }
+  }, [isOpen, detectedMobile]);
+
+  const isMobile = detectedMobile || (isFullscreen && openedOnMobileRef.current);
+  const orientationMode: 'vertical-9-16' | 'desktop-fullscreen' = isMobile
+    ? 'vertical-9-16'
+    : getCinematicOrientationMode(viewportWidth, viewportHeight);
+
+  const isEmbeddedIframe =
+    typeof window !== 'undefined' &&
+    (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
 
   const lockPortraitOrientationOnMobile = async () => {
     if (
       typeof window === 'undefined' ||
-      !isMobileViewport(window.innerWidth, window.innerHeight)
+      (!openedOnMobileRef.current &&
+        !isMobileViewport(window.innerWidth, window.innerHeight))
     ) {
       return;
     }
@@ -517,6 +542,10 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   }, []);
 
   const enterNativeFullscreen = async () => {
+    // Inside an embedded preview frame (e.g. AI Studio mobile simulator), OS fullscreen breaks the iframe out to desktop monitor size.
+    if (isMobile && isEmbeddedIframe) {
+      return;
+    }
     try {
       const el = containerRef.current || document.documentElement;
       if (el && !document.fullscreenElement) {
@@ -1308,7 +1337,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             title={`Sourate ${currentSurahMeta.number}. ${currentSurahMeta.name} (cliquer pour changer)`}
           >
             <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
-            <span className="text-[11px] sm:text-xs font-mono font-bold text-white tracking-tight max-w-[104px] sm:max-w-none truncate">
+            <span className="text-xs font-mono font-bold text-white tracking-tight max-w-[6.5rem] sm:max-w-none truncate">
               {currentSurahMeta.number}. {currentSurahMeta.name}
             </span>
           </button>
@@ -1369,7 +1398,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             }}
             data-testid="cinematic-open-video-studio-btn"
             aria-label="Créer une vidéo continue 9:16 de versets"
-            className="h-9 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-[11px] shrink-0"
+            className="h-9 sm:h-10 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-xs shrink-0"
             title="Créer une vidéo verticale 9:16 à partir de versets"
           >
             <Film className="w-3.5 h-3.5 shrink-0" />
@@ -1388,7 +1417,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             title="Apparence & Réglages (Thèmes, Fonds 4K, Tajweed, Taille de texte)"
           >
             <Palette className="w-4 h-4 text-amber-300" />
-            <span className="text-xs font-semibold text-white/95 hidden sm:inline">Apparence</span>
+            <span className="text-xs font-semibold text-white/95 hidden md:inline">Apparence</span>
           </button>
 
           {/* Close / Exit Reader */}
@@ -1723,7 +1752,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             onClick={() => onSelectSurah(Math.max(1, currentSurahMeta.number - 1))}
             disabled={currentSurahMeta.number <= 1}
             aria-label="Sourate précédente"
-            className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
+            className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Sourate précédente"
           >
             <SkipBack className="w-4 h-4" />
@@ -1770,7 +1799,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             onClick={() => onSelectSurah(Math.min(114, currentSurahMeta.number + 1))}
             disabled={currentSurahMeta.number >= 114}
             aria-label="Sourate suivante"
-            className="hidden sm:flex w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
+            className="hidden md:flex w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white/90 hover:text-white items-center justify-center transition active:scale-95 disabled:opacity-20 cursor-pointer"
             title="Sourate suivante"
           >
             <SkipForward className="w-4 h-4" />

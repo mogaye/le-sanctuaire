@@ -128,12 +128,13 @@ async function resolveSupportedH264Config(
     return null;
   }
 
-  // Try crisp Full HD 1080x1920 first, then gracefully step down bitrate or to 720x1280 9:16
+  // Try crisp Full HD 1080x1920 first, then gracefully step down bitrate or to 720x1280 / 540x960 9:16
   // for mobile SoCs whose hardware H.264 encoder caps below Level 4.2.
   const resolutionTiers = [
     { w: requestedWidth, h: requestedHeight, bitrate: 8_000_000 },
     { w: requestedWidth, h: requestedHeight, bitrate: 5_000_000 },
     { w: 720, h: 1280, bitrate: 4_500_000 },
+    { w: 540, h: 960, bitrate: 3_000_000 },
   ];
 
   const codecs = [
