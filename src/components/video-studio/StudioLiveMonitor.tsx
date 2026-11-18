@@ -139,6 +139,38 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
   const [bgReadyTick, setBgReadyTick] = useState(0);
+  const [fontsReadyTick, setFontsReadyTick] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    if (typeof document !== 'undefined' && document.fonts) {
+      Promise.allSettled([
+        document.fonts.load("400 32px 'Amiri'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("700 32px 'Amiri'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("400 32px 'Scheherazade New'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("700 32px 'Scheherazade New'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("400 32px 'Aref Ruqaa'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("700 32px 'Aref Ruqaa'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("400 32px 'Noto Kufi Arabic'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("600 32px 'Noto Kufi Arabic'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("700 32px 'Noto Kufi Arabic'", 'بِسْمِ ٱللَّهِ'),
+        document.fonts.load("400 24px 'Cormorant Garamond'", "Au nom d'Allah"),
+        document.fonts.load("600 24px 'Cormorant Garamond'", "Au nom d'Allah"),
+        document.fonts.load("italic 400 24px 'Cormorant Garamond'", "Au nom d'Allah"),
+        document.fonts.load("italic 600 24px 'Cormorant Garamond'", "Au nom d'Allah"),
+        document.fonts.load("600 20px 'Cinzel'", 'VERSET 1'),
+        document.fonts.load("500 24px 'Plus Jakarta Sans'", "Au nom d'Allah"),
+      ])
+        .then(() => document.fonts.ready)
+        .then(() => {
+          if (mounted) setFontsReadyTick((t) => t + 1);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Sync background media into canvas renderer cleanly
   useEffect(() => {
@@ -269,7 +301,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     return precomputeVideoCanvasLayout(ctx, ayahs, renderOpts);
-  }, [ayahs, renderOpts]);
+  }, [ayahs, renderOpts, fontsReadyTick]);
 
   useEffect(() => {
     onLayoutReady?.({ layout, renderOpts });
@@ -425,7 +457,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             aria-label="Position dans la simulation"
             min={0}
             max={Math.max(0.5, timeline.totalDurationSec)}
-            step={0.05}
+            step={0.01}
             value={Math.min(simTimeSec, Math.max(0.5, timeline.totalDurationSec))}
             onChange={(e) => onSeek(Number(e.target.value))}
             className="flex-1 min-w-0 studio-range-mint cursor-pointer"

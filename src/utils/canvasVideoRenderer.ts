@@ -2,8 +2,8 @@ import {
   ContinuousTimeline,
   StudioAyahItem,
   VideoTemplateId,
-  computeContinuousScrollY,
   computeCoverDrawRect,
+  computeFluidScrollYForBlocks,
   findActiveTimelineEntry,
   wrapTextLines,
 } from './mobileVideoStudioUtils';
@@ -42,6 +42,9 @@ interface LaidOutVerseBlock {
   yStart: number;
   centerY: number;
   height: number;
+  rawAr: string;
+  rawTr: string;
+  rawFr: string;
   arLines: string[];
   trLines: string[];
   frLines: string[];
@@ -85,9 +88,9 @@ export function precomputeVideoCanvasLayout(
     (opts.textScale === 'compact' ? 0.88 : opts.textScale === 'grand' ? 1.14 : 1.0) * resScale;
 
   const horizontalPad = isLandscape
-    ? Math.round(130 * resScale)
-    : Math.round(48 * resScale);
-  const contentWidth = Math.max(240, opts.width - horizontalPad * 2);
+    ? Math.round(136 * resScale)
+    : Math.round(56 * resScale);
+  const contentWidth = Math.max(220, Math.round((opts.width - horizontalPad * 2) * 0.94));
   const arFontPx = Math.round(44 * scaleFactor);
   const arLineHeightPx = Math.round(arFontPx * 1.72);
   const trFontPx = Math.round(23 * scaleFactor);
@@ -96,44 +99,74 @@ export function precomputeVideoCanvasLayout(
   const frLineHeightPx = Math.round(frFontPx * 1.48);
 
   const blocks: LaidOutVerseBlock[] = [];
-  const wrapCache = new Map<string, { arLines: string[]; trLines: string[]; frLines: string[] }>();
+  const wrapCache = new Map<
+    string,
+    { rawAr: string; rawTr: string; rawFr: string; arLines: string[]; trLines: string[]; frLines: string[] }
+  >();
   let cursorY = Math.round((isLandscape ? 140 : 196) * resScale);
+
+  const isDualRibbonLandscape = opts.flowMode === 'dual_ribbon' && isLandscape;
+  const dualPadX = Math.round(92 * resScale);
+  const dualColGap = Math.round(40 * resScale);
+  const dualColW = Math.max(160, Math.round(((opts.width - dualPadX * 2 - dualColGap) / 2 - 12 * resScale) * 0.94));
+  const measureWidth = isDualRibbonLandscape ? dualColW : contentWidth;
+
+  const scrollArFontFamily =
+    opts.flowMode === 'stream'
+      ? "'Scheherazade New', 'Amiri', 'Traditional Arabic', serif"
+      : "'Amiri', 'Traditional Arabic', serif";
+  const scrollFrFontFamily =
+    opts.flowMode === 'night_lantern'
+      ? "'Cormorant Garamond', Georgia, serif"
+      : "'Plus Jakarta Sans', system-ui, sans-serif";
+  const effectiveFrFontPx = opts.flowMode === 'night_lantern' ? Math.round(frFontPx * 1.12) : frFontPx;
+  const effectiveFrLineHeightPx = Math.round(effectiveFrFontPx * 1.44);
 
   for (let i = 0; i < ayahs.length; i++) {
     const ayah = ayahs[i];
     const blockStart = cursorY;
-    const cacheKey = `${ayah.num}|${ayah.isBismillah ? 1 : 0}|${ayah.ar}|${ayah.tr || ''}|${ayah.fr || ''}`;
+    const rawAr = ayah.isBismillah ? ayah.ar : `${ayah.ar}  ﴿${ayah.num}﴾`;
+    const rawTr = ayah.tr ? `« ${ayah.tr} »` : '';
+    const rawFr = ayah.fr ? (ayah.isBismillah ? ayah.fr : `${ayah.num}. ${ayah.fr}`) : '';
+    const cacheKey = `${ayah.num}|${ayah.isBismillah ? 1 : 0}|${opts.flowMode}|${measureWidth}|${rawAr}|${rawTr}|${rawFr}`;
+
     let cachedWrap = wrapCache.get(cacheKey);
     if (!cachedWrap) {
-      ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
-      const arTextWithBadge = ayah.isBismillah ? ayah.ar : `${ayah.ar}  ﴿${ayah.num}﴾`;
+      ctx.font = `400 ${arFontPx}px ${scrollArFontFamily}`;
       const arLines = opts.showArabic
-        ? wrapTextLines(arTextWithBadge, contentWidth, (txt) => ctx.measureText(txt).width)
+        ? wrapTextLines(rawAr, measureWidth, (txt) => ctx.measureText(txt).width)
         : [];
 
       ctx.font = `italic 400 ${trFontPx}px Georgia, serif`;
       const trLines =
-        opts.showPhonetics && ayah.tr
-          ? wrapTextLines(`« ${ayah.tr} »`, contentWidth, (txt) => ctx.measureText(txt).width)
+        opts.showPhonetics && rawTr
+          ? wrapTextLines(rawTr, measureWidth, (txt) => ctx.measureText(txt).width)
           : [];
 
-      ctx.font = `500 ${frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-      const frLabelText = ayah.isBismillah ? ayah.fr : `${ayah.num}. ${ayah.fr}`;
+      ctx.font = `500 ${effectiveFrFontPx}px ${scrollFrFontFamily}`;
       const frLines =
-        opts.showFrench && ayah.fr
-          ? wrapTextLines(frLabelText, contentWidth, (txt) => ctx.measureText(txt).width)
+        opts.showFrench && rawFr
+          ? wrapTextLines(rawFr, measureWidth, (txt) => ctx.measureText(txt).width)
           : [];
 
-      cachedWrap = { arLines, trLines, frLines };
+      cachedWrap = { rawAr, rawTr, rawFr, arLines, trLines, frLines };
       wrapCache.set(cacheKey, cachedWrap);
     }
 
     const { arLines, trLines, frLines } = cachedWrap;
 
-    let blockHeight = Math.round(24 * resScale);
-    if (arLines.length > 0) blockHeight += arLines.length * arLineHeightPx + Math.round(16 * resScale);
-    if (trLines.length > 0) blockHeight += trLines.length * trLineHeightPx + Math.round(10 * resScale);
-    if (frLines.length > 0) blockHeight += frLines.length * frLineHeightPx + Math.round(10 * resScale);
+    let blockHeight = Math.round(28 * resScale);
+    if (isDualRibbonLandscape) {
+      const rightColH = arLines.length > 0 ? arLines.length * arLineHeightPx + Math.round(12 * resScale) : 0;
+      let leftColH = 0;
+      if (trLines.length > 0) leftColH += trLines.length * trLineHeightPx + Math.round(8 * resScale);
+      if (frLines.length > 0) leftColH += frLines.length * effectiveFrLineHeightPx + Math.round(10 * resScale);
+      blockHeight += Math.max(rightColH, leftColH);
+    } else {
+      if (arLines.length > 0) blockHeight += arLines.length * arLineHeightPx + Math.round(16 * resScale);
+      if (trLines.length > 0) blockHeight += trLines.length * trLineHeightPx + Math.round(10 * resScale);
+      if (frLines.length > 0) blockHeight += frLines.length * effectiveFrLineHeightPx + Math.round(10 * resScale);
+    }
 
     const gapAfter = Math.round((opts.flowMode === 'stream' ? 38 : 60) * resScale);
     blocks.push({
@@ -144,6 +177,9 @@ export function precomputeVideoCanvasLayout(
       yStart: blockStart,
       centerY: blockStart + blockHeight / 2,
       height: blockHeight,
+      rawAr,
+      rawTr,
+      rawFr,
       arLines,
       trLines,
       frLines,
@@ -151,8 +187,8 @@ export function precomputeVideoCanvasLayout(
       arLineHeightPx,
       trFontPx,
       trLineHeightPx,
-      frFontPx,
-      frLineHeightPx,
+      frFontPx: effectiveFrFontPx,
+      frLineHeightPx: effectiveFrLineHeightPx,
     });
 
     cursorY += blockHeight + gapAfter;
@@ -165,22 +201,321 @@ export function precomputeVideoCanvasLayout(
   };
 }
 
+function fillSafeText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth?: number
+) {
+  if (maxWidth && maxWidth > 0 && ctx.measureText(text).width > maxWidth) {
+    ctx.fillText(text, x, y, maxWidth);
+  } else {
+    ctx.fillText(text, x, y);
+  }
+}
+
 function drawRtlTajweedLine(
   ctx: CanvasRenderingContext2D,
   lineText: string,
-  centerX: number,
+  x: number,
   y: number,
   opts: VideoCanvasRenderOptions,
   fontPx: number,
-  textAlign: CanvasTextAlign = 'center'
+  textAlign: CanvasTextAlign = 'center',
+  colorOverride?: string,
+  maxWidth?: number,
+  fontFamily: string = "'Amiri', 'Traditional Arabic', serif",
+  fontWeight: string = '400'
 ) {
-  ctx.font = `400 ${fontPx}px 'Amiri', 'Traditional Arabic', serif`;
+  ctx.font = `${fontWeight} ${fontPx}px ${fontFamily}`;
   ctx.textBaseline = 'middle';
   ctx.direction = 'rtl';
   ctx.textAlign = textAlign;
-  ctx.fillStyle = opts.isLightSurface ? '#0A0A0A' : '#FFFFFF';
-  ctx.fillText(lineText, centerX, y);
+  ctx.fillStyle = colorOverride || (opts.isLightSurface ? '#0A0A0A' : '#FFFFFF');
+  fillSafeText(ctx, lineText, x, y, maxWidth);
   ctx.direction = 'ltr';
+}
+
+interface BoxTypographyConfig {
+  arFontFamily?: string;
+  arFontWeight?: string;
+  trFontFamily?: string;
+  trFontStyle?: 'italic' | 'normal';
+  trFontWeight?: string;
+  frFontFamily?: string;
+  frFontStyle?: 'italic' | 'normal';
+  frFontWeight?: string;
+  arMultiplier?: number;
+  trMultiplier?: number;
+  frMultiplier?: number;
+  includeAr?: boolean;
+  includeTr?: boolean;
+  includeFr?: boolean;
+  minScale?: number;
+}
+
+interface FittedBoxContent {
+  arPx: number;
+  arLH: number;
+  trPx: number;
+  trLH: number;
+  frPx: number;
+  frLH: number;
+  arFontFamily: string;
+  arFontWeight: string;
+  trFontFamily: string;
+  trFontStyle: 'italic' | 'normal';
+  trFontWeight: string;
+  frFontFamily: string;
+  frFontStyle: 'italic' | 'normal';
+  frFontWeight: string;
+  arLines: string[];
+  trLines: string[];
+  frLines: string[];
+  contentH: number;
+  overflowPx: number;
+  panOffsetPx: number;
+  fitScale: number;
+}
+
+function computeFluidPanT(segmentProgress: number): number {
+  if (segmentProgress <= 0.06) return 0;
+  if (segmentProgress >= 0.90) return 1;
+  const t = (segmentProgress - 0.06) / 0.84;
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Dynamically scales & wraps any verse (from 1 word to Ayat 2:282) inside (boxW, boxH)
+ * using the exact font families & weights configured for the active template.
+ * If even the smallest readable scale exceeds boxH, computes a smooth internal vertical pan offset
+ * so the verse never clips outside its safe zone and stays 100% readable from start to end.
+ */
+function fitVerseIntoBox(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  boxW: number,
+  boxH: number,
+  segmentProgress: number,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  config?: BoxTypographyConfig
+): FittedBoxContent {
+  const safeW = Math.max(120, Math.round(boxW * 0.94));
+  const safeH = Math.max(60, boxH - Math.round(8 * resScale));
+  const arMult = config?.arMultiplier ?? 1;
+  const trMult = config?.trMultiplier ?? 1;
+  const frMult = config?.frMultiplier ?? 1;
+  const useAr = config?.includeAr ?? opts.showArabic;
+  const useTr = config?.includeTr ?? opts.showPhonetics;
+  const useFr = config?.includeFr ?? opts.showFrench;
+  const minScale = config?.minScale ?? 0.46;
+
+  const arFontFamily = config?.arFontFamily ?? "'Amiri', 'Traditional Arabic', serif";
+  const arFontWeight = config?.arFontWeight ?? '400';
+  const trFontFamily = config?.trFontFamily ?? 'Georgia, serif';
+  const trFontStyle = config?.trFontStyle ?? 'italic';
+  const trFontWeight = config?.trFontWeight ?? '400';
+  const frFontFamily = config?.frFontFamily ?? "'Plus Jakarta Sans', system-ui, sans-serif";
+  const frFontStyle = config?.frFontStyle ?? 'normal';
+  const frFontWeight = config?.frFontWeight ?? '500';
+
+  const measureAtScale = (fitScale: number) => {
+    const arPx = Math.max(Math.round(14 * resScale), Math.round(block.arFontPx * arMult * fitScale));
+    const arLH = Math.round(arPx * 1.66);
+    const trPx = Math.max(Math.round(10 * resScale), Math.round(block.trFontPx * trMult * fitScale));
+    const trLH = Math.round(trPx * 1.46);
+    const frPx = Math.max(Math.round(11 * resScale), Math.round(block.frFontPx * frMult * fitScale));
+    const frLH = Math.round(frPx * 1.44);
+
+    ctx.font = `${arFontWeight} ${arPx}px ${arFontFamily}`;
+    const arLines = useAr && block.rawAr
+      ? wrapTextLines(block.rawAr, safeW, (t) => ctx.measureText(t).width)
+      : [];
+
+    ctx.font = `${trFontStyle} ${trFontWeight} ${trPx}px ${trFontFamily}`;
+    const trLines = useTr && block.rawTr
+      ? wrapTextLines(block.rawTr, safeW, (t) => ctx.measureText(t).width)
+      : [];
+
+    ctx.font = `${frFontStyle} ${frFontWeight} ${frPx}px ${frFontFamily}`;
+    const frLines = useFr && block.rawFr
+      ? wrapTextLines(block.rawFr, safeW, (t) => ctx.measureText(t).width)
+      : [];
+
+    const hasAr = arLines.length > 0;
+    const hasTr = trLines.length > 0;
+    const hasFr = frLines.length > 0;
+
+    let contentH = 0;
+    if (hasAr) contentH += arLines.length * arLH;
+    if (hasAr && (hasTr || hasFr)) contentH += Math.round(16 * resScale * fitScale);
+    if (hasTr) contentH += trLines.length * trLH + (hasFr ? Math.round(8 * resScale * fitScale) : 0);
+    if (hasFr) contentH += frLines.length * frLH;
+
+    return { arPx, arLH, trPx, trLH, frPx, frLH, arLines, trLines, frLines, contentH, fitScale };
+  };
+
+  const scaleSteps = [1.0, 0.9, 0.8, 0.72, 0.64, 0.56, minScale];
+  let chosen = measureAtScale(scaleSteps[0]);
+  for (const s of scaleSteps) {
+    const attempt = measureAtScale(s);
+    chosen = attempt;
+    if (attempt.contentH <= safeH) {
+      break;
+    }
+  }
+
+  const overflowPx = Math.max(0, chosen.contentH - safeH);
+  const panOffsetPx = overflowPx > 0 ? Math.round(overflowPx * computeFluidPanT(segmentProgress)) : 0;
+
+  return {
+    ...chosen,
+    arFontFamily,
+    arFontWeight,
+    trFontFamily,
+    trFontStyle,
+    trFontWeight,
+    frFontFamily,
+    frFontStyle,
+    frFontWeight,
+    overflowPx,
+    panOffsetPx,
+  };
+}
+
+function drawFittedVerseInBox(
+  ctx: CanvasRenderingContext2D,
+  fit: FittedBoxContent,
+  boxX: number,
+  boxY: number,
+  boxW: number,
+  boxH: number,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  options?: {
+    align?: CanvasTextAlign;
+    highlightProgress?: number;
+    drawDivider?: boolean;
+    arColor?: string;
+    trColor?: string;
+    frColor?: string;
+    dividerColor?: string;
+  }
+) {
+  const { isLightSurface } = opts;
+  const align = options?.align ?? 'center';
+  const centerX = align === 'center' ? boxX + boxW / 2 : align === 'right' ? boxX + boxW : boxX;
+  const maxLineW = Math.max(80, boxW - Math.round(8 * resScale));
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(boxX, boxY, boxW, boxH);
+  ctx.clip();
+
+  const firstLH =
+    fit.arLines.length > 0 ? fit.arLH : fit.trLines.length > 0 ? fit.trLH : fit.frLH;
+  const startY =
+    fit.overflowPx > 0
+      ? boxY + Math.round(4 * resScale) + firstLH * 0.45 - fit.panOffsetPx
+      : boxY + Math.max(0, (boxH - fit.contentH) / 2) + firstLH * 0.45;
+
+  let yCursor = startY;
+  const totalLines = fit.arLines.length + fit.trLines.length + fit.frLines.length;
+  let lineCounter = 0;
+
+  for (const line of fit.arLines) {
+    let lineAlpha = 1;
+    let lineColor = options?.arColor;
+    if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
+      const linePos = lineCounter / Math.max(1, totalLines - 1);
+      const active = options.highlightProgress >= linePos - 0.12;
+      lineAlpha = active ? 1 : 0.48;
+      if (active && options.highlightProgress - linePos < 0.25) {
+        lineColor = isLightSurface ? '#047857' : '#FDE68A';
+      }
+    }
+    ctx.save();
+    ctx.globalAlpha *= lineAlpha;
+    drawRtlTajweedLine(
+      ctx,
+      line,
+      align === 'left' ? boxX + boxW : centerX,
+      yCursor,
+      opts,
+      fit.arPx,
+      align === 'left' ? 'right' : align,
+      lineColor,
+      maxLineW,
+      fit.arFontFamily,
+      fit.arFontWeight
+    );
+    ctx.restore();
+    yCursor += fit.arLH;
+    lineCounter++;
+  }
+
+  if (fit.arLines.length > 0 && (fit.trLines.length > 0 || fit.frLines.length > 0)) {
+    if (options?.drawDivider !== false) {
+      const rw = Math.min(Math.round(90 * resScale), boxW * 0.34);
+      const ruleX = align === 'center' ? centerX - rw / 2 : align === 'right' ? boxX + boxW - rw : boxX;
+      ctx.fillStyle =
+        options?.dividerColor ||
+        (isLightSurface ? 'rgba(4, 120, 87, 0.24)' : 'rgba(251, 191, 36, 0.32)');
+      ctx.fillRect(
+        ruleX,
+        yCursor - Math.round(fit.arLH * 0.18),
+        rw,
+        Math.max(1, Math.round(1.2 * resScale))
+      );
+    }
+    yCursor += Math.round(14 * resScale * fit.fitScale);
+  }
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = align;
+
+  if (fit.trLines.length > 0) {
+    ctx.font = `${fit.trFontStyle} ${fit.trFontWeight} ${fit.trPx}px ${fit.trFontFamily}`;
+    for (const line of fit.trLines) {
+      let lineAlpha = 1;
+      if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
+        const linePos = lineCounter / Math.max(1, totalLines - 1);
+        lineAlpha = options.highlightProgress >= linePos - 0.12 ? 1 : 0.55;
+      }
+      ctx.save();
+      ctx.globalAlpha *= lineAlpha;
+      ctx.fillStyle = options?.trColor || (isLightSurface ? '#065F46' : '#CBD5E1');
+      fillSafeText(ctx, line, align === 'right' ? boxX + boxW : align === 'left' ? boxX : centerX, yCursor, maxLineW);
+      ctx.restore();
+      yCursor += fit.trLH;
+      lineCounter++;
+    }
+    if (fit.frLines.length > 0) {
+      yCursor += Math.round(6 * resScale * fit.fitScale);
+    }
+  }
+
+  if (fit.frLines.length > 0) {
+    ctx.font = `${fit.frFontStyle} ${fit.frFontWeight} ${fit.frPx}px ${fit.frFontFamily}`;
+    for (const line of fit.frLines) {
+      let lineAlpha = 1;
+      if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
+        const linePos = lineCounter / Math.max(1, totalLines - 1);
+        lineAlpha = options.highlightProgress >= linePos - 0.12 ? 1 : 0.58;
+      }
+      ctx.save();
+      ctx.globalAlpha *= lineAlpha;
+      ctx.fillStyle = options?.frColor || (isLightSurface ? '#171717' : '#F8FAFC');
+      fillSafeText(ctx, line, align === 'right' ? boxX + boxW : align === 'left' ? boxX : centerX, yCursor, maxLineW);
+      ctx.restore();
+      yCursor += fit.frLH;
+      lineCounter++;
+    }
+  }
+
+  ctx.restore();
 }
 
 /**
@@ -194,10 +529,10 @@ function drawMandatoryBottomWatermark(
   isLightSurface: boolean
 ) {
   ctx.save();
-  const isLandscape = width > height;
+  const isPortrait = height > width;
   const centerX = width / 2;
-  const dividerY = height - Math.round((isLandscape ? 82 : 146) * resScale);
-  const dividerW = Math.round((isLandscape ? 140 : 168) * resScale);
+  const dividerY = height - Math.round((isPortrait ? 146 : 82) * resScale);
+  const dividerW = Math.round((isPortrait ? 168 : 140) * resScale);
 
   // Subtle ornamental rule right below the reading viewport
   ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.34)' : 'rgba(251, 191, 36, 0.42)';
@@ -209,14 +544,14 @@ function drawMandatoryBottomWatermark(
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = Math.round(1 * resScale);
 
-  const brandFontPx = Math.round((isLandscape ? 18 : 22) * resScale);
-  const subFontPx = Math.round((isLandscape ? 11.5 : 13.5) * resScale);
-  const brandY = height - Math.round((isLandscape ? 54 : 112) * resScale);
-  const subY = height - Math.round((isLandscape ? 30 : 82) * resScale);
+  const brandFontPx = Math.round((isPortrait ? 22 : 18) * resScale);
+  const subFontPx = Math.round((isPortrait ? 13.5 : 11.5) * resScale);
+  const brandY = height - Math.round((isPortrait ? 112 : 54) * resScale);
+  const subY = height - Math.round((isPortrait ? 82 : 30) * resScale);
 
   ctx.font = `800 ${brandFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
   const brandTextWidth = ctx.measureText(MANDATORY_WATERMARK_BRAND).width;
-  const iconR = Math.round((isLandscape ? 7 : 8.5) * resScale);
+  const iconR = Math.round((isPortrait ? 8.5 : 7) * resScale);
   const gap = Math.round(8 * resScale);
   const totalUnitW = iconR * 2 + gap + brandTextWidth;
   const unitLeft = centerX - totalUnitW / 2;
@@ -250,56 +585,55 @@ function drawMandatoryBottomWatermark(
   ctx.restore();
 }
 
-function computeSegmentFadeAlpha(segmentProgress: number): number {
-  const fadeInEnd = 0.12;
-  const fadeOutStart = 0.88;
+function computeSegmentFadeAlpha(segmentProgress: number, isInitialFrame: boolean = false): number {
+  if (isInitialFrame && segmentProgress <= 0.02) {
+    return 1.0;
+  }
+  const fadeInEnd = 0.07;
+  const fadeOutStart = 0.93;
   if (segmentProgress < fadeInEnd) {
-    return Math.max(0.08, segmentProgress / fadeInEnd);
+    const t = Math.max(0, segmentProgress / fadeInEnd);
+    return 0.22 + 0.78 * (t * t * (3 - 2 * t));
   }
   if (segmentProgress > fadeOutStart) {
-    return Math.max(0.08, (1 - segmentProgress) / (1 - fadeOutStart));
+    const t = Math.max(0, (1 - segmentProgress) / (1 - fadeOutStart));
+    return 0.22 + 0.78 * (t * t * (3 - 2 * t));
   }
   return 1.0;
 }
 
-function drawCornerBrackets(
+function drawRubElHizbStar(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  cornerLen: number,
-  color: string,
+  cx: number,
+  cy: number,
+  r: number,
+  strokeColor: string,
   lineWidth: number
 ) {
   ctx.save();
-  ctx.strokeStyle = color;
+  ctx.strokeStyle = strokeColor;
   ctx.lineWidth = lineWidth;
   ctx.beginPath();
-  // Top-left
-  ctx.moveTo(x, y + cornerLen);
-  ctx.lineTo(x, y);
-  ctx.lineTo(x + cornerLen, y);
-  // Top-right
-  ctx.moveTo(x + w - cornerLen, y);
-  ctx.lineTo(x + w, y);
-  ctx.lineTo(x + w, y + cornerLen);
-  // Bottom-left
-  ctx.moveTo(x, y + h - cornerLen);
-  ctx.lineTo(x, y + h);
-  ctx.lineTo(x + cornerLen, y + h);
-  // Bottom-right
-  ctx.moveTo(x + w - cornerLen, y + h);
-  ctx.lineTo(x + w, y + h);
-  ctx.lineTo(x + w, y + h - cornerLen);
+  ctx.rect(cx - r * 0.72, cy - r * 0.72, r * 1.44, r * 1.44);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r);
+  ctx.lineTo(cx + r, cy);
+  ctx.lineTo(cx, cy + r);
+  ctx.lineTo(cx - r, cy);
+  ctx.closePath();
   ctx.stroke();
   ctx.restore();
 }
 
-function renderSpotlightCardTemplate(
+// ============================================================================
+// FRAMELESS PURE ARABIC: CALLIGRAPHIE ARABE (Scheherazade New, Arabic Only)
+// ============================================================================
+function renderArabicPureKhattTemplate(
   ctx: CanvasRenderingContext2D,
   block: LaidOutVerseBlock,
   segmentProgress: number,
+  isInitialFrame: boolean,
   opts: VideoCanvasRenderOptions,
   resScale: number,
   topSafeY: number,
@@ -308,139 +642,57 @@ function renderSpotlightCardTemplate(
   const { width, isLightSurface } = opts;
   const isLandscape = width > opts.height;
   const availH = bottomSafeY - topSafeY;
-  const cardW = isLandscape
-    ? Math.min(width - Math.round(180 * resScale), Math.round(980 * resScale))
-    : width - Math.round(64 * resScale);
-  const innerPadX = Math.round((isLandscape ? 54 : 32) * resScale);
-  const textMaxW = cardW - innerPadX * 2;
+  const boxW = width - Math.round((isLandscape ? 160 : 52) * resScale);
+  const boxX = (width - boxW) / 2;
 
-  const measureWrap = (fitScale: number) => {
-    const arPx = Math.round(block.arFontPx * fitScale);
-    const arLH = Math.round(arPx * 1.64);
-    const trPx = Math.round(block.trFontPx * fitScale);
-    const trLH = Math.round(trPx * 1.44);
-    const frPx = Math.round(block.frFontPx * fitScale);
-    const frLH = Math.round(frPx * 1.42);
-
-    ctx.font = `400 ${arPx}px 'Amiri', 'Traditional Arabic', serif`;
-    const arLines = opts.showArabic
-      ? wrapTextLines(block.arLines.join(' '), textMaxW, (t) => ctx.measureText(t).width)
-      : [];
-    ctx.font = `italic 400 ${trPx}px Georgia, serif`;
-    const trLines = opts.showPhonetics
-      ? wrapTextLines(block.trLines.join(' '), textMaxW, (t) => ctx.measureText(t).width)
-      : [];
-    ctx.font = `500 ${frPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    const frLines = opts.showFrench
-      ? wrapTextLines(block.frLines.join(' '), textMaxW, (t) => ctx.measureText(t).width)
-      : [];
-
-    const neededH =
-      Math.round(100 * resScale) +
-      arLines.length * arLH +
-      (trLines.length > 0 ? trLines.length * trLH + Math.round(14 * resScale) : 0) +
-      (frLines.length > 0 ? frLines.length * frLH + Math.round(12 * resScale) : 0) +
-      Math.round(32 * resScale);
-
-    return { arPx, arLH, trPx, trLH, frPx, frLH, arLines, trLines, frLines, neededH };
-  };
-
-  let fit = measureWrap(1.0);
-  const maxCardH = availH - Math.round(16 * resScale);
-  if (fit.neededH > maxCardH) {
-    fit = measureWrap(0.84);
-  }
-  if (fit.neededH > maxCardH) {
-    fit = measureWrap(0.70);
-  }
-
-  const cardX = (width - cardW) / 2;
-  const cardH = Math.min(maxCardH, Math.max(Math.round(250 * resScale), fit.neededH));
-  const cardY = topSafeY + (availH - cardH) / 2;
-
-  const alpha = computeSegmentFadeAlpha(segmentProgress);
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Card backing
-  ctx.fillStyle = isLightSurface ? 'rgba(255, 255, 255, 0.84)' : 'rgba(8, 14, 12, 0.78)';
-  ctx.fillRect(cardX, cardY, cardW, cardH);
-
-  // Subtle hairline frame
-  ctx.strokeStyle = isLightSurface ? 'rgba(4, 120, 87, 0.25)' : 'rgba(251, 191, 36, 0.35)';
-  ctx.lineWidth = Math.max(1, Math.round(1.5 * resScale));
-  ctx.beginPath();
-  ctx.rect(cardX, cardY, cardW, cardH);
-  ctx.stroke();
-
-  // Architectural gold corner brackets
-  drawCornerBrackets(
-    ctx,
-    cardX + Math.round(10 * resScale),
-    cardY + Math.round(10 * resScale),
-    cardW - Math.round(20 * resScale),
-    cardH - Math.round(20 * resScale),
-    Math.round(22 * resScale),
-    isLightSurface ? '#047857' : '#FBBF24',
-    Math.max(2, Math.round(2.5 * resScale))
-  );
-
-  // Verse badge at top of card with generous clearance above Arabic diacritics
-  ctx.font = `700 ${Math.round(13.5 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  const headerH = Math.round(34 * resScale);
+  ctx.font = `700 ${Math.round(14 * resScale)}px 'Scheherazade New', 'Amiri', serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = isLightSurface ? '#047857' : '#FCD34D';
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.78)' : 'rgba(251, 191, 36, 0.85)';
   ctx.fillText(
-    block.isBismillah ? 'BISMILLAH' : `VERSET ${block.ayahNum}`,
+    block.isBismillah ? '﴿ البسملة ﴾' : `﴿ الآية ${block.ayahNum} ﴾`,
     width / 2,
-    cardY + Math.round(30 * resScale)
+    topSafeY + Math.round(18 * resScale),
+    boxW
   );
 
-  let yCursor = cardY + Math.round(96 * resScale);
-  const centerX = width / 2;
+  const innerTop = topSafeY + headerH + Math.round(8 * resScale);
+  const innerH = Math.max(80, availH - headerH - Math.round(16 * resScale));
 
-  for (const line of fit.arLines) {
-    drawRtlTajweedLine(ctx, line, centerX, yCursor, opts, fit.arPx);
-    yCursor += fit.arLH;
-  }
+  const fit = fitVerseIntoBox(ctx, block, boxW, innerH, segmentProgress, opts, resScale, {
+    arFontFamily: "'Scheherazade New', 'Amiri', 'Traditional Arabic', serif",
+    arFontWeight: '700',
+    arMultiplier: isLandscape ? 1.42 : 1.32,
+    includeAr: true,
+    includeTr: false,
+    includeFr: false,
+    minScale: 0.62,
+  });
 
-  if (fit.arLines.length > 0 && (fit.trLines.length > 0 || fit.frLines.length > 0)) {
-    const rw = Math.round(120 * resScale);
-    ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.28)' : 'rgba(251, 191, 36, 0.35)';
-    ctx.fillRect(centerX - rw / 2, yCursor - Math.round(6 * resScale), rw, Math.max(1.5, Math.round(1.5 * resScale)));
-    yCursor += Math.round(14 * resScale);
-  }
-
-  if (fit.trLines.length > 0) {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `italic 400 ${fit.trPx}px Georgia, serif`;
-    ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
-    for (const line of fit.trLines) {
-      ctx.fillText(line, centerX, yCursor);
-      yCursor += fit.trLH;
-    }
-    yCursor += Math.round(6 * resScale);
-  }
-
-  if (fit.frLines.length > 0) {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `500 ${fit.frPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    ctx.fillStyle = isLightSurface ? '#171717' : '#F8FAFC';
-    for (const line of fit.frLines) {
-      ctx.fillText(line, centerX, yCursor);
-      yCursor += fit.frLH;
-    }
-  }
+  ctx.save();
+  ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.78)' : 'rgba(0, 0, 0, 0.72)';
+  ctx.shadowBlur = Math.round(8 * resScale);
+  drawFittedVerseInBox(ctx, fit, boxX, innerTop, boxW, innerH, opts, resScale, {
+    drawDivider: false,
+  });
+  ctx.restore();
 
   ctx.restore();
 }
 
-function renderCinemaSubtitlesTemplate(
+// ============================================================================
+// FRAMELESS PURE FRENCH: POÉSIE FRANÇAISE (Cormorant Garamond, French Only)
+// ============================================================================
+function renderFrenchPurePoetryTemplate(
   ctx: CanvasRenderingContext2D,
   block: LaidOutVerseBlock,
   segmentProgress: number,
+  isInitialFrame: boolean,
   opts: VideoCanvasRenderOptions,
   resScale: number,
   topSafeY: number,
@@ -448,93 +700,167 @@ function renderCinemaSubtitlesTemplate(
 ) {
   const { width, isLightSurface } = opts;
   const isLandscape = width > opts.height;
-  const centerX = width / 2;
-  const alpha = computeSegmentFadeAlpha(segmentProgress);
+  const availH = bottomSafeY - topSafeY;
+  const boxW = width - Math.round((isLandscape ? 210 : 64) * resScale);
+  const boxX = (width - boxW) / 2;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const eyebrowH = Math.round(42 * resScale);
+  ctx.font = `600 ${Math.round(13 * resScale)}px 'Cinzel', Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.84)' : 'rgba(253, 224, 71, 0.88)';
+  ctx.fillText(
+    block.isBismillah ? 'BISMILLAH' : `VERSET ${block.ayahNum}`,
+    width / 2,
+    topSafeY + Math.round(16 * resScale),
+    boxW
+  );
+
+  const ruleW = Math.round(48 * resScale);
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.35)' : 'rgba(251, 191, 36, 0.42)';
+  ctx.fillRect(width / 2 - ruleW / 2, topSafeY + Math.round(31 * resScale), ruleW, Math.max(1.5, Math.round(1.5 * resScale)));
+
+  const innerTop = topSafeY + eyebrowH + Math.round(8 * resScale);
+  const innerH = Math.max(80, availH - eyebrowH - Math.round(14 * resScale));
+
+  const frenchBlock: LaidOutVerseBlock = block.rawFr
+    ? block
+    : { ...block, rawFr: block.rawTr || `Verset ${block.ayahNum}` };
+
+  const fit = fitVerseIntoBox(ctx, frenchBlock, boxW, innerH, segmentProgress, opts, resScale, {
+    frFontFamily: "'Cormorant Garamond', Georgia, serif",
+    frFontStyle: 'italic',
+    frFontWeight: '600',
+    frMultiplier: isLandscape ? 1.56 : 1.42,
+    includeAr: false,
+    includeTr: false,
+    includeFr: true,
+    minScale: 0.62,
+  });
+
+  drawFittedVerseInBox(ctx, fit, boxX, innerTop, boxW, innerH, opts, resScale, {
+    drawDivider: false,
+    frColor: isLightSurface ? '#111827' : '#F8FAFC',
+  });
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: SOUS-TITRES CINÉMA (Frameless Floating Gradient Fade, Zero Box)
+// ============================================================================
+function renderCinemaSubtitlesTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const availH = bottomSafeY - topSafeY;
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  // 1. Arabic calligraphy floats majestically in upper-center cinema field
-  const arFontPx = Math.round(block.arFontPx * (isLandscape ? 1.18 : 1.06));
-  const arLineH = Math.round(arFontPx * 1.68);
-  const arMaxW = width - Math.round((isLandscape ? 200 : 72) * resScale);
-  ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
-  const arLines = opts.showArabic
-    ? wrapTextLines(block.arLines.join(' '), arMaxW, (t) => ctx.measureText(t).width)
-    : [];
+  const hasSubtitles = (opts.showPhonetics && Boolean(block.rawTr)) || (opts.showFrench && Boolean(block.rawFr));
+  const arBoxW = width - Math.round((isLandscape ? 170 : 58) * resScale);
+  const arBoxX = (width - arBoxW) / 2;
 
-  // Subtitle lower-third band dimensions
-  const subMaxW = isLandscape ? Math.min(width - Math.round(160 * resScale), Math.round(1080 * resScale)) : width - Math.round(56 * resScale);
-  ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-  const trLines = opts.showPhonetics
-    ? wrapTextLines(block.trLines.join(' '), subMaxW - Math.round(48 * resScale), (t) => ctx.measureText(t).width)
-    : [];
-  ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-  const frLines = opts.showFrench
-    ? wrapTextLines(block.frLines.join(' '), subMaxW - Math.round(48 * resScale), (t) => ctx.measureText(t).width)
-    : [];
+  const subMaxW = isLandscape
+    ? Math.min(width - Math.round(160 * resScale), Math.round(1080 * resScale))
+    : width - Math.round(52 * resScale);
+  const subBoxX = (width - subMaxW) / 2;
 
-  const hasSubtitles = trLines.length > 0 || frLines.length > 0;
-  const subBoxH = hasSubtitles
-    ? Math.round(34 * resScale) +
-      trLines.length * block.trLineHeightPx +
-      frLines.length * block.frLineHeightPx
+  const maxSubBoxH = hasSubtitles ? Math.round(availH * 0.42) : 0;
+  const subFit = hasSubtitles
+    ? fitVerseIntoBox(ctx, block, subMaxW, Math.max(60, maxSubBoxH - Math.round(20 * resScale)), segmentProgress, opts, resScale, {
+        frFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+        frFontWeight: '600',
+        includeAr: false,
+        includeTr: opts.showPhonetics,
+        includeFr: opts.showFrench,
+      })
+    : null;
+
+  const subBoxH = subFit
+    ? Math.min(maxSubBoxH, Math.max(Math.round(52 * resScale), subFit.contentH + Math.round(20 * resScale)))
     : 0;
-  const subBoxY = bottomSafeY - subBoxH - Math.round(14 * resScale);
+  const subBoxY = bottomSafeY - subBoxH - Math.round(10 * resScale);
 
-  const upperFieldTop = topSafeY + Math.round(16 * resScale);
-  const upperFieldBot = hasSubtitles ? subBoxY - Math.round(18 * resScale) : bottomSafeY;
-  const arTotalH = arLines.length * arLineH;
-  let arY = upperFieldTop + Math.max(0, (upperFieldBot - upperFieldTop - arTotalH) / 2) + arLineH * 0.4;
+  const upperFieldTop = topSafeY + Math.round(12 * resScale);
+  const upperFieldBot = hasSubtitles ? subBoxY - Math.round(16 * resScale) : bottomSafeY - Math.round(12 * resScale);
+  const upperFieldH = Math.max(80, upperFieldBot - upperFieldTop);
 
-  ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.88)';
-  ctx.shadowBlur = Math.round(12 * resScale);
-  for (const line of arLines) {
-    drawRtlTajweedLine(ctx, line, centerX, arY, opts, arFontPx);
-    arY += arLineH;
+  if (opts.showArabic && block.rawAr) {
+    const arFit = fitVerseIntoBox(ctx, block, arBoxW, upperFieldH, segmentProgress, opts, resScale, {
+      arFontFamily: "'Amiri', 'Traditional Arabic', serif",
+      arFontWeight: '700',
+      arMultiplier: isLandscape ? 1.18 : 1.08,
+      includeAr: true,
+      includeTr: false,
+      includeFr: false,
+    });
+    ctx.save();
+    ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.88)';
+    ctx.shadowBlur = Math.round(12 * resScale);
+    drawFittedVerseInBox(ctx, arFit, arBoxX, upperFieldTop, arBoxW, upperFieldH, opts, resScale, {
+      drawDivider: false,
+    });
+    ctx.restore();
   }
 
-  // 2. Sleek Cinema Subtitle Bar in the lower third
-  if (hasSubtitles) {
-    const subBoxX = (width - subMaxW) / 2;
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = isLightSurface ? 'rgba(255, 255, 255, 0.86)' : 'rgba(0, 0, 0, 0.72)';
-    ctx.fillRect(subBoxX, subBoxY, subMaxW, subBoxH);
-
-    // Top gold cinema accent rule
-    ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
-    ctx.fillRect(subBoxX, subBoxY, subMaxW, Math.max(2, Math.round(2.5 * resScale)));
-
-    let subY = subBoxY + Math.round(24 * resScale);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    if (trLines.length > 0) {
-      ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-      ctx.fillStyle = isLightSurface ? '#065F46' : '#E2E8F0';
-      for (const line of trLines) {
-        ctx.fillText(line, centerX, subY);
-        subY += block.trLineHeightPx;
+  if (subFit && subBoxH > 0) {
+    if (typeof ctx.createLinearGradient === 'function') {
+      const gradTop = Math.max(topSafeY, subBoxY - Math.round(44 * resScale));
+      const scrim = ctx.createLinearGradient(0, gradTop, 0, bottomSafeY);
+      if (isLightSurface) {
+        scrim.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        scrim.addColorStop(1, 'rgba(255, 255, 255, 0.72)');
+      } else {
+        scrim.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        scrim.addColorStop(1, 'rgba(0, 0, 0, 0.64)');
       }
+      ctx.fillStyle = scrim;
+      ctx.fillRect(0, gradTop, width, bottomSafeY - gradTop);
     }
 
-    if (frLines.length > 0) {
-      ctx.font = `600 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-      ctx.fillStyle = isLightSurface ? '#0F172A' : '#FFFFFF';
-      for (const line of frLines) {
-        ctx.fillText(line, centerX, subY);
-        subY += block.frLineHeightPx;
-      }
-    }
+    ctx.save();
+    ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.88)';
+    ctx.shadowBlur = Math.round(10 * resScale);
+    drawFittedVerseInBox(
+      ctx,
+      subFit,
+      subBoxX,
+      subBoxY + Math.round(8 * resScale),
+      subMaxW,
+      subBoxH - Math.round(12 * resScale),
+      opts,
+      resScale,
+      { drawDivider: false, frColor: isLightSurface ? '#0F172A' : '#FFFFFF' }
+    );
+    ctx.restore();
   }
 
   ctx.restore();
 }
 
+// ============================================================================
+// TEMPLATE: ÉDITION BILINGUE SPLIT (Frameless Open Two-Column Typography)
+// ============================================================================
 function renderMushafSplitTemplate(
   ctx: CanvasRenderingContext2D,
   block: LaidOutVerseBlock,
   segmentProgress: number,
+  isInitialFrame: boolean,
   opts: VideoCanvasRenderOptions,
   resScale: number,
   topSafeY: number,
@@ -543,154 +869,124 @@ function renderMushafSplitTemplate(
   const { width, height, isLightSurface } = opts;
   const isLandscape = width > height;
   const availH = bottomSafeY - topSafeY;
-  const alpha = computeSegmentFadeAlpha(segmentProgress);
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
   if (isLandscape || width === height) {
-    // 2-Column Editorial Split: Left = Translation + Phonetics, Right = Arabic Calligraphy
-    const padX = Math.round(76 * resScale);
-    const colGap = Math.round(48 * resScale);
+    const padX = Math.round(72 * resScale);
+    const colGap = Math.round(52 * resScale);
     const colW = (width - padX * 2 - colGap) / 2;
-    const leftCenterX = padX + colW / 2;
-    const rightCenterX = padX + colW + colGap + colW / 2;
-    const dividerX = width / 2;
+    const leftX = padX;
+    const rightX = padX + colW + colGap;
 
-    // Central golden editorial divider
-    ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.25)' : 'rgba(251, 191, 36, 0.36)';
-    ctx.fillRect(
-      dividerX - Math.round(1 * resScale),
-      topSafeY + Math.round(36 * resScale),
-      Math.max(2, Math.round(2 * resScale)),
-      availH - Math.round(72 * resScale)
-    );
-
-    // Subtle tinted card behind translation side
-    ctx.fillStyle = isLightSurface ? 'rgba(255, 255, 255, 0.68)' : 'rgba(10, 18, 15, 0.62)';
-    ctx.fillRect(
-      padX - Math.round(16 * resScale),
-      topSafeY + Math.round(24 * resScale),
-      colW + Math.round(24 * resScale),
-      availH - Math.round(48 * resScale)
-    );
+    const areaTop = topSafeY + Math.round(16 * resScale);
+    const areaH = availH - Math.round(32 * resScale);
 
     // Right column: Arabic Calligraphy
-    const arFontPx = Math.round(block.arFontPx * 1.04);
-    const arLineH = Math.round(arFontPx * 1.72);
-    ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
-    const arLines = opts.showArabic
-      ? wrapTextLines(block.arLines.join(' '), colW - Math.round(24 * resScale), (t) => ctx.measureText(t).width)
-      : [];
-    const arTotalH = arLines.length * arLineH;
-    let arY = topSafeY + (availH - arTotalH) / 2 + arLineH * 0.4;
-    for (const line of arLines) {
-      drawRtlTajweedLine(ctx, line, rightCenterX, arY, opts, arFontPx);
-      arY += arLineH;
-    }
+    const arFit = fitVerseIntoBox(ctx, block, colW - Math.round(12 * resScale), areaH - Math.round(12 * resScale), segmentProgress, opts, resScale, {
+      arFontFamily: "'Amiri', 'Traditional Arabic', serif",
+      arMultiplier: 1.05,
+      includeAr: opts.showArabic,
+      includeTr: false,
+      includeFr: false,
+    });
+    drawFittedVerseInBox(
+      ctx,
+      arFit,
+      rightX + Math.round(6 * resScale),
+      areaTop + Math.round(6 * resScale),
+      colW - Math.round(12 * resScale),
+      areaH - Math.round(12 * resScale),
+      opts,
+      resScale,
+      { drawDivider: false }
+    );
 
-    // Left column: Verse number badge + Phonetics + French
-    ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-    const trLines = opts.showPhonetics
-      ? wrapTextLines(block.trLines.join(' '), colW - Math.round(24 * resScale), (t) => ctx.measureText(t).width)
-      : [];
-    ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    const frLines = opts.showFrench
-      ? wrapTextLines(block.frLines.join(' '), colW - Math.round(24 * resScale), (t) => ctx.measureText(t).width)
-      : [];
-
-    const leftTotalH =
-      Math.round(38 * resScale) +
-      trLines.length * block.trLineHeightPx +
-      (trLines.length > 0 && frLines.length > 0 ? Math.round(18 * resScale) : 0) +
-      frLines.length * block.frLineHeightPx;
-    let leftY = topSafeY + (availH - leftTotalH) / 2;
-
+    // Left column: Eyebrow + Phonetics + Literary French Serif
+    const badgeH = Math.round(32 * resScale);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `800 ${Math.round(14 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(12.5 * resScale)}px 'Cinzel', Georgia, serif`;
     ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
     ctx.fillText(
       block.isBismillah ? 'BISMILLAH' : `AYAH ${block.ayahNum}`,
-      leftCenterX,
-      leftY
+      leftX + colW / 2,
+      areaTop + Math.round(18 * resScale)
     );
-    leftY += Math.round(36 * resScale);
 
-    if (trLines.length > 0) {
-      ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-      ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
-      for (const line of trLines) {
-        ctx.fillText(line, leftCenterX, leftY);
-        leftY += block.trLineHeightPx;
+    const transFit = fitVerseIntoBox(
+      ctx,
+      block,
+      colW - Math.round(16 * resScale),
+      areaH - badgeH - Math.round(16 * resScale),
+      segmentProgress,
+      opts,
+      resScale,
+      {
+        frFontFamily: "'Cormorant Garamond', Georgia, serif",
+        frFontWeight: '600',
+        frMultiplier: 1.15,
+        includeAr: false,
+        includeTr: opts.showPhonetics,
+        includeFr: opts.showFrench,
       }
-      leftY += Math.round(16 * resScale);
-    }
-
-    if (frLines.length > 0) {
-      ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-      ctx.fillStyle = isLightSurface ? '#0F172A' : '#F8FAFC';
-      for (const line of frLines) {
-        ctx.fillText(line, leftCenterX, leftY);
-        leftY += block.frLineHeightPx;
-      }
-    }
+    );
+    drawFittedVerseInBox(
+      ctx,
+      transFit,
+      leftX + Math.round(8 * resScale),
+      areaTop + badgeH + Math.round(4 * resScale),
+      colW - Math.round(16 * resScale),
+      areaH - badgeH - Math.round(16 * resScale),
+      opts,
+      resScale,
+      { drawDivider: false }
+    );
   } else {
-    // Portrait 9:16 Top/Bottom Editorial Split
-    const centerX = width / 2;
-    const midY = topSafeY + availH * 0.46;
-    const boxW = width - Math.round(72 * resScale);
+    const boxW = width - Math.round(64 * resScale);
     const boxX = (width - boxW) / 2;
+    const midY = topSafeY + availH * 0.47;
 
-    // Horizontal gold rule
-    ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.28)' : 'rgba(251, 191, 36, 0.42)';
-    ctx.fillRect(boxX + Math.round(48 * resScale), midY, boxW - Math.round(96 * resScale), Math.max(2, Math.round(2 * resScale)));
+    const upperH = Math.max(60, midY - topSafeY - Math.round(12 * resScale));
+    const arFit = fitVerseIntoBox(ctx, block, boxW, upperH, segmentProgress, opts, resScale, {
+      arFontFamily: "'Amiri', 'Traditional Arabic', serif",
+      includeAr: opts.showArabic,
+      includeTr: false,
+      includeFr: false,
+    });
+    drawFittedVerseInBox(ctx, arFit, boxX, topSafeY + Math.round(8 * resScale), boxW, upperH, opts, resScale, {
+      drawDivider: false,
+    });
 
-    // Upper Arabic panel
-    const arTotalH = block.arLines.length * block.arLineHeightPx;
-    let arY = topSafeY + (midY - topSafeY - arTotalH) / 2 + block.arLineHeightPx * 0.45;
-    for (const line of block.arLines) {
-      drawRtlTajweedLine(ctx, line, centerX, arY, opts, block.arFontPx);
-      arY += block.arLineHeightPx;
-    }
-
-    // Lower French / Phonetics panel
-    const lowerAvail = bottomSafeY - midY;
-    const lowerTotalH =
-      block.trLines.length * block.trLineHeightPx +
-      block.frLines.length * block.frLineHeightPx +
-      Math.round(24 * resScale);
-    let lowY = midY + Math.max(Math.round(32 * resScale), (lowerAvail - lowerTotalH) / 2);
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    if (block.trLines.length > 0) {
-      ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-      ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
-      for (const line of block.trLines) {
-        ctx.fillText(line, centerX, lowY);
-        lowY += block.trLineHeightPx;
-      }
-      lowY += Math.round(12 * resScale);
-    }
-    if (block.frLines.length > 0) {
-      ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-      ctx.fillStyle = isLightSurface ? '#0F172A' : '#F8FAFC';
-      for (const line of block.frLines) {
-        ctx.fillText(line, centerX, lowY);
-        lowY += block.frLineHeightPx;
-      }
-    }
+    const lowerTop = midY + Math.round(12 * resScale);
+    const lowerH = Math.max(60, bottomSafeY - lowerTop - Math.round(8 * resScale));
+    const transFit = fitVerseIntoBox(ctx, block, boxW, lowerH, segmentProgress, opts, resScale, {
+      frFontFamily: "'Cormorant Garamond', Georgia, serif",
+      frFontWeight: '600',
+      frMultiplier: 1.14,
+      includeAr: false,
+      includeTr: opts.showPhonetics,
+      includeFr: opts.showFrench,
+    });
+    drawFittedVerseInBox(ctx, transFit, boxX, lowerTop, boxW, lowerH, opts, resScale, {
+      drawDivider: false,
+    });
   }
 
   ctx.restore();
 }
 
+// ============================================================================
+// TEMPLATE: CONTEMPLATION & ONDES (Open Serif + Gentle Wave)
+// ============================================================================
 function renderMeditationMinimalTemplate(
   ctx: CanvasRenderingContext2D,
   block: LaidOutVerseBlock,
   segmentProgress: number,
   currentSec: number,
+  isInitialFrame: boolean,
   opts: VideoCanvasRenderOptions,
   resScale: number,
   topSafeY: number,
@@ -699,70 +995,36 @@ function renderMeditationMinimalTemplate(
   const { width, isLightSurface } = opts;
   const centerX = width / 2;
   const availH = bottomSafeY - topSafeY;
-  const alpha = computeSegmentFadeAlpha(segmentProgress);
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
 
   ctx.save();
   ctx.globalAlpha = alpha;
 
-  const contentTotalH =
-    Math.round(52 * resScale) +
-    block.arLines.length * block.arLineHeightPx +
-    block.trLines.length * block.trLineHeightPx +
-    block.frLines.length * block.frLineHeightPx +
-    Math.round(54 * resScale);
+  const starSpace = Math.round(42 * resScale);
+  const waveSpace = Math.round(46 * resScale);
+  const boxW = width - Math.round((width > opts.height ? 220 : 72) * resScale);
+  const boxX = (width - boxW) / 2;
+  const innerH = Math.max(80, availH - starSpace - waveSpace);
 
-  let yCursor = topSafeY + Math.max(Math.round(18 * resScale), (availH - contentTotalH) / 2);
+  const starCy = topSafeY + Math.round(20 * resScale);
+  drawRubElHizbStar(
+    ctx,
+    centerX,
+    starCy,
+    Math.round(12 * resScale),
+    isLightSurface ? 'rgba(4, 120, 87, 0.65)' : 'rgba(251, 191, 36, 0.78)',
+    Math.max(1.5, Math.round(1.6 * resScale))
+  );
 
-  // Delicate 8-pointed Rub el Hizb geometric emblem above verse
-  const starR = Math.round(12 * resScale);
-  const starCy = yCursor;
-  ctx.strokeStyle = isLightSurface ? 'rgba(4, 120, 87, 0.6)' : 'rgba(251, 191, 36, 0.72)';
-  ctx.lineWidth = Math.max(1.5, Math.round(1.6 * resScale));
-  // Square 1 (axis-aligned)
-  ctx.beginPath();
-  ctx.rect(centerX - starR * 0.72, starCy - starR * 0.72, starR * 1.44, starR * 1.44);
-  ctx.stroke();
-  // Square 2 (diamond)
-  ctx.beginPath();
-  ctx.moveTo(centerX, starCy - starR);
-  ctx.lineTo(centerX + starR, starCy);
-  ctx.lineTo(centerX, starCy + starR);
-  ctx.lineTo(centerX - starR, starCy);
-  ctx.closePath();
-  ctx.stroke();
+  const fit = fitVerseIntoBox(ctx, block, boxW, innerH, segmentProgress, opts, resScale, {
+    frFontFamily: "'Cormorant Garamond', Georgia, serif",
+    frFontStyle: 'italic',
+    frFontWeight: '600',
+    frMultiplier: 1.16,
+  });
+  drawFittedVerseInBox(ctx, fit, boxX, topSafeY + starSpace, boxW, innerH, opts, resScale);
 
-  yCursor += Math.round(44 * resScale);
-
-  for (const line of block.arLines) {
-    drawRtlTajweedLine(ctx, line, centerX, yCursor, opts, block.arFontPx);
-    yCursor += block.arLineHeightPx;
-  }
-
-  yCursor += Math.round(12 * resScale);
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (block.trLines.length > 0) {
-    ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-    ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
-    for (const line of block.trLines) {
-      ctx.fillText(line, centerX, yCursor);
-      yCursor += block.trLineHeightPx;
-    }
-    yCursor += Math.round(8 * resScale);
-  }
-
-  if (block.frLines.length > 0) {
-    ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
-    for (const line of block.frLines) {
-      ctx.fillText(line, centerX, yCursor);
-      yCursor += block.frLineHeightPx;
-    }
-  }
-
-  // Symmetrical subtle breathing audio-wave bars synced to playback clock
-  const waveY = Math.min(bottomSafeY - Math.round(26 * resScale), yCursor + Math.round(28 * resScale));
+  const waveY = bottomSafeY - Math.round(22 * resScale);
   const barCount = 15;
   const barW = Math.max(2, Math.round(3 * resScale));
   const barGap = Math.round(7 * resScale);
@@ -777,6 +1039,370 @@ function renderMeditationMinimalTemplate(
     const barH = Math.round((6 + 18 * envelope * pulse) * resScale);
     ctx.fillRect(waveLeft + b * (barW + barGap), waveY - barH / 2, barW, barH);
   }
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: ÉCHO LUMINEUX (Line-by-Line Reading Glow)
+// ============================================================================
+function renderKaraokeGlowTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const boxW = width - Math.round((isLandscape ? 180 : 58) * resScale);
+  const boxX = (width - boxW) / 2;
+  const badgeH = Math.round(36 * resScale);
+  const barH = Math.round(18 * resScale);
+  const innerH = Math.max(80, bottomSafeY - topSafeY - badgeH - barH);
+
+  ctx.save();
+
+  const pillW = Math.min(Math.round(220 * resScale), boxW * 0.55);
+  const pillH = Math.max(3, Math.round(3.5 * resScale));
+  const pillX = width / 2 - pillW / 2;
+  const pillY = topSafeY + Math.round(14 * resScale);
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.16)' : 'rgba(255, 255, 255, 0.16)';
+  ctx.fillRect(pillX, pillY, pillW, pillH);
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
+  ctx.fillRect(pillX, pillY, Math.round(pillW * Math.max(0.05, Math.min(1, segmentProgress))), pillH);
+
+  ctx.font = `700 ${Math.round(12 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FCD34D';
+  ctx.fillText(
+    block.isBismillah ? 'BISMILLAH' : `VERSET ${block.ayahNum}`,
+    width / 2,
+    pillY + Math.round(18 * resScale)
+  );
+
+  const fit = fitVerseIntoBox(ctx, block, boxW, innerH, segmentProgress, opts, resScale);
+  drawFittedVerseInBox(ctx, fit, boxX, topSafeY + badgeH + Math.round(12 * resScale), boxW, innerH, opts, resScale, {
+    highlightProgress: segmentProgress,
+  });
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: ÉDITORIAL MINIMAL (Frameless Left-Aligned Literary Editorial)
+// ============================================================================
+function renderEditorialMagazineTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const padX = Math.round((isLandscape ? 120 : 44) * resScale);
+  const contentW = Math.max(140, width - padX * 2);
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  ctx.font = `700 ${Math.round(12.5 * resScale)}px 'Cinzel', Georgia, serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FCD34D';
+  ctx.fillText(
+    block.isBismillah ? '00 · BISMILLAH' : `${String(block.ayahNum).padStart(2, '0')} · ${block.surahName || opts.surahName}`,
+    padX,
+    topSafeY + Math.round(24 * resScale),
+    contentW
+  );
+
+  const accentRuleW = Math.round(54 * resScale);
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
+  ctx.fillRect(padX, topSafeY + Math.round(38 * resScale), accentRuleW, Math.max(2, Math.round(2 * resScale)));
+
+  const innerY = topSafeY + Math.round(52 * resScale);
+  const innerH = Math.max(70, bottomSafeY - innerY - Math.round(18 * resScale));
+
+  const fit = fitVerseIntoBox(ctx, block, contentW, innerH, segmentProgress, opts, resScale, {
+    frFontFamily: "'Cormorant Garamond', Georgia, serif",
+    frFontWeight: '600',
+    frMultiplier: 1.14,
+  });
+  drawFittedVerseInBox(ctx, fit, padX, innerY, contentW, innerH, opts, resScale, {
+    align: 'left',
+  });
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: FOCUS SÉQUENTIEL (Frameless Watermark Numeral + Centered Typography)
+// ============================================================================
+function renderVerseTickerTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const availH = bottomSafeY - topSafeY;
+  const boxW = width - Math.round((isLandscape ? 180 : 54) * resScale);
+  const boxX = (width - boxW) / 2;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Watermark verse numeral in the center background (frameless)
+  const bgGlyph = block.isBismillah ? '۞' : String(block.ayahNum);
+  const watermarkPx = Math.round((isLandscape ? 210 : 175) * resScale);
+  ctx.save();
+  ctx.globalAlpha *= isLightSurface ? 0.08 : 0.09;
+  ctx.font = `800 ${watermarkPx}px 'Cinzel', Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
+  ctx.fillText(bgGlyph, width / 2, topSafeY + availH / 2);
+  ctx.restore();
+
+  const fit = fitVerseIntoBox(ctx, block, boxW, availH - Math.round(24 * resScale), segmentProgress, opts, resScale, {
+    arFontFamily: "'Amiri', 'Traditional Arabic', serif",
+    arFontWeight: '700',
+    arMultiplier: 1.06,
+    frFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    frFontWeight: '500',
+  });
+  drawFittedVerseInBox(ctx, fit, boxX, topSafeY + Math.round(12 * resScale), boxW, availH - Math.round(24 * resScale), opts, resScale);
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: PLUME RUQ'AH (Aref Ruqaa Arabic + Light Plus Jakarta Sans)
+// ============================================================================
+function renderArabicRuqaaModernTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const boxW = width - Math.round((isLandscape ? 175 : 54) * resScale);
+  const boxX = (width - boxW) / 2;
+  const availH = bottomSafeY - topSafeY;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const fit = fitVerseIntoBox(ctx, block, boxW, availH - Math.round(20 * resScale), segmentProgress, opts, resScale, {
+    arFontFamily: "'Aref Ruqaa', 'Amiri', serif",
+    arFontWeight: '700',
+    arMultiplier: 1.14,
+    frFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    frFontWeight: '300',
+    frMultiplier: 0.94,
+    trMultiplier: 0.88,
+  });
+
+  drawFittedVerseInBox(
+    ctx,
+    fit,
+    boxX,
+    topSafeY + Math.round(10 * resScale),
+    boxW,
+    availH - Math.round(20 * resScale),
+    opts,
+    resScale,
+    {
+      arColor: isLightSurface ? '#064E3B' : '#FEF3C7',
+      frColor: isLightSurface ? '#334155' : '#E2E8F0',
+    }
+  );
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: KUFI GÉOMÉTRIQUE (Noto Kufi Arabic + Engraved Cinzel Header)
+// ============================================================================
+function renderKufiEditorialTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const boxW = width - Math.round((isLandscape ? 180 : 54) * resScale);
+  const boxX = (width - boxW) / 2;
+  const availH = bottomSafeY - topSafeY;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const headerH = Math.round(38 * resScale);
+  ctx.font = `700 ${Math.round(13.5 * resScale)}px 'Cinzel', Georgia, serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
+  ctx.fillText(
+    block.isBismillah ? 'BISMILLAH' : `${(block.surahName || opts.surahName).toUpperCase()}  •  ${block.ayahNum}`,
+    width / 2,
+    topSafeY + Math.round(20 * resScale),
+    boxW
+  );
+
+  const innerTop = topSafeY + headerH + Math.round(6 * resScale);
+  const innerH = Math.max(70, availH - headerH - Math.round(16 * resScale));
+
+  const fit = fitVerseIntoBox(ctx, block, boxW, innerH, segmentProgress, opts, resScale, {
+    arFontFamily: "'Noto Kufi Arabic', 'Amiri', sans-serif",
+    arFontWeight: '600',
+    arMultiplier: 0.92,
+    frFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    frFontWeight: '500',
+    frMultiplier: 0.98,
+  });
+
+  drawFittedVerseInBox(ctx, fit, boxX, innerTop, boxW, innerH, opts, resScale);
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: FOCUS PHONÉTIQUE (Dominant Italic Phonetics for Pronunciation)
+// ============================================================================
+function renderPhoneticsFocusTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const boxW = width - Math.round((isLandscape ? 175 : 54) * resScale);
+  const boxX = (width - boxW) / 2;
+  const availH = bottomSafeY - topSafeY;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const hasTr = Boolean(block.rawTr);
+  const fit = fitVerseIntoBox(ctx, block, boxW, availH - Math.round(20 * resScale), segmentProgress, opts, resScale, {
+    arFontFamily: "'Amiri', 'Traditional Arabic', serif",
+    arMultiplier: 0.78,
+    trFontFamily: "'Cormorant Garamond', Georgia, serif",
+    trFontStyle: 'italic',
+    trFontWeight: '600',
+    trMultiplier: 1.44,
+    frFontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+    frFontWeight: '400',
+    frMultiplier: 0.86,
+    includeAr: opts.showArabic,
+    includeTr: hasTr,
+    includeFr: opts.showFrench,
+  });
+
+  drawFittedVerseInBox(
+    ctx,
+    fit,
+    boxX,
+    topSafeY + Math.round(10 * resScale),
+    boxW,
+    availH - Math.round(20 * resScale),
+    opts,
+    resScale,
+    {
+      arColor: isLightSurface ? 'rgba(23, 23, 23, 0.72)' : 'rgba(226, 232, 240, 0.74)',
+      trColor: isLightSurface ? '#047857' : '#FDE68A',
+      frColor: isLightSurface ? '#334155' : '#F1F5F9',
+    }
+  );
+
+  ctx.restore();
+}
+
+// ============================================================================
+// TEMPLATE: ARABE MONUMENTAL (Giant Scheherazade + Whisper Italic French)
+// ============================================================================
+function renderArabicGiantWhisperFrTemplate(
+  ctx: CanvasRenderingContext2D,
+  block: LaidOutVerseBlock,
+  segmentProgress: number,
+  isInitialFrame: boolean,
+  opts: VideoCanvasRenderOptions,
+  resScale: number,
+  topSafeY: number,
+  bottomSafeY: number
+) {
+  const { width, isLightSurface } = opts;
+  const isLandscape = width > opts.height;
+  const boxW = width - Math.round((isLandscape ? 160 : 50) * resScale);
+  const boxX = (width - boxW) / 2;
+  const availH = bottomSafeY - topSafeY;
+
+  const alpha = computeSegmentFadeAlpha(segmentProgress, isInitialFrame);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const fit = fitVerseIntoBox(ctx, block, boxW, availH - Math.round(18 * resScale), segmentProgress, opts, resScale, {
+    arFontFamily: "'Scheherazade New', 'Amiri', 'Traditional Arabic', serif",
+    arFontWeight: '700',
+    arMultiplier: 1.32,
+    frFontFamily: "'Cormorant Garamond', Georgia, serif",
+    frFontStyle: 'italic',
+    frFontWeight: '400',
+    frMultiplier: 0.86,
+    includeAr: opts.showArabic,
+    includeTr: false,
+    includeFr: opts.showFrench,
+    minScale: 0.42,
+  });
+
+  drawFittedVerseInBox(
+    ctx,
+    fit,
+    boxX,
+    topSafeY + Math.round(9 * resScale),
+    boxW,
+    availH - Math.round(18 * resScale),
+    opts,
+    resScale,
+    {
+      drawDivider: false,
+      frColor: isLightSurface ? 'rgba(30, 41, 59, 0.78)' : 'rgba(226, 232, 240, 0.78)',
+    }
+  );
 
   ctx.restore();
 }
@@ -875,10 +1501,11 @@ export function renderVideoCanvasFrame(
   }
 
   const { activeIndex, segmentProgress } = findActiveTimelineEntry(timeline, currentSec);
+  const isPortrait = height > width;
   const topSafeY = Math.round(
-    (opts.showSurahHeader ? (isLandscape ? 114 : 146) : isLandscape ? 32 : 56) * resScale
+    (opts.showSurahHeader ? (isPortrait ? 146 : 114) : isPortrait ? 56 : 32) * resScale
   );
-  const bottomSafeY = height - Math.round((isLandscape ? 122 : 172) * resScale);
+  const bottomSafeY = height - Math.round((isPortrait ? 172 : 122) * resScale);
   const hasMediaBg = Boolean(videoEl || opts.bgImage);
 
   ctx.save();
@@ -887,27 +1514,55 @@ export function renderVideoCanvasFrame(
   ctx.clip();
 
   const activeBlock = layout.blocks[activeIndex] || layout.blocks[0];
+  const isInitialFrame = currentSec <= 0.05;
 
-  if (activeBlock && opts.flowMode === 'spotlight_card') {
-    renderSpotlightCardTemplate(ctx, activeBlock, segmentProgress, opts, resScale, topSafeY, bottomSafeY);
+  if (activeBlock && opts.flowMode === 'arabic_pure_khatt') {
+    renderArabicPureKhattTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'french_pure_poetry') {
+    renderFrenchPurePoetryTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
   } else if (activeBlock && opts.flowMode === 'cinema_subtitles') {
-    renderCinemaSubtitlesTemplate(ctx, activeBlock, segmentProgress, opts, resScale, topSafeY, bottomSafeY);
+    renderCinemaSubtitlesTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
   } else if (activeBlock && opts.flowMode === 'mushaf_split') {
-    renderMushafSplitTemplate(ctx, activeBlock, segmentProgress, opts, resScale, topSafeY, bottomSafeY);
+    renderMushafSplitTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
   } else if (activeBlock && opts.flowMode === 'meditation_minimal') {
-    renderMeditationMinimalTemplate(
-      ctx,
-      activeBlock,
-      segmentProgress,
+    renderMeditationMinimalTemplate(ctx, activeBlock, segmentProgress, currentSec, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'karaoke_glow') {
+    renderKaraokeGlowTemplate(ctx, activeBlock, segmentProgress, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'editorial_magazine') {
+    renderEditorialMagazineTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'verse_ticker') {
+    renderVerseTickerTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'arabic_ruqaa_modern') {
+    renderArabicRuqaaModernTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'kufi_editorial') {
+    renderKufiEditorialTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'phonetics_focus') {
+    renderPhoneticsFocusTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else if (activeBlock && opts.flowMode === 'arabic_giant_whisper_fr') {
+    renderArabicGiantWhisperFrTemplate(ctx, activeBlock, segmentProgress, isInitialFrame, opts, resScale, topSafeY, bottomSafeY);
+  } else {
+    // Continuous frameless fluid scroll modes:
+    // 'teleprompter', 'stream', 'night_lantern', 'dual_ribbon'
+    const isNightLantern = opts.flowMode === 'night_lantern';
+    const isDualRibbon = opts.flowMode === 'dual_ribbon';
+    const scrollArFont =
+      opts.flowMode === 'stream'
+        ? "'Scheherazade New', 'Amiri', 'Traditional Arabic', serif"
+        : "'Amiri', 'Traditional Arabic', serif";
+    const scrollFrFont = isNightLantern
+      ? "'Cormorant Garamond', Georgia, serif"
+      : "'Plus Jakarta Sans', system-ui, sans-serif";
+
+    const scrollY = computeFluidScrollYForBlocks(
+      layout.blocks,
+      timeline,
       currentSec,
-      opts,
-      resScale,
       topSafeY,
       bottomSafeY
     );
-  } else {
-    // 'teleprompter' or 'stream' continuous scroll across the entire verse ribbon
-    const scrollY = computeContinuousScrollY(layout.centersPx, timeline, currentSec, height);
+
+    const horizontalPad = isLandscape ? Math.round(136 * resScale) : Math.round(56 * resScale);
+    const maxLineW = Math.max(200, width - horizontalPad * 2);
 
     for (let i = 0; i < layout.blocks.length; i++) {
       const block = layout.blocks[i];
@@ -921,10 +1576,10 @@ export function renderVideoCanvasFrame(
       const distance = Math.abs(i - activeIndex);
 
       let alpha = 1.0;
-      if (opts.flowMode === 'teleprompter') {
-        alpha = isActive ? 1.0 : distance === 1 ? 0.42 : 0.22;
+      if (opts.flowMode === 'teleprompter' || isNightLantern) {
+        alpha = isActive ? 1.0 : distance === 1 ? 0.44 : 0.22;
       } else {
-        alpha = isActive ? 1.0 : 0.62;
+        alpha = isActive ? 1.0 : 0.68;
       }
 
       ctx.save();
@@ -933,13 +1588,13 @@ export function renderVideoCanvasFrame(
       if (isActive && typeof ctx.createRadialGradient === 'function') {
         const auraCx = width / 2;
         const auraCy = screenY + block.height / 2;
-        const auraR = Math.max(width * 0.48, block.height * 0.65);
+        const auraR = Math.max(width * (isNightLantern ? 0.54 : 0.48), block.height * 0.65);
         const auraGrad = ctx.createRadialGradient(auraCx, auraCy, 10 * resScale, auraCx, auraCy, auraR);
         if (isLightSurface) {
-          auraGrad.addColorStop(0, 'rgba(4, 120, 87, 0.06)');
+          auraGrad.addColorStop(0, isNightLantern ? 'rgba(4, 120, 87, 0.11)' : 'rgba(4, 120, 87, 0.06)');
           auraGrad.addColorStop(1, 'rgba(4, 120, 87, 0)');
         } else {
-          auraGrad.addColorStop(0, 'rgba(251, 191, 36, 0.08)');
+          auraGrad.addColorStop(0, isNightLantern ? 'rgba(251, 191, 36, 0.14)' : 'rgba(251, 191, 36, 0.08)');
           auraGrad.addColorStop(1, 'rgba(251, 191, 36, 0)');
         }
         ctx.fillStyle = auraGrad;
@@ -952,57 +1607,93 @@ export function renderVideoCanvasFrame(
         ctx.shadowOffsetY = Math.round(1 * resScale);
       }
 
-      if (isActive) {
-        const barX = isLandscape ? Math.round(76 * resScale) : Math.round(28 * resScale);
-        ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.34)' : 'rgba(251, 191, 36, 0.5)';
-        ctx.fillRect(
-          barX,
-          screenY + Math.round(8 * resScale),
-          Math.max(3, Math.round(4 * resScale)),
-          Math.max(Math.round(36 * resScale), block.height - Math.round(24 * resScale))
-        );
-      }
+      if (isDualRibbon && isLandscape) {
+        const padX = Math.round(92 * resScale);
+        const colGap = Math.round(40 * resScale);
+        const colW = (width - padX * 2 - colGap) / 2;
+        const leftCenterX = padX + colW / 2;
+        const rightCenterX = padX + colW + colGap + colW / 2;
+        const arW = Math.max(160, Math.round((colW - 12 * resScale) * 0.94));
 
-      let yCursor = screenY + Math.round(28 * resScale);
-      const centerX = width / 2;
-
-      for (const line of block.arLines) {
-        drawRtlTajweedLine(ctx, line, centerX, yCursor, opts, block.arFontPx);
-        yCursor += block.arLineHeightPx;
-      }
-
-      if (block.arLines.length > 0 && (block.trLines.length > 0 || block.frLines.length > 0)) {
-        const ruleW = Math.round(120 * resScale);
-        const ruleY = yCursor - Math.round(block.arLineHeightPx * 0.25);
-        ctx.fillStyle = isLightSurface
-          ? 'rgba(4, 120, 87, 0.22)'
-          : 'rgba(251, 191, 36, 0.28)';
-        ctx.fillRect(centerX - ruleW / 2, ruleY, ruleW, Math.max(1.5, Math.round(1.5 * resScale)));
-        yCursor += Math.round(14 * resScale);
-      } else if (block.arLines.length > 0) {
-        yCursor += Math.round(14 * resScale);
-      }
-
-      if (block.trLines.length > 0) {
-        ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
-        for (const line of block.trLines) {
-          ctx.fillText(line, centerX, yCursor);
-          yCursor += block.trLineHeightPx;
+        let arY = screenY + Math.round(28 * resScale);
+        for (const line of block.arLines) {
+          drawRtlTajweedLine(ctx, line, rightCenterX, arY, opts, block.arFontPx, 'center', undefined, arW, scrollArFont);
+          arY += block.arLineHeightPx;
         }
-        yCursor += Math.round(10 * resScale);
-      }
 
-      if (block.frLines.length > 0) {
-        ctx.font = `500 ${block.frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+        let leftY = screenY + Math.round(28 * resScale);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
-        for (const line of block.frLines) {
-          ctx.fillText(line, centerX, yCursor);
-          yCursor += block.frLineHeightPx;
+        if (block.trLines.length > 0) {
+          ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
+          ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
+          for (const line of block.trLines) {
+            fillSafeText(ctx, line, leftCenterX, leftY, arW);
+            leftY += block.trLineHeightPx;
+          }
+          leftY += Math.round(8 * resScale);
+        }
+        if (block.frLines.length > 0) {
+          ctx.font = `500 ${block.frFontPx}px ${scrollFrFont}`;
+          ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
+          for (const line of block.frLines) {
+            fillSafeText(ctx, line, leftCenterX, leftY, arW);
+            leftY += block.frLineHeightPx;
+          }
+        }
+      } else {
+        let yCursor = screenY + Math.round(28 * resScale);
+        const centerX = width / 2;
+
+        for (const line of block.arLines) {
+          drawRtlTajweedLine(ctx, line, centerX, yCursor, opts, block.arFontPx, 'center', undefined, maxLineW, scrollArFont);
+          yCursor += block.arLineHeightPx;
+        }
+
+        if (block.arLines.length > 0 && (block.trLines.length > 0 || block.frLines.length > 0)) {
+          if (isNightLantern) {
+            drawRubElHizbStar(
+              ctx,
+              centerX,
+              yCursor - Math.round(block.arLineHeightPx * 0.2),
+              Math.round(7 * resScale),
+              isLightSurface ? 'rgba(4, 120, 87, 0.5)' : 'rgba(251, 191, 36, 0.65)',
+              Math.max(1.2, Math.round(1.3 * resScale))
+            );
+          } else {
+            const ruleW = Math.round(90 * resScale);
+            const ruleY = yCursor - Math.round(block.arLineHeightPx * 0.25);
+            ctx.fillStyle = isLightSurface
+              ? 'rgba(4, 120, 87, 0.2)'
+              : 'rgba(251, 191, 36, 0.25)';
+            ctx.fillRect(centerX - ruleW / 2, ruleY, ruleW, Math.max(1, Math.round(1.2 * resScale)));
+          }
+          yCursor += Math.round(14 * resScale);
+        } else if (block.arLines.length > 0) {
+          yCursor += Math.round(14 * resScale);
+        }
+
+        if (block.trLines.length > 0) {
+          ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
+          for (const line of block.trLines) {
+            fillSafeText(ctx, line, centerX, yCursor, maxLineW);
+            yCursor += block.trLineHeightPx;
+          }
+          yCursor += Math.round(10 * resScale);
+        }
+
+        if (block.frLines.length > 0) {
+          ctx.font = `500 ${block.frFontPx}px ${scrollFrFont}`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
+          for (const line of block.frLines) {
+            fillSafeText(ctx, line, centerX, yCursor, maxLineW);
+            yCursor += block.frLineHeightPx;
+          }
         }
       }
 
@@ -1011,22 +1702,20 @@ export function renderVideoCanvasFrame(
 
     if (!hasMediaBg && typeof ctx.createLinearGradient === 'function') {
       const baseColor = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
-      if (baseColor === '#000000' || baseColor === '#FCFCFB' || baseColor.startsWith('#')) {
+      if (baseColor === '#000000' || baseColor === '#050505' || baseColor === '#FCFCFB') {
         const fadeH = Math.round(44 * resScale);
         const rgb = isLightSurface ? '252, 252, 251' : baseColor === '#050505' ? '5, 5, 5' : '0, 0, 0';
-        if (baseColor === '#000000' || baseColor === '#050505' || baseColor === '#FCFCFB') {
-          const topGrad = ctx.createLinearGradient(0, topSafeY, 0, topSafeY + fadeH);
-          topGrad.addColorStop(0, `rgba(${rgb}, 0.96)`);
-          topGrad.addColorStop(1, `rgba(${rgb}, 0)`);
-          ctx.fillStyle = topGrad;
-          ctx.fillRect(0, topSafeY, width, fadeH);
+        const topGrad = ctx.createLinearGradient(0, topSafeY, 0, topSafeY + fadeH);
+        topGrad.addColorStop(0, `rgba(${rgb}, 0.96)`);
+        topGrad.addColorStop(1, `rgba(${rgb}, 0)`);
+        ctx.fillStyle = topGrad;
+        ctx.fillRect(0, topSafeY, width, fadeH);
 
-          const botGrad = ctx.createLinearGradient(0, bottomSafeY - fadeH, 0, bottomSafeY);
-          botGrad.addColorStop(0, `rgba(${rgb}, 0)`);
-          botGrad.addColorStop(1, `rgba(${rgb}, 0.96)`);
-          ctx.fillStyle = botGrad;
-          ctx.fillRect(0, bottomSafeY - fadeH, width, fadeH);
-        }
+        const botGrad = ctx.createLinearGradient(0, bottomSafeY - fadeH, 0, bottomSafeY);
+        botGrad.addColorStop(0, `rgba(${rgb}, 0)`);
+        botGrad.addColorStop(1, `rgba(${rgb}, 0.96)`);
+        ctx.fillStyle = botGrad;
+        ctx.fillRect(0, bottomSafeY - fadeH, width, fadeH);
       }
     }
   }
@@ -1042,8 +1731,9 @@ export function renderVideoCanvasFrame(
       ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.75)' : 'rgba(0, 0, 0, 0.75)';
       ctx.shadowBlur = Math.round(6 * resScale);
     }
-    const headerTitleY = Math.round((isLandscape ? 46 : 88) * resScale);
-    const headerSubY = Math.round((isLandscape ? 72 : 116) * resScale);
+    const headerTitleY = Math.round((isPortrait ? 88 : 46) * resScale);
+    const headerSubY = Math.round((isPortrait ? 116 : 72) * resScale);
+    const headerMaxW = width - Math.round(64 * resScale);
 
     const activeSurahName = activeBlock?.surahName || opts.surahName;
     const activeSurahNum = activeBlock?.surahNumber || opts.surahNumber;
@@ -1056,10 +1746,10 @@ export function renderVideoCanvasFrame(
 
     ctx.font = `700 ${Math.round((isLandscape ? 19 : 20) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = isLightSurface ? 'rgba(23, 23, 23, 0.88)' : 'rgba(251, 191, 36, 0.96)';
-    ctx.fillText(headerText, width / 2, headerTitleY);
+    fillSafeText(ctx, headerText, width / 2, headerTitleY, headerMaxW);
     ctx.font = `500 ${Math.round((isLandscape ? 14 : 15) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = isLightSurface ? 'rgba(82, 82, 82, 0.82)' : 'rgba(226, 232, 240, 0.78)';
-    ctx.fillText(opts.reciterName, width / 2, headerSubY);
+    fillSafeText(ctx, opts.reciterName, width / 2, headerSubY, headerMaxW);
     ctx.restore();
   }
 

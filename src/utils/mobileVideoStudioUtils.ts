@@ -347,8 +347,8 @@ export function findActiveTimelineEntry(
 }
 
 /**
- * Computes a continuous vertical scroll offset across the whole verse ribbon so
- * the active verse focal point glides continuously with zero jumps between verses.
+ * Computes a continuous, fluid vertical scroll offset across the whole verse ribbon so
+ * the active verse focal point glides smoothly without abrupt pauses or step jumps.
  */
 export function computeContinuousScrollY(
   itemCentersPx: number[],
@@ -362,12 +362,73 @@ export function computeContinuousScrollY(
   const currentCenter = itemCentersPx[activeIndex] ?? itemCentersPx[0];
   const nextCenter = itemCentersPx[Math.min(activeIndex + 1, itemCentersPx.length - 1)] ?? currentCenter;
 
-  // Gentle ease-in-out glide toward the next verse in the final 45% of the current verse
-  const glideT = segmentProgress <= 0.55 ? 0 : (segmentProgress - 0.55) / 0.45;
+  // Fluid ease across the segment: brief settle at entry (12%), then continuous silky glide
+  const glideT = segmentProgress <= 0.12 ? 0 : Math.min(1, (segmentProgress - 0.12) / 0.88);
   const smoothT = glideT * glideT * (3 - 2 * glideT);
   const focalY = currentCenter + (nextCenter - currentCenter) * smoothT;
 
   return Math.max(0, Math.round(focalY - viewportHeightPx * 0.46));
+}
+
+/**
+ * Fluid scroll calculation aware of block tops & heights so even tall verses
+ * (e.g. Ayat al-Kursi 2:255 or Al-Baqarah 2:282) pan smoothly from top to bottom
+ * within the safe viewport without clipping their first or last lines.
+ */
+export function computeFluidScrollYForBlocks(
+  blocks: Array<{ yStart: number; centerY: number; height: number }>,
+  timeline: ContinuousTimeline,
+  currentSec: number,
+  topSafeY: number,
+  bottomSafeY: number
+): number {
+  if (!blocks.length || !timeline.segments.length) return 0;
+
+  const safeH = Math.max(120, bottomSafeY - topSafeY);
+  const safeMidY = topSafeY + safeH * 0.48;
+  const { activeIndex, segmentProgress } = findActiveTimelineEntry(timeline, currentSec);
+
+  const getBlockBounds = (block: { yStart: number; centerY: number; height: number }) => {
+    const padTop = Math.min(44, safeH * 0.08);
+    if (block.height <= safeH * 0.78) {
+      const target = Math.max(0, block.centerY - safeMidY);
+      return { startScroll: target, endScroll: target, isTall: false };
+    }
+    const startScroll = Math.max(0, block.yStart - (topSafeY + padTop));
+    const endScroll = Math.max(startScroll, block.yStart + block.height - (bottomSafeY - padTop));
+    return { startScroll, endScroll, isTall: true };
+  };
+
+  const curr = getBlockBounds(blocks[activeIndex] ?? blocks[0]);
+  const nextIdx = Math.min(activeIndex + 1, blocks.length - 1);
+  const next = getBlockBounds(blocks[nextIdx] ?? blocks[activeIndex] ?? blocks[0]);
+
+  if (activeIndex === nextIdx) {
+    if (!curr.isTall) return Math.max(0, Math.round(curr.startScroll));
+    const p = Math.min(1, Math.max(0, (segmentProgress - 0.05) / 0.85));
+    const smooth = p * p * (3 - 2 * p);
+    return Math.max(0, Math.round(curr.startScroll + (curr.endScroll - curr.startScroll) * smooth));
+  }
+
+  if (curr.isTall) {
+    // Tall verse: smooth internal top-to-bottom reading glide, then seamless handoff to next block
+    if (segmentProgress <= 0.8) {
+      const p = Math.min(1, Math.max(0, (segmentProgress - 0.04) / 0.76));
+      const smooth = p * p * (3 - 2 * p);
+      return Math.max(0, Math.round(curr.startScroll + (curr.endScroll - curr.startScroll) * smooth));
+    }
+    const handoff = Math.min(1, Math.max(0, (segmentProgress - 0.8) / 0.2));
+    const smoothHandoff = handoff * handoff * (3 - 2 * handoff);
+    return Math.max(0, Math.round(curr.endScroll + (next.startScroll - curr.endScroll) * smoothHandoff));
+  }
+
+  // Standard verse: continuous silky drift toward the next verse (no abrupt stop-and-go)
+  // Brief 8% settle on entry, then blend linear + smoothstep for calm continuous flow
+  const raw = Math.min(1, Math.max(0, (segmentProgress - 0.08) / 0.92));
+  const smooth = raw * raw * (3 - 2 * raw);
+  const blended = raw * 0.25 + smooth * 0.75;
+  const y = curr.startScroll + (next.startScroll - curr.startScroll) * blended;
+  return Math.max(0, Math.round(y));
 }
 
 export function wrapTextLines(
@@ -379,7 +440,33 @@ export function wrapTextLines(
   if (!cleaned) return [];
   if (maxWidth <= 0) return [cleaned];
 
-  const words = cleaned.split(' ');
+  const breakLongWord = (word: string): string[] => {
+    if (measureWidth(word) <= maxWidth || word.length <= 2) return [word];
+    const parts: string[] = [];
+    let chunk = '';
+    for (const ch of Array.from(word)) {
+      const candidate = chunk + ch;
+      if (measureWidth(candidate) <= maxWidth || !chunk) {
+        chunk = candidate;
+      } else {
+        parts.push(chunk);
+        chunk = ch;
+      }
+    }
+    if (chunk) parts.push(chunk);
+    return parts;
+  };
+
+  const rawWords = cleaned.split(' ');
+  const words: string[] = [];
+  for (const w of rawWords) {
+    if (measureWidth(w) > maxWidth) {
+      words.push(...breakLongWord(w));
+    } else {
+      words.push(w);
+    }
+  }
+
   const lines: string[] = [];
   let currentLine = '';
 
@@ -418,10 +505,20 @@ export type VideoFormatId = 'youtube_1080p' | 'youtube_720p' | 'shorts_916' | 's
 export type VideoTemplateId =
   | 'teleprompter'
   | 'stream'
-  | 'spotlight_card'
+  | 'arabic_pure_khatt'
+  | 'french_pure_poetry'
   | 'cinema_subtitles'
   | 'mushaf_split'
-  | 'meditation_minimal';
+  | 'meditation_minimal'
+  | 'karaoke_glow'
+  | 'editorial_magazine'
+  | 'night_lantern'
+  | 'dual_ribbon'
+  | 'verse_ticker'
+  | 'arabic_ruqaa_modern'
+  | 'kufi_editorial'
+  | 'phonetics_focus'
+  | 'arabic_giant_whisper_fr';
 
 export interface VideoFormatPreset {
   id: VideoFormatId;
@@ -499,41 +596,103 @@ export const VIDEO_TEMPLATE_PRESETS: VideoTemplatePreset[] = [
   {
     id: 'teleprompter',
     name: 'Téléprompteur Cinéma',
-    subtitle: 'Glissement continu avec halo lumineux sur le verset actif.',
+    subtitle: 'Glissement continu fluide avec halo lumineux sur le verset actif.',
     recommendedFor: 'Shorts & Récitation guidée',
   },
   {
     id: 'stream',
     name: 'Flux Intégral Mushaf',
-    subtitle: 'Page continue fluide gardant les versets voisins lisibles.',
+    subtitle: 'Page continue en Scheherazade New gardant les versets voisins lisibles.',
     recommendedFor: 'Lecture suivie',
   },
   {
-    id: 'spotlight_card',
-    name: 'Cadre Calligraphique',
-    subtitle: 'Carte sacrée aux filets dorés et transition en fondu enchaîné.',
-    recommendedFor: 'Méditation & Partage',
+    id: 'arabic_pure_khatt',
+    name: 'Calligraphie Arabe',
+    subtitle: 'Texte arabe pur en grand format calligraphique, sans traduction.',
+    recommendedFor: 'Arabe uniquement',
+    isNew: true,
+  },
+  {
+    id: 'french_pure_poetry',
+    name: 'Poésie Française',
+    subtitle: 'Uniquement la traduction française en serif littéraire Cormorant.',
+    recommendedFor: 'Français uniquement',
     isNew: true,
   },
   {
     id: 'cinema_subtitles',
     name: 'Sous-Titres Cinéma',
-    subtitle: 'Calligraphie majestueuse au centre et traduction en bandeau bas.',
+    subtitle: 'Calligraphie majestueuse au centre et traduction flottante en bas.',
     recommendedFor: 'YouTube Paysage 16:9',
-    isNew: true,
   },
   {
     id: 'mushaf_split',
     name: 'Édition Bilingue Split',
-    subtitle: 'Arabe d’un côté, phonétique et traduction française structurées de l’autre.',
+    subtitle: 'Arabe à droite et traduction serif épurée à gauche en espace ouvert.',
     recommendedFor: 'Sourates longues YouTube',
-    isNew: true,
   },
   {
     id: 'meditation_minimal',
     name: 'Contemplation & Ondes',
-    subtitle: 'Étoile géométrique, respiration typographique et onde sonore discrète.',
+    subtitle: 'Respiration typographique pure et onde sonore discrète.',
     recommendedFor: 'Tadabbur & Relaxation',
+  },
+  {
+    id: 'karaoke_glow',
+    name: 'Écho Lumineux',
+    subtitle: 'Surbrillance progressive ligne par ligne au rythme de la récitation.',
+    recommendedFor: 'Apprentissage & Tajweed',
+  },
+  {
+    id: 'editorial_magazine',
+    name: 'Éditorial Minimal',
+    subtitle: 'Mise en page asymétrique moderne avec serif littéraire et titrage fin.',
+    recommendedFor: 'Design épuré & Moderne',
+  },
+  {
+    id: 'night_lantern',
+    name: 'Lueur Nocturne',
+    subtitle: 'Défilement fluide avec halo doux et séparateurs étoilés.',
+    recommendedFor: 'Veillée & Qiyam',
+  },
+  {
+    id: 'dual_ribbon',
+    name: 'Ruban Bilingue Fluide',
+    subtitle: 'Deux rubans synchronisés défilant en continu pour arabe et français.',
+    recommendedFor: 'Compréhension fluide',
+  },
+  {
+    id: 'verse_ticker',
+    name: 'Focus Séquentiel',
+    subtitle: 'Transition fluide verset par verset avec numéro en filigrane.',
+    recommendedFor: 'Mémorisation Hifz',
+  },
+  {
+    id: 'arabic_ruqaa_modern',
+    name: 'Plume Ruq’ah',
+    subtitle: 'Calligraphie Aref Ruqaa expressive et traduction fine sans empattement.',
+    recommendedFor: 'Style manuscrit & Moderne',
+    isNew: true,
+  },
+  {
+    id: 'kufi_editorial',
+    name: 'Kufi Géométrique',
+    subtitle: 'Typographie arabe Noto Kufi structurée avec titrage Cinzel gravé.',
+    recommendedFor: 'Esthétique architecturale',
+    isNew: true,
+  },
+  {
+    id: 'phonetics_focus',
+    name: 'Focus Phonétique',
+    subtitle: 'Phonétique mise en avant en italique serif pour suivre la prononciation.',
+    recommendedFor: 'Apprentissage & Récitation',
+    isNew: true,
+  },
+  {
+    id: 'arabic_giant_whisper_fr',
+    name: 'Arabe Monumental',
+    subtitle: 'Arabe majestueux géant surplombant une discrète traduction en écho.',
+    recommendedFor: 'Impact calligraphique',
     isNew: true,
   },
 ];

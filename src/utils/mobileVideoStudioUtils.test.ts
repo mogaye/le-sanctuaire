@@ -13,6 +13,7 @@ import {
   buildSurahPlaceholderAyahs,
   computeContinuousScrollY,
   computeCoverDrawRect,
+  computeFluidScrollYForBlocks,
   computeVideoSeekTime,
   extendSequenceToTargetDuration,
   findActiveTimelineEntry,
@@ -186,14 +187,81 @@ test('getResolutionFallbackTiers preserves 16:9, 1:1, and 9:16 aspect ratios acr
   }
 });
 
-test('VIDEO_TEMPLATE_PRESETS exposes 6 distinct templates (2 existing + 4 new)', () => {
-  assert.equal(VIDEO_TEMPLATE_PRESETS.length, 6);
+test('VIDEO_TEMPLATE_PRESETS exposes 16 frameless typography & language templates without any framed cards', () => {
+  assert.equal(VIDEO_TEMPLATE_PRESETS.length, 16);
   const ids = new Set(VIDEO_TEMPLATE_PRESETS.map((t) => t.id));
-  assert.equal(ids.size, 6);
-  assert.ok(ids.has('spotlight_card'));
-  assert.ok(ids.has('cinema_subtitles'));
-  assert.ok(ids.has('mushaf_split'));
-  assert.ok(ids.has('meditation_minimal'));
+  assert.equal(ids.size, 16);
+  for (const expectedId of [
+    'teleprompter',
+    'stream',
+    'arabic_pure_khatt',
+    'french_pure_poetry',
+    'cinema_subtitles',
+    'mushaf_split',
+    'meditation_minimal',
+    'karaoke_glow',
+    'editorial_magazine',
+    'night_lantern',
+    'dual_ribbon',
+    'verse_ticker',
+    'arabic_ruqaa_modern',
+    'kufi_editorial',
+    'phonetics_focus',
+    'arabic_giant_whisper_fr',
+  ] as const) {
+    assert.ok(ids.has(expectedId), `Missing preset ${expectedId}`);
+  }
+  for (const removedId of [
+    'spotlight_card',
+    'parchment_scroll',
+    'mihrab_arch',
+    'quran_page_classic',
+    'royal_medallion',
+    'serene_glass',
+  ]) {
+    assert.equal(ids.has(removedId as any), false, `Removed framed template ${removedId} must not exist`);
+  }
+});
+
+test('wrapTextLines breaks ultra-long unbroken tokens cleanly below maxWidth', () => {
+  const longToken = 'A'.repeat(60);
+  const lines = wrapTextLines(longToken, 100, (s) => s.length * 10);
+  assert.ok(lines.length >= 6);
+  for (const line of lines) {
+    assert.ok(line.length * 10 <= 100, `Line exceeded maxWidth: ${line.length * 10}`);
+  }
+});
+
+test('computeFluidScrollYForBlocks pans tall verses smoothly from top to bottom and flows cleanly on standard verses', () => {
+  const tallTimeline = buildContinuousTimeline(
+    [
+      { num: 1, ar: 'a', fr: 'short' },
+      { num: 2, ar: 'b'.repeat(400), fr: 'very long verse' },
+      { num: 3, ar: 'c', fr: 'next' },
+    ],
+    [5, 20, 5],
+    1
+  );
+  const blocks = [
+    { yStart: 180, centerY: 280, height: 200 },
+    { yStart: 440, centerY: 1140, height: 1400 },
+    { yStart: 1900, centerY: 2000, height: 200 },
+  ];
+  const topSafeY = 120;
+  const bottomSafeY = 960;
+
+  // Standard block 0 flows continuously toward block 1
+  const s0Start = computeFluidScrollYForBlocks(blocks, tallTimeline, 0.2, topSafeY, bottomSafeY);
+  const s0Mid = computeFluidScrollYForBlocks(blocks, tallTimeline, 2.5, topSafeY, bottomSafeY);
+  const s0End = computeFluidScrollYForBlocks(blocks, tallTimeline, 4.9, topSafeY, bottomSafeY);
+  assert.ok(s0End > s0Mid && s0Mid >= s0Start, `Expected smooth monotonic flow: ${s0Start} -> ${s0Mid} -> ${s0End}`);
+
+  // Tall block 1 starts near yStart and pans smoothly down to bottom before moving to block 2
+  const b1Early = computeFluidScrollYForBlocks(blocks, tallTimeline, 6.0, topSafeY, bottomSafeY);
+  const b1Mid = computeFluidScrollYForBlocks(blocks, tallTimeline, 13.0, topSafeY, bottomSafeY);
+  const b1Late = computeFluidScrollYForBlocks(blocks, tallTimeline, 20.5, topSafeY, bottomSafeY);
+  assert.ok(b1Mid > b1Early, `Expected tall verse pan to advance: ${b1Early} -> ${b1Mid}`);
+  assert.ok(b1Late > b1Mid, `Expected tall verse pan to continue to end: ${b1Mid} -> ${b1Late}`);
 });
 
 test('generateYouTubePublishPack creates timestamped chapters and full surah metadata', () => {

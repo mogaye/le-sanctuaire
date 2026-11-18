@@ -99,7 +99,7 @@ interface CustomBackgroundMedia {
   syncedToServer?: boolean;
 }
 
-type StudioTab = 'verses' | 'style' | 'bg' | 'audio';
+type StudioTab = 'verses_audio' | 'style_bg';
 
 const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
@@ -275,7 +275,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [baseAspectFormat, videoQualityId]
   );
 
-  const [activeTab, setActiveTab] = useState<StudioTab>('verses');
+  const [activeTab, setActiveTab] = useState<StudioTab>('verses_audio');
 
   // Multi-Surah Playlist State
   const [selectedSurahs, setSelectedSurahs] = useState<StudioSurahSelection[]>(() => {
@@ -1651,19 +1651,27 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           />
         </div>
 
-        {/* Left Controls Rail (Sourates, Modèle, Fond, Récitateur) */}
+        {/* Left Controls Rail (Sourate & Récitateur | Modèle & Fond) */}
         <div className="order-2 md:order-1 flex-1 min-h-0 flex flex-col overflow-hidden md:rounded-3xl md:studio-surface-stacked bg-[#EAE8E1]/85">
-          {/* Tactile Segmented Recessed Tab Track */}
+          {/* Tactile Segmented Recessed Tab Track (2 Unified Tabs) */}
           <div className="shrink-0 px-3 pt-3 pb-2">
             <nav
               aria-label="Réglages du studio"
-              className="flex items-center gap-1 p-1 rounded-full studio-well-inset"
+              className="grid grid-cols-2 items-center gap-1 p-1 rounded-full studio-well-inset"
             >
               {[
-                { id: 'verses' as const, testId: 'jump-verses', label: 'Sourates', icon: BookOpen },
-                { id: 'style' as const, testId: 'jump-style', label: 'Modèle', icon: Sparkles },
-                { id: 'bg' as const, testId: 'jump-bg', label: 'Fond', icon: ImageIcon },
-                { id: 'audio' as const, testId: 'jump-audio', label: 'Récitateur', icon: Headphones },
+                {
+                  id: 'verses_audio' as const,
+                  testId: 'jump-verses-audio',
+                  label: 'Sourate & Récitateur',
+                  icon: BookOpen,
+                },
+                {
+                  id: 'style_bg' as const,
+                  testId: 'jump-style-bg',
+                  label: 'Modèle & Fond',
+                  icon: Sparkles,
+                },
               ].map((tab) => {
                 const isCurrent = activeTab === tab.id;
                 const Icon = tab.icon;
@@ -1673,14 +1681,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     type="button"
                     data-testid={`studio-${tab.testId}-btn`}
                     onClick={() => switchTab(tab.id)}
-                    className={`flex-auto min-h-[38px] px-2 sm:px-3 rounded-full flex items-center justify-center gap-1 sm:gap-1.5 text-[11.5px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                    className={`min-h-[38px] px-2.5 sm:px-3.5 rounded-full flex items-center justify-center gap-1.5 text-[11.5px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                       isCurrent
                         ? 'studio-pill-mint'
                         : 'text-[#4F5551] hover:text-[#1F2421]'
                     }`}
                   >
-                    <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                    <span>{tab.label}</span>
+                    <Icon className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{tab.label}</span>
                   </button>
                 );
               })}
@@ -1693,9 +1701,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-settings-scroll"
             className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 pb-5 pt-2 space-y-5"
           >
-            {/* TAB 1: SOURATES & VERSETS */}
-            {activeTab === 'verses' && (
-              <div className="space-y-4">
+            {/* TAB 1: SOURATES, VERSETS & RÉCITATEUR */}
+            {activeTab === 'verses_audio' && (
+              <div className="space-y-5">
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
@@ -1915,17 +1923,81 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     );
                   })}
                 </div>
+                {/* Récitateur (Unified in Sourate & Récitateur Tab) */}
+                <section
+                  data-testid="studio-reciter-section"
+                  className="pt-4 border-t border-[#D4D1C8] space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
+                      <Headphones className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      <span>Récitateur</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-[#1B573E] truncate max-w-[60%]">
+                      {selectedReciter.name}
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset px-2 py-1 max-h-[260px] overflow-y-auto">
+                    {RECITERS.map((r) => {
+                      const active = r.id === reciterId;
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          data-testid={`studio-reciter-${r.id}`}
+                          onClick={() => {
+                            setReciterId(r.id);
+                            onSyncReciter?.(r);
+                          }}
+                          className={`w-full py-2.5 px-2.5 flex items-center justify-between gap-2 text-left cursor-pointer transition-all rounded-xl my-0.5 ${
+                            active
+                              ? 'studio-pill-mint'
+                              : 'text-[#1F2421] hover:bg-white/75'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="text-xs sm:text-sm font-semibold truncate">{r.name}</div>
+                            <div
+                              className={`text-[11px] truncate ${
+                                active ? 'text-[#214637]' : 'text-[#565C58]'
+                              }`}
+                            >
+                              {r.style}
+                            </div>
+                          </div>
+                          {active && (
+                            <span className="w-6 h-6 rounded-full bg-white/85 flex items-center justify-center shadow-sm shrink-0">
+                              <Check className="w-3.5 h-3.5 text-[#13251D] stroke-[2.75]" />
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
               </div>
             )}
 
-            {/* TAB 2: MODÈLE & STYLE */}
-            {activeTab === 'style' && (
+            {/* TAB 2: MODÈLE DE LECTURE & FOND */}
+            {activeTab === 'style_bg' && (
               <div className="space-y-5">
-                <StudioTemplateGrid
-                  selectedTemplate={flowMode}
-                  onSelect={setFlowMode}
-                  isLandscape={activeFormat.aspectLabel !== '9:16'}
-                />
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
+                      <Sparkles className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      <span>Modèle de lecture</span>
+                    </div>
+                    <span className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums">
+                      {VIDEO_TEMPLATE_PRESETS.length} styles
+                    </span>
+                  </div>
+                  <StudioTemplateGrid
+                    selectedTemplate={flowMode}
+                    onSelect={setFlowMode}
+                    isLandscape={activeFormat.aspectLabel !== '9:16'}
+                  />
+                </div>
 
                 <div className="pt-4 border-t border-[#D4D1C8] flex flex-wrap gap-2 text-xs font-semibold">
                   {[
@@ -1995,13 +2067,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* TAB 3: FOND & MÉDIA */}
-            {activeTab === 'bg' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2">
+                {/* FOND & SURFACE (Unified in Modèle & Fond Tab) */}
+                <section
+                  data-testid="studio-bg-section"
+                  className="pt-4 border-t border-[#D4D1C8] space-y-4"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
+                      <ImageIcon className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      <span>Fond & Surface</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
                     {[
                       { id: 'all' as const, label: 'Tous' },
@@ -2241,46 +2318,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* TAB 4: RÉCITATEUR */}
-            {activeTab === 'audio' && (
-              <div className="divide-y divide-[#D4D1C8]">
-                {RECITERS.map((r) => {
-                  const active = r.id === reciterId;
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => {
-                        setReciterId(r.id);
-                        onSyncReciter?.(r);
-                      }}
-                      className={`w-full py-3 px-3 flex items-center justify-between gap-2 text-left cursor-pointer transition-all rounded-2xl my-0.5 ${
-                        active
-                          ? 'studio-pill-mint'
-                          : 'text-[#1F2421] hover:bg-white/75'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs sm:text-sm font-semibold truncate">{r.name}</div>
-                        <div
-                          className={`text-[11px] truncate ${
-                            active ? 'text-[#214637]' : 'text-[#565C58]'
-                          }`}
-                        >
-                          {r.style}
-                        </div>
-                      </div>
-                      {active && (
-                        <span className="w-6 h-6 rounded-full bg-white/85 flex items-center justify-center shadow-sm shrink-0">
-                          <Check className="w-3.5 h-3.5 text-[#13251D] stroke-[2.75]" />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                </section>
               </div>
             )}
           </div>

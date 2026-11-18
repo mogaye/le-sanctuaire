@@ -7,7 +7,7 @@ import {
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
 } from './canvasVideoRenderer';
-import { buildContinuousTimeline } from './mobileVideoStudioUtils';
+import { VIDEO_TEMPLATE_PRESETS, buildContinuousTimeline } from './mobileVideoStudioUtils';
 
 function createMockCanvasContext() {
   const fillTexts: Array<{ text: string; x: number; y: number }> = [];
@@ -152,7 +152,7 @@ test('precomputeVideoCanvasLayout scales text proportionally for Full HD 1080x19
   assert.equal(layoutYt1080.blocks[0].arFontPx, 66);
 });
 
-test('renderVideoCanvasFrame renders cleanly in 1920x1080 YouTube 16:9 across all 6 templates', () => {
+test('renderVideoCanvasFrame renders cleanly in 1920x1080, 1080x1920, and 1080x1080 across ALL 16 templates', () => {
   const ayahs = [
     {
       num: 1,
@@ -168,51 +168,133 @@ test('renderVideoCanvasFrame renders cleanly in 1920x1080 YouTube 16:9 across al
     },
   ];
   const timeline = buildContinuousTimeline(ayahs, [5.0, 5.0], 1);
-  const templates: VideoCanvasRenderOptions['flowMode'][] = [
-    'teleprompter',
-    'stream',
-    'spotlight_card',
-    'cinema_subtitles',
-    'mushaf_split',
-    'meditation_minimal',
+  const templates = VIDEO_TEMPLATE_PRESETS.map((t) => t.id);
+  assert.equal(templates.length, 16);
+
+  const dimensions: Array<[number, number]> = [
+    [1920, 1080],
+    [1080, 1920],
+    [1080, 1080],
   ];
 
-  for (const flowMode of templates) {
-    const { ctx, fillTexts, fillRects } = createMockCanvasContext();
-    const opts: VideoCanvasRenderOptions = {
-      width: 1920,
-      height: 1080,
-      surahName: 'Al-Fatiha',
-      surahNumber: 1,
-      startAyah: 1,
-      endAyah: 2,
-      isLightSurface: false,
-      bgImage: null,
-      showArabic: true,
-      useTajweed: true,
-      showPhonetics: true,
-      showFrench: true,
-      showSurahHeader: true,
-      textScale: 'standard',
-      flowMode,
-      reciterName: 'Mishary Rashid Alafasy',
-    };
+  for (const [width, height] of dimensions) {
+    for (const flowMode of templates) {
+      const { ctx, fillTexts, fillRects } = createMockCanvasContext();
+      const opts: VideoCanvasRenderOptions = {
+        width,
+        height,
+        surahName: 'Al-Fatiha',
+        surahNumber: 1,
+        startAyah: 1,
+        endAyah: 2,
+        isLightSurface: false,
+        bgImage: null,
+        showArabic: true,
+        useTajweed: true,
+        showPhonetics: true,
+        showFrench: true,
+        showSurahHeader: true,
+        textScale: 'standard',
+        flowMode,
+        reciterName: 'Mishary Rashid Alafasy',
+      };
 
-    const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
-    renderVideoCanvasFrame(ctx, layout, timeline, 2.5, opts);
+      const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
+      renderVideoCanvasFrame(ctx, layout, timeline, 2.5, opts);
 
-    const brandCall = fillTexts.find((c) => c.text === MANDATORY_WATERMARK_BRAND);
-    assert.ok(brandCall, `Template ${flowMode} must include mandatory watermark`);
-    assert.ok(
-      brandCall.y > opts.height * 0.85,
-      `Template ${flowMode} watermark must stay near bottom (y=${brandCall.y})`
-    );
-    const timerCall = fillTexts.find((c) => /\d{2}:\d{2}\s*\/\s*\d{2}:\d{2}/.test(c.text));
-    assert.equal(timerCall, undefined, `Template ${flowMode} must omit timer`);
-    const progressBarRect = fillRects.find(
-      (r) => r.y > opts.height - 100 && r.h <= 10 && r.w > opts.width * 0.2
-    );
-    assert.equal(progressBarRect, undefined, `Template ${flowMode} must omit progress bar`);
+      const brandCall = fillTexts.find((c) => c.text === MANDATORY_WATERMARK_BRAND);
+      assert.ok(brandCall, `Template ${flowMode} (${width}x${height}) must include mandatory watermark`);
+      assert.ok(
+        brandCall.y > opts.height * 0.85,
+        `Template ${flowMode} (${width}x${height}) watermark must stay near bottom (y=${brandCall.y})`
+      );
+      const timerCall = fillTexts.find((c) => /\d{2}:\d{2}\s*\/\s*\d{2}:\d{2}/.test(c.text));
+      assert.equal(timerCall, undefined, `Template ${flowMode} must omit timer`);
+      const progressBarRect = fillRects.find(
+        (r) => r.y > opts.height - 100 && r.h <= 10 && r.w > opts.width * 0.2
+      );
+      assert.equal(progressBarRect, undefined, `Template ${flowMode} must omit progress bar`);
+
+      for (const call of fillTexts) {
+        assert.ok(call.x >= 0 && call.x <= width, `Text x out of bounds on ${flowMode}: ${call.x}`);
+        assert.ok(call.y >= 0 && call.y <= height, `Text y out of bounds on ${flowMode}: ${call.y}`);
+      }
+    }
+  }
+});
+
+test('ultra-long verses (e.g. Ayat al-Kursi & 2:282) never overflow horizontally or escape card/viewport bounds across all 16 templates', () => {
+  const ultraLongAyahs = [
+    {
+      num: 255,
+      ar: Array.from({ length: 40 }, () => 'اللَّهُ لَا إِلَٰهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ').join(' '),
+      tr: Array.from({ length: 40 }, () => 'Allaahu laaa ilaaha illaa Huwal Haiyul Qaiyoom').join(' '),
+      fr: Array.from(
+        { length: 40 },
+        () => 'Allah! Point de divinite a part Lui, le Vivant, Celui qui subsiste par lui-meme.'
+      ).join(' '),
+    },
+    {
+      num: 256,
+      ar: 'لَا إِكْرَاهَ فِي الدِّينِ قَد تَّبَيَّنَ الرُّشْدُ مِنَ الْغَيِّ',
+      tr: 'Laaa ikraaha fid deeni qat tabaiyanar rushdu minal ghaiy',
+      fr: 'Nulle contrainte en religion! Car le bon chemin s est distingue de l egarement.',
+    },
+  ];
+
+  const timeline = buildContinuousTimeline(ultraLongAyahs, [24.0, 6.0], 1);
+  const templates = VIDEO_TEMPLATE_PRESETS.map((t) => t.id);
+
+  for (const [width, height] of [
+    [1920, 1080],
+    [1080, 1920],
+  ] as Array<[number, number]>) {
+    for (const flowMode of templates) {
+      const early = createMockCanvasContext();
+      const late = createMockCanvasContext();
+      const opts: VideoCanvasRenderOptions = {
+        width,
+        height,
+        surahName: 'Al-Baqarah',
+        surahNumber: 2,
+        startAyah: 255,
+        endAyah: 256,
+        isLightSurface: false,
+        bgImage: null,
+        showArabic: true,
+        useTajweed: true,
+        showPhonetics: true,
+        showFrench: true,
+        showSurahHeader: true,
+        textScale: 'grand',
+        flowMode,
+        reciterName: 'Mishary Rashid Alafasy',
+      };
+
+      const layout = precomputeVideoCanvasLayout(early.ctx, ultraLongAyahs, opts);
+      assert.ok(
+        layout.blocks[0].yStart + layout.blocks[0].height < layout.blocks[1].yStart,
+        `Blocks must never collide vertically in ${flowMode} (${width}x${height})`
+      );
+
+      for (const line of layout.blocks[0].arLines) {
+        assert.ok(line.length * 10 <= width, `Arabic line exceeded canvas width in ${flowMode}`);
+      }
+      for (const line of layout.blocks[0].frLines) {
+        assert.ok(line.length * 10 <= width, `French line exceeded canvas width in ${flowMode}`);
+      }
+
+      renderVideoCanvasFrame(early.ctx, layout, timeline, 2.0, opts);
+      renderVideoCanvasFrame(late.ctx, layout, timeline, 20.0, opts);
+
+      const earlyYs = early.fillTexts.map((c) => c.y).join(',');
+      const lateYs = late.fillTexts.map((c) => c.y).join(',');
+      assert.notEqual(
+        earlyYs,
+        lateYs,
+        `Long verse in ${flowMode} (${width}x${height}) must pan/scroll smoothly over time for fluid reading`
+      );
+    }
   }
 });
 
@@ -236,7 +318,7 @@ test('renderVideoCanvasFrame renders Bismillah intro cleanly without verse 0 lab
   ];
   const timeline = buildContinuousTimeline(seq, [4.5, 4.5], 1);
 
-  for (const flowMode of ['spotlight_card', 'mushaf_split', 'teleprompter'] as const) {
+  for (const flowMode of ['french_pure_poetry', 'kufi_editorial', 'mushaf_split', 'teleprompter'] as const) {
     const { ctx, fillTexts } = createMockCanvasContext();
     const opts: VideoCanvasRenderOptions = {
       width: 1920,
@@ -265,12 +347,162 @@ test('renderVideoCanvasFrame renders Bismillah intro cleanly without verse 0 lab
       false,
       `Template ${flowMode} must never display verse 0 for Bismillah`
     );
-    if (flowMode === 'spotlight_card' || flowMode === 'mushaf_split') {
+    if (flowMode === 'french_pure_poetry' || flowMode === 'kufi_editorial' || flowMode === 'mushaf_split') {
       assert.ok(
         fillTexts.some((c) => c.text === 'BISMILLAH'),
         `Template ${flowMode} should display BISMILLAH badge`
       );
     }
+  }
+});
+
+test('arabic_pure_khatt renders ONLY Arabic and french_pure_poetry renders ONLY French regardless of toggles', () => {
+  const ayahs = [
+    {
+      num: 1,
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwal laahu ahad',
+      fr: 'Dis : Il est Allah, Unique.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(ayahs, [5.0], 1);
+
+  const arabicOnlyCtx = createMockCanvasContext();
+  const arabicFontsUsed = new Set<string>();
+  const origArFontDescriptor = Object.getOwnPropertyDescriptor(arabicOnlyCtx.ctx, 'font');
+  let capturedArFont = '';
+  Object.defineProperty(arabicOnlyCtx.ctx, 'font', {
+    get: () => capturedArFont,
+    set: (v: string) => {
+      capturedArFont = v;
+      arabicFontsUsed.add(v);
+    },
+  });
+  if (origArFontDescriptor && !origArFontDescriptor.configurable) {
+    // noop safeguard
+  }
+
+  const baseOpts: VideoCanvasRenderOptions = {
+    width: 1920,
+    height: 1080,
+    surahName: 'Al-Ikhlas',
+    surahNumber: 112,
+    startAyah: 1,
+    endAyah: 1,
+    isLightSurface: false,
+    bgImage: null,
+    showArabic: true,
+    useTajweed: false,
+    showPhonetics: true,
+    showFrench: true,
+    showSurahHeader: false,
+    textScale: 'standard',
+    flowMode: 'arabic_pure_khatt',
+    reciterName: 'Alafasy',
+  };
+
+  const arLayout = precomputeVideoCanvasLayout(arabicOnlyCtx.ctx, ayahs, baseOpts);
+  renderVideoCanvasFrame(arabicOnlyCtx.ctx, arLayout, timeline, 2.5, baseOpts);
+
+  const arTexts = arabicOnlyCtx.fillTexts.map((c) => c.text).join(' ');
+  assert.ok(arTexts.includes('قُلْ'), 'arabic_pure_khatt must render Arabic verse text');
+  assert.equal(arTexts.includes('Qul'), false, 'arabic_pure_khatt must omit phonetics');
+  assert.equal(arTexts.includes('Unique'), false, 'arabic_pure_khatt must omit French translation');
+  assert.ok(
+    Array.from(arabicFontsUsed).some((f) => f.includes('Scheherazade New')),
+    'arabic_pure_khatt must use Scheherazade New calligraphy font'
+  );
+
+  const frenchOnlyCtx = createMockCanvasContext();
+  const frenchFontsUsed = new Set<string>();
+  let capturedFrFont = '';
+  Object.defineProperty(frenchOnlyCtx.ctx, 'font', {
+    get: () => capturedFrFont,
+    set: (v: string) => {
+      capturedFrFont = v;
+      frenchFontsUsed.add(v);
+    },
+  });
+
+  const frOpts: VideoCanvasRenderOptions = {
+    ...baseOpts,
+    flowMode: 'french_pure_poetry',
+  };
+  const frLayout = precomputeVideoCanvasLayout(frenchOnlyCtx.ctx, ayahs, frOpts);
+  renderVideoCanvasFrame(frenchOnlyCtx.ctx, frLayout, timeline, 2.5, frOpts);
+
+  const frTexts = frenchOnlyCtx.fillTexts.map((c) => c.text).join(' ');
+  assert.ok(frTexts.includes('Unique'), 'french_pure_poetry must render French translation');
+  assert.equal(frTexts.includes('قُلْ'), false, 'french_pure_poetry must omit Arabic text');
+  assert.equal(frTexts.includes('Qul'), false, 'french_pure_poetry must omit phonetics');
+  assert.ok(
+    Array.from(frenchFontsUsed).some((f) => f.includes('Cormorant Garamond')),
+    'french_pure_poetry must use Cormorant Garamond serif font'
+  );
+});
+
+test('new typographic templates use distinct webfont families and render zero enclosing card boxes', () => {
+  const ayahs = [
+    {
+      num: 1,
+      ar: 'ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ',
+      tr: 'Alhamdu lillaahi Rabbil aalameen',
+      fr: 'Louange a Allah, Seigneur des mondes.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(ayahs, [5.0], 1);
+
+  const expectedFonts: Array<[VideoCanvasRenderOptions['flowMode'], string]> = [
+    ['arabic_ruqaa_modern', 'Aref Ruqaa'],
+    ['kufi_editorial', 'Noto Kufi Arabic'],
+    ['phonetics_focus', 'Cormorant Garamond'],
+    ['arabic_giant_whisper_fr', 'Scheherazade New'],
+  ];
+
+  for (const [flowMode, expectedFont] of expectedFonts) {
+    const mock = createMockCanvasContext();
+    const fontsUsed = new Set<string>();
+    let curFont = '';
+    Object.defineProperty(mock.ctx, 'font', {
+      get: () => curFont,
+      set: (v: string) => {
+        curFont = v;
+        fontsUsed.add(v);
+      },
+    });
+
+    const opts: VideoCanvasRenderOptions = {
+      width: 1920,
+      height: 1080,
+      surahName: 'Al-Fatiha',
+      surahNumber: 1,
+      startAyah: 1,
+      endAyah: 1,
+      isLightSurface: false,
+      bgImage: null,
+      showArabic: true,
+      useTajweed: false,
+      showPhonetics: true,
+      showFrench: true,
+      showSurahHeader: false,
+      textScale: 'standard',
+      flowMode,
+      reciterName: 'Alafasy',
+    };
+
+    const layout = precomputeVideoCanvasLayout(mock.ctx, ayahs, opts);
+    renderVideoCanvasFrame(mock.ctx, layout, timeline, 2.5, opts);
+
+    assert.ok(
+      Array.from(fontsUsed).some((f) => f.includes(expectedFont)),
+      `Template ${flowMode} must apply ${expectedFont} font`
+    );
+
+    // Ensure no medium/large card box fillRect is drawn inside content area (only full canvas bg 1920x1080 is allowed)
+    const boxRect = mock.fillRects.find(
+      (r) => !(r.x === 0 && r.y === 0 && r.w === 1920 && r.h === 1080) && r.w > 200 && r.h > 80
+    );
+    assert.equal(boxRect, undefined, `Frameless template ${flowMode} must not draw enclosing card rectangles`);
   }
 });
 
