@@ -72,6 +72,9 @@ import {
   loadStudioMediaLibrary,
   saveStudioBgPreferences,
   saveStudioMediaFile,
+  STUDIO_TEXT_COLOR_SWATCHES,
+  StudioTextColorTarget,
+  clampBackgroundAdjustment,
 } from '../utils/studioMediaLibrary';
 import { StudioTemplateGrid } from './video-studio/StudioTemplateGrid';
 import {
@@ -94,6 +97,7 @@ interface CustomBackgroundMedia {
   name: string;
   kind: 'image' | 'video';
   url: string;
+  thumbUrl?: string;
   sizeBytes?: number;
   durationSec?: number;
   syncedToServer?: boolean;
@@ -320,6 +324,39 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const prefs = loadStudioBgPreferences();
     return typeof prefs.bgVeilOpacity === 'number' ? prefs.bgVeilOpacity : 0.25;
   });
+  const [bgBlackBackdrop, setBgBlackBackdrop] = useState<boolean>(() => {
+    const prefs = loadStudioBgPreferences();
+    return Boolean(prefs.bgBlackBackdrop);
+  });
+  const [textShadowBoost, setTextShadowBoost] = useState<boolean>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.textShadowBoost === 'boolean' ? prefs.textShadowBoost : true;
+  });
+  const [colorTarget, setColorTarget] = useState<StudioTextColorTarget>(() => {
+    const prefs = loadStudioBgPreferences();
+    return prefs.colorTarget || 'all';
+  });
+  const [arabicTextColor, setArabicTextColor] = useState<string | null>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.arabicTextColor === 'string' ? prefs.arabicTextColor : null;
+  });
+  const [phoneticsTextColor, setPhoneticsTextColor] = useState<string | null>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.phoneticsTextColor === 'string' ? prefs.phoneticsTextColor : null;
+  });
+  const [frenchTextColor, setFrenchTextColor] = useState<string | null>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.frenchTextColor === 'string' ? prefs.frenchTextColor : null;
+  });
+  const [bgBrightness, setBgBrightness] = useState<number>(() =>
+    clampBackgroundAdjustment(loadStudioBgPreferences().bgBrightness, 50)
+  );
+  const [bgSharpness, setBgSharpness] = useState<number>(() =>
+    clampBackgroundAdjustment(loadStudioBgPreferences().bgSharpness, 50)
+  );
+  const [bgContrast, setBgContrast] = useState<number>(() =>
+    clampBackgroundAdjustment(loadStudioBgPreferences().bgContrast, 50)
+  );
 
   const [showArabic, setShowArabic] = useState<boolean>(true);
   const [useTajweed, setUseTajweed] = useState<boolean>(true);
@@ -412,6 +449,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           for (const it of items) {
             try {
               URL.revokeObjectURL(it.url);
+              if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl);
             } catch {}
           }
           return;
@@ -419,6 +457,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         for (const prev of customMediaRef.current) {
           try {
             URL.revokeObjectURL(prev.url);
+            if (prev.thumbUrl) URL.revokeObjectURL(prev.thumbUrl);
           } catch {}
         }
         setCustomMedia(items);
@@ -451,11 +490,36 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       bgId,
       textColorOverride,
       bgVeilOpacity,
+      bgBlackBackdrop,
+      textShadowBoost,
+      arabicTextColor,
+      phoneticsTextColor,
+      frenchTextColor,
+      colorTarget,
+      bgBrightness,
+      bgSharpness,
+      bgContrast,
       videoFormatId,
       videoQualityId,
       flowMode,
     });
-  }, [bgId, textColorOverride, bgVeilOpacity, videoFormatId, videoQualityId, flowMode]);
+  }, [
+    bgId,
+    textColorOverride,
+    bgVeilOpacity,
+    bgBlackBackdrop,
+    textShadowBoost,
+    arabicTextColor,
+    phoneticsTextColor,
+    frenchTextColor,
+    colorTarget,
+    bgBrightness,
+    bgSharpness,
+    bgContrast,
+    videoFormatId,
+    videoQualityId,
+    flowMode,
+  ]);
 
   // Initialize selection strictly on closed -> open transition
   useEffect(() => {
@@ -693,11 +757,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const isLightSurface = useMemo(() => {
     if (textColorOverride === 'dark') return true;
     if (textColorOverride === 'light') return false;
+    if (bgBlackBackdrop) return false;
     if (activeSolidBg) return activeSolidBg.polarity === 'light';
     if (activeVerticalBg) return activeVerticalBg.polarity === 'light';
     if (active4kBg) return active4kBg.polarity === 'light';
     return false;
-  }, [textColorOverride, activeSolidBg, activeVerticalBg, active4kBg]);
+  }, [textColorOverride, bgBlackBackdrop, activeSolidBg, activeVerticalBg, active4kBg]);
 
   const bgSurfaceColor = useMemo(() => {
     if (activeSolidBg) return activeSolidBg.color;
@@ -709,6 +774,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       id: m.id,
       name: m.name,
       url: m.url,
+      thumbUrl: m.thumbUrl || m.url,
       kind: m.kind,
       durationSec: m.durationSec,
       isCustom: true,
@@ -717,6 +783,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       id: b.id,
       name: b.name,
       url: b.url,
+      thumbUrl: b.thumbUrl,
       category: b.category,
       kind: 'image' as const,
       isCustom: false,
@@ -725,6 +792,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       id: b.id,
       name: b.name,
       url: b.url,
+      thumbUrl: b.thumbUrl,
       kind: 'image' as const,
       isCustom: false,
     }));
@@ -735,6 +803,32 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (bgFilter === '4k') return fourKCards;
     return [...customCards, ...verticalCards, ...fourKCards];
   }, [bgFilter, customMedia]);
+
+  const applyCustomTextColor = useCallback(
+    (hex: string | null) => {
+      if (colorTarget === 'all') {
+        setArabicTextColor(hex);
+        setPhoneticsTextColor(hex);
+        setFrenchTextColor(hex);
+      } else if (colorTarget === 'arabic') {
+        setArabicTextColor(hex);
+      } else if (colorTarget === 'phonetics') {
+        setPhoneticsTextColor(hex);
+      } else if (colorTarget === 'french') {
+        setFrenchTextColor(hex);
+      }
+    },
+    [colorTarget]
+  );
+
+  const activeTargetColorHex = useMemo(() => {
+    if (colorTarget === 'arabic') return arabicTextColor || (isLightSurface ? '#0A0A0A' : '#FFFFFF');
+    if (colorTarget === 'phonetics') return phoneticsTextColor || (isLightSurface ? '#065F46' : '#CBD5E1');
+    if (colorTarget === 'french') return frenchTextColor || (isLightSurface ? '#171717' : '#F8FAFC');
+    return arabicTextColor || frenchTextColor || phoneticsTextColor || (isLightSurface ? '#0A0A0A' : '#FFFFFF');
+  }, [colorTarget, arabicTextColor, phoneticsTextColor, frenchTextColor, isLightSurface]);
+
+  const hasCustomTextColors = Boolean(arabicTextColor || phoneticsTextColor || frenchTextColor);
 
   const filteredSurahs = useMemo(() => {
     const q = surahQuery.toLowerCase().trim();
@@ -887,6 +981,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         bgId,
         textColorOverride,
         bgVeilOpacity,
+        bgBlackBackdrop ? '1' : '0',
+        textShadowBoost ? '1' : '0',
+        arabicTextColor || '',
+        phoneticsTextColor || '',
+        frenchTextColor || '',
+        bgBrightness,
+        bgSharpness,
+        bgContrast,
         showArabic,
         useTajweed,
         showPhonetics,
@@ -903,6 +1005,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       bgId,
       textColorOverride,
       bgVeilOpacity,
+      bgBlackBackdrop,
+      textShadowBoost,
+      arabicTextColor,
+      phoneticsTextColor,
+      frenchTextColor,
+      bgBrightness,
+      bgSharpness,
+      bgContrast,
       showArabic,
       useTajweed,
       showPhonetics,
@@ -930,6 +1040,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       for (const item of customMediaRef.current) {
         try {
           URL.revokeObjectURL(item.url);
+          if (item.thumbUrl) URL.revokeObjectURL(item.thumbUrl);
         } catch {}
       }
     };
@@ -973,7 +1084,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const handleRemoveCustomMedia = (id: string) => {
     setCustomMedia((prev) => {
       const target = prev.find((m) => m.id === id);
-      if (target) URL.revokeObjectURL(target.url);
+      if (target) {
+        URL.revokeObjectURL(target.url);
+        if (target.thumbUrl) URL.revokeObjectURL(target.thumbUrl);
+      }
       return prev.filter((m) => m.id !== id);
     });
     deleteStudioMediaItem(id).catch(() => {});
@@ -1382,6 +1496,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         isLightSurface,
         bgSurfaceColor,
         bgVeilOpacity,
+        bgBlackBackdrop,
+        bgBrightness,
+        bgSharpness,
+        bgContrast,
+        textShadowBoost,
+        arabicTextColor,
+        phoneticsTextColor,
+        frenchTextColor,
         bgImage: bgImg,
         bgVideo,
         showArabic,
@@ -1609,6 +1731,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             isLightSurface={isLightSurface}
             bgSurfaceColor={bgSurfaceColor}
             bgVeilOpacity={bgVeilOpacity}
+            bgBlackBackdrop={bgBlackBackdrop}
+            bgBrightness={bgBrightness}
+            bgSharpness={bgSharpness}
+            bgContrast={bgContrast}
+            textShadowBoost={textShadowBoost}
+            arabicTextColor={arabicTextColor}
+            phoneticsTextColor={phoneticsTextColor}
+            frenchTextColor={frenchTextColor}
             showArabic={showArabic}
             useTajweed={useTajweed}
             showPhonetics={showPhonetics}
@@ -2235,8 +2365,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                             />
                           ) : (
                             <img
-                              src={bg.url}
+                              src={bg.thumbUrl || bg.url}
                               alt={bg.name}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
                               className="absolute inset-0 w-full h-full object-cover"
                             />
@@ -2273,48 +2405,308 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#D4D1C8]">
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-semibold text-[#565C58]">Texte</div>
-                    <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold">
-                      {[
-                        { id: 'auto' as const, label: 'Auto' },
-                        { id: 'light' as const, label: 'Blanc' },
-                        { id: 'dark' as const, label: 'Noir' },
-                      ].map((opt) => (
+                {/* Image / Video Background Adjustments (0 - 100) */}
+                {activeMediaKind !== 'solid' && (
+                  <div
+                    data-testid="studio-bg-adjustments-panel"
+                    className="pt-3 border-t border-[#D4D1C8] space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-[#1F2421]">
+                        Réglages du fond (0–100)
+                      </span>
+                      {(bgBrightness !== 50 || bgSharpness !== 50 || bgContrast !== 50) && (
                         <button
-                          key={opt.id}
                           type="button"
-                          onClick={() => setTextColorOverride(opt.id)}
-                          className={`h-7 rounded-full cursor-pointer transition-all ${
-                            textColorOverride === opt.id
-                              ? 'studio-pill-mint'
-                              : 'text-[#4F5551] hover:text-[#1F2421]'
-                          }`}
+                          data-testid="studio-bg-adjustments-reset-btn"
+                          onClick={() => {
+                            setBgBrightness(50);
+                            setBgSharpness(50);
+                            setBgContrast(50);
+                          }}
+                          className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-semibold text-[#1B573E] cursor-pointer"
                         >
-                          {opt.label}
+                          Réinitialiser
                         </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {[
+                        {
+                          id: 'brightness',
+                          label: 'Luminosité',
+                          val: bgBrightness,
+                          onChange: setBgBrightness,
+                        },
+                        {
+                          id: 'sharpness',
+                          label: 'Netteté',
+                          val: bgSharpness,
+                          onChange: setBgSharpness,
+                        },
+                        {
+                          id: 'contrast',
+                          label: 'Contraste',
+                          val: bgContrast,
+                          onChange: setBgContrast,
+                        },
+                      ].map((ctrl) => (
+                        <label
+                          key={ctrl.id}
+                          className="grid grid-cols-[76px_1fr_32px] items-center gap-2.5 cursor-pointer"
+                        >
+                          <span className="text-[11px] font-semibold text-[#4F5551]">
+                            {ctrl.label}
+                          </span>
+                          <input
+                            type="range"
+                            data-testid={`studio-bg-slider-${ctrl.id}`}
+                            aria-label={ctrl.label}
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={ctrl.val}
+                            onChange={(e) => ctrl.onChange(Number(e.target.value))}
+                            className="w-full studio-range-mint cursor-pointer"
+                          />
+                          <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums text-right">
+                            {ctrl.val}
+                          </span>
+                        </label>
                       ))}
                     </div>
                   </div>
+                )}
 
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-semibold text-[#565C58]">Voile</div>
-                    <div className="grid grid-cols-4 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-semibold tabular-nums">
-                      {[0, 0.25, 0.45, 0.65].map((alpha) => (
+                {/* Bottom Readability & Color Controls */}
+                <div
+                  data-testid="studio-bottom-readability-panel"
+                  className="pt-3 border-t border-[#D4D1C8] space-y-3.5"
+                >
+                  {/* Row 1: Polarity + Contre-fond noir + Ombre */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-semibold text-[#565C58]">Texte</div>
+                      <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold">
+                        {[
+                          { id: 'auto' as const, label: 'Auto' },
+                          { id: 'light' as const, label: 'Blanc' },
+                          { id: 'dark' as const, label: 'Noir' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            data-testid={`studio-text-polarity-${opt.id}`}
+                            onClick={() => {
+                              setTextColorOverride(opt.id);
+                              setArabicTextColor(null);
+                              setPhoneticsTextColor(null);
+                              setFrenchTextColor(null);
+                            }}
+                            className={`h-7 rounded-full cursor-pointer transition-all ${
+                              textColorOverride === opt.id && !hasCustomTextColors
+                                ? 'studio-pill-mint'
+                                : 'text-[#4F5551] hover:text-[#1F2421]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] font-semibold text-[#565C58]">Lisibilité</div>
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] font-semibold">
                         <button
-                          key={alpha}
                           type="button"
-                          onClick={() => setBgVeilOpacity(alpha)}
-                          className={`h-7 rounded-full cursor-pointer transition-all ${
-                            Math.abs(bgVeilOpacity - alpha) < 0.02
+                          data-testid="studio-black-backdrop-btn"
+                          aria-pressed={bgBlackBackdrop}
+                          onClick={() => {
+                            setBgBlackBackdrop((prev) => {
+                              const next = !prev;
+                              if (next && bgVeilOpacity < 0.35) {
+                                setBgVeilOpacity(0.45);
+                              }
+                              return next;
+                            });
+                          }}
+                          className={`h-9 px-2.5 rounded-full cursor-pointer transition-all truncate ${
+                            bgBlackBackdrop ? 'studio-pill-mint' : 'studio-pill-raised text-[#4F5551]'
+                          }`}
+                        >
+                          Contre-fond noir
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="studio-text-shadow-btn"
+                          aria-pressed={textShadowBoost}
+                          onClick={() => setTextShadowBoost((v) => !v)}
+                          className={`h-9 px-2.5 rounded-full cursor-pointer transition-all truncate ${
+                            textShadowBoost ? 'studio-pill-mint' : 'studio-pill-raised text-[#4F5551]'
+                          }`}
+                        >
+                          Ombre texte
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Assombrissement / Voile (0 -> 100%) */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-[#565C58]">
+                        {bgBlackBackdrop ? 'Contre-fond noir (opacité)' : 'Voile'}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums">
+                        {Math.round(bgVeilOpacity * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="range"
+                        data-testid="studio-veil-slider"
+                        aria-label="Intensité du voile noir"
+                        min={0}
+                        max={90}
+                        step={1}
+                        value={Math.round(bgVeilOpacity * 100)}
+                        onChange={(e) => setBgVeilOpacity(Number(e.target.value) / 100)}
+                        className="flex-1 min-w-0 studio-range-mint cursor-pointer"
+                      />
+                      <div className="flex items-center gap-1 p-0.5 rounded-full studio-well-inset text-[10.5px] font-semibold tabular-nums shrink-0">
+                        {[0, 0.25, 0.45, 0.65].map((alpha) => (
+                          <button
+                            key={alpha}
+                            type="button"
+                            onClick={() => setBgVeilOpacity(alpha)}
+                            className={`h-6 px-2 rounded-full cursor-pointer transition-all ${
+                              Math.abs(bgVeilOpacity - alpha) < 0.02
+                                ? 'studio-pill-mint'
+                                : 'text-[#4F5551] hover:text-[#1F2421]'
+                            }`}
+                          >
+                            {Math.round(alpha * 100)}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 3: Custom Text Colors (Target + 10 Swatches BEFORE Color Wheel Circle) */}
+                  <div className="space-y-2 pt-2 border-t border-[#D4D1C8]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-[#565C58]">
+                        Couleur d’écriture
+                      </span>
+                      {hasCustomTextColors && (
+                        <button
+                          type="button"
+                          data-testid="studio-text-color-reset-btn"
+                          onClick={() => {
+                            setArabicTextColor(null);
+                            setPhoneticsTextColor(null);
+                            setFrenchTextColor(null);
+                          }}
+                          className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-semibold text-[#1B573E] cursor-pointer"
+                        >
+                          Couleur auto
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Target Switcher: Tout / Arabe / Transcrit / Français */}
+                    <div
+                      data-testid="studio-color-target-group"
+                      className="grid grid-cols-4 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-semibold"
+                    >
+                      {[
+                        { id: 'all' as const, label: 'Tout', dotColor: null },
+                        { id: 'arabic' as const, label: 'Arabe', dotColor: arabicTextColor },
+                        { id: 'phonetics' as const, label: 'Transcrit', dotColor: phoneticsTextColor },
+                        { id: 'french' as const, label: 'Français', dotColor: frenchTextColor },
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          data-testid={`studio-color-target-${t.id}`}
+                          onClick={() => setColorTarget(t.id)}
+                          className={`h-7 px-1.5 rounded-full inline-flex items-center justify-center gap-1 cursor-pointer transition-all truncate ${
+                            colorTarget === t.id
                               ? 'studio-pill-mint'
                               : 'text-[#4F5551] hover:text-[#1F2421]'
                           }`}
                         >
-                          {Math.round(alpha * 100)}%
+                          <span>{t.label}</span>
+                          {t.dotColor && (
+                            <span
+                              className="w-2 h-2 rounded-full ring-1 ring-black/20 shrink-0"
+                              style={{ backgroundColor: t.dotColor }}
+                            />
+                          )}
                         </button>
                       ))}
+                    </div>
+
+                    {/* 10 Curated Color Swatches BEFORE the Color Wheel Circle */}
+                    <div
+                      data-testid="studio-text-color-swatches"
+                      className="flex flex-wrap items-center gap-2 pt-0.5"
+                    >
+                      {STUDIO_TEXT_COLOR_SWATCHES.map((sw, idx) => {
+                        const isSelected =
+                          activeTargetColorHex.toUpperCase() === sw.hex.toUpperCase() &&
+                          (colorTarget === 'all'
+                            ? arabicTextColor?.toUpperCase() === sw.hex.toUpperCase() &&
+                              frenchTextColor?.toUpperCase() === sw.hex.toUpperCase()
+                            : colorTarget === 'arabic'
+                            ? arabicTextColor?.toUpperCase() === sw.hex.toUpperCase()
+                            : colorTarget === 'phonetics'
+                            ? phoneticsTextColor?.toUpperCase() === sw.hex.toUpperCase()
+                            : frenchTextColor?.toUpperCase() === sw.hex.toUpperCase());
+                        return (
+                          <button
+                            key={sw.hex}
+                            type="button"
+                            data-testid={`studio-color-swatch-${idx}`}
+                            aria-label={`Couleur ${sw.label}`}
+                            title={sw.label}
+                            onClick={() => applyCustomTextColor(sw.hex)}
+                            className={`w-6 h-6 rounded-full cursor-pointer transition-transform shadow-[0_2px_6px_rgba(24,28,26,0.18)] ${
+                              isSelected
+                                ? 'ring-[2.5px] ring-[#1B573E] ring-offset-2 ring-offset-[#EAE8E1] scale-110'
+                                : 'ring-1 ring-[#B8B5AC] hover:scale-110'
+                            }`}
+                            style={{ backgroundColor: sw.hex }}
+                          />
+                        );
+                      })}
+
+                      {/* Rainbow Color Wheel Circle positioned AFTER the 10 color presets */}
+                      <label
+                        data-testid="studio-color-wheel-label"
+                        title="Cercle des couleurs"
+                        aria-label="Cercle des couleurs personnalisé"
+                        className="relative w-7 h-7 rounded-full cursor-pointer flex items-center justify-center shadow-[0_2px_8px_rgba(24,28,26,0.22)] ring-1 ring-white/70 hover:scale-110 transition-transform shrink-0"
+                        style={{
+                          background:
+                            'conic-gradient(#EF4444, #F59E0B, #EAB308, #22C55E, #06B6D4, #3B82F6, #A855F7, #EC4899, #EF4444)',
+                        }}
+                      >
+                        <span
+                          className="w-3 h-3 rounded-full ring-2 ring-white shadow-sm pointer-events-none"
+                          style={{ backgroundColor: activeTargetColorHex }}
+                        />
+                        <input
+                          type="color"
+                          data-testid="studio-color-wheel-input"
+                          aria-label="Choisir une couleur dans le cercle"
+                          value={activeTargetColorHex}
+                          onChange={(e) => applyCustomTextColor(e.target.value)}
+                          className="sr-only"
+                        />
+                      </label>
                     </div>
                   </div>
                 </div>

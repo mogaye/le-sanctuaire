@@ -9,6 +9,7 @@ export interface StoredStudioMediaRecord {
   durationSec?: number;
   createdAt: number;
   blob: Blob;
+  thumbBlob?: Blob;
   syncedToServer?: boolean;
   serverUrl?: string;
 }
@@ -34,6 +35,7 @@ export interface HydratedStudioMediaItem {
   durationSec?: number;
   createdAt: number;
   url: string;
+  thumbUrl?: string;
   syncedToServer: boolean;
 }
 
@@ -43,13 +45,62 @@ const STORE_NAME = 'custom_media';
 const CLIENT_ID_KEY = 'sanctuaire_studio_client_id';
 const PREFS_KEY = 'sanctuaire_studio_bg_prefs_v1';
 
+export type StudioTextColorTarget = 'all' | 'arabic' | 'phonetics' | 'french';
+
+export const STUDIO_TEXT_COLOR_SWATCHES: Array<{ label: string; hex: string }> = [
+  { label: 'Blanc Pur', hex: '#FFFFFF' },
+  { label: 'Ivoire Crème', hex: '#FAF3E0' },
+  { label: 'Or Lumineux', hex: '#FBBF24' },
+  { label: 'Sable Doré', hex: '#FDE68A' },
+  { label: 'Menthe Douce', hex: '#A7F3D0' },
+  { label: 'Émeraude', hex: '#10B981' },
+  { label: 'Bleu Ciel', hex: '#93C5FD' },
+  { label: 'Corail Doux', hex: '#FDA4AF' },
+  { label: 'Gris Ardoise', hex: '#334155' },
+  { label: 'Noir Profond', hex: '#0F172A' },
+];
+
 export interface StudioBgPreferences {
   bgId?: string;
   textColorOverride?: 'auto' | 'light' | 'dark';
   bgVeilOpacity?: number;
+  bgBlackBackdrop?: boolean;
+  textShadowBoost?: boolean;
+  arabicTextColor?: string | null;
+  phoneticsTextColor?: string | null;
+  frenchTextColor?: string | null;
+  colorTarget?: StudioTextColorTarget;
+  bgBrightness?: number;
+  bgSharpness?: number;
+  bgContrast?: number;
   videoFormatId?: string;
   videoQualityId?: string;
   flowMode?: string;
+}
+
+export function computeOptimizedImageDimensions(
+  srcWidth: number,
+  srcHeight: number,
+  maxLongEdge: number = 2048
+): { width: number; height: number; resized: boolean } {
+  const safeW = Number.isFinite(srcWidth) && srcWidth > 0 ? Math.round(srcWidth) : 1;
+  const safeH = Number.isFinite(srcHeight) && srcHeight > 0 ? Math.round(srcHeight) : 1;
+  const safeMax = Number.isFinite(maxLongEdge) && maxLongEdge > 0 ? Math.round(maxLongEdge) : 2048;
+  const longEdge = Math.max(safeW, safeH);
+  if (longEdge <= safeMax) {
+    return { width: safeW, height: safeH, resized: false };
+  }
+  const scale = safeMax / longEdge;
+  return {
+    width: Math.max(1, Math.round(safeW * scale)),
+    height: Math.max(1, Math.round(safeH * scale)),
+    resized: true,
+  };
+}
+
+export function clampBackgroundAdjustment(value: number | undefined, fallback: number = 50): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 export function loadStudioBgPreferences(): StudioBgPreferences {
@@ -291,6 +342,125 @@ async function uploadMediaBlobToServer(
   }
 }
 
+async function encodeCanvasToOptimizedBlob(
+  canvas: HTMLCanvasElement,
+  quality: number
+): Promise<{ blob: Blob; mimeType: string } | null> {
+  const tryType = (type: string) =>
+    new Promise<Blob | null>((resolve) => {
+      try {
+        canvas.toBlob((b) => resolve(b), type, quality);
+      } catch {
+        resolve(null);
+      }
+    });
+
+  const webp = await tryType('image/webp');
+  if (webp && webp.size > 0 && webp.type === 'image/webp') {
+    return { blob: webp, mimeType: 'image/webp' };
+  }
+  const jpeg = await tryType('image/jpeg');
+  if (jpeg && jpeg.size > 0) {
+    return { blob: jpeg, mimeType: jpeg.type || 'image/jpeg' };
+  }
+  return null;
+}
+
+async function optimizeUploadedImageFile(
+  file: File
+): Promise<{ blob: Blob; mimeType: string; thumbBlob?: Blob }> {
+  if (
+    typeof document === 'undefined' ||
+    file.type === 'image/svg+xml' ||
+    file.type === 'image/gif'
+  ) {
+    return { blob: file, mimeType: file.type || 'image/jpeg' };
+  }
+
+  let bitmap: ImageBitmap | null = null;
+  let imgEl: HTMLImageElement | null = null;
+  let objUrl: string | null = null;
+  try {
+    let srcW = 0;
+    let srcH = 0;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(file);
+        srcW = bitmap.width;
+        srcH = bitmap.height;
+      } catch {
+        bitmap = null;
+      }
+    }
+    if (!bitmap) {
+      objUrl = URL.createObjectURL(file);
+      imgEl = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = objUrl!;
+      });
+      if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) {
+        return { blob: file, mimeType: file.type || 'image/jpeg' };
+      }
+      srcW = imgEl.naturalWidth;
+      srcH = imgEl.naturalHeight;
+    }
+
+    const source: CanvasImageSource = (bitmap || imgEl)!;
+    const targetDims = computeOptimizedImageDimensions(srcW, srcH, 2048);
+
+    let mainBlob: Blob = file;
+    let mainMime = file.type || 'image/jpeg';
+
+    if (targetDims.resized || file.size > 220 * 1024) {
+      const mainCanvas = document.createElement('canvas');
+      mainCanvas.width = targetDims.width;
+      mainCanvas.height = targetDims.height;
+      const mCtx = mainCanvas.getContext('2d');
+      if (mCtx) {
+        mCtx.imageSmoothingEnabled = true;
+        mCtx.imageSmoothingQuality = 'high';
+        mCtx.drawImage(source, 0, 0, targetDims.width, targetDims.height);
+        const encoded = await encodeCanvasToOptimizedBlob(mainCanvas, 0.82);
+        if (encoded && (targetDims.resized || encoded.blob.size < file.size * 0.92)) {
+          mainBlob = encoded.blob;
+          mainMime = encoded.mimeType;
+        }
+      }
+    }
+
+    let thumbBlob: Blob | undefined;
+    const thumbDims = computeOptimizedImageDimensions(srcW, srcH, 240);
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = thumbDims.width;
+    thumbCanvas.height = thumbDims.height;
+    const tCtx = thumbCanvas.getContext('2d');
+    if (tCtx) {
+      tCtx.imageSmoothingEnabled = true;
+      tCtx.imageSmoothingQuality = 'medium';
+      tCtx.drawImage(source, 0, 0, thumbDims.width, thumbDims.height);
+      const encodedThumb = await encodeCanvasToOptimizedBlob(thumbCanvas, 0.72);
+      if (encodedThumb) {
+        thumbBlob = encodedThumb.blob;
+      }
+    }
+
+    return { blob: mainBlob, mimeType: mainMime, thumbBlob };
+  } catch {
+    return { blob: file, mimeType: file.type || 'image/jpeg' };
+  } finally {
+    try {
+      bitmap?.close();
+    } catch {}
+    if (objUrl) {
+      try {
+        URL.revokeObjectURL(objUrl);
+      } catch {}
+    }
+  }
+}
+
 export async function saveStudioMediaFile(
   file: File,
   indexSeed: number = 0
@@ -301,22 +471,31 @@ export async function saveStudioMediaFile(
   const cleanName =
     file.name.replace(/\.[^.]+$/, '') || (kind === 'video' ? 'Vidéo importée' : 'Image importée');
   const id = `media_${Date.now()}_${indexSeed}_${Math.random().toString(36).slice(2, 7)}`;
-  const mimeType =
-    file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg');
   const createdAt = Date.now();
   const ownerKey = getActiveStudioOwnerKey();
 
   const durationSec = kind === 'video' ? await probeVideoDurationSec(file) : undefined;
+  let finalBlob: Blob = file;
+  let finalMime = file.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg');
+  let thumbBlob: Blob | undefined;
+
+  if (kind === 'image') {
+    const optimized = await optimizeUploadedImageFile(file);
+    finalBlob = optimized.blob;
+    finalMime = optimized.mimeType;
+    thumbBlob = optimized.thumbBlob;
+  }
 
   const record: StoredStudioMediaRecord = {
     id,
     name: cleanName,
     kind,
-    mimeType,
-    sizeBytes: file.size || file.size === 0 ? file.size : 0,
+    mimeType: finalMime,
+    sizeBytes: finalBlob.size || 0,
     durationSec,
     createdAt,
-    blob: file,
+    blob: finalBlob,
+    thumbBlob,
     syncedToServer: false,
   };
 
@@ -343,7 +522,8 @@ export async function saveStudioMediaFile(
     sizeBytes: record.sizeBytes,
     durationSec: record.durationSec,
     createdAt: record.createdAt,
-    url: URL.createObjectURL(file),
+    url: URL.createObjectURL(finalBlob),
+    thumbUrl: thumbBlob ? URL.createObjectURL(thumbBlob) : undefined,
     syncedToServer,
   };
 }
@@ -438,6 +618,7 @@ export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[
       durationSec: rec.durationSec,
       createdAt: rec.createdAt,
       url: URL.createObjectURL(rec.blob),
+      thumbUrl: rec.thumbBlob ? URL.createObjectURL(rec.thumbBlob) : undefined,
       syncedToServer: Boolean(rec.syncedToServer),
     }));
 

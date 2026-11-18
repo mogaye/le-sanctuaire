@@ -64,6 +64,14 @@ interface StudioLiveMonitorProps {
   isLightSurface: boolean;
   bgSurfaceColor: string;
   bgVeilOpacity: number;
+  bgBlackBackdrop: boolean;
+  bgBrightness: number;
+  bgSharpness: number;
+  bgContrast: number;
+  textShadowBoost: boolean;
+  arabicTextColor: string | null;
+  phoneticsTextColor: string | null;
+  frenchTextColor: string | null;
   showArabic: boolean;
   useTajweed: boolean;
   showPhonetics: boolean;
@@ -113,6 +121,14 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   isLightSurface,
   bgSurfaceColor,
   bgVeilOpacity,
+  bgBlackBackdrop,
+  bgBrightness,
+  bgSharpness,
+  bgContrast,
+  textShadowBoost,
+  arabicTextColor,
+  phoneticsTextColor,
+  frenchTextColor,
   showArabic,
   useTajweed,
   showPhonetics,
@@ -261,6 +277,14 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       isLightSurface,
       bgSurfaceColor,
       bgVeilOpacity,
+      bgBlackBackdrop,
+      bgBrightness,
+      bgSharpness,
+      bgContrast,
+      textShadowBoost,
+      arabicTextColor,
+      phoneticsTextColor,
+      frenchTextColor,
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
       showArabic,
@@ -283,6 +307,14 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       isLightSurface,
       bgSurfaceColor,
       bgVeilOpacity,
+      bgBlackBackdrop,
+      bgBrightness,
+      bgSharpness,
+      bgContrast,
+      textShadowBoost,
+      arabicTextColor,
+      phoneticsTextColor,
+      frenchTextColor,
       bgReadyTick,
       showArabic,
       useTajweed,

@@ -22,6 +22,14 @@ export interface VideoCanvasRenderOptions {
   isLightSurface: boolean;
   bgSurfaceColor?: string;
   bgVeilOpacity?: number;
+  bgBlackBackdrop?: boolean;
+  bgBrightness?: number;
+  bgSharpness?: number;
+  bgContrast?: number;
+  textShadowBoost?: boolean;
+  arabicTextColor?: string | null;
+  phoneticsTextColor?: string | null;
+  frenchTextColor?: string | null;
   bgImage: HTMLImageElement | null;
   bgVideo?: HTMLVideoElement | null;
   showArabic: boolean;
@@ -32,6 +40,71 @@ export interface VideoCanvasRenderOptions {
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
   reciterName: string;
+}
+
+export function buildCanvasBackgroundFilter(
+  brightness: number = 50,
+  contrast: number = 50,
+  sharpness: number = 50,
+  blurScale: number = 1
+): {
+  cssFilter: string;
+  sharpenAmount: number;
+  blurPx: number;
+} {
+  const b = Math.max(0, Math.min(100, Number.isFinite(brightness) ? brightness : 50));
+  const c = Math.max(0, Math.min(100, Number.isFinite(contrast) ? contrast : 50));
+  const s = Math.max(0, Math.min(100, Number.isFinite(sharpness) ? sharpness : 50));
+
+  const brightnessFactor = b <= 50 ? 0.35 + (b / 50) * 0.65 : 1.0 + ((b - 50) / 50) * 0.75;
+  const contrastFactor = c <= 50 ? 0.4 + (c / 50) * 0.6 : 1.0 + ((c - 50) / 50) * 0.8;
+  const blurPx = s < 50 ? Number((((50 - s) / 50) * 9 * blurScale).toFixed(2)) : 0;
+  const sharpenAmount = s > 50 ? Number(((s - 50) / 50).toFixed(2)) : 0;
+
+  const parts: string[] = [];
+  if (Math.abs(brightnessFactor - 1) > 0.01) {
+    parts.push(`brightness(${brightnessFactor.toFixed(2)})`);
+  }
+  if (Math.abs(contrastFactor - 1) > 0.01) {
+    parts.push(`contrast(${contrastFactor.toFixed(2)})`);
+  }
+  if (blurPx > 0.05) {
+    parts.push(`blur(${blurPx}px)`);
+  }
+
+  return {
+    cssFilter: parts.length > 0 ? parts.join(' ') : 'none',
+    sharpenAmount,
+    blurPx,
+  };
+}
+
+export function isHexColorDark(color?: string | null): boolean {
+  if (!color || typeof color !== 'string') return false;
+  const trimmed = color.trim();
+  const hexMatch = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(trimmed);
+  if (!hexMatch) return false;
+  let hex = hexMatch[1];
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum < 0.34;
+}
+
+export function resolveLegibleShadowColor(
+  textColor: string | null | undefined,
+  isLightSurface: boolean,
+  bgBlackBackdrop?: boolean
+): string {
+  if (bgBlackBackdrop) return 'rgba(0, 0, 0, 0.92)';
+  if (textColor) {
+    return isHexColorDark(textColor) ? 'rgba(255, 255, 255, 0.88)' : 'rgba(0, 0, 0, 0.9)';
+  }
+  return isLightSurface ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.9)';
 }
 
 interface LaidOutVerseBlock {
@@ -232,7 +305,8 @@ function drawRtlTajweedLine(
   ctx.textBaseline = 'middle';
   ctx.direction = 'rtl';
   ctx.textAlign = textAlign;
-  ctx.fillStyle = colorOverride || (opts.isLightSurface ? '#0A0A0A' : '#FFFFFF');
+  ctx.fillStyle =
+    opts.arabicTextColor || colorOverride || (opts.isLightSurface ? '#0A0A0A' : '#FFFFFF');
   fillSafeText(ctx, lineText, x, y, maxWidth);
   ctx.direction = 'ltr';
 }
@@ -425,19 +499,30 @@ function drawFittedVerseInBox(
   const totalLines = fit.arLines.length + fit.trLines.length + fit.frLines.length;
   let lineCounter = 0;
 
+  const hasMediaBg = Boolean(opts.bgVideo || opts.bgImage);
+  const boostShadow = Boolean(opts.textShadowBoost);
+  const applyLegibleShadow = (textColor: string | null | undefined) => {
+    if (!boostShadow && !hasMediaBg) return;
+    ctx.shadowColor = resolveLegibleShadowColor(textColor, isLightSurface, opts.bgBlackBackdrop);
+    ctx.shadowBlur = Math.round((boostShadow ? 12 : 6) * resScale);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round((boostShadow ? 1.5 : 1) * resScale);
+  };
+
   for (const line of fit.arLines) {
     let lineAlpha = 1;
-    let lineColor = options?.arColor;
+    let lineColor = opts.arabicTextColor || options?.arColor;
     if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
       const linePos = lineCounter / Math.max(1, totalLines - 1);
       const active = options.highlightProgress >= linePos - 0.12;
       lineAlpha = active ? 1 : 0.48;
-      if (active && options.highlightProgress - linePos < 0.25) {
+      if (active && options.highlightProgress - linePos < 0.25 && !opts.arabicTextColor) {
         lineColor = isLightSurface ? '#047857' : '#FDE68A';
       }
     }
     ctx.save();
     ctx.globalAlpha *= lineAlpha;
+    applyLegibleShadow(lineColor || (isLightSurface ? '#0A0A0A' : '#FFFFFF'));
     drawRtlTajweedLine(
       ctx,
       line,
@@ -462,7 +547,9 @@ function drawFittedVerseInBox(
       const ruleX = align === 'center' ? centerX - rw / 2 : align === 'right' ? boxX + boxW - rw : boxX;
       ctx.fillStyle =
         options?.dividerColor ||
-        (isLightSurface ? 'rgba(4, 120, 87, 0.24)' : 'rgba(251, 191, 36, 0.32)');
+        (isLightSurface && !opts.bgBlackBackdrop
+          ? 'rgba(4, 120, 87, 0.24)'
+          : 'rgba(251, 191, 36, 0.32)');
       ctx.fillRect(
         ruleX,
         yCursor - Math.round(fit.arLH * 0.18),
@@ -478,6 +565,8 @@ function drawFittedVerseInBox(
 
   if (fit.trLines.length > 0) {
     ctx.font = `${fit.trFontStyle} ${fit.trFontWeight} ${fit.trPx}px ${fit.trFontFamily}`;
+    const resolvedTrColor =
+      opts.phoneticsTextColor || options?.trColor || (isLightSurface ? '#065F46' : '#CBD5E1');
     for (const line of fit.trLines) {
       let lineAlpha = 1;
       if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
@@ -486,7 +575,8 @@ function drawFittedVerseInBox(
       }
       ctx.save();
       ctx.globalAlpha *= lineAlpha;
-      ctx.fillStyle = options?.trColor || (isLightSurface ? '#065F46' : '#CBD5E1');
+      applyLegibleShadow(resolvedTrColor);
+      ctx.fillStyle = resolvedTrColor;
       fillSafeText(ctx, line, align === 'right' ? boxX + boxW : align === 'left' ? boxX : centerX, yCursor, maxLineW);
       ctx.restore();
       yCursor += fit.trLH;
@@ -499,6 +589,8 @@ function drawFittedVerseInBox(
 
   if (fit.frLines.length > 0) {
     ctx.font = `${fit.frFontStyle} ${fit.frFontWeight} ${fit.frPx}px ${fit.frFontFamily}`;
+    const resolvedFrColor =
+      opts.frenchTextColor || options?.frColor || (isLightSurface ? '#171717' : '#F8FAFC');
     for (const line of fit.frLines) {
       let lineAlpha = 1;
       if (typeof options?.highlightProgress === 'number' && totalLines > 0) {
@@ -507,7 +599,8 @@ function drawFittedVerseInBox(
       }
       ctx.save();
       ctx.globalAlpha *= lineAlpha;
-      ctx.fillStyle = options?.frColor || (isLightSurface ? '#171717' : '#F8FAFC');
+      applyLegibleShadow(resolvedFrColor);
+      ctx.fillStyle = resolvedFrColor;
       fillSafeText(ctx, line, align === 'right' ? boxX + boxW : align === 'left' ? boxX : centerX, yCursor, maxLineW);
       ctx.restore();
       yCursor += fit.frLH;
@@ -822,7 +915,7 @@ function renderCinemaSubtitlesTemplate(
     if (typeof ctx.createLinearGradient === 'function') {
       const gradTop = Math.max(topSafeY, subBoxY - Math.round(44 * resScale));
       const scrim = ctx.createLinearGradient(0, gradTop, 0, bottomSafeY);
-      if (isLightSurface) {
+      if (isLightSurface && !opts.bgBlackBackdrop) {
         scrim.addColorStop(0, 'rgba(255, 255, 255, 0)');
         scrim.addColorStop(1, 'rgba(255, 255, 255, 0.72)');
       } else {
@@ -1444,6 +1537,77 @@ function snapshotLastVideoFrame(videoEl: HTMLVideoElement): void {
   }
 }
 
+const sharpenedImageCache =
+  typeof WeakMap !== 'undefined'
+    ? new WeakMap<HTMLImageElement, { key: string; canvas: HTMLCanvasElement }>()
+    : null;
+
+function getSharpenedImageSource(
+  img: HTMLImageElement,
+  sharpenAmount: number
+): CanvasImageSource {
+  if (
+    !sharpenedImageCache ||
+    sharpenAmount <= 0.04 ||
+    typeof document === 'undefined' ||
+    !img.width ||
+    !img.height
+  ) {
+    return img;
+  }
+  const bucket = Math.round(sharpenAmount * 20);
+  const key = `${img.width}x${img.height}_${bucket}`;
+  const cached = sharpenedImageCache.get(img);
+  if (cached && cached.key === key) {
+    return cached.canvas;
+  }
+
+  try {
+    const maxEdge = 1280;
+    const scale = Math.min(1, maxEdge / Math.max(1, img.width, img.height));
+    const w = Math.max(3, Math.round(img.width * scale));
+    const h = Math.max(3, Math.round(img.height * scale));
+    const srcCanvas = document.createElement('canvas');
+    srcCanvas.width = w;
+    srcCanvas.height = h;
+    const srcCtx = srcCanvas.getContext('2d');
+    if (!srcCtx) return img;
+    srcCtx.drawImage(img, 0, 0, w, h);
+    const srcData = srcCtx.getImageData(0, 0, w, h);
+    const outData = srcCtx.createImageData(w, h);
+    const s = srcData.data;
+    const d = outData.data;
+    const strength = sharpenAmount * 1.15;
+
+    for (let y = 0; y < h; y++) {
+      const yUp = y > 0 ? y - 1 : y;
+      const yDn = y < h - 1 ? y + 1 : y;
+      for (let x = 0; x < w; x++) {
+        const xLt = x > 0 ? x - 1 : x;
+        const xRt = x < w - 1 ? x + 1 : x;
+        const idx = (y * w + x) * 4;
+        const up = (yUp * w + x) * 4;
+        const dn = (yDn * w + x) * 4;
+        const lt = (y * w + xLt) * 4;
+        const rt = (y * w + xRt) * 4;
+
+        for (let c = 0; c < 3; c++) {
+          const avg = (s[up + c] + s[dn + c] + s[lt + c] + s[rt + c]) * 0.25;
+          const val = s[idx + c] + (s[idx + c] - avg) * strength;
+          d[idx + c] = val < 0 ? 0 : val > 255 ? 255 : val;
+        }
+        d[idx + 3] = s[idx + 3];
+      }
+    }
+
+    srcCtx.putImageData(outData, 0, 0);
+    sharpenedImageCache.set(img, { key, canvas: srcCanvas });
+    return srcCanvas;
+  } catch {
+    return img;
+  }
+}
+
 export function renderVideoCanvasFrame(
   ctx: CanvasRenderingContext2D,
   layout: PrecomputedCanvasLayout,
@@ -1462,40 +1626,90 @@ export function renderVideoCanvasFrame(
   ctx.fillStyle = opts.bgSurfaceColor || (isLightSurface ? '#FCFCFB' : '#000000');
   ctx.fillRect(0, 0, width, height);
 
-  // 2. Background Video OR Image (cover fit + gentle Ken Burns motion on still images)
+  // 2. Background Video OR Image (cover fit + Ken Burns + 0-100 Brightness/Contrast/Sharpness)
   const videoEl = opts.bgVideo;
+  const bgFilter = buildCanvasBackgroundFilter(
+    opts.bgBrightness,
+    opts.bgContrast,
+    opts.bgSharpness,
+    resScale
+  );
+  const applyBgFilter = () => {
+    if ('filter' in ctx) {
+      ctx.filter = bgFilter.cssFilter;
+    }
+  };
+  const resetBgFilter = () => {
+    if ('filter' in ctx) {
+      ctx.filter = 'none';
+    }
+  };
+
   if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
     const rect = computeCoverDrawRect(videoEl.videoWidth, videoEl.videoHeight, width, height);
-    ctx.drawImage(videoEl, rect.x, rect.y, rect.w, rect.h);
+    const bleed = bgFilter.blurPx > 0.2 ? 1.04 : 1;
+    const dw = rect.w * bleed;
+    const dh = rect.h * bleed;
+    const dx = rect.x - (dw - rect.w) / 2;
+    const dy = rect.y - (dh - rect.h) / 2;
+    applyBgFilter();
+    ctx.drawImage(videoEl, dx, dy, dw, dh);
+    resetBgFilter();
     snapshotLastVideoFrame(videoEl);
   } else if (videoEl && lastVideoFrameCache?.get(videoEl)) {
     const cachedFrame = lastVideoFrameCache.get(videoEl)!;
     if (cachedFrame.width > 0 && cachedFrame.height > 0) {
       const rect = computeCoverDrawRect(cachedFrame.width, cachedFrame.height, width, height);
+      applyBgFilter();
       ctx.drawImage(cachedFrame, rect.x, rect.y, rect.w, rect.h);
+      resetBgFilter();
     }
   } else if (opts.bgImage) {
+    const imgSource =
+      bgFilter.sharpenAmount > 0.04
+        ? getSharpenedImageSource(opts.bgImage, bgFilter.sharpenAmount)
+        : opts.bgImage;
     const rect = computeCoverDrawRect(opts.bgImage.width, opts.bgImage.height, width, height);
-    const kbZoom = 1 + Math.min(0.055, Math.max(0, currentSec) * 0.0024);
+    const kbZoom = (1 + Math.min(0.055, Math.max(0, currentSec) * 0.0024)) * (bgFilter.blurPx > 0.2 ? 1.04 : 1);
     const zoomedW = rect.w * kbZoom;
     const zoomedH = rect.h * kbZoom;
     const zoomedX = rect.x - (zoomedW - rect.w) / 2;
     const zoomedY = rect.y - (zoomedH - rect.h) / 2;
-    ctx.drawImage(opts.bgImage, zoomedX, zoomedY, zoomedW, zoomedH);
+    applyBgFilter();
+    ctx.drawImage(imgSource, zoomedX, zoomedY, zoomedW, zoomedH);
+    resetBgFilter();
   }
 
-  // Subtle veil to preserve spotless text contrast over photos or videos
-  if (videoEl || opts.bgImage) {
-    const veilAlpha =
+  // Veil OR Black Counter-Backdrop ("Contre-fond noir") to tame bright photos/videos cleanly
+  if (videoEl || opts.bgImage || opts.bgBlackBackdrop) {
+    const useBlackScrim = Boolean(opts.bgBlackBackdrop) || !isLightSurface;
+    const rawVeil =
       typeof opts.bgVeilOpacity === 'number'
-        ? Math.max(0, Math.min(0.85, opts.bgVeilOpacity))
+        ? Math.max(0, Math.min(0.92, opts.bgVeilOpacity))
         : isLightSurface
         ? 0.14
         : 0.28;
+    const veilAlpha = opts.bgBlackBackdrop ? Math.max(0.25, rawVeil) : rawVeil;
     if (veilAlpha > 0.005) {
-      ctx.fillStyle = isLightSurface
-        ? `rgba(255, 255, 255, ${veilAlpha})`
-        : `rgba(0, 0, 0, ${veilAlpha})`;
+      ctx.fillStyle = useBlackScrim
+        ? `rgba(0, 0, 0, ${veilAlpha})`
+        : `rgba(255, 255, 255, ${veilAlpha})`;
+      ctx.fillRect(0, 0, width, height);
+    }
+    if (opts.bgBlackBackdrop && typeof ctx.createRadialGradient === 'function') {
+      const cx = width / 2;
+      const cy = height / 2;
+      const scrimGrad = ctx.createRadialGradient(
+        cx,
+        cy,
+        Math.min(width, height) * 0.14,
+        cx,
+        cy,
+        Math.max(width, height) * 0.72
+      );
+      scrimGrad.addColorStop(0, `rgba(0, 0, 0, ${Math.min(0.55, veilAlpha * 0.65).toFixed(2)})`);
+      scrimGrad.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
+      ctx.fillStyle = scrimGrad;
       ctx.fillRect(0, 0, width, height);
     }
   }
@@ -1601,10 +1815,15 @@ export function renderVideoCanvasFrame(
         ctx.fillRect(0, screenY - 24 * resScale, width, block.height + 48 * resScale);
       }
 
-      if (hasMediaBg) {
-        ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.72)';
-        ctx.shadowBlur = Math.round(6 * resScale);
-        ctx.shadowOffsetY = Math.round(1 * resScale);
+      if (hasMediaBg || opts.textShadowBoost) {
+        const primaryColor = opts.arabicTextColor || opts.frenchTextColor || opts.phoneticsTextColor;
+        ctx.shadowColor = resolveLegibleShadowColor(
+          primaryColor,
+          isLightSurface,
+          opts.bgBlackBackdrop
+        );
+        ctx.shadowBlur = Math.round((opts.textShadowBoost ? 12 : 6) * resScale);
+        ctx.shadowOffsetY = Math.round((opts.textShadowBoost ? 1.5 : 1) * resScale);
       }
 
       if (isDualRibbon && isLandscape) {
@@ -1626,7 +1845,8 @@ export function renderVideoCanvasFrame(
         ctx.textBaseline = 'middle';
         if (block.trLines.length > 0) {
           ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
-          ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
+          ctx.fillStyle =
+            opts.phoneticsTextColor || (isLightSurface ? '#065F46' : '#CBD5E1');
           for (const line of block.trLines) {
             fillSafeText(ctx, line, leftCenterX, leftY, arW);
             leftY += block.trLineHeightPx;
@@ -1635,7 +1855,8 @@ export function renderVideoCanvasFrame(
         }
         if (block.frLines.length > 0) {
           ctx.font = `500 ${block.frFontPx}px ${scrollFrFont}`;
-          ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
+          ctx.fillStyle =
+            opts.frenchTextColor || (isLightSurface ? '#171717' : '#F1F5F9');
           for (const line of block.frLines) {
             fillSafeText(ctx, line, leftCenterX, leftY, arW);
             leftY += block.frLineHeightPx;
@@ -1677,7 +1898,8 @@ export function renderVideoCanvasFrame(
           ctx.font = `italic 400 ${block.trFontPx}px Georgia, serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = isLightSurface ? '#065F46' : '#CBD5E1';
+          ctx.fillStyle =
+            opts.phoneticsTextColor || (isLightSurface ? '#065F46' : '#CBD5E1');
           for (const line of block.trLines) {
             fillSafeText(ctx, line, centerX, yCursor, maxLineW);
             yCursor += block.trLineHeightPx;
@@ -1689,7 +1911,8 @@ export function renderVideoCanvasFrame(
           ctx.font = `500 ${block.frFontPx}px ${scrollFrFont}`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillStyle = isLightSurface ? '#171717' : '#F1F5F9';
+          ctx.fillStyle =
+            opts.frenchTextColor || (isLightSurface ? '#171717' : '#F1F5F9');
           for (const line of block.frLines) {
             fillSafeText(ctx, line, centerX, yCursor, maxLineW);
             yCursor += block.frLineHeightPx;
@@ -1754,5 +1977,11 @@ export function renderVideoCanvasFrame(
   }
 
   // 6. Mandatory non-removable bottom watermark (no progress bar or timer!)
-  drawMandatoryBottomWatermark(ctx, width, height, resScale, isLightSurface);
+  drawMandatoryBottomWatermark(
+    ctx,
+    width,
+    height,
+    resScale,
+    isLightSurface && !opts.bgBlackBackdrop
+  );
 }

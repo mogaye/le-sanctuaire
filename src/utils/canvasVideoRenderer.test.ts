@@ -4,8 +4,10 @@ import {
   MANDATORY_WATERMARK_BRAND,
   MANDATORY_WATERMARK_TAGLINE,
   VideoCanvasRenderOptions,
+  buildCanvasBackgroundFilter,
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
+  resolveLegibleShadowColor,
 } from './canvasVideoRenderer';
 import { VIDEO_TEMPLATE_PRESETS, buildContinuousTimeline } from './mobileVideoStudioUtils';
 
@@ -611,5 +613,104 @@ test('renderVideoCanvasFrame draws bgVideo frames instead of falling back to sta
 
   assert.ok(drawImageCalls.length >= 1, 'Expected bgVideo drawImage call');
   assert.equal(drawImageCalls[0][0], mockBgVideo, 'Ready bgVideo must be drawn instead of static cover');
+});
+
+test('buildCanvasBackgroundFilter maps 0..100 brightness, contrast, and sharpness accurately', () => {
+  const neutral = buildCanvasBackgroundFilter(50, 50, 50);
+  assert.equal(neutral.cssFilter, 'none');
+  assert.equal(neutral.blurPx, 0);
+  assert.equal(neutral.sharpenAmount, 0);
+
+  const dimmedSoft = buildCanvasBackgroundFilter(0, 25, 0);
+  assert.ok(dimmedSoft.cssFilter.includes('brightness(0.35)'));
+  assert.ok(dimmedSoft.cssFilter.includes('contrast(0.70)'));
+  assert.ok(dimmedSoft.cssFilter.includes('blur('));
+  assert.ok(dimmedSoft.blurPx > 0);
+  assert.equal(dimmedSoft.sharpenAmount, 0);
+
+  const crispHigh = buildCanvasBackgroundFilter(100, 100, 100);
+  assert.ok(crispHigh.cssFilter.includes('brightness(1.75)'));
+  assert.ok(crispHigh.cssFilter.includes('contrast(1.80)'));
+  assert.equal(crispHigh.blurPx, 0);
+  assert.equal(crispHigh.sharpenAmount, 1);
+
+  assert.equal(resolveLegibleShadowColor('#0F172A', false, false), 'rgba(255, 255, 255, 0.88)');
+  assert.equal(resolveLegibleShadowColor('#FBBF24', true, false), 'rgba(0, 0, 0, 0.9)');
+  assert.equal(resolveLegibleShadowColor('#FFFFFF', true, true), 'rgba(0, 0, 0, 0.92)');
+});
+
+test('custom Arabic, Phonetics, and French text colors and black counter-backdrop apply cleanly across boxed and scroll templates', () => {
+  const ayahs = [
+    {
+      num: 1,
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwallahu ahad',
+      fr: 'Dis: Il est Allah, Unique.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(ayahs, [5.0], 1);
+
+  for (const flowMode of ['teleprompter', 'kufi_editorial', 'dual_ribbon'] as const) {
+    const { ctx } = createMockCanvasContext();
+    const fillStylesUsed = new Set<string>();
+    const fillStyleAssignments: Array<{ fillStyle: string; text?: string }> = [];
+    let currentFillStyle = '';
+    Object.defineProperty(ctx, 'fillStyle', {
+      get: () => currentFillStyle,
+      set: (v: string) => {
+        currentFillStyle = v;
+        if (typeof v === 'string') fillStylesUsed.add(v);
+      },
+    });
+    const origFillText = ctx.fillText;
+    ctx.fillText = (text: string, x: number, y: number) => {
+      fillStyleAssignments.push({ fillStyle: currentFillStyle, text });
+      return origFillText(text, x, y);
+    };
+
+    const opts: VideoCanvasRenderOptions = {
+      width: 1920,
+      height: 1080,
+      surahName: 'Al-Ikhlas',
+      surahNumber: 112,
+      startAyah: 1,
+      endAyah: 1,
+      isLightSurface: true,
+      bgBlackBackdrop: true,
+      bgVeilOpacity: 0.45,
+      arabicTextColor: '#FBBF24',
+      phoneticsTextColor: '#93C5FD',
+      frenchTextColor: '#A7F3D0',
+      bgImage: { width: 1280, height: 720 } as any,
+      showArabic: true,
+      useTajweed: false,
+      showPhonetics: true,
+      showFrench: true,
+      showSurahHeader: false,
+      textScale: 'standard',
+      flowMode,
+      reciterName: 'Alafasy',
+    };
+
+    const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
+    renderVideoCanvasFrame(ctx, layout, timeline, 2.5, opts);
+
+    assert.ok(
+      fillStyleAssignments.some((c) => c.text?.includes('قُلْ') && c.fillStyle === '#FBBF24'),
+      `${flowMode}: Arabic line must use custom arabicTextColor`
+    );
+    assert.ok(
+      fillStyleAssignments.some((c) => c.text?.includes('Qul') && c.fillStyle === '#93C5FD'),
+      `${flowMode}: Phonetics line must use custom phoneticsTextColor`
+    );
+    assert.ok(
+      fillStyleAssignments.some((c) => c.text?.includes('Unique') && c.fillStyle === '#A7F3D0'),
+      `${flowMode}: French line must use custom frenchTextColor`
+    );
+    assert.ok(
+      Array.from(fillStylesUsed).some((s) => s.startsWith('rgba(0, 0, 0,')),
+      `${flowMode}: bgBlackBackdrop must draw black scrim even on light surface`
+    );
+  }
 });
 
