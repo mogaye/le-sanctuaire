@@ -449,10 +449,10 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       return (
         <div
           data-testid="studio-sim-device-pc"
-          className="flex flex-col items-center justify-center w-full max-w-[min(94vw,calc(68dvh*16/9))]"
+          className="flex flex-col items-center justify-center w-full max-w-[min(88vw,calc((100dvh-250px)*16/9))]"
         >
-          <div className="w-full p-2.5 sm:p-3.5 rounded-2xl sm:rounded-[22px] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_26px_65px_rgba(17,22,19,0.45)] flex flex-col items-center">
-            <div className="flex items-center gap-1.5 mb-2 shrink-0" aria-hidden="true">
+          <div className="w-full p-2 sm:p-3 rounded-2xl sm:rounded-[20px] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_22px_55px_rgba(17,22,19,0.42)] flex flex-col items-center">
+            <div className="flex items-center gap-1.5 mb-1.5 shrink-0" aria-hidden="true">
               <span className="w-1.5 h-1.5 rounded-full bg-[#4B534E] ring-1 ring-white/15" />
             </div>
             <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center">
@@ -460,8 +460,8 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             </div>
           </div>
           <div className="hidden sm:flex flex-col items-center shrink-0" aria-hidden="true">
-            <div className="w-16 h-4 bg-gradient-to-b from-[#B4B1A8] to-[#949188] shadow-inner" />
-            <div className="w-44 h-2.5 rounded-full bg-gradient-to-b from-[#D2CFC7] to-[#A6A39B] shadow-[0_6px_14px_rgba(24,28,26,0.22)]" />
+            <div className="w-14 h-3.5 bg-gradient-to-b from-[#B4B1A8] to-[#949188] shadow-inner" />
+            <div className="w-40 h-2 rounded-full bg-gradient-to-b from-[#D2CFC7] to-[#A6A39B] shadow-[0_6px_14px_rgba(24,28,26,0.22)]" />
           </div>
         </div>
       );
@@ -471,15 +471,15 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       return (
         <div
           data-testid="studio-sim-device-tablet"
-          className="p-3 sm:p-4 rounded-[1.85rem] sm:rounded-[2.25rem] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_26px_65px_rgba(17,22,19,0.45)] flex flex-col items-center"
+          className="p-2.5 sm:p-3.5 rounded-[1.7rem] sm:rounded-[2.1rem] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_22px_55px_rgba(17,22,19,0.42)] flex flex-col items-center"
         >
-          <div className="flex items-center justify-center mb-2 shrink-0" aria-hidden="true">
+          <div className="flex items-center justify-center mb-1.5 shrink-0" aria-hidden="true">
             <span className="w-2 h-2 rounded-full bg-[#444B47] ring-1 ring-white/15" />
           </div>
-          <div className="relative w-[min(84vw,66dvh)] aspect-square rounded-[1.15rem] sm:rounded-[1.4rem] overflow-hidden bg-black flex items-center justify-center">
+          <div className="relative w-[min(82vw,calc(100dvh-240px),680px)] aspect-square rounded-[1.05rem] sm:rounded-[1.35rem] overflow-hidden bg-black flex items-center justify-center">
             {renderLiveCanvasElement()}
           </div>
-          <div className="w-16 h-1 rounded-full bg-white/25 mt-2.5 shrink-0" aria-hidden="true" />
+          <div className="w-14 h-1 rounded-full bg-white/25 mt-2 shrink-0" aria-hidden="true" />
         </div>
       );
     }
@@ -487,21 +487,244 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     return (
       <div
         data-testid="studio-sim-device-phone"
-        className="p-2.5 sm:p-3 rounded-[2.25rem] sm:rounded-[2.65rem] bg-gradient-to-b from-[#262B28] to-[#0E100F] ring-1 ring-white/25 shadow-[0_28px_70px_rgba(17,22,19,0.5)] flex flex-col items-center"
+        className="p-2.5 sm:p-3 rounded-[2.1rem] sm:rounded-[2.5rem] bg-gradient-to-b from-[#262B28] to-[#0E100F] ring-1 ring-white/25 shadow-[0_24px_60px_rgba(17,22,19,0.46)] flex flex-col items-center"
       >
         <div
-          className="w-16 sm:w-20 h-3 sm:h-3.5 rounded-full bg-black/95 border border-white/10 mb-2 flex items-center justify-end pr-2 shrink-0"
+          className="w-16 sm:w-20 h-3 rounded-full bg-black/95 border border-white/10 mb-1.5 flex items-center justify-end pr-2 shrink-0"
           aria-hidden="true"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#2B3D36]" />
         </div>
-        <div className="relative h-[min(68dvh,780px)] aspect-[9/16] max-w-[84vw] rounded-[1.6rem] sm:rounded-[1.9rem] overflow-hidden bg-black flex items-center justify-center">
+        <div className="relative h-[min(calc(100dvh-235px),760px)] aspect-[9/16] max-w-[82vw] rounded-[1.5rem] sm:rounded-[1.8rem] overflow-hidden bg-black flex items-center justify-center">
           {renderLiveCanvasElement()}
         </div>
-        <div className="w-20 h-1 rounded-full bg-white/30 mt-2.5 shrink-0" aria-hidden="true" />
+        <div className="w-18 h-1 rounded-full bg-white/30 mt-2 shrink-0" aria-hidden="true" />
       </div>
     );
   };
+
+  const renderTransportControls = (compactFullscreen = false) => (
+    <div className={`flex items-center gap-2 ${compactFullscreen ? 'flex-1 min-w-0' : ''}`}>
+      <button
+        type="button"
+        disabled={currentSegIdx <= 0 || isBufferingSim}
+        onClick={() => onJumpToSegmentIndex(currentSegIdx - 1)}
+        aria-label="Verset précédent"
+        className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
+      >
+        <ChevronLeft className="w-4 h-4 text-[#1F2421]" />
+      </button>
+
+      <button
+        type="button"
+        data-testid="studio-monitor-animate-btn"
+        disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+        onClick={onTogglePlay}
+        aria-label={isPlaying ? 'Mettre en pause' : 'Lire la vidéo'}
+        className={`w-10 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all disabled:opacity-45 ${
+          isPlaying ? 'studio-pill-mint' : 'studio-pill-raised'
+        }`}
+      >
+        {isBufferingSim ? (
+          <Loader2 className="w-4 h-4 animate-spin text-[#13251D]" />
+        ) : isPlaying ? (
+          <Pause className="w-4 h-4 fill-current text-[#13251D]" />
+        ) : (
+          <Play className="w-4 h-4 fill-current ml-0.5 text-[#1F2421]" />
+        )}
+      </button>
+
+      <button
+        type="button"
+        disabled={currentSegIdx >= ayahs.length - 1 || isBufferingSim}
+        onClick={() => onJumpToSegmentIndex(currentSegIdx + 1)}
+        aria-label="Verset suivant"
+        className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
+      >
+        <ChevronRight className="w-4 h-4 text-[#1F2421]" />
+      </button>
+
+      <input
+        type="range"
+        aria-label="Position de lecture"
+        min={0}
+        max={Math.max(0.5, timeline.totalDurationSec)}
+        step={0.01}
+        value={Math.min(simTimeSec, Math.max(0.5, timeline.totalDurationSec))}
+        onChange={(e) => onSeek(Number(e.target.value))}
+        className="flex-1 min-w-0 studio-range-mint cursor-pointer"
+      />
+
+      <span
+        data-testid="studio-monitor-time"
+        className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums whitespace-nowrap shrink-0"
+      >
+        {formatTimeMMSS(simTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
+      </span>
+
+      <button
+        type="button"
+        data-testid="studio-fullscreen-sim-btn"
+        onClick={() => setIsFullscreenSim((v) => !v)}
+        aria-label={
+          isFullscreenSim ? 'Quitter le plein écran' : 'Voir la vidéo en grand'
+        }
+        title={
+          isFullscreenSim
+            ? 'Quitter le plein écran'
+            : 'Voir en grand (PC / Téléphone / Tablette)'
+        }
+        className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all ${
+          isFullscreenSim
+            ? 'studio-pill-mint'
+            : 'studio-pill-raised text-[#1F2421]'
+        }`}
+      >
+        {isFullscreenSim ? (
+          <Minimize2 className="w-4 h-4 text-[#13251D]" />
+        ) : (
+          <Maximize2 className="w-4 h-4 text-[#1F2421]" />
+        )}
+      </button>
+    </div>
+  );
+
+  const renderQualityAndDownloadControls = (compactFullscreen = false) => (
+    <div
+      className={
+        compactFullscreen
+          ? 'flex items-center justify-between md:justify-end gap-2 flex-wrap md:flex-nowrap shrink-0'
+          : 'flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-[#D4D1C8]'
+      }
+    >
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        {isPcMode && !isFullscreenSim && (
+          <div
+            data-testid="studio-format-selector"
+            role="group"
+            aria-label="Format vidéo"
+            className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
+          >
+            {[
+              { id: 'youtube_1080p' as VideoFormatId, aspect: '16:9' as const, icon: Monitor },
+              { id: 'shorts_916' as VideoFormatId, aspect: '9:16' as const, icon: Smartphone },
+              { id: 'square_1080' as VideoFormatId, aspect: '1:1' as const, icon: Square },
+            ].map((fmt) => {
+              const active = format.aspectLabel === fmt.aspect;
+              const Icon = fmt.icon;
+              return (
+                <button
+                  key={fmt.id}
+                  type="button"
+                  data-testid={`studio-format-${fmt.id}`}
+                  aria-label={`Format ${fmt.aspect}`}
+                  title={`Format ${fmt.aspect}`}
+                  disabled={isPreparingDownload}
+                  onClick={() => onSelectFormat(fmt.id)}
+                  className={`h-7 px-2.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
+                    active ? 'studio-pill-mint' : 'text-[#4F5551] hover:text-[#1F2421]'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{fmt.aspect}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div
+          data-testid="studio-quality-selector"
+          role="group"
+          aria-label="Qualité vidéo"
+          className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
+        >
+          {VIDEO_QUALITY_PRESETS.map((q) => {
+            const active = qualityId === q.id;
+            return (
+              <button
+                key={q.id}
+                type="button"
+                data-testid={`studio-quality-${q.id}`}
+                aria-pressed={active}
+                aria-label={`Qualité ${q.label}`}
+                disabled={isPreparingDownload}
+                onClick={() => onSelectQuality(q.id)}
+                className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
+                  active ? 'studio-pill-mint' : 'text-[#4F5551] hover:text-[#1F2421]'
+                }`}
+              >
+                {q.shortLabel}
+              </button>
+            );
+          })}
+        </div>
+
+        <span
+          data-testid="studio-active-resolution-label"
+          className={`text-[11px] font-mono font-medium text-[#6B716D] tabular-nums ${
+            compactFullscreen ? 'hidden xl:inline' : 'hidden sm:inline'
+          }`}
+        >
+          {format.width}×{format.height}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1.5 shrink-0 ml-auto md:ml-0">
+        {isDownloadReady && downloadState.canShare && (
+          <button
+            type="button"
+            onClick={onShareVideo}
+            aria-label="Partager la vidéo"
+            title="Partager"
+            className="w-9 h-9 rounded-full studio-pill-raised flex items-center justify-center cursor-pointer transition-all"
+          >
+            <Share2 className="w-4 h-4 text-[#1F2421]" />
+          </button>
+        )}
+
+        {isDownloadReady && downloadState.url && downloadState.filename ? (
+          <a
+            data-testid="download-exported-video-link"
+            href={downloadState.url}
+            download={downloadState.filename}
+            aria-label={`Télécharger ${downloadState.filename}`}
+            onClick={onDirectLinkClicked}
+            className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap no-underline"
+          >
+            {downloadState.downloaded ? (
+              <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
+            ) : (
+              <Download className="w-4 h-4 shrink-0" />
+            )}
+            <span>
+              {downloadState.sizeBytes
+                ? formatStudioBytes(downloadState.sizeBytes)
+                : 'MP4'}
+            </span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            data-testid="studio-create-video-btn"
+            aria-label={`Télécharger la vidéo MP4 (${qualityId.toUpperCase()})`}
+            disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+            onClick={onStartDownload}
+            className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-45 whitespace-nowrap"
+          >
+            {isPreparingDownload ? (
+              <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            ) : (
+              <Download className="w-4 h-4 shrink-0" />
+            )}
+            <span className="hidden sm:inline">
+              {isPreparingDownload ? `${downloadState.progressPct}%` : 'Télécharger'}
+            </span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <aside
@@ -509,7 +732,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       data-fullscreen-sim={isFullscreenSim ? 'true' : 'false'}
       className={
         isFullscreenSim
-          ? 'fixed inset-0 z-[10070] studio-paper-canvas flex flex-col justify-between px-3.5 py-3 sm:px-8 sm:py-5 overflow-hidden'
+          ? 'fixed inset-0 z-[10070] studio-paper-canvas flex flex-col justify-between gap-2 sm:gap-3 px-3.5 py-2.5 sm:px-8 sm:py-3.5 overflow-hidden'
           : 'flex flex-col justify-between min-h-0 px-3.5 py-2.5 md:p-5 studio-surface-raised md:studio-surface-stacked md:rounded-3xl border-b border-[#CECBC2] md:border-none shrink-0 md:shrink'
       }
     >
@@ -528,11 +751,11 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         }}
       />
 
-      {/* Fullscreen Simulation Header Bar (Same-Page Overlay) */}
+      {/* Fullscreen Header Bar (Same-Page Overlay) */}
       {isFullscreenSim && (
         <div
           data-testid="studio-fullscreen-header"
-          className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 pb-2"
+          className="shrink-0 flex flex-wrap items-center justify-between gap-2"
         >
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-8 h-8 rounded-full studio-pill-mint flex items-center justify-center shrink-0">
@@ -552,7 +775,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           <div
             data-testid="studio-fullscreen-device-switcher"
             role="group"
-            aria-label="Appareil simulé"
+            aria-label="Format d’écran"
             className="flex items-center gap-1 p-1 rounded-full studio-well-inset"
           >
             {[
@@ -584,7 +807,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             type="button"
             data-testid="studio-fullscreen-close-btn"
             onClick={() => setIsFullscreenSim(false)}
-            aria-label="Quitter la simulation plein écran"
+            aria-label="Quitter le plein écran"
             className="h-9 px-3.5 rounded-full studio-pill-raised text-xs font-semibold text-[#1F2421] inline-flex items-center gap-1.5 cursor-pointer shrink-0 transition-all"
           >
             <Minimize2 className="w-3.5 h-3.5" />
@@ -593,8 +816,8 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         </div>
       )}
 
-      {/* Simulation Stage */}
-      <div className="flex-1 min-h-0 flex items-center justify-center py-1 md:py-2">
+      {/* Preview Stage */}
+      <div className="flex-1 min-h-0 flex items-center justify-center py-2 sm:py-3 overflow-hidden">
         {isFullscreenSim ? (
           renderFullscreenDeviceStage()
         ) : (
@@ -608,102 +831,15 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         )}
       </div>
 
-      {/* Inline Transport & Scrubber + Organized Format/Quality/Download Bar */}
+      {/* Transport & Scrubber + Format/Quality/Download Bar */}
       <div
-        className={`space-y-3 pt-2.5 shrink-0 ${
+        data-testid="studio-monitor-bottom-bar"
+        className={
           isFullscreenSim
-            ? 'w-full max-w-4xl mx-auto studio-surface-raised rounded-2xl px-4 py-3'
-            : ''
-        }`}
+            ? 'w-full max-w-5xl mx-auto studio-surface-raised rounded-2xl px-3.5 py-2 space-y-2 shrink-0'
+            : 'space-y-3 pt-2.5 shrink-0'
+        }
       >
-        {/* Transport Row */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            disabled={currentSegIdx <= 0 || isBufferingSim}
-            onClick={() => onJumpToSegmentIndex(currentSegIdx - 1)}
-            aria-label="Verset précédent"
-            className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
-          >
-            <ChevronLeft className="w-4 h-4 text-[#1F2421]" />
-          </button>
-
-          <button
-            type="button"
-            data-testid="studio-monitor-animate-btn"
-            disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
-            onClick={onTogglePlay}
-            aria-label={isPlaying ? 'Mettre en pause' : 'Lire la simulation'}
-            className={`w-10 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all disabled:opacity-45 ${
-              isPlaying ? 'studio-pill-mint' : 'studio-pill-raised'
-            }`}
-          >
-            {isBufferingSim ? (
-              <Loader2 className="w-4 h-4 animate-spin text-[#13251D]" />
-            ) : isPlaying ? (
-              <Pause className="w-4 h-4 fill-current text-[#13251D]" />
-            ) : (
-              <Play className="w-4 h-4 fill-current ml-0.5 text-[#1F2421]" />
-            )}
-          </button>
-
-          <button
-            type="button"
-            disabled={currentSegIdx >= ayahs.length - 1 || isBufferingSim}
-            onClick={() => onJumpToSegmentIndex(currentSegIdx + 1)}
-            aria-label="Verset suivant"
-            className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
-          >
-            <ChevronRight className="w-4 h-4 text-[#1F2421]" />
-          </button>
-
-          <input
-            type="range"
-            aria-label="Position dans la simulation"
-            min={0}
-            max={Math.max(0.5, timeline.totalDurationSec)}
-            step={0.01}
-            value={Math.min(simTimeSec, Math.max(0.5, timeline.totalDurationSec))}
-            onChange={(e) => onSeek(Number(e.target.value))}
-            className="flex-1 min-w-0 studio-range-mint cursor-pointer"
-          />
-
-          <span
-            data-testid="studio-monitor-time"
-            className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums whitespace-nowrap shrink-0"
-          >
-            {formatTimeMMSS(simTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
-          </span>
-
-          <button
-            type="button"
-            data-testid="studio-fullscreen-sim-btn"
-            onClick={() => setIsFullscreenSim((v) => !v)}
-            aria-label={
-              isFullscreenSim
-                ? 'Quitter la simulation plein écran'
-                : 'Voir la vidéo en grand (simulation appareil)'
-            }
-            title={
-              isFullscreenSim
-                ? 'Quitter le plein écran'
-                : 'Voir en grand (PC / Téléphone / Tablette)'
-            }
-            className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all ${
-              isFullscreenSim
-                ? 'studio-pill-mint'
-                : 'studio-pill-raised text-[#1F2421]'
-            }`}
-          >
-            {isFullscreenSim ? (
-              <Minimize2 className="w-4 h-4 text-[#13251D]" />
-            ) : (
-              <Maximize2 className="w-4 h-4 text-[#1F2421]" />
-            )}
-          </button>
-        </div>
-
-        {/* Inline Download Progress / Error Feedback */}
         {isPreparingDownload && (
           <div
             data-testid="studio-download-progress"
@@ -735,140 +871,18 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           </div>
         )}
 
-        {/* Organized Format + Quality + Direct Download Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-[#D4D1C8]">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            {/* Aspect Ratio Selector (PC Only when inline; fullscreen uses top device switcher) */}
-            {isPcMode && !isFullscreenSim && (
-              <div
-                data-testid="studio-format-selector"
-                role="group"
-                aria-label="Format vidéo"
-                className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
-              >
-                {[
-                  { id: 'youtube_1080p' as VideoFormatId, aspect: '16:9' as const, icon: Monitor },
-                  { id: 'shorts_916' as VideoFormatId, aspect: '9:16' as const, icon: Smartphone },
-                  { id: 'square_1080' as VideoFormatId, aspect: '1:1' as const, icon: Square },
-                ].map((fmt) => {
-                  const active = format.aspectLabel === fmt.aspect;
-                  const Icon = fmt.icon;
-                  return (
-                    <button
-                      key={fmt.id}
-                      type="button"
-                      data-testid={`studio-format-${fmt.id}`}
-                      aria-label={`Format ${fmt.aspect}`}
-                      title={`Format ${fmt.aspect}`}
-                      disabled={isPreparingDownload}
-                      onClick={() => onSelectFormat(fmt.id)}
-                      className={`h-7 px-2.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
-                        active
-                          ? 'studio-pill-mint'
-                          : 'text-[#4F5551] hover:text-[#1F2421]'
-                      }`}
-                    >
-                      <Icon className="w-3.5 h-3.5 shrink-0" />
-                      <span>{fmt.aspect}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Quality Selector (4K -> 480p) */}
-            <div
-              data-testid="studio-quality-selector"
-              role="group"
-              aria-label="Qualité vidéo"
-              className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
-            >
-              {VIDEO_QUALITY_PRESETS.map((q) => {
-                const active = qualityId === q.id;
-                return (
-                  <button
-                    key={q.id}
-                    type="button"
-                    data-testid={`studio-quality-${q.id}`}
-                    aria-pressed={active}
-                    aria-label={`Qualité ${q.label}`}
-                    disabled={isPreparingDownload}
-                    onClick={() => onSelectQuality(q.id)}
-                    className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
-                      active
-                        ? 'studio-pill-mint'
-                        : 'text-[#4F5551] hover:text-[#1F2421]'
-                    }`}
-                  >
-                    {q.shortLabel}
-                  </button>
-                );
-              })}
-            </div>
-
-            <span
-              data-testid="studio-active-resolution-label"
-              className="hidden sm:inline text-[11px] font-mono font-medium text-[#6B716D] tabular-nums"
-            >
-              {format.width}×{format.height}
-            </span>
+        {isFullscreenSim ? (
+          <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+            {renderTransportControls(true)}
+            <div className="hidden md:block w-px h-6 bg-[#CFCBC2] shrink-0" aria-hidden="true" />
+            {renderQualityAndDownloadControls(true)}
           </div>
-
-          {/* Direct Download Action */}
-          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {isDownloadReady && downloadState.canShare && (
-              <button
-                type="button"
-                onClick={onShareVideo}
-                aria-label="Partager la vidéo"
-                title="Partager"
-                className="w-9 h-9 rounded-full studio-pill-raised flex items-center justify-center cursor-pointer transition-all"
-              >
-                <Share2 className="w-4 h-4 text-[#1F2421]" />
-              </button>
-            )}
-
-            {isDownloadReady && downloadState.url && downloadState.filename ? (
-              <a
-                data-testid="download-exported-video-link"
-                href={downloadState.url}
-                download={downloadState.filename}
-                aria-label={`Télécharger ${downloadState.filename}`}
-                onClick={onDirectLinkClicked}
-                className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap no-underline"
-              >
-                {downloadState.downloaded ? (
-                  <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
-                ) : (
-                  <Download className="w-4 h-4 shrink-0" />
-                )}
-                <span>
-                  {downloadState.sizeBytes
-                    ? formatStudioBytes(downloadState.sizeBytes)
-                    : 'MP4'}
-                </span>
-              </a>
-            ) : (
-              <button
-                type="button"
-                data-testid="studio-create-video-btn"
-                aria-label={`Télécharger la vidéo MP4 (${qualityId.toUpperCase()})`}
-                disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
-                onClick={onStartDownload}
-                className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-45 whitespace-nowrap"
-              >
-                {isPreparingDownload ? (
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                ) : (
-                  <Download className="w-4 h-4 shrink-0" />
-                )}
-                <span className="hidden sm:inline">
-                  {isPreparingDownload ? `${downloadState.progressPct}%` : 'Télécharger'}
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
+        ) : (
+          <>
+            {renderTransportControls(false)}
+            {renderQualityAndDownloadControls(false)}
+          </>
+        )}
       </div>
     </aside>
   );

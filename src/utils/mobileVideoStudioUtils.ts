@@ -1259,7 +1259,7 @@ export function getDeviceSimulationMeta(
   if (aspectLabel === '16:9') {
     return {
       deviceType: 'pc',
-      label: 'Simulation PC (16:9)',
+      label: 'Écran PC (16:9)',
       shortLabel: 'PC 16:9',
       aspectLabel: '16:9',
       defaultFormatId: 'youtube_1080p',
@@ -1268,7 +1268,7 @@ export function getDeviceSimulationMeta(
   if (aspectLabel === '1:1') {
     return {
       deviceType: 'tablet',
-      label: 'Simulation Tablette (1:1)',
+      label: 'Tablette (1:1)',
       shortLabel: 'Tablette 1:1',
       aspectLabel: '1:1',
       defaultFormatId: 'square_1080',
@@ -1276,7 +1276,7 @@ export function getDeviceSimulationMeta(
   }
   return {
     deviceType: 'phone',
-    label: 'Simulation Téléphone (9:16)',
+    label: 'Téléphone (9:16)',
     shortLabel: 'Téléphone 9:16',
     aspectLabel: '9:16',
     defaultFormatId: 'shorts_916',
