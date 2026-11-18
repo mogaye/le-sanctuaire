@@ -399,8 +399,12 @@ export function wrapTextLines(
 export function formatTimeMMSS(totalSec: number): string {
   if (!Number.isFinite(totalSec) || totalSec < 0) return '00:00';
   const rounded = Math.floor(totalSec);
-  const mins = Math.floor(rounded / 60);
+  const hours = Math.floor(rounded / 3600);
+  const mins = Math.floor((rounded % 3600) / 60);
   const secs = rounded % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
@@ -543,45 +547,118 @@ export function getVideoFormatPreset(
   return VIDEO_FORMAT_PRESETS.find((f) => f.id === formatId) || VIDEO_FORMAT_PRESETS[0];
 }
 
+export function computeVideoSeekTime(targetTimeSec: number, videoDurationSec: number): number {
+  if (!Number.isFinite(videoDurationSec) || videoDurationSec <= 0.08) {
+    return 0;
+  }
+  const safeTarget = Number.isFinite(targetTimeSec) && targetTimeSec >= 0 ? targetTimeSec : 0;
+  const wrapped = safeTarget % videoDurationSec;
+  return Math.max(0, Math.min(videoDurationSec - 0.04, wrapped));
+}
+
+export function extendSequenceToTargetDuration<T extends Pick<StudioAyahItem, 'ar' | 'fr'>, D>(
+  sequence: T[],
+  decodedItems: D[],
+  measuredDurationsSec: Array<number | undefined>,
+  targetDurationSec: number,
+  paceMultiplier: number = 1
+): {
+  sequence: T[];
+  decodedItems: D[];
+  measuredDurationsSec: Array<number | undefined>;
+} {
+  if (
+    !Array.isArray(sequence) ||
+    sequence.length === 0 ||
+    !Number.isFinite(targetDurationSec) ||
+    targetDurationSec <= 0
+  ) {
+    return { sequence, decodedItems, measuredDurationsSec };
+  }
+
+  const safePace = Math.max(0.5, Math.min(2.0, paceMultiplier || 1));
+  const segDurs = sequence.map((ayah, idx) => {
+    const measured = measuredDurationsSec[idx];
+    return typeof measured === 'number' && Number.isFinite(measured) && measured > 0.4
+      ? Number((measured / safePace).toFixed(3))
+      : estimateAyahDurationSeconds(ayah, safePace);
+  });
+
+  const singlePassSec = segDurs.reduce((acc, d) => acc + d, 0);
+  if (singlePassSec <= 0 || singlePassSec >= targetDurationSec - 0.1) {
+    return { sequence, decodedItems, measuredDurationsSec };
+  }
+
+  const outSeq: T[] = [];
+  const outDecoded: D[] = [];
+  const outMeasured: Array<number | undefined> = [];
+  let accumSec = 0;
+
+  while (accumSec < targetDurationSec - 0.05) {
+    let addedInPass = 0;
+    for (let i = 0; i < sequence.length; i++) {
+      if (accumSec >= targetDurationSec - 0.05) break;
+      outSeq.push(sequence[i]);
+      if (i < decodedItems.length) {
+        outDecoded.push(decodedItems[i]);
+      }
+      outMeasured.push(measuredDurationsSec[i]);
+      accumSec += segDurs[i];
+      addedInPass++;
+    }
+    if (addedInPass === 0 || singlePassSec <= 0) break;
+  }
+
+  return {
+    sequence: outSeq,
+    decodedItems: outDecoded,
+    measuredDurationsSec: outMeasured,
+  };
+}
+
 export function getResolutionFallbackTiers(
   requestedWidth: number,
-  requestedHeight: number
+  requestedHeight: number,
+  targetDurationSec: number = 60
 ): Array<{ w: number; h: number; bitrate: number }> {
   const w = Math.max(320, Math.round(requestedWidth));
   const h = Math.max(320, Math.round(requestedHeight));
+  const dur = Number.isFinite(targetDurationSec) && targetDurationSec > 0 ? targetDurationSec : 60;
+  const bitrateScale = dur > 1800 ? 0.35 : dur > 420 ? 0.45 : dur > 180 ? 0.62 : 1.0;
+  const scaleBps = (bps: number) => Math.max(1_600_000, Math.round((bps * bitrateScale) / 100_000) * 100_000);
 
   // Landscape 16:9
   if (w > h) {
     if (w >= 1920) {
       return [
-        { w: 1920, h: 1080, bitrate: 8_000_000 },
-        { w: 1920, h: 1080, bitrate: 5_000_000 },
-        { w: 1280, h: 720, bitrate: 4_500_000 },
-        { w: 960, h: 540, bitrate: 2_800_000 },
+        { w: 1920, h: 1080, bitrate: scaleBps(8_000_000) },
+        { w: 1920, h: 1080, bitrate: scaleBps(5_000_000) },
+        { w: 1280, h: 720, bitrate: scaleBps(4_500_000) },
+        { w: 960, h: 540, bitrate: scaleBps(2_800_000) },
       ];
     }
     return [
-      { w, h, bitrate: 5_000_000 },
-      { w, h, bitrate: 3_500_000 },
-      { w: 960, h: 540, bitrate: 2_500_000 },
+      { w, h, bitrate: scaleBps(5_000_000) },
+      { w, h, bitrate: scaleBps(3_500_000) },
+      { w: 960, h: 540, bitrate: scaleBps(2_500_000) },
     ];
   }
 
   // Square 1:1
   if (w === h) {
     return [
-      { w, h, bitrate: 6_500_000 },
-      { w, h, bitrate: 4_500_000 },
-      { w: 720, h: 720, bitrate: 3_500_000 },
+      { w, h, bitrate: scaleBps(6_500_000) },
+      { w, h, bitrate: scaleBps(4_500_000) },
+      { w: 720, h: 720, bitrate: scaleBps(3_500_000) },
     ];
   }
 
   // Portrait 9:16
   return [
-    { w, h, bitrate: 8_000_000 },
-    { w, h, bitrate: 5_000_000 },
-    { w: 720, h: 1280, bitrate: 4_500_000 },
-    { w: 540, h: 960, bitrate: 3_000_000 },
+    { w, h, bitrate: scaleBps(8_000_000) },
+    { w, h, bitrate: scaleBps(5_000_000) },
+    { w: 720, h: 1280, bitrate: scaleBps(4_500_000) },
+    { w: 540, h: 960, bitrate: scaleBps(3_000_000) },
   ];
 }
 
@@ -743,4 +820,54 @@ export function computeCoverDrawRect(
   return { x: 0, y: (dstHeight - h) / 2, w, h };
 }
 
+export const TOP_LEVEL_MAX_DIRECT_STAGE_BYTES = 250 * 1024 * 1024;
+
+/**
+ * Determines whether the generated MP4 should be staged on `/api/video/stage-download`
+ * so native HTTP `Content-Disposition: attachment` downloads work reliably in iframes,
+ * mobile WebViews, and desktop browsers.
+ */
+export function shouldStageVideoDownload(
+  blobSizeBytes: number,
+  inIframe: boolean,
+  maxStageBytes: number
+): boolean {
+  if (!Number.isFinite(blobSizeBytes) || blobSizeBytes <= 0 || blobSizeBytes > maxStageBytes) {
+    return false;
+  }
+  if (inIframe) return true;
+  return blobSizeBytes <= TOP_LEVEL_MAX_DIRECT_STAGE_BYTES;
+}
+
+export function resolveVideoDownloadLinkState(params: {
+  inIframe: boolean;
+  stagedDownloadUrl: string | null;
+  objectUrl: string | null;
+  filename: string;
+}): {
+  href: string | null;
+  filename: string;
+  usesServerRelay: boolean;
+} {
+  const safeFilename = (params.filename || 'coran-sanctuaire.mp4').trim() || 'coran-sanctuaire.mp4';
+  if (params.stagedDownloadUrl) {
+    return {
+      href: params.stagedDownloadUrl,
+      filename: safeFilename,
+      usesServerRelay: true,
+    };
+  }
+  if (params.objectUrl) {
+    return {
+      href: params.objectUrl,
+      filename: safeFilename,
+      usesServerRelay: false,
+    };
+  }
+  return {
+    href: null,
+    filename: safeFilename,
+    usesServerRelay: false,
+  };
+}
 

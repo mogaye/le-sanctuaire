@@ -323,3 +323,61 @@ test('renderVideoCanvasFrame dynamically updates top header Surah name when mult
   renderVideoCanvasFrame(second.ctx, layout, timeline, 7.0, opts);
   assert.ok(second.fillTexts.some((c) => c.text.includes('Al-Falaq (113)')));
 });
+
+test('renderVideoCanvasFrame draws bgVideo frames instead of falling back to static cover and handles >3 min timelines', () => {
+  const ayahs = Array.from({ length: 42 }, (_, i) => ({
+    num: (i % 7) + 1,
+    ar: 'ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ',
+    tr: `Verset ${i + 1}`,
+    fr: `Traduction du verset ${i + 1}`,
+  }));
+  const timeline = buildContinuousTimeline(
+    ayahs,
+    ayahs.map(() => 5.0),
+    1
+  );
+  assert.equal(timeline.totalDurationSec, 210);
+
+  const drawImageCalls: any[] = [];
+  const { ctx } = createMockCanvasContext();
+  (ctx as any).drawImage = (...args: any[]) => {
+    drawImageCalls.push(args);
+  };
+
+  const mockBgVideo: any = {
+    readyState: 4,
+    videoWidth: 1280,
+    videoHeight: 720,
+  };
+  const mockBgImage: any = {
+    width: 1280,
+    height: 720,
+  };
+
+  const opts: VideoCanvasRenderOptions = {
+    width: 1080,
+    height: 1920,
+    surahName: 'Al-Fatiha',
+    surahNumber: 1,
+    startAyah: 1,
+    endAyah: 7,
+    isLightSurface: false,
+    bgImage: mockBgImage,
+    bgVideo: mockBgVideo,
+    showArabic: true,
+    useTajweed: true,
+    showPhonetics: true,
+    showFrench: true,
+    showSurahHeader: true,
+    textScale: 'standard',
+    flowMode: 'teleprompter',
+    reciterName: 'Alafasy',
+  };
+
+  const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
+  renderVideoCanvasFrame(ctx, layout, timeline, 195.0, opts);
+
+  assert.ok(drawImageCalls.length >= 1, 'Expected bgVideo drawImage call');
+  assert.equal(drawImageCalls[0][0], mockBgVideo, 'Ready bgVideo must be drawn instead of static cover');
+});
+

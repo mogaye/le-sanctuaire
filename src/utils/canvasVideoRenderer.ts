@@ -96,33 +96,39 @@ export function precomputeVideoCanvasLayout(
   const frLineHeightPx = Math.round(frFontPx * 1.48);
 
   const blocks: LaidOutVerseBlock[] = [];
+  const wrapCache = new Map<string, { arLines: string[]; trLines: string[]; frLines: string[] }>();
   let cursorY = Math.round((isLandscape ? 140 : 196) * resScale);
 
   for (let i = 0; i < ayahs.length; i++) {
     const ayah = ayahs[i];
     const blockStart = cursorY;
-
-    // Arabic lines
-    ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
-    const arTextWithBadge = ayah.isBismillah ? ayah.ar : `${ayah.ar}  ﴿${ayah.num}﴾`;
-    const arLines = opts.showArabic
-      ? wrapTextLines(arTextWithBadge, contentWidth, (txt) => ctx.measureText(txt).width)
-      : [];
-
-    // Phonetic lines
-    ctx.font = `italic 400 ${trFontPx}px Georgia, serif`;
-    const trLines =
-      opts.showPhonetics && ayah.tr
-        ? wrapTextLines(`« ${ayah.tr} »`, contentWidth, (txt) => ctx.measureText(txt).width)
+    const cacheKey = `${ayah.num}|${ayah.isBismillah ? 1 : 0}|${ayah.ar}|${ayah.tr || ''}|${ayah.fr || ''}`;
+    let cachedWrap = wrapCache.get(cacheKey);
+    if (!cachedWrap) {
+      ctx.font = `400 ${arFontPx}px 'Amiri', 'Traditional Arabic', serif`;
+      const arTextWithBadge = ayah.isBismillah ? ayah.ar : `${ayah.ar}  ﴿${ayah.num}﴾`;
+      const arLines = opts.showArabic
+        ? wrapTextLines(arTextWithBadge, contentWidth, (txt) => ctx.measureText(txt).width)
         : [];
 
-    // French lines
-    ctx.font = `500 ${frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-    const frLabelText = ayah.isBismillah ? ayah.fr : `${ayah.num}. ${ayah.fr}`;
-    const frLines =
-      opts.showFrench && ayah.fr
-        ? wrapTextLines(frLabelText, contentWidth, (txt) => ctx.measureText(txt).width)
-        : [];
+      ctx.font = `italic 400 ${trFontPx}px Georgia, serif`;
+      const trLines =
+        opts.showPhonetics && ayah.tr
+          ? wrapTextLines(`« ${ayah.tr} »`, contentWidth, (txt) => ctx.measureText(txt).width)
+          : [];
+
+      ctx.font = `500 ${frFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+      const frLabelText = ayah.isBismillah ? ayah.fr : `${ayah.num}. ${ayah.fr}`;
+      const frLines =
+        opts.showFrench && ayah.fr
+          ? wrapTextLines(frLabelText, contentWidth, (txt) => ctx.measureText(txt).width)
+          : [];
+
+      cachedWrap = { arLines, trLines, frLines };
+      wrapCache.set(cacheKey, cachedWrap);
+    }
+
+    const { arLines, trLines, frLines } = cachedWrap;
 
     let blockHeight = Math.round(24 * resScale);
     if (arLines.length > 0) blockHeight += arLines.length * arLineHeightPx + Math.round(16 * resScale);
@@ -775,6 +781,43 @@ function renderMeditationMinimalTemplate(
   ctx.restore();
 }
 
+const lastVideoFrameCache =
+  typeof WeakMap !== 'undefined' ? new WeakMap<HTMLVideoElement, HTMLCanvasElement>() : null;
+const lastVideoFrameTicks =
+  typeof WeakMap !== 'undefined' ? new WeakMap<HTMLVideoElement, number>() : null;
+
+function snapshotLastVideoFrame(videoEl: HTMLVideoElement): void {
+  if (!lastVideoFrameCache || typeof document === 'undefined') return;
+  try {
+    const ticks = (lastVideoFrameTicks?.get(videoEl) || 0) + 1;
+    lastVideoFrameTicks?.set(videoEl, ticks);
+    let cacheCanvas = lastVideoFrameCache.get(videoEl);
+    if (cacheCanvas && ticks % 12 !== 1) {
+      return;
+    }
+    const maxEdge = 480;
+    const scale = Math.min(1, maxEdge / Math.max(1, videoEl.videoWidth, videoEl.videoHeight));
+    const targetW = Math.max(1, Math.round(videoEl.videoWidth * scale));
+    const targetH = Math.max(1, Math.round(videoEl.videoHeight * scale));
+    if (
+      !cacheCanvas ||
+      cacheCanvas.width !== targetW ||
+      cacheCanvas.height !== targetH
+    ) {
+      cacheCanvas = document.createElement('canvas');
+      cacheCanvas.width = targetW;
+      cacheCanvas.height = targetH;
+      lastVideoFrameCache.set(videoEl, cacheCanvas);
+    }
+    const cacheCtx = cacheCanvas.getContext('2d');
+    if (cacheCtx) {
+      cacheCtx.drawImage(videoEl, 0, 0, cacheCanvas.width, cacheCanvas.height);
+    }
+  } catch {
+    // ignore cross-origin or transient canvas readback restrictions
+  }
+}
+
 export function renderVideoCanvasFrame(
   ctx: CanvasRenderingContext2D,
   layout: PrecomputedCanvasLayout,
@@ -798,6 +841,13 @@ export function renderVideoCanvasFrame(
   if (videoEl && videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
     const rect = computeCoverDrawRect(videoEl.videoWidth, videoEl.videoHeight, width, height);
     ctx.drawImage(videoEl, rect.x, rect.y, rect.w, rect.h);
+    snapshotLastVideoFrame(videoEl);
+  } else if (videoEl && lastVideoFrameCache?.get(videoEl)) {
+    const cachedFrame = lastVideoFrameCache.get(videoEl)!;
+    if (cachedFrame.width > 0 && cachedFrame.height > 0) {
+      const rect = computeCoverDrawRect(cachedFrame.width, cachedFrame.height, width, height);
+      ctx.drawImage(cachedFrame, rect.x, rect.y, rect.w, rect.h);
+    }
   } else if (opts.bgImage) {
     const rect = computeCoverDrawRect(opts.bgImage.width, opts.bgImage.height, width, height);
     const kbZoom = 1 + Math.min(0.055, Math.max(0, currentSec) * 0.0024);

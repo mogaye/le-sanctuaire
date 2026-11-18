@@ -6,6 +6,7 @@ export interface StoredStudioMediaRecord {
   kind: StudioMediaKind;
   mimeType: string;
   sizeBytes: number;
+  durationSec?: number;
   createdAt: number;
   blob: Blob;
   syncedToServer?: boolean;
@@ -18,6 +19,7 @@ export interface StudioMediaSummary {
   kind: StudioMediaKind;
   mimeType: string;
   sizeBytes: number;
+  durationSec?: number;
   createdAt: number;
   url?: string;
   syncedToServer?: boolean;
@@ -29,6 +31,7 @@ export interface HydratedStudioMediaItem {
   kind: StudioMediaKind;
   mimeType: string;
   sizeBytes: number;
+  durationSec?: number;
   createdAt: number;
   url: string;
   syncedToServer: boolean;
@@ -87,6 +90,9 @@ export function formatStudioBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 Ko';
   if (bytes < 1024 * 1024) {
     return `${Math.max(1, Math.round(bytes / 1024))} Ko`;
+  }
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} Go`;
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
@@ -219,6 +225,43 @@ async function deleteLocalMediaRecord(id: string): Promise<boolean> {
   });
 }
 
+export function probeVideoDurationSec(blob: Blob): Promise<number | undefined> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') {
+    return Promise.resolve(undefined);
+  }
+  return new Promise((resolve) => {
+    let settled = false;
+    const objUrl = URL.createObjectURL(blob);
+    const vid = document.createElement('video');
+    vid.preload = 'metadata';
+    vid.muted = true;
+    const done = (val?: number) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        vid.removeAttribute('src');
+        vid.load();
+      } catch {}
+      try {
+        URL.revokeObjectURL(objUrl);
+      } catch {}
+      resolve(val && Number.isFinite(val) && val > 0 ? Number(val.toFixed(2)) : undefined);
+    };
+    const trySettleDuration = () => {
+      if (Number.isFinite(vid.duration) && vid.duration > 0) {
+        done(vid.duration);
+      }
+    };
+    const timer = setTimeout(() => done(undefined), 30000);
+    vid.onloadedmetadata = trySettleDuration;
+    vid.ondurationchange = trySettleDuration;
+    vid.onloadeddata = trySettleDuration;
+    vid.onerror = () => done(undefined);
+    vid.src = objUrl;
+  });
+}
+
 async function uploadMediaBlobToServer(
   record: StoredStudioMediaRecord,
   ownerKey: string
@@ -233,6 +276,7 @@ async function uploadMediaBlobToServer(
         'x-media-name': encodeURIComponent(record.name),
         'x-media-kind': record.kind,
         'x-media-mime': record.mimeType || '',
+        'x-media-duration': record.durationSec ? String(record.durationSec) : '',
         'x-media-created': String(record.createdAt),
         'x-media-owner': encodeURIComponent(ownerKey),
       },
@@ -261,12 +305,15 @@ export async function saveStudioMediaFile(
   const createdAt = Date.now();
   const ownerKey = getActiveStudioOwnerKey();
 
+  const durationSec = kind === 'video' ? await probeVideoDurationSec(file) : undefined;
+
   const record: StoredStudioMediaRecord = {
     id,
     name: cleanName,
     kind,
     mimeType,
     sizeBytes: file.size || file.size === 0 ? file.size : 0,
+    durationSec,
     createdAt,
     blob: file,
     syncedToServer: false,
@@ -275,9 +322,9 @@ export async function saveStudioMediaFile(
   // 1. Persist immediately into IndexedDB so it stays on this site forever
   await putLocalMediaRecord(record);
 
-  // 2. Sync to server vault so it's also stored remotely on the site (best-effort up to 50MB)
+  // 2. Sync to server vault so it's also stored remotely on the site (best-effort up to 1 GB)
   let syncedToServer = false;
-  if (record.sizeBytes <= 50 * 1024 * 1024) {
+  if (record.sizeBytes <= 1024 * 1024 * 1024) {
     const serverUrl = await uploadMediaBlobToServer(record, ownerKey);
     if (serverUrl) {
       syncedToServer = true;
@@ -293,6 +340,7 @@ export async function saveStudioMediaFile(
     kind: record.kind,
     mimeType: record.mimeType,
     sizeBytes: record.sizeBytes,
+    durationSec: record.durationSec,
     createdAt: record.createdAt,
     url: URL.createObjectURL(file),
     syncedToServer,
@@ -305,6 +353,13 @@ export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[
   const localById = new Map<string, StoredStudioMediaRecord>();
   for (const rec of localRecords) {
     if (rec?.id && rec.blob) {
+      if (rec.kind === 'video' && !rec.durationSec) {
+        const probed = await probeVideoDurationSec(rec.blob);
+        if (probed) {
+          rec.durationSec = probed;
+          putLocalMediaRecord(rec).catch(() => {});
+        }
+      }
       localById.set(rec.id, rec);
     }
   }
@@ -331,12 +386,17 @@ export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[
       if (fileRes.ok) {
         const blob = await fileRes.blob();
         if (blob.size > 0) {
+          const durationSec =
+            remote.kind === 'video'
+              ? remote.durationSec || (await probeVideoDurationSec(blob))
+              : undefined;
           const downloaded: StoredStudioMediaRecord = {
             id: remote.id,
             name: remote.name,
             kind: remote.kind,
             mimeType: remote.mimeType || blob.type || (remote.kind === 'video' ? 'video/mp4' : 'image/jpeg'),
             sizeBytes: blob.size,
+            durationSec,
             createdAt: remote.createdAt || Date.now(),
             blob,
             syncedToServer: true,
@@ -353,7 +413,7 @@ export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[
 
   // Background-push any local-only record to server vault silently if not yet synced
   for (const rec of localById.values()) {
-    if (!rec.syncedToServer && rec.sizeBytes <= 50 * 1024 * 1024) {
+    if (!rec.syncedToServer && rec.sizeBytes <= 1024 * 1024 * 1024) {
       uploadMediaBlobToServer(rec, ownerKey)
         .then((serverUrl) => {
           if (serverUrl) {
@@ -374,6 +434,7 @@ export async function loadStudioMediaLibrary(): Promise<HydratedStudioMediaItem[
       kind: rec.kind,
       mimeType: rec.mimeType,
       sizeBytes: rec.sizeBytes,
+      durationSec: rec.durationSec,
       createdAt: rec.createdAt,
       url: URL.createObjectURL(rec.blob),
       syncedToServer: Boolean(rec.syncedToServer),

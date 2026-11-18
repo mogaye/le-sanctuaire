@@ -22,14 +22,11 @@ import {
   Video,
   Trash2,
   Volume2,
-  VolumeX,
   Monitor,
   Smartphone,
   Plus,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  ExternalLink,
   Layers,
 } from 'lucide-react';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
@@ -52,9 +49,12 @@ import {
   buildContinuousTimeline,
   buildMultiSurahVideoSequence,
   buildStudioExportFilename,
+  extendSequenceToTargetDuration,
   formatTimeMMSS,
   getVideoFormatPreset,
   normalizeVerseRange,
+  resolveVideoDownloadLinkState,
+  shouldStageVideoDownload,
 } from '../utils/mobileVideoStudioUtils';
 import {
   DecodedVerseBuffer,
@@ -103,6 +103,7 @@ interface CustomBackgroundMedia {
   kind: 'image' | 'video';
   url: string;
   sizeBytes?: number;
+  durationSec?: number;
   syncedToServer?: boolean;
 }
 
@@ -110,7 +111,7 @@ type StudioStage = 'setup' | 'player' | 'export';
 type StudioTab = 'verses' | 'style' | 'bg' | 'audio';
 type DownloadStatus = 'idle' | 'preparing' | 'done' | 'error';
 
-const MAX_STAGE_DOWNLOAD_BYTES = 150 * 1024 * 1024;
+const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
 function makeSelectionId(surahNumber: number): string {
   return `s-${surahNumber}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -127,14 +128,18 @@ function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null
     video.muted = true;
     video.loop = true;
     video.playsInline = true;
+    video.autoplay = true;
     video.preload = 'auto';
     video.crossOrigin = 'anonymous';
+    // Keep inside viewport compositor bounds so Chromium/Safari actively decode frames (never 2px offscreen)
     video.style.position = 'fixed';
-    video.style.left = '-9999px';
-    video.style.width = '2px';
-    video.style.height = '2px';
-    video.style.opacity = '0.001';
+    video.style.left = '0';
+    video.style.bottom = '0';
+    video.style.width = '16px';
+    video.style.height = '16px';
+    video.style.opacity = '0.01';
     video.style.pointerEvents = 'none';
+    video.style.zIndex = '-1';
     document.body.appendChild(video);
 
     let settled = false;
@@ -156,12 +161,23 @@ function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null
       resolve(video);
     };
 
-    const timeout = setTimeout(() => finish(video.readyState >= 2), 6000);
+    const timeout = setTimeout(() => finish(video.readyState >= 2), 60000);
     video.onloadeddata = () => finish(true);
     video.oncanplay = () => finish(true);
     video.onerror = () => finish(false);
     video.load();
+    if (video.readyState >= 2) {
+      finish(true);
+    }
   });
+}
+
+function isRunningInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
 }
 
 async function stageVideoBlobOnServer(
@@ -172,22 +188,31 @@ async function stageVideoBlobOnServer(
   if (!blob || blob.size === 0 || blob.size > MAX_STAGE_DOWNLOAD_BYTES) {
     return null;
   }
+  const timeoutMs = Math.min(60_000, Math.max(15_000, Math.round(blob.size / (5 * 1024 * 1024)) * 1000));
+  const localCtrl = new AbortController();
+  const timer = setTimeout(() => localCtrl.abort(), timeoutMs);
+  const onOuterAbort = () => localCtrl.abort();
+  signal?.addEventListener('abort', onOuterAbort, { once: true });
+
   try {
     const res = await fetch('/api/video/stage-download', {
       method: 'POST',
       headers: {
         'Content-Type': blob.type || 'video/mp4',
-        'x-download-filename': filename,
+        'x-download-filename': encodeURIComponent(filename),
         'x-download-mime': blob.type || 'video/mp4',
       },
       body: blob,
-      signal,
+      signal: localCtrl.signal,
     });
     if (!res.ok) return null;
     const json = await res.json().catch(() => null);
     return typeof json?.downloadUrl === 'string' ? json.downloadUrl : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onOuterAbort);
   }
 }
 
@@ -284,7 +309,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     return 'teleprompter';
   });
   const [paceMultiplier, setPaceMultiplier] = useState<number>(1.0);
-  const [monitorAudioDuringExport, setMonitorAudioDuringExport] = useState<boolean>(true);
+  const [durationMode, setDurationMode] = useState<'verses' | 'match_video'>('verses');
 
   // Pickers inside Setup
   const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
@@ -309,7 +334,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   // Export & Download State (for Stage = 'export')
   const [exportStatus, setExportStatus] = useState<
-    'preparing_audio' | 'recording' | 'finalizing' | 'ready' | 'error'
+    'preparing_audio' | 'encoding' | 'finalizing' | 'ready' | 'error'
   >('preparing_audio');
   const [exportStatusMessage, setExportStatusMessage] = useState<string>('');
   const [exportProgressPct, setExportProgressPct] = useState<number>(0);
@@ -326,7 +351,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     mime: string;
   } | null>(null);
   const [exportErrorMsg, setExportErrorMsg] = useState<string | null>(null);
-  const [canFinishEarly, setCanFinishEarly] = useState<boolean>(false);
 
   // Refs
   const wasOpenRef = useRef<boolean>(false);
@@ -381,13 +405,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         setCustomMedia(items);
         const prefs = loadStudioBgPreferences();
         if (prefs.bgId) {
-          const existsInCustom = items.some((m) => m.id === prefs.bgId);
+          const matchedCustom = items.find((m) => m.id === prefs.bgId);
           const existsInBuiltIn =
             STUDIO_SOLID_BACKGROUNDS.some((s) => s.id === prefs.bgId) ||
             MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === prefs.bgId) ||
             STUDIO_4K_BACKGROUNDS.some((b) => b.id === prefs.bgId);
-          if (existsInCustom || existsInBuiltIn) {
+          if (matchedCustom || existsInBuiltIn) {
             setBgId(prefs.bgId);
+            if (matchedCustom?.kind === 'video') {
+              setDurationMode('match_video');
+            }
           }
         }
       })
@@ -513,19 +540,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [reciterId]
   );
 
-  const videoSequence = useMemo(
+  const baseVideoSequence = useMemo(
     () => buildMultiSurahVideoSequence(selectedSurahs, loadedVersesMap, ALL_114_SURAHS),
     [selectedSurahs, loadedVersesMap]
   );
 
   const totalSelectedVerses = useMemo(
-    () => videoSequence.filter((v) => !v.isBismillah).length,
-    [videoSequence]
+    () => baseVideoSequence.filter((v) => !v.isBismillah).length,
+    [baseVideoSequence]
   );
 
   const hasBismillahIntro = useMemo(
-    () => videoSequence.some((v) => v.isBismillah),
-    [videoSequence]
+    () => baseVideoSequence.some((v) => v.isBismillah),
+    [baseVideoSequence]
   );
 
   const playlistSummaryLabel = useMemo(() => {
@@ -700,6 +727,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       url: m.url,
       kind: m.kind,
       sizeBytes: m.sizeBytes,
+      durationSec: m.durationSec,
       isCustom: true,
     }));
     const verticalCards = MOBILE_VERTICAL_BACKGROUNDS.map((b) => ({
@@ -737,9 +765,50 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     );
   }, [surahQuery]);
 
+  const targetCustomVideoDurationSec = useMemo(() => {
+    if (
+      durationMode === 'match_video' &&
+      activeCustomMedia?.kind === 'video' &&
+      typeof activeCustomMedia.durationSec === 'number' &&
+      activeCustomMedia.durationSec > 0
+    ) {
+      return activeCustomMedia.durationSec;
+    }
+    return 0;
+  }, [durationMode, activeCustomMedia]);
+
+  const extendedPlan = useMemo(() => {
+    if (targetCustomVideoDurationSec > 0 && baseVideoSequence.length > 0) {
+      return extendSequenceToTargetDuration(
+        baseVideoSequence,
+        [],
+        measuredDurations,
+        targetCustomVideoDurationSec,
+        paceMultiplier
+      );
+    }
+    return {
+      sequence: baseVideoSequence,
+      decodedItems: [] as never[],
+      measuredDurationsSec: measuredDurations,
+    };
+  }, [baseVideoSequence, measuredDurations, targetCustomVideoDurationSec, paceMultiplier]);
+
+  const videoSequence = extendedPlan.sequence;
+
+  const baseTimeline = useMemo(
+    () => buildContinuousTimeline(baseVideoSequence, measuredDurations, paceMultiplier),
+    [baseVideoSequence, measuredDurations, paceMultiplier]
+  );
+
   const timeline = useMemo(
-    () => buildContinuousTimeline(videoSequence, measuredDurations, paceMultiplier),
-    [videoSequence, measuredDurations, paceMultiplier]
+    () =>
+      buildContinuousTimeline(
+        extendedPlan.sequence,
+        extendedPlan.measuredDurationsSec,
+        paceMultiplier
+      ),
+    [extendedPlan.sequence, extendedPlan.measuredDurationsSec, paceMultiplier]
   );
 
   const exportFilename = useMemo(
@@ -769,6 +838,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         setCustomMedia((prev) => [...added, ...prev]);
         setBgId(added[0].id);
         setBgFilter('custom');
+        if (added[0].kind === 'video') {
+          setDurationMode('match_video');
+        }
       }
     } finally {
       setIsSavingMedia(false);
@@ -896,13 +968,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // STAGE 2 — REAL-TIME CONTINUOUS VIDEO PLAYER ("Lire le contenu")
   // =========================================================================
   const startContinuousPlayer = async () => {
-    if (videoSequence.length === 0) return;
+    if (baseVideoSequence.length === 0) return;
     stopAllMedia();
     setStage('player');
     setPlayerStatus('loading');
     setPlayerHudVisible(true);
     setCurrentTimeSec(0);
-    setPlayerLoadProgress({ loaded: 0, total: videoSequence.length });
+    setPlayerLoadProgress({ loaded: 0, total: baseVideoSequence.length });
 
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
@@ -923,11 +995,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         ? loadCanvasBackgroundVideo(activeMediaUrl)
         : Promise.resolve(null);
 
-    const [decoded, bgImg, bgVideo] = await Promise.all([
+    const [decodedBase, bgImg, bgVideo] = await Promise.all([
       decodeVerseAudioSequence(
         ctx,
         primarySelection.surahNumber,
-        videoSequence,
+        baseVideoSequence,
         reciterId,
         (loaded, total) => setPlayerLoadProgress({ loaded, total }),
         abortCtrl.signal
@@ -948,18 +1020,48 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
     playerBgImageRef.current = bgImg;
     playerBgVideoRef.current = bgVideo;
-    decodedBuffersRef.current = decoded;
 
-    const durations = decoded.map((d) =>
+    const baseDurations = decodedBase.map((d) =>
       d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
     );
-    setMeasuredDurations(durations);
+    setMeasuredDurations(baseDurations);
+
+    const detectedBgDurationSec =
+      targetCustomVideoDurationSec > 0
+        ? targetCustomVideoDurationSec
+        : durationMode === 'match_video' &&
+          bgVideo &&
+          Number.isFinite(bgVideo.duration) &&
+          bgVideo.duration > 0
+        ? bgVideo.duration
+        : 0;
+
+    const expanded =
+      detectedBgDurationSec > 0
+        ? extendSequenceToTargetDuration(
+            baseVideoSequence,
+            decodedBase,
+            baseDurations,
+            detectedBgDurationSec,
+            paceMultiplier
+          )
+        : {
+            sequence: baseVideoSequence,
+            decodedItems: decodedBase,
+            measuredDurationsSec: baseDurations,
+          };
+
+    decodedBuffersRef.current = expanded.decodedItems;
 
     if (document.fonts?.ready) {
       await document.fonts.ready.catch(() => {});
     }
 
-    const exactTimeline = buildContinuousTimeline(videoSequence, durations, paceMultiplier);
+    const exactTimeline = buildContinuousTimeline(
+      expanded.sequence,
+      expanded.measuredDurationsSec,
+      paceMultiplier
+    );
     playerTimelineRef.current = exactTimeline;
 
     const liveWidth = activeFormat.previewWidth;
@@ -995,14 +1097,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         playerRenderOptsRef.current = renderOpts;
         playerLayoutRef.current = precomputeVideoCanvasLayout(
           canvasCtx,
-          videoSequence,
+          expanded.sequence,
           renderOpts
         );
         renderVideoCanvasFrame(canvasCtx, playerLayoutRef.current, exactTimeline, 0, renderOpts);
       }
     }
 
-    beginContinuousAudioFromOffset(ctx, decoded, exactTimeline, 0);
+    beginContinuousAudioFromOffset(ctx, expanded.decodedItems, exactTimeline, 0);
   };
 
   const beginContinuousAudioFromOffset = (
@@ -1097,22 +1199,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         await ctx.resume().catch(() => {});
       }
       const nextOffset = playerStatus === 'ended' ? 0 : currentTimeSec;
-      const exactTimeline = buildContinuousTimeline(
-        videoSequence,
-        measuredDurations,
-        paceMultiplier
-      );
+      const exactTimeline = playerTimelineRef.current || timeline;
       beginContinuousAudioFromOffset(ctx, decodedBuffersRef.current, exactTimeline, nextOffset);
     }
   };
 
   const seekContinuousPlayer = (targetSec: number) => {
     const ctx = audioCtxRef.current;
-    const exactTimeline = buildContinuousTimeline(
-      videoSequence,
-      measuredDurations,
-      paceMultiplier
-    );
+    const exactTimeline = playerTimelineRef.current || timeline;
     const clamped = Math.max(0, Math.min(exactTimeline.totalDurationSec, targetSec));
     setCurrentTimeSec(clamped);
     if (playerBgVideoRef.current) {
@@ -1133,7 +1227,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // STAGE 3 — MP4 EXPORT & BULLETPROOF DOWNLOAD HANDLER
   // =========================================================================
   const startVideoExport = async () => {
-    if (videoSequence.length === 0) return;
+    if (baseVideoSequence.length === 0) return;
     stopAllMedia();
     if (exportedVideoUrl) {
       URL.revokeObjectURL(exportedVideoUrl);
@@ -1145,13 +1239,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     setDownloadFeedback(null);
     setExportedAudioInfo(null);
     setExportErrorMsg(null);
-    setCanFinishEarly(false);
     setExportProgressPct(0);
     setExportElapsedSec(0);
     setStage('export');
     setExportStatus('preparing_audio');
     setExportStatusMessage(
-      `Chargement audio continu (${playlistSummaryLabel} · ${videoSequence.length} séquences)...`
+      `Chargement audio continu (${playlistSummaryLabel} · ${baseVideoSequence.length} séquences)...`
     );
 
     const abortCtrl = new AbortController();
@@ -1177,11 +1270,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           ? loadCanvasBackgroundVideo(activeMediaUrl)
           : Promise.resolve(null);
 
-      const [decoded, bgImg, bgVideo] = await Promise.all([
+      const [decodedBase, bgImg, bgVideo] = await Promise.all([
         decodeVerseAudioSequence(
           ctx,
           primarySelection.surahNumber,
-          videoSequence,
+          baseVideoSequence,
           reciterId,
           (loaded, total) => {
             setPlayerLoadProgress({ loaded, total });
@@ -1206,18 +1299,50 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         return;
       }
 
-      const okAudioCount = decoded.filter((d) => d.buffer !== null).length;
+      const okAudioCount = decodedBase.filter((d) => d.buffer !== null).length;
       if (okAudioCount === 0) {
         throw new Error(
           'Impossible de charger le son de la récitation pour ces versets. Vérifiez votre connexion internet et réessayez.'
         );
       }
 
-      const durations = decoded.map((d) =>
+      const baseDurations = decodedBase.map((d) =>
         d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
       );
-      setMeasuredDurations(durations);
-      const exactTimeline = buildContinuousTimeline(videoSequence, durations, paceMultiplier);
+      setMeasuredDurations(baseDurations);
+
+      const detectedBgDurationSec =
+        targetCustomVideoDurationSec > 0
+          ? targetCustomVideoDurationSec
+          : durationMode === 'match_video' &&
+            bgVideo &&
+            Number.isFinite(bgVideo.duration) &&
+            bgVideo.duration > 0
+          ? bgVideo.duration
+          : 0;
+
+      const expanded =
+        detectedBgDurationSec > 0
+          ? extendSequenceToTargetDuration(
+              baseVideoSequence,
+              decodedBase,
+              baseDurations,
+              detectedBgDurationSec,
+              paceMultiplier
+            )
+          : {
+              sequence: baseVideoSequence,
+              decodedItems: decodedBase,
+              measuredDurationsSec: baseDurations,
+            };
+
+      const exportSeq = expanded.sequence;
+      const exportDecoded = expanded.decodedItems;
+      const exactTimeline = buildContinuousTimeline(
+        exportSeq,
+        expanded.measuredDurationsSec,
+        paceMultiplier
+      );
 
       if (document.fonts?.ready) {
         await document.fonts.ready.catch(() => {});
@@ -1257,12 +1382,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         reciterName: selectedReciter.name,
       };
 
-      const layout = precomputeVideoCanvasLayout(canvasCtx, videoSequence, renderOpts);
+      const layout = precomputeVideoCanvasLayout(canvasCtx, exportSeq, renderOpts);
       renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
 
-      setExportStatus('recording');
+      setExportStatus('encoding');
       setExportStatusMessage(
-        `Encodage ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${videoSequence.length} séquences...`
+        `Génération MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${formatTimeMMSS(exactTimeline.totalDurationSec)} (${okAudioCount}/${baseVideoSequence.length} séquences)...`
       );
 
       if (ctx.state !== 'running') {
@@ -1273,13 +1398,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         canvas,
         canvasCtx,
         layout,
-        ayahs: videoSequence,
+        ayahs: exportSeq,
         timeline: exactTimeline,
         renderOpts,
         audioCtx: ctx,
-        decodedBuffers: decoded,
+        decodedBuffers: exportDecoded,
         paceMultiplier,
-        monitorAudioDuringExport,
+        monitorAudioDuringExport: false,
         abortSignal: abortCtrl.signal,
         onProgress: (pct, elapsedSec, statusText) => {
           setExportProgressPct(pct);
@@ -1296,18 +1421,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         },
         onRecordingChunkAvailable: () => {
           hasRecorderChunkRef.current = true;
-          const activeRec = mediaRecorderRef.current;
-          if (activeRec && activeRec.state === 'recording') {
-            setTimeout(() => {
-              if (
-                mediaRecorderRef.current === activeRec &&
-                activeRec.state === 'recording' &&
-                hasRecorderChunkRef.current
-              ) {
-                setCanFinishEarly(true);
-              }
-            }, 600);
-          }
         },
       });
 
@@ -1337,27 +1450,37 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         extension: exportResult.extension,
       });
 
+      const inIframe = isRunningInIframe();
+      let readyStagedUrl: string | null = null;
+      if (shouldStageVideoDownload(exportResult.blob.size, inIframe, MAX_STAGE_DOWNLOAD_BYTES)) {
+        setExportStatus('finalizing');
+        setExportProgressPct(97);
+        setExportStatusMessage('Préparation du téléchargement MP4...');
+        readyStagedUrl = await stageVideoBlobOnServer(
+          exportResult.blob,
+          nextFilename,
+          abortCtrl.signal
+        );
+      }
+
+      if (abortCtrl.signal.aborted) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      setStagedDownloadUrl(readyStagedUrl);
       setExportedVideoBlob(exportResult.blob);
       setExportedVideoUrl(url);
       setExportedFileExt(exportResult.extension);
       setExportedAudioInfo({
         okCount: okAudioCount,
-        totalCount: videoSequence.length,
+        totalCount: baseVideoSequence.length,
         mime: exportResult.mimeType,
       });
       setExportProgressPct(100);
       setExportStatus('ready');
       setExportStatusMessage(
-        `Vidéo MP4 ${activeFormat.aspectLabel} prête (${okAudioCount}/${videoSequence.length} séquences)`
-      );
-
-      // Background stage for iframe / WebView HTTP Attachment fallback
-      stageVideoBlobOnServer(exportResult.blob, nextFilename, abortCtrl.signal).then(
-        (stagedUrl) => {
-          if (!abortCtrl.signal.aborted && stagedUrl) {
-            setStagedDownloadUrl(stagedUrl);
-          }
-        }
+        `Vidéo MP4 ${activeFormat.aspectLabel} (${formatTimeMMSS(exactTimeline.totalDurationSec)}) prête`
       );
     } catch (err: any) {
       if (!abortCtrl.signal.aborted) {
@@ -1367,102 +1490,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         );
       }
     }
-  };
-
-  const handleDownloadVideo = async () => {
-    if (!exportedVideoUrl && !exportedVideoBlob) return;
-    setDownloadStatus('preparing');
-    setDownloadFeedback('Préparation du fichier...');
-
-    try {
-      let blob = exportedVideoBlob;
-      if (!blob && exportedVideoUrl) {
-        const res = await fetch(exportedVideoUrl);
-        blob = await res.blob();
-      }
-      if (!blob || blob.size === 0) {
-        throw new Error('Fichier vidéo introuvable en mémoire.');
-      }
-
-      let targetHref: string | null = null;
-      let objectUrlToRevoke: string | null = null;
-      const inIframe = (() => {
-        try {
-          return window.self !== window.top;
-        } catch {
-          return true;
-        }
-      })();
-
-      // Inside iframes, prefer real HTTP Content-Disposition attachment relay when available
-      if (inIframe) {
-        let relayUrl = stagedDownloadUrl;
-        if (!relayUrl && blob.size <= MAX_STAGE_DOWNLOAD_BYTES) {
-          relayUrl = await stageVideoBlobOnServer(blob, exportFilename);
-          if (relayUrl) setStagedDownloadUrl(relayUrl);
-        }
-        if (relayUrl) {
-          targetHref = relayUrl;
-        }
-      }
-
-      if (!targetHref) {
-        objectUrlToRevoke = URL.createObjectURL(blob);
-        targetHref = objectUrlToRevoke;
-      }
-
-      const anchor = document.createElement('a');
-      anchor.href = targetHref;
-      anchor.download = exportFilename;
-      anchor.rel = 'noopener';
-      anchor.style.display = 'none';
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      if (objectUrlToRevoke) {
-        setTimeout(() => {
-          try {
-            URL.revokeObjectURL(objectUrlToRevoke!);
-          } catch {}
-        }, 60_000);
-      }
-
-      setDownloadStatus('done');
-      setDownloadFeedback(`Téléchargement lancé (${exportFilename})`);
-    } catch (err: any) {
-      setDownloadStatus('error');
-      setDownloadFeedback(
-        err?.message || 'Échec du téléchargement automatique. Utilisez le lien direct ci-dessous.'
-      );
-    }
-  };
-
-  const finishRecordingEarly = () => {
-    const rec = mediaRecorderRef.current;
-    if (!rec || rec.state === 'inactive' || !hasRecorderChunkRef.current) return;
-    setCanFinishEarly(false);
-    setExportStatus('finalizing');
-    setExportStatusMessage('Finalisation de votre extrait vidéo avec audio...');
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    playbackHandleRef.current?.stop();
-    playbackHandleRef.current = null;
-    if (rec.state === 'recording') {
-      try {
-        rec.stop();
-      } catch {}
-    }
-  };
-
-  const handleToggleMonitorAudio = () => {
-    setMonitorAudioDuringExport((prev) => {
-      const next = !prev;
-      keepaliveRef.current?.setMonitorEnabled(next);
-      return next;
-    });
   };
 
   const handleShareVideo = async () => {
@@ -1640,6 +1667,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       typeof navigator.share === 'function' &&
       Boolean(exportedVideoBlob);
 
+    const downloadLinkState = resolveVideoDownloadLinkState({
+      inIframe: isRunningInIframe(),
+      stagedDownloadUrl,
+      objectUrl: exportedVideoUrl,
+      filename: exportFilename,
+    });
+
     return (
       <div
         data-testid="mobile-video-export-view"
@@ -1727,26 +1761,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   </span>
                 </div>
 
-                {exportStatus === 'recording' && (
-                  <button
-                    type="button"
-                    onClick={handleToggleMonitorAudio}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-xs font-medium text-neutral-200 cursor-pointer"
-                  >
-                    {monitorAudioDuringExport ? (
-                      <>
-                        <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Son actif pendant l&apos;export (cliquer pour couper l&apos;écoute)</span>
-                      </>
-                    ) : (
-                      <>
-                        <VolumeX className="w-3.5 h-3.5 text-neutral-400" />
-                        <span>Écoute coupée (le son reste enregistré dans la vidéo)</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
                 {exportStatus === 'ready' && exportedAudioInfo && (
                   <div
                     data-testid="exported-video-audio-badge"
@@ -1782,34 +1796,20 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         {/* Bottom Export & Download Action Dock */}
         <footer className="shrink-0 border-t border-white/[0.08] bg-[#0B120F]/95 backdrop-blur-xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)]">
           <div className="space-y-2.5 max-w-md w-full mx-auto">
-          {exportStatus === 'recording' && canFinishEarly && (
-            <button
-              type="button"
-              data-testid="export-finish-early-btn"
-              onClick={finishRecordingEarly}
-              className="w-full h-11 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            >
-              <Square className="w-4 h-4 fill-current" />
-              <span>Terminer &amp; Sauvegarder maintenant</span>
-            </button>
-          )}
-
-          {exportStatus === 'ready' && exportedVideoUrl && (
+          {exportStatus === 'ready' && downloadLinkState.href && (
             <div className="space-y-2">
               <div className={`grid gap-2.5 ${canNativeShare ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <button
-                  type="button"
+                <a
                   data-testid="download-exported-video-link"
-                  onClick={handleDownloadVideo}
-                  disabled={downloadStatus === 'preparing'}
-                  className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-[0.99] text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer transition disabled:opacity-60 whitespace-nowrap"
+                  href={downloadLinkState.href}
+                  download={downloadLinkState.filename}
+                  onClick={() => {
+                    setDownloadStatus('done');
+                    setDownloadFeedback(`Téléchargement lancé (${downloadLinkState.filename})`);
+                  }}
+                  className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-[0.99] text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer transition whitespace-nowrap no-underline"
                 >
-                  {downloadStatus === 'preparing' ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Préparation...</span>
-                    </>
-                  ) : downloadStatus === 'done' ? (
+                  {downloadStatus === 'done' ? (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Télécharger à nouveau</span>
@@ -1820,7 +1820,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       <span>Télécharger MP4</span>
                     </>
                   )}
-                </button>
+                </a>
 
                 {canNativeShare && (
                   <button
@@ -1837,31 +1837,21 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               {downloadFeedback && (
                 <div
                   data-testid="download-status-feedback"
-                  className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-2 ${
-                    downloadStatus === 'error'
-                      ? 'bg-rose-950/50 border-rose-500/35 text-rose-200'
-                      : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
-                  }`}
+                  className="px-3 py-2 rounded-xl border bg-emerald-950/40 border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between gap-2"
                 >
                   <span className="inline-flex items-center gap-1.5 truncate">
-                    {downloadStatus === 'error' ? (
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
-                    ) : (
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                    )}
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
                     <span className="truncate">{downloadFeedback}</span>
                   </span>
 
                   <a
-                    href={stagedDownloadUrl || exportedVideoUrl}
-                    download={exportFilename}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={downloadLinkState.href}
+                    download={downloadLinkState.filename}
                     data-testid="download-direct-fallback-link"
                     className="text-amber-300 hover:text-amber-200 font-semibold underline inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
                   >
-                    <span>Lien direct</span>
-                    <ExternalLink className="w-3 h-3" />
+                    <span>Télécharger</span>
+                    <Download className="w-3 h-3" />
                   </a>
                 </div>
               )}
@@ -1916,7 +1906,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             </h2>
             <p className="text-xs text-neutral-400 truncate tabular-nums">
               {selectedSurahs.length} sourate{selectedSurahs.length > 1 ? 's' : ''} ·{' '}
-              {totalSelectedVerses} versets · {formatTimeMMSS(timeline.totalDurationSec)}
+              {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''} · {formatTimeMMSS(timeline.totalDurationSec)}
             </p>
           </div>
         </div>
@@ -2021,6 +2011,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               className="relative w-12 aspect-[9/16] rounded-lg overflow-hidden border border-white/15 shrink-0 flex flex-col justify-between p-1.5 text-center"
               style={{ backgroundColor: bgSurfaceColor }}
             >
+              {activeMediaKind === 'video' && activeMediaUrl && (
+                <video
+                  src={activeMediaUrl}
+                  muted
+                  loop
+                  playsInline
+                  autoPlay
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              )}
               {activeMediaKind === 'image' && activeMediaUrl && (
                 <img
                   src={activeMediaUrl}
@@ -2052,7 +2052,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 {VIDEO_TEMPLATE_PRESETS.find((t) => t.id === flowMode)?.name} · {activeMediaName}
               </div>
               <div className="text-xs text-emerald-300 font-semibold tabular-nums">
-                Durée estimée {formatTimeMMSS(timeline.totalDurationSec)} · {totalSelectedVerses} versets
+                Durée estimée {formatTimeMMSS(timeline.totalDurationSec)} · {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''}
               </div>
             </div>
           </div>
@@ -2468,7 +2468,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} personnel${customMedia.length > 1 ? 's' : ''} (${formatStudioBytes(
                           customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
                         )})`
-                      : 'Importez vos photos ou vidéos bouclées'}
+                      : 'Importez vos photos ou vidéos (sans limite de durée)'}
                   </p>
                 </div>
 
@@ -2545,9 +2545,60 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     Importer et sauvegarder vos images ou vidéos
                   </div>
                   <div className="text-xs text-neutral-400">
-                    Vos fichiers restent sauvegardés pour vos prochaines vidéos.
+                    Aucune limite de durée : vos vidéos sont conservées et exportées intégralement.
                   </div>
                 </button>
+              )}
+
+              {activeCustomMedia?.kind === 'video' && (
+                <div
+                  data-testid="studio-video-duration-mode-panel"
+                  className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-400/35 space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-bold text-emerald-200 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 shrink-0" />
+                      <span>
+                        Vidéo sélectionnée
+                        {activeCustomMedia.durationSec
+                          ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
+                          : ''}
+                      </span>
+                    </span>
+                    <span className="text-emerald-300 font-mono tabular-nums">
+                      Export : {formatTimeMMSS(timeline.totalDurationSec)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                    <button
+                      type="button"
+                      data-testid="studio-duration-mode-match-video"
+                      onClick={() => setDurationMode('match_video')}
+                      className={`min-h-[38px] px-2.5 rounded-lg border cursor-pointer transition-colors tabular-nums ${
+                        durationMode === 'match_video'
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                          : 'bg-black/40 text-neutral-200 border-white/10 hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      Toute ma vidéo
+                      {activeCustomMedia.durationSec
+                        ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
+                        : ''}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="studio-duration-mode-verses"
+                      onClick={() => setDurationMode('verses')}
+                      className={`min-h-[38px] px-2.5 rounded-lg border cursor-pointer transition-colors tabular-nums ${
+                        durationMode === 'verses'
+                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                          : 'bg-black/40 text-neutral-200 border-white/10 hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      Versets seuls ({formatTimeMMSS(baseTimeline.totalDurationSec)})
+                    </button>
+                  </div>
+                </div>
               )}
 
               {visibleBackgroundCards.length > 0 && (
@@ -2560,13 +2611,21 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     return (
                       <div
                         key={bg.id}
-                        onClick={() => setBgId(bg.id)}
+                        onClick={() => {
+                          setBgId(bg.id);
+                          if (bg.kind === 'video') {
+                            setDurationMode('match_video');
+                          }
+                        }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             setBgId(bg.id);
+                            if (bg.kind === 'video') {
+                              setDurationMode('match_video');
+                            }
                           }
                         }}
                         data-testid={`studio-bg-card-${bg.id}`}
@@ -2594,9 +2653,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
                         <div className="relative z-10 flex items-center justify-between gap-1">
                           {bg.kind === 'video' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[10px] font-bold inline-flex items-center gap-0.5">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[10px] font-bold inline-flex items-center gap-0.5 tabular-nums">
                               <Video className="w-2.5 h-2.5" />
-                              Vidéo
+                              {'durationSec' in bg && bg.durationSec
+                                ? formatTimeMMSS(bg.durationSec)
+                                : 'Vidéo'}
                             </span>
                           ) : (
                             <span />
@@ -2732,27 +2793,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setMonitorAudioDuringExport((v) => !v)}
-                className="w-full p-3.5 rounded-xl bg-black/35 border border-white/[0.08] flex items-center justify-between gap-3 text-left cursor-pointer"
-              >
-                <div>
-                  <div className="text-xs font-bold text-white">Écoute audio pendant l&apos;export</div>
-                  <div className="text-xs text-neutral-400">
-                    La piste audio continue est toujours incluse dans le fichier MP4.
-                  </div>
-                </div>
-                <span
-                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0 ${
-                    monitorAudioDuringExport
-                      ? 'bg-emerald-500/20 text-emerald-300'
-                      : 'bg-white/10 text-neutral-400'
-                  }`}
-                >
-                  {monitorAudioDuringExport ? 'Actif' : 'Muet'}
-                </span>
-              </button>
             </section>
           )}
         </div>
@@ -2781,6 +2821,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           showSurahHeader={showSurahHeader}
           textScale={textScale}
           flowMode={flowMode}
+          onDetectedVideoDurationSec={(durSec) => {
+            if (!activeCustomMedia || activeCustomMedia.kind !== 'video') return;
+            if (!activeCustomMedia.durationSec || Math.abs(activeCustomMedia.durationSec - durSec) > 0.5) {
+              const targetId = activeCustomMedia.id;
+              setCustomMedia((prev) =>
+                prev.map((m) => (m.id === targetId ? { ...m, durationSec: durSec } : m))
+              );
+            }
+          }}
         />
       </div>
 

@@ -2,6 +2,7 @@ import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import {
   ContinuousTimeline,
   StudioAyahItem,
+  computeVideoSeekTime,
   getResolutionFallbackTiers,
   selectPreferredVideoMimeType,
 } from './mobileVideoStudioUtils';
@@ -41,10 +42,117 @@ export interface Mp4ExportResult {
   mimeType: string;
 }
 
-interface ResolvedH264Candidate {
+interface ResolvedVideoCandidate {
   config: VideoEncoderConfig;
+  muxCodec: 'avc' | 'vp9';
+  requiresServerH264Transcode: boolean;
   encodeWidth: number;
   encodeHeight: number;
+}
+
+async function resolveSupportedVideoCandidates(
+  requestedWidth: number,
+  requestedHeight: number,
+  fps: number,
+  targetDurationSec: number,
+  includeVp9Fallback: boolean
+): Promise<ResolvedVideoCandidate[]> {
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+    return [];
+  }
+
+  const resolutionTiers = getResolutionFallbackTiers(
+    requestedWidth,
+    requestedHeight,
+    targetDurationSec
+  );
+
+  const avcCodecs = [
+    'avc1.4d402a', // Main Profile L4.2
+    'avc1.64002a', // High Profile L4.2
+    'avc1.42e02a', // Constrained Baseline L4.2
+    'avc1.4d401f', // Main Profile L3.1 (universal mobile hardware)
+    'avc1.42e01f', // Constrained Baseline L3.1 (universal Android/iOS)
+    'avc1.42001f', // Baseline L3.1
+    'avc1.42002a',
+  ];
+
+  const hwModes: HardwareAcceleration[] = ['no-preference', 'prefer-hardware', 'prefer-software'];
+  const candidates: ResolvedVideoCandidate[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const tier of resolutionTiers) {
+    let foundTierH264 = false;
+    for (const hardwareAcceleration of hwModes) {
+      for (const codec of avcCodecs) {
+        try {
+          const candidate: VideoEncoderConfig = {
+            codec,
+            width: tier.w,
+            height: tier.h,
+            bitrate: tier.bitrate,
+            framerate: fps,
+            hardwareAcceleration,
+            avc: { format: 'avc' },
+          };
+          const support = await VideoEncoder.isConfigSupported(candidate);
+          if (support.supported) {
+            const key = `avc:${tier.w}x${tier.h}:${hardwareAcceleration}:${codec}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              candidates.push({
+                config: support.config || candidate,
+                muxCodec: 'avc',
+                requiresServerH264Transcode: false,
+                encodeWidth: tier.w,
+                encodeHeight: tier.h,
+              });
+              foundTierH264 = true;
+              break;
+            }
+          }
+        } catch {
+          // try next profile
+        }
+      }
+      if (foundTierH264 && hardwareAcceleration !== 'prefer-software') {
+        // Keep one software fallback for the same tier in case GPU driver fails mid-encode
+        continue;
+      }
+    }
+  }
+
+  if (includeVp9Fallback) {
+    for (const tier of resolutionTiers) {
+      for (const codec of ['vp09.00.10.08', 'vp09.00.20.08']) {
+        try {
+          const candidate: VideoEncoderConfig = {
+            codec,
+            width: tier.w,
+            height: tier.h,
+            bitrate: tier.bitrate,
+            framerate: fps,
+            hardwareAcceleration: 'no-preference',
+          };
+          const support = await VideoEncoder.isConfigSupported(candidate);
+          if (support.supported) {
+            candidates.push({
+              config: support.config || candidate,
+              muxCodec: 'vp9',
+              requiresServerH264Transcode: true,
+              encodeWidth: tier.w,
+              encodeHeight: tier.h,
+            });
+            break;
+          }
+        } catch {
+          // try next profile
+        }
+      }
+    }
+  }
+
+  return candidates;
 }
 
 function encodeAudioBufferToWavBytes(audioBuffer: AudioBuffer): Uint8Array {
@@ -122,59 +230,7 @@ async function renderTimelineOfflineAudio(
   return offlineCtx.startRendering();
 }
 
-async function resolveSupportedH264Config(
-  requestedWidth: number,
-  requestedHeight: number,
-  fps: number
-): Promise<ResolvedH264Candidate | null> {
-  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
-    return null;
-  }
 
-  // Try crisp requested resolution first, then gracefully step down while preserving aspect ratio (16:9, 9:16, or 1:1)
-  const resolutionTiers = getResolutionFallbackTiers(requestedWidth, requestedHeight);
-
-  const codecs = [
-    'avc1.4d402a', // Main Profile L4.2
-    'avc1.64002a', // High Profile L4.2
-    'avc1.42e02a', // Constrained Baseline L4.2
-    'avc1.4d401f', // Main Profile L3.1 (universal mobile hardware)
-    'avc1.42e01f', // Constrained Baseline L3.1 (universal Android/iOS)
-    'avc1.42001f', // Baseline L3.1
-    'avc1.42002a',
-  ];
-
-  const hwModes: HardwareAcceleration[] = ['prefer-software', 'no-preference'];
-
-  for (const tier of resolutionTiers) {
-    for (const hardwareAcceleration of hwModes) {
-      for (const codec of codecs) {
-        try {
-          const candidate: VideoEncoderConfig = {
-            codec,
-            width: tier.w,
-            height: tier.h,
-            bitrate: tier.bitrate,
-            framerate: fps,
-            hardwareAcceleration,
-            avc: { format: 'avc' },
-          };
-          const support = await VideoEncoder.isConfigSupported(candidate);
-          if (support.supported) {
-            return {
-              config: support.config || candidate,
-              encodeWidth: tier.w,
-              encodeHeight: tier.h,
-            };
-          }
-        } catch {
-          // try next profile
-        }
-      }
-    }
-  }
-  return null;
-}
 
 async function resolveSupportedAacConfig(
   sampleRate: number,
@@ -232,13 +288,15 @@ async function muxVideoBlobWithOfflineAudio(
   paceMultiplier: number,
   abortSignal: AbortSignal
 ): Promise<Uint8Array | null> {
-  const isLongVideo = timeline.totalDurationSec > 180;
+  const durSec = timeline.totalDurationSec;
+  const offlineRate = durSec > 900 ? 24000 : durSec > 180 ? 44100 : 48000;
+  const offlineChannels = durSec > 180 ? 1 : 2;
   const renderedAudio = await renderTimelineOfflineAudio(
     decodedBuffers,
     timeline,
     paceMultiplier,
-    isLongVideo ? 44100 : 48000,
-    isLongVideo ? 1 : 2
+    offlineRate,
+    offlineChannels
   );
   if (abortSignal.aborted) return null;
 
@@ -269,24 +327,43 @@ async function muxVideoBlobWithOfflineAudio(
 async function seekVideoToTime(videoEl: HTMLVideoElement, targetTime: number): Promise<void> {
   const duration = Number.isFinite(videoEl.duration) && videoEl.duration > 0 ? videoEl.duration : 0;
   if (duration <= 0) return;
-  const wrapped = Math.max(0, Math.min(duration - 0.01, targetTime % duration));
-  if (Math.abs(videoEl.currentTime - wrapped) < 0.015) return;
+  const wrapped = computeVideoSeekTime(targetTime, duration);
+  if (
+    Math.abs(videoEl.currentTime - wrapped) < 0.012 &&
+    videoEl.readyState >= 2 &&
+    !videoEl.seeking
+  ) {
+    return;
+  }
 
   await new Promise<void>((resolve) => {
     let settled = false;
-    const done = () => {
+    const finish = () => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      videoEl.removeEventListener('seeked', done);
+      videoEl.removeEventListener('seeked', onSeeked);
+      videoEl.removeEventListener('canplay', onCanPlay);
       resolve();
     };
-    const timer = setTimeout(done, 160);
-    videoEl.addEventListener('seeked', done, { once: true });
+    const onCanPlay = () => {
+      if (!videoEl.seeking && videoEl.readyState >= 2) {
+        finish();
+      }
+    };
+    const onSeeked = () => {
+      if (videoEl.readyState >= 2) {
+        finish();
+      } else {
+        videoEl.addEventListener('canplay', onCanPlay, { once: true });
+      }
+    };
+    const timer = setTimeout(finish, 2500);
+    videoEl.addEventListener('seeked', onSeeked, { once: true });
     try {
       videoEl.currentTime = wrapped;
     } catch {
-      done();
+      finish();
     }
   });
 }
@@ -315,262 +392,313 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  *   C) Client H.264 + client Opus (in MP4 via mp4-muxer) -> pure client-side .mp4 (Android Chrome / Vercel)
  */
 async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4ExportResult | null> {
+  if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined') {
+    return null;
+  }
   const fps = 30;
-  const resolvedVideo = await resolveSupportedH264Config(
+  const totalSec = Math.max(1.5, params.timeline.totalDurationSec);
+
+  const preferMonoAac = totalSec > 600;
+  const aacConfig =
+    (preferMonoAac ? await resolveSupportedAacConfig(48000, 1) : null) ||
+    (await resolveSupportedAacConfig(48000, 2));
+
+  const serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
+  if (params.abortSignal.aborted) return null;
+
+  const candidates = await resolveSupportedVideoCandidates(
     params.renderOpts.width,
     params.renderOpts.height,
-    fps
+    fps,
+    totalSec,
+    serverMuxAvailable
   );
-  if (!resolvedVideo) return null;
+  if (candidates.length === 0) return null;
 
-  const { config: videoConfig, encodeWidth, encodeHeight } = resolvedVideo;
-
-  // Adapt canvas and precomputed layout cleanly if device hardware capped at 720x1280
-  let effectiveRenderOpts = params.renderOpts;
-  let effectiveLayout = params.layout;
-  if (encodeWidth !== params.renderOpts.width || encodeHeight !== params.renderOpts.height) {
-    params.canvas.width = encodeWidth;
-    params.canvas.height = encodeHeight;
-    effectiveRenderOpts = {
-      ...params.renderOpts,
-      width: encodeWidth,
-      height: encodeHeight,
-    };
-    if (params.ayahs && params.ayahs.length > 0) {
-      effectiveLayout = precomputeVideoCanvasLayout(
-        params.canvasCtx,
-        params.ayahs,
-        effectiveRenderOpts
-      );
-    }
-  }
-
-  const aacConfig = await resolveSupportedAacConfig(48000, 2);
-
-  let serverMuxAvailable = false;
-  if (!aacConfig) {
-    serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
-    if (params.abortSignal.aborted) return null;
-  }
-
-  // Never put Opus inside .mp4 (silent on Apple/QuickTime/Windows/WhatsApp/many Android players).
-  // Require either native AAC or server FFmpeg AAC muxing; otherwise fall back to Tier 2.
-  if (!aacConfig && !serverMuxAvailable) {
+  const usableCandidates = candidates.filter(
+    (c) => (!c.requiresServerH264Transcode && Boolean(aacConfig)) || serverMuxAvailable
+  );
+  if (usableCandidates.length === 0) {
     return null;
   }
 
-  const useCompactServerAudio = !aacConfig && params.timeline.totalDurationSec > 180;
+  const audioSampleRate =
+    aacConfig && !usableCandidates[0].requiresServerH264Transcode
+      ? aacConfig.sampleRate || 48000
+      : totalSec > 900
+      ? 24000
+      : totalSec > 180
+      ? 44100
+      : 48000;
+  const audioChannels =
+    aacConfig && !usableCandidates[0].requiresServerH264Transcode
+      ? aacConfig.numberOfChannels || 2
+      : totalSec > 180
+      ? 1
+      : 2;
+
   const renderedAudio = await renderTimelineOfflineAudio(
     params.decodedBuffers,
     params.timeline,
     params.paceMultiplier,
-    useCompactServerAudio ? 44100 : 48000,
-    useCompactServerAudio ? 1 : 2
+    audioSampleRate,
+    audioChannels
   );
   if (params.abortSignal.aborted) return null;
 
-  const clientAudioConfig = aacConfig;
-  const clientAudioMuxCodec: 'aac' | null = aacConfig ? 'aac' : null;
+  const totalFrames = Math.max(1, Math.ceil(totalSec * fps));
+  const frameDurationUs = Math.round(1_000_000 / fps);
 
-  const target = new ArrayBufferTarget();
-  const muxer = new Muxer({
-    target,
-    video: {
-      codec: 'avc',
-      width: encodeWidth,
-      height: encodeHeight,
-    },
-    audio: clientAudioMuxCodec
-      ? {
-          codec: clientAudioMuxCodec,
-          numberOfChannels: renderedAudio.numberOfChannels,
-          sampleRate: renderedAudio.sampleRate,
-        }
-      : undefined,
-    fastStart: 'in-memory',
-  });
+  let lastCandidateErr: unknown = null;
 
-  let encoderError: Error | null = null;
-  let videoChunkCount = 0;
-  let lastChunkAdvanceAt = Date.now();
-  const videoEncoder = new VideoEncoder({
-    output: (chunk, meta) => {
-      videoChunkCount++;
-      lastChunkAdvanceAt = Date.now();
-      muxer.addVideoChunk(chunk, meta);
-    },
-    error: (err) => {
-      encoderError = err instanceof Error ? err : new Error(String(err));
-    },
-  });
+  for (const candidate of usableCandidates) {
+    if (params.abortSignal.aborted) return null;
+    const {
+      config: videoConfig,
+      muxCodec,
+      requiresServerH264Transcode,
+      encodeWidth,
+      encodeHeight,
+    } = candidate;
 
-  videoEncoder.configure(videoConfig);
+    // Adapt canvas and precomputed layout cleanly if device hardware capped at 720p/540p
+    let effectiveRenderOpts = params.renderOpts;
+    let effectiveLayout = params.layout;
+    if (encodeWidth !== params.renderOpts.width || encodeHeight !== params.renderOpts.height) {
+      params.canvas.width = encodeWidth;
+      params.canvas.height = encodeHeight;
+      effectiveRenderOpts = {
+        ...params.renderOpts,
+        width: encodeWidth,
+        height: encodeHeight,
+      };
+      if (params.ayahs && params.ayahs.length > 0) {
+        effectiveLayout = precomputeVideoCanvasLayout(
+          params.canvasCtx,
+          params.ayahs,
+          effectiveRenderOpts
+        );
+      }
+    }
 
-  let audioEncoder: AudioEncoder | null = null;
-  if (clientAudioConfig) {
-    audioEncoder = new AudioEncoder({
-      output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+    const useClientAudio = Boolean(aacConfig) && !requiresServerH264Transcode;
+    const target = new ArrayBufferTarget();
+    const muxer = new Muxer({
+      target,
+      video: {
+        codec: muxCodec,
+        width: encodeWidth,
+        height: encodeHeight,
+      },
+      audio: useClientAudio
+        ? {
+            codec: 'aac',
+            numberOfChannels: renderedAudio.numberOfChannels,
+            sampleRate: renderedAudio.sampleRate,
+          }
+        : undefined,
+      fastStart: 'in-memory',
+    });
+
+    let encoderError: Error | null = null;
+    let videoChunkCount = 0;
+    let lastChunkAdvanceAt = Date.now();
+    const videoEncoder = new VideoEncoder({
+      output: (chunk, meta) => {
+        videoChunkCount++;
+        lastChunkAdvanceAt = Date.now();
+        muxer.addVideoChunk(chunk, meta);
+      },
       error: (err) => {
         encoderError = err instanceof Error ? err : new Error(String(err));
       },
     });
-    audioEncoder.configure(clientAudioConfig);
-  }
 
-  const totalSec = Math.max(1.5, params.timeline.totalDurationSec);
-  const totalFrames = Math.max(1, Math.ceil(totalSec * fps));
-  const frameDurationUs = Math.round(1_000_000 / fps);
+    let audioEncoder: AudioEncoder | null = null;
 
-  if (effectiveRenderOpts.bgVideo) {
-    try {
-      effectiveRenderOpts.bgVideo.pause();
-    } catch {}
-  }
-
-  try {
-    // Encode audio chunks first if client-side AudioEncoder (AAC or Opus) is active
-    if (audioEncoder) {
-      const sampleRate = renderedAudio.sampleRate;
-      const numChannels = renderedAudio.numberOfChannels;
-      const chunkFrames = 4096;
-      const ch0 = renderedAudio.getChannelData(0);
-      const ch1 = numChannels > 1 ? renderedAudio.getChannelData(1) : ch0;
-
-      for (let startFrame = 0; startFrame < renderedAudio.length; startFrame += chunkFrames) {
-        if (params.abortSignal.aborted || encoderError) break;
-        const count = Math.min(chunkFrames, renderedAudio.length - startFrame);
-        const planar = new Float32Array(count * numChannels);
-        planar.set(ch0.subarray(startFrame, startFrame + count), 0);
-        if (numChannels > 1) {
-          planar.set(ch1.subarray(startFrame, startFrame + count), count);
-        }
-
-        const audioData = new AudioData({
-          format: 'f32-planar',
-          sampleRate,
-          numberOfFrames: count,
-          numberOfChannels: numChannels,
-          timestamp: Math.round((startFrame / sampleRate) * 1_000_000),
-          data: planar,
-        });
-        audioEncoder.encode(audioData);
-        audioData.close();
-      }
-      await withTimeout(audioEncoder.flush(), 8000, 'audioEncoder.flush');
-    }
-
-    const videoLoopStartAt = Date.now();
-    lastChunkAdvanceAt = videoLoopStartAt;
-
-    for (let f = 0; f < totalFrames; f++) {
-      if (params.abortSignal.aborted || encoderError) break;
-      const tSec = f / fps;
-
-      if (effectiveRenderOpts.bgVideo) {
-        await seekVideoToTime(effectiveRenderOpts.bgVideo, tSec);
-      }
-
-      renderVideoCanvasFrame(
-        params.canvasCtx,
-        effectiveLayout,
-        params.timeline,
-        tSec,
-        effectiveRenderOpts
-      );
-
-      const frame = new VideoFrame(params.canvas, {
-        timestamp: f * frameDurationUs,
-        duration: frameDurationUs,
-      });
-
-      const keyFrame = f % (fps * 2) === 0;
-      videoEncoder.encode(frame, { keyFrame });
-      frame.close();
-
-      while (videoEncoder.encodeQueueSize >= 3 && !params.abortSignal.aborted && !encoderError) {
-        if (Date.now() - lastChunkAdvanceAt > 3500) {
-          throw new Error('VideoEncoder stalled without output for 3.5s');
-        }
-        await new Promise((r) => setTimeout(r, 15));
-      }
-
-      if (videoChunkCount === 0 && Date.now() - videoLoopStartAt > 2500) {
-        throw new Error('VideoEncoder produced no initial output within 2.5s');
-      }
-
-      if (f % 2 === 0 || f === totalFrames - 1) {
-        const pct = 25 + Math.round(((f + 1) / totalFrames) * 65);
-        params.onProgress(
-          Math.min(90, pct),
-          tSec,
-          `Encodage MP4 (${encodeWidth}×${encodeHeight}) ${Math.round(((f + 1) / totalFrames) * 100)}%...`
-        );
-        await new Promise((r) => setTimeout(r, 0));
-      }
-    }
-
-    if (params.abortSignal.aborted) {
-      return null;
-    }
-    if (encoderError) {
-      throw encoderError;
-    }
-
-    await withTimeout(videoEncoder.flush(), 30000, 'videoEncoder.flush');
-    muxer.finalize();
-  } finally {
-    try {
-      videoEncoder.close();
-    } catch {}
-    if (audioEncoder) {
+    if (effectiveRenderOpts.bgVideo) {
       try {
-        audioEncoder.close();
+        effectiveRenderOpts.bgVideo.pause();
       } catch {}
     }
+
+    try {
+      videoEncoder.configure(videoConfig);
+
+      if (useClientAudio && aacConfig) {
+        audioEncoder = new AudioEncoder({
+          output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+          error: (err) => {
+            encoderError = err instanceof Error ? err : new Error(String(err));
+          },
+        });
+        audioEncoder.configure(aacConfig);
+
+        const sampleRate = renderedAudio.sampleRate;
+        const numChannels = renderedAudio.numberOfChannels;
+        const chunkFrames = 4096;
+        const ch0 = renderedAudio.getChannelData(0);
+        const ch1 = numChannels > 1 ? renderedAudio.getChannelData(1) : ch0;
+
+        for (let startFrame = 0; startFrame < renderedAudio.length; startFrame += chunkFrames) {
+          if (params.abortSignal.aborted || encoderError) break;
+          const count = Math.min(chunkFrames, renderedAudio.length - startFrame);
+          const planar = new Float32Array(count * numChannels);
+          planar.set(ch0.subarray(startFrame, startFrame + count), 0);
+          if (numChannels > 1) {
+            planar.set(ch1.subarray(startFrame, startFrame + count), count);
+          }
+
+          const audioData = new AudioData({
+            format: 'f32-planar',
+            sampleRate,
+            numberOfFrames: count,
+            numberOfChannels: numChannels,
+            timestamp: Math.round((startFrame / sampleRate) * 1_000_000),
+            data: planar,
+          });
+          audioEncoder.encode(audioData);
+          audioData.close();
+        }
+        const audioFlushTimeoutMs = Math.max(60_000, Math.round(totalSec * 250));
+        await withTimeout(audioEncoder.flush(), audioFlushTimeoutMs, 'audioEncoder.flush');
+      }
+
+      let firstEncodeAt = 0;
+      lastChunkAdvanceAt = Date.now();
+
+      for (let f = 0; f < totalFrames; f++) {
+        if (params.abortSignal.aborted || encoderError) break;
+        const tSec = f / fps;
+
+        if (effectiveRenderOpts.bgVideo) {
+          await seekVideoToTime(effectiveRenderOpts.bgVideo, tSec);
+          lastChunkAdvanceAt = Date.now();
+        }
+
+        renderVideoCanvasFrame(
+          params.canvasCtx,
+          effectiveLayout,
+          params.timeline,
+          tSec,
+          effectiveRenderOpts
+        );
+
+        const frame = new VideoFrame(params.canvas, {
+          timestamp: f * frameDurationUs,
+          duration: frameDurationUs,
+        });
+
+        const keyFrame = f % (fps * 2) === 0;
+        if (firstEncodeAt === 0) {
+          firstEncodeAt = Date.now();
+        }
+        videoEncoder.encode(frame, { keyFrame });
+        frame.close();
+
+        while (
+          videoEncoder.encodeQueueSize >= 4 &&
+          !params.abortSignal.aborted &&
+          !encoderError
+        ) {
+          if (Date.now() - lastChunkAdvanceAt > 45_000) {
+            throw new Error('VideoEncoder stalled without output for 45s');
+          }
+          await new Promise((r) => setTimeout(r, 15));
+        }
+
+        if (videoChunkCount === 0 && f >= 120 && Date.now() - firstEncodeAt > 45_000) {
+          throw new Error('VideoEncoder produced no initial output within 45s');
+        }
+
+        if (f % 6 === 0 || f === totalFrames - 1) {
+          const pct = 25 + Math.round(((f + 1) / totalFrames) * 65);
+          params.onProgress(
+            Math.min(90, pct),
+            tSec,
+            `Génération MP4 (${encodeWidth}×${encodeHeight}) ${Math.round(((f + 1) / totalFrames) * 100)}%...`
+          );
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      }
+
+      if (params.abortSignal.aborted) {
+        return null;
+      }
+      if (encoderError) {
+        throw encoderError;
+      }
+
+      const videoFlushTimeoutMs = Math.max(120_000, Math.round(totalSec * 500));
+      await withTimeout(videoEncoder.flush(), videoFlushTimeoutMs, 'videoEncoder.flush');
+      muxer.finalize();
+
+      const mp4Bytes = new Uint8Array(target.buffer);
+
+      if (useClientAudio) {
+        params.onProgress(95, totalSec, 'Finalisation de la vidéo MP4...');
+        return {
+          blob: new Blob([mp4Bytes], { type: 'video/mp4' }),
+          extension: 'mp4',
+          mimeType: 'video/mp4',
+        };
+      }
+
+      params.onProgress(92, totalSec, 'Assemblage audio AAC haute fidélité dans le fichier MP4...');
+      const wavBytes = encodeAudioBufferToWavBytes(renderedAudio);
+      const packet = new Uint8Array(4 + mp4Bytes.byteLength + wavBytes.byteLength);
+      new DataView(packet.buffer).setUint32(0, mp4Bytes.byteLength, false);
+      packet.set(mp4Bytes, 4);
+      packet.set(wavBytes, 4 + mp4Bytes.byteLength);
+
+      const resp = await fetch('/api/video/mux-mp4', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          ...(requiresServerH264Transcode ? { 'x-video-transcode': 'h264' } : {}),
+        },
+        body: packet,
+        signal: params.abortSignal,
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Muxage MP4 échoué (${resp.status})`);
+      }
+
+      const outBuf = await resp.arrayBuffer();
+      if (outBuf.byteLength < 1024) {
+        throw new Error('Fichier MP4 généré invalide.');
+      }
+
+      params.onProgress(96, totalSec, `Vidéo MP4 (${encodeWidth}×${encodeHeight}) prête !`);
+      return {
+        blob: new Blob([outBuf], { type: 'video/mp4' }),
+        extension: 'mp4',
+        mimeType: 'video/mp4',
+      };
+    } catch (err) {
+      if (params.abortSignal.aborted) return null;
+      lastCandidateErr = err;
+      console.warn(
+        `WebCodecs candidate ${muxCodec} ${encodeWidth}x${encodeHeight} failed, trying next candidate:`,
+        err
+      );
+    } finally {
+      try {
+        videoEncoder.close();
+      } catch {}
+      if (audioEncoder) {
+        try {
+          audioEncoder.close();
+        } catch {}
+      }
+    }
   }
 
-  const mp4Bytes = new Uint8Array(target.buffer);
-
-  // If browser encoded both H.264 video and audio (AAC or Opus) directly into MP4
-  if (clientAudioConfig) {
-    params.onProgress(98, totalSec, 'Finalisation de la vidéo MP4...');
-    return {
-      blob: new Blob([mp4Bytes], { type: 'video/mp4' }),
-      extension: 'mp4',
-      mimeType: 'video/mp4',
-    };
+  if (lastCandidateErr) {
+    throw lastCandidateErr;
   }
-
-  // Otherwise send lossless H.264 MP4 track + WAV PCM to /api/video/mux-mp4 for fast AAC muxing
-  params.onProgress(92, totalSec, 'Assemblage audio AAC haute fidélité dans le fichier MP4...');
-  const wavBytes = encodeAudioBufferToWavBytes(renderedAudio);
-  const packet = new Uint8Array(4 + mp4Bytes.byteLength + wavBytes.byteLength);
-  new DataView(packet.buffer).setUint32(0, mp4Bytes.byteLength, false);
-  packet.set(mp4Bytes, 4);
-  packet.set(wavBytes, 4 + mp4Bytes.byteLength);
-
-  const resp = await fetch('/api/video/mux-mp4', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: packet,
-    signal: params.abortSignal,
-  });
-
-  if (!resp.ok) {
-    throw new Error(`Muxage MP4 échoué (${resp.status})`);
-  }
-
-  const outBuf = await resp.arrayBuffer();
-  if (outBuf.byteLength < 1024) {
-    throw new Error('Fichier MP4 généré invalide.');
-  }
-
-  params.onProgress(100, totalSec, `Vidéo MP4 (${encodeWidth}×${encodeHeight}) prête !`);
-  return {
-    blob: new Blob([outBuf], { type: 'video/mp4' }),
-    extension: 'mp4',
-    mimeType: 'video/mp4',
-  };
+  return null;
 }
 
 /**
@@ -597,7 +725,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   const keepalive = attachAudioStreamKeepalive(
     audioCtx,
     destNode,
-    params.monitorAudioDuringExport
+    false
   );
   params.onKeepaliveReady?.(keepalive);
 
@@ -613,10 +741,18 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     MediaRecorder.isTypeSupported(m)
   );
 
+  const totalSec = Math.max(2, timeline.totalDurationSec);
+  const isLongVideo = totalSec > 180;
   const targetVideoBps = chosenMime.includes('mp4')
-    ? 8_000_000
+    ? isLongVideo
+      ? 4_200_000
+      : 8_000_000
     : chosenMime.includes('vp9')
-    ? 4_000_000
+    ? isLongVideo
+      ? 2_800_000
+      : 4_000_000
+    : isLongVideo
+    ? 3_600_000
     : 6_000_000;
 
   const recorder = chosenMime
@@ -626,7 +762,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
         audioBitsPerSecond: 128_000,
       })
     : new MediaRecorder(combinedStream, {
-        videoBitsPerSecond: 4_000_000,
+        videoBitsPerSecond: isLongVideo ? 2_800_000 : 4_000_000,
         audioBitsPerSecond: 128_000,
       });
   params.onMediaRecorderReady?.(recorder);
@@ -644,11 +780,23 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   };
 
   let rafId: number | null = null;
+  let pumpIntervalId: ReturnType<typeof setInterval> | null = null;
   let playbackHandle: ReturnType<typeof scheduleContinuousAudioSequence> | null = null;
+
+  const stopLoopTimers = () => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    if (pumpIntervalId !== null) {
+      clearInterval(pumpIntervalId);
+      pumpIntervalId = null;
+    }
+  };
 
   const stopPromise = new Promise<{ rawBlob: Blob; rawMime: string }>((resolve, reject) => {
     recorder.onstop = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      stopLoopTimers();
       playbackHandle?.stop();
       keepalive.dispose();
       const rawMime = recorder.mimeType || chosenMime || 'video/webm';
@@ -659,10 +807,18 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
         reject(new Error('La vidéo enregistrée est vide.'));
       }
     };
-    recorder.onerror = () => reject(new Error('Erreur MediaRecorder lors de la création vidéo.'));
+    recorder.onerror = () => {
+      stopLoopTimers();
+      reject(new Error('Erreur MediaRecorder lors de la création vidéo.'));
+    };
   });
 
-  recorder.start(200);
+  if (renderOpts.bgVideo) {
+    await seekVideoToTime(renderOpts.bgVideo, 0);
+    renderOpts.bgVideo.play().catch(() => {});
+  }
+
+  recorder.start(250);
   renderVideoCanvasFrame(canvasCtx, layout, timeline, 0.01, renderOpts);
 
   const segStarts = timeline.segments.map((s) => s.startSec);
@@ -677,16 +833,10 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     params.paceMultiplier
   );
 
-  if (renderOpts.bgVideo) {
-    renderOpts.bgVideo.currentTime = 0;
-    renderOpts.bgVideo.play().catch(() => {});
-  }
-
   const startAudioClock = audioCtx.currentTime;
-  const totalSec = Math.max(2, timeline.totalDurationSec);
 
   const onAbort = () => {
-    if (rafId !== null) cancelAnimationFrame(rafId);
+    stopLoopTimers();
     playbackHandle?.stop();
     if (recorder.state !== 'inactive') {
       try {
@@ -696,25 +846,57 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   };
   params.abortSignal.addEventListener('abort', onAbort, { once: true });
 
-  const renderLoop = () => {
+  let lastFrameWallMs = 0;
+  const drawRecordingStep = () => {
     if (params.abortSignal.aborted || recorder.state === 'inactive') return;
     const elapsed = Math.max(0, audioCtx.currentTime - startAudioClock);
+    if (renderOpts.bgVideo) {
+      const bgDur = renderOpts.bgVideo.duration;
+      if (renderOpts.bgVideo.paused && elapsed < totalSec) {
+        renderOpts.bgVideo.play().catch(() => {});
+      }
+      if (Number.isFinite(bgDur) && bgDur > 0.2) {
+        const expectedBgTime = computeVideoSeekTime(elapsed, bgDur);
+        if (
+          !renderOpts.bgVideo.seeking &&
+          Math.abs(renderOpts.bgVideo.currentTime - expectedBgTime) > 0.65
+        ) {
+          try {
+            renderOpts.bgVideo.currentTime = expectedBgTime;
+          } catch {}
+        }
+      }
+    }
     renderVideoCanvasFrame(canvasCtx, layout, timeline, elapsed, renderOpts);
     const pct = Math.min(88, 25 + Math.round((elapsed / totalSec) * 63));
     params.onProgress(
       pct,
       elapsed,
-      `Capture vidéo (${renderOpts.width}×${renderOpts.height}) ${Math.round((elapsed / totalSec) * 100)}%...`
+      `Génération MP4 (${renderOpts.width}×${renderOpts.height}) ${Math.round((elapsed / totalSec) * 100)}%...`
     );
     if (elapsed >= totalSec) {
+      stopLoopTimers();
       if (recorder.state === 'recording') {
         recorder.stop();
       }
-      return;
     }
-    rafId = requestAnimationFrame(renderLoop);
+  };
+
+  const renderLoop = () => {
+    if (params.abortSignal.aborted || recorder.state === 'inactive') return;
+    lastFrameWallMs = Date.now();
+    drawRecordingStep();
+    if (recorder.state === 'recording' && !params.abortSignal.aborted) {
+      rafId = requestAnimationFrame(renderLoop);
+    }
   };
   rafId = requestAnimationFrame(renderLoop);
+  // Safety timer ensures multi-minute recordings never stall if browser throttles rAF
+  pumpIntervalId = setInterval(() => {
+    if (Date.now() - lastFrameWallMs > 120) {
+      drawRecordingStep();
+    }
+  }, 120);
 
   const { rawBlob, rawMime } = await stopPromise;
   params.abortSignal.removeEventListener('abort', onAbort);
@@ -785,6 +967,9 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
 export async function exportQuranVideoToMp4(params: Mp4ExportParams): Promise<Mp4ExportResult> {
   try {
     const fastResult = await tryWebCodecsMp4Export(params);
+    if (params.abortSignal.aborted) {
+      throw new Error('Export annulé.');
+    }
     if (fastResult) {
       return fastResult;
     }
@@ -793,5 +978,8 @@ export async function exportQuranVideoToMp4(params: Mp4ExportParams): Promise<Mp
     console.warn('WebCodecs MP4 export unavailable or failed, falling back to MediaRecorder + FFmpeg MP4:', err);
   }
 
+  if (params.abortSignal.aborted) {
+    throw new Error('Export annulé.');
+  }
   return exportViaMediaRecorderToMp4(params);
 }

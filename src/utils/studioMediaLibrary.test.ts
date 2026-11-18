@@ -15,10 +15,11 @@ test('classifyStudioMediaFile detects image and video by MIME type and extension
   assert.equal(classifyStudioMediaFile('notes.pdf', 'application/pdf'), null);
 });
 
-test('formatStudioBytes renders readable Ko and Mo labels', () => {
+test('formatStudioBytes renders readable Ko, Mo, and Go labels', () => {
   assert.equal(formatStudioBytes(0), '0 Ko');
   assert.equal(formatStudioBytes(48 * 1024), '48 Ko');
   assert.equal(formatStudioBytes(2.5 * 1024 * 1024), '2.5 Mo');
+  assert.equal(formatStudioBytes(1.5 * 1024 * 1024 * 1024), '1.50 Go');
 });
 
 test('sanitizeStudioOwnerKey prevents unsafe path traversal characters', () => {

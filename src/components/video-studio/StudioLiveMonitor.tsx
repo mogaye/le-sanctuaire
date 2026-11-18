@@ -38,6 +38,7 @@ interface StudioLiveMonitorProps {
   showSurahHeader: boolean;
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
+  onDetectedVideoDurationSec?: (durationSec: number) => void;
 }
 
 export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
@@ -63,8 +64,10 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   showSurahHeader,
   textScale,
   flowMode,
+  onDetectedVideoDurationSec,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -73,12 +76,17 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const [isAnimatingPreview, setIsAnimatingPreview] = useState(false);
   const [previewSec, setPreviewSec] = useState(0);
 
+  const previewSecRef = useRef<number>(0);
+  previewSecRef.current = previewSec;
+
   // Snap preview to opening frame when sequence structure resets to a different primary surah/start
   useEffect(() => {
     setSelectedVerseIdx(0);
     setIsAnimatingPreview(false);
     const firstSeg = timeline.segments[0];
-    setPreviewSec(firstSeg ? firstSeg.startSec + Math.min(1.0, firstSeg.durationSec * 0.35) : 0);
+    const nextSec = firstSeg ? firstSeg.startSec + Math.min(1.0, firstSeg.durationSec * 0.35) : 0;
+    previewSecRef.current = nextSec;
+    setPreviewSec(nextSec);
   }, [surahNumber, startAyah]);
 
   // Clamp selected verse index when total sequence shrinks
@@ -87,7 +95,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       const next = Math.min(Math.max(0, prev), Math.max(0, ayahs.length - 1));
       const seg = timeline.segments[next];
       if (seg) {
-        setPreviewSec(seg.startSec + Math.min(1.0, seg.durationSec * 0.35));
+        const nextSec = seg.startSec + Math.min(1.0, seg.durationSec * 0.35);
+        previewSecRef.current = nextSec;
+        setPreviewSec(nextSec);
       }
       return next;
     });
@@ -102,6 +112,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         bgVideoRef.current.pause();
         bgVideoRef.current.removeAttribute('src');
         bgVideoRef.current.load();
+        bgVideoRef.current.remove();
       } catch {}
       bgVideoRef.current = null;
     }
@@ -118,14 +129,35 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       vid.muted = true;
       vid.loop = true;
       vid.playsInline = true;
+      vid.autoplay = true;
       vid.crossOrigin = 'anonymous';
       vid.preload = 'auto';
-      vid.onloadeddata = () => {
+      vid.style.width = '16px';
+      vid.style.height = '16px';
+      vid.style.pointerEvents = 'none';
+      if (videoHostRef.current) {
+        videoHostRef.current.appendChild(vid);
+      } else {
+        document.body.appendChild(vid);
+      }
+
+      const markReady = () => {
         if (!active) return;
         bgVideoRef.current = vid;
+        if (Number.isFinite(vid.duration) && vid.duration > 0) {
+          onDetectedVideoDurationSec?.(Number(vid.duration.toFixed(2)));
+        }
         vid.play().catch(() => {});
         setBgReadyTick((t) => t + 1);
       };
+      vid.onloadedmetadata = () => {
+        if (!active) return;
+        if (Number.isFinite(vid.duration) && vid.duration > 0) {
+          onDetectedVideoDurationSec?.(Number(vid.duration.toFixed(2)));
+        }
+      };
+      vid.onloadeddata = markReady;
+      vid.oncanplay = markReady;
       vid.load();
     } else {
       setBgReadyTick((t) => t + 1);
@@ -138,6 +170,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           bgVideoRef.current.pause();
           bgVideoRef.current.removeAttribute('src');
           bgVideoRef.current.load();
+          bgVideoRef.current.remove();
         } catch {}
         bgVideoRef.current = null;
       }
@@ -199,6 +232,13 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     return precomputeVideoCanvasLayout(ctx, ayahs, renderOpts);
   }, [ayahs, renderOpts]);
 
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const timelineRef = useRef(timeline);
+  timelineRef.current = timeline;
+  const renderOptsRef = useRef(renderOpts);
+  renderOptsRef.current = renderOpts;
+
   // Draw current frame whenever layout, clock, or options change
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -223,16 +263,36 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     const tick = (now: number) => {
       const dt = Math.min(0.1, (now - lastTs) / 1000);
       lastTs = now;
-      if (isAnimatingPreview && timeline.totalDurationSec > 0) {
-        setPreviewSec((prev) => {
-          const next = prev + dt;
-          return next >= timeline.totalDurationSec ? 0 : next;
-        });
-      } else if (activeMediaKind === 'video' && canvasRef.current && layout) {
+      const activeTimeline = timelineRef.current;
+      const activeLayout = layoutRef.current;
+      const activeOpts = renderOptsRef.current;
+
+      if (bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
+        bgVideoRef.current.play().catch(() => {});
+      }
+
+      if (isAnimatingPreview && activeTimeline.totalDurationSec > 0) {
+        const next =
+          previewSecRef.current + dt >= activeTimeline.totalDurationSec
+            ? 0
+            : previewSecRef.current + dt;
+        previewSecRef.current = next;
+        setPreviewSec(next);
+        if (canvasRef.current && activeLayout) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) {
+            renderVideoCanvasFrame(ctx, activeLayout, activeTimeline, next, {
+              ...activeOpts,
+              bgImage: bgImageRef.current,
+              bgVideo: bgVideoRef.current,
+            });
+          }
+        }
+      } else if (activeMediaKind === 'video' && canvasRef.current && activeLayout) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
-          renderVideoCanvasFrame(ctx, layout, timeline, previewSec, {
-            ...renderOpts,
+          renderVideoCanvasFrame(ctx, activeLayout, activeTimeline, previewSecRef.current, {
+            ...activeOpts,
             bgImage: bgImageRef.current,
             bgVideo: bgVideoRef.current,
           });
@@ -243,7 +303,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isAnimatingPreview, activeMediaKind, timeline, layout, renderOpts, previewSec]);
+  }, [isAnimatingPreview, activeMediaKind]);
 
   const jumpToVerse = (nextIdx: number) => {
     if (ayahs.length === 0) return;
@@ -252,7 +312,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     setIsAnimatingPreview(false);
     const seg = timeline.segments[clamped];
     if (seg) {
-      setPreviewSec(seg.startSec + Math.min(1.2, seg.durationSec * 0.35));
+      const nextSec = seg.startSec + Math.min(1.2, seg.durationSec * 0.35);
+      previewSecRef.current = nextSec;
+      setPreviewSec(nextSec);
     }
   };
 
@@ -275,6 +337,20 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       data-testid="studio-desktop-916-preview"
       className="hidden md:flex flex-col justify-between min-h-0 p-5 rounded-2xl bg-[#0A110E] border border-white/[0.08]"
     >
+      <div
+        ref={videoHostRef}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: 0,
+          bottom: 0,
+          width: '16px',
+          height: '16px',
+          opacity: 0.01,
+          pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      />
       {/* Monitor Top Spec Bar */}
       <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-white/[0.08] shrink-0">
         <div className="min-w-0 space-y-0.5">

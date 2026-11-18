@@ -11,14 +11,18 @@ import {
   buildSurahPlaceholderAyahs,
   computeContinuousScrollY,
   computeCoverDrawRect,
+  computeVideoSeekTime,
+  extendSequenceToTargetDuration,
   findActiveTimelineEntry,
   formatTimeMMSS,
   generateYouTubePublishPack,
   getResolutionFallbackTiers,
   getVideoFormatPreset,
   normalizeVerseRange,
+  resolveVideoDownloadLinkState,
   selectPreferredVideoMimeType,
   shouldPrependBismillah,
+  shouldStageVideoDownload,
   sliceSelectedAyahs,
   stripLeadingBismillahFromAyah1,
   wrapTextLines,
@@ -91,10 +95,12 @@ test('computeContinuousScrollY smoothly interpolates across ribbon centers witho
   assert.ok(lateScroll > earlyScroll);
 });
 
-test('wrapTextLines and formatTimeMMSS behave deterministically', () => {
+test('wrapTextLines and formatTimeMMSS behave deterministically including >=1h HH:MM:SS', () => {
   const lines = wrapTextLines('Louange à Allah Seigneur des mondes', 120, (s) => s.length * 10);
   assert.ok(lines.length >= 3);
   assert.equal(formatTimeMMSS(75), '01:15');
+  assert.equal(formatTimeMMSS(3665), '01:01:05');
+  assert.equal(formatTimeMMSS(7200), '02:00:00');
 });
 
 test('export dimensions target Full HD 1080x1920 9:16 resolution', () => {
@@ -392,5 +398,135 @@ test('buildStudioExportFilename formats single and multi-surah filenames cleanly
       extension: 'mp4',
     }),
     'coran-3sourates-s112-113-114-16x9.mp4'
+  );
+});
+
+test('computeVideoSeekTime wraps multi-minute clocks cleanly below video end-of-stream', () => {
+  assert.equal(computeVideoSeekTime(0, 12), 0);
+  assert.equal(computeVideoSeekTime(5.5, 12), 5.5);
+  assert.equal(computeVideoSeekTime(12.0, 12), 0);
+  assert.ok(Math.abs(computeVideoSeekTime(195.25, 60) - 15.25) < 0.001);
+  assert.ok(computeVideoSeekTime(11.999, 12) <= 11.96);
+  assert.equal(computeVideoSeekTime(10, 0), 0);
+  assert.equal(computeVideoSeekTime(-3, 20), 0);
+});
+
+test('extendSequenceToTargetDuration loops short verse sequence to cover multi-minute custom videos (>3 min)', () => {
+  const shortSeq = [
+    { num: 1, ar: 'قُلْ هُوَ اللَّهُ أَحَدٌ', tr: 'Qul huwallahu ahad', fr: 'Dis: Il est Allah, Unique.' },
+    { num: 2, ar: 'اللَّهُ الصَّمَدُ', tr: 'Allahus Samad', fr: 'Allah, Le Seul a etre implore.' },
+  ];
+  const decoded = ['buf1', 'buf2'];
+  const measured = [4.0, 4.0];
+
+  const extended = extendSequenceToTargetDuration(shortSeq, decoded, measured, 200, 1);
+  assert.equal(extended.sequence.length, 50);
+  assert.equal(extended.decodedItems.length, 50);
+  assert.equal(extended.measuredDurationsSec.length, 50);
+
+  const extendedTimeline = buildContinuousTimeline(
+    extended.sequence,
+    extended.measuredDurationsSec,
+    1
+  );
+  assert.ok(
+    extendedTimeline.totalDurationSec >= 200,
+    `Expected timeline >= 200s, got ${extendedTimeline.totalDurationSec}s`
+  );
+
+  // If sequence already meets target duration, keep untouched
+  const untouched = extendSequenceToTargetDuration(shortSeq, decoded, measured, 6, 1);
+  assert.equal(untouched.sequence.length, 2);
+});
+
+test('extendSequenceToTargetDuration supports multi-hour videos without any 800-item or duration cap', () => {
+  const shortSeq = [
+    { num: 1, ar: 'قُلْ هُوَ اللَّهُ أَحَدٌ', tr: 'Qul huwallahu ahad', fr: 'Dis: Il est Allah, Unique.' },
+    { num: 2, ar: 'اللَّهُ الصَّمَدُ', tr: 'Allahus Samad', fr: 'Allah, Le Seul a etre implore.' },
+  ];
+  const decoded = ['buf1', 'buf2'];
+  const measured = [4.0, 4.0];
+
+  // 2 hours = 7200s -> 1800 repeated items (far above old 800-item cap)
+  const twoHours = extendSequenceToTargetDuration(shortSeq, decoded, measured, 7200, 1);
+  assert.equal(twoHours.sequence.length, 1800);
+  assert.equal(twoHours.decodedItems.length, 1800);
+  assert.equal(twoHours.measuredDurationsSec.length, 1800);
+
+  const twoHourTimeline = buildContinuousTimeline(
+    twoHours.sequence,
+    twoHours.measuredDurationsSec,
+    1
+  );
+  assert.ok(
+    twoHourTimeline.totalDurationSec >= 7200,
+    `Expected timeline >= 7200s (2 hours), got ${twoHourTimeline.totalDurationSec}s`
+  );
+});
+
+test('getResolutionFallbackTiers scales bitrate cleanly for multi-minute and multi-hour exports', () => {
+  const shortTiers = getResolutionFallbackTiers(1080, 1920, 45);
+  const threeMinPlusTiers = getResolutionFallbackTiers(1080, 1920, 240);
+  const sevenMinPlusTiers = getResolutionFallbackTiers(1080, 1920, 500);
+  const oneHourPlusTiers = getResolutionFallbackTiers(1080, 1920, 3600);
+
+  assert.equal(shortTiers[0].bitrate, 8_000_000);
+  assert.ok(threeMinPlusTiers[0].bitrate < shortTiers[0].bitrate);
+  assert.ok(sevenMinPlusTiers[0].bitrate < threeMinPlusTiers[0].bitrate);
+  assert.ok(oneHourPlusTiers[0].bitrate <= sevenMinPlusTiers[0].bitrate);
+  assert.ok(oneHourPlusTiers[0].bitrate >= 1_600_000);
+});
+
+test('shouldStageVideoDownload enables HTTP attachment staging reliably across iframes and top-level browsers', () => {
+  const maxBytes = 1500 * 1024 * 1024;
+  assert.equal(shouldStageVideoDownload(0, true, maxBytes), false);
+  assert.equal(shouldStageVideoDownload(5_000_000, true, maxBytes), true);
+  assert.equal(shouldStageVideoDownload(5_000_000, false, maxBytes), true);
+  assert.equal(shouldStageVideoDownload(400 * 1024 * 1024, false, maxBytes), false);
+  assert.equal(shouldStageVideoDownload(400 * 1024 * 1024, true, maxBytes), true);
+  assert.equal(shouldStageVideoDownload(maxBytes + 1, true, maxBytes), false);
+});
+
+test('resolveVideoDownloadLinkState provides a ready synchronous download URL for browser downloads', () => {
+  assert.deepEqual(
+    resolveVideoDownloadLinkState({
+      inIframe: true,
+      stagedDownloadUrl: '/api/video/download/abc123',
+      objectUrl: 'blob:http://localhost:3000/123',
+      filename: 'coran-s112-v1-4-16x9.mp4',
+    }),
+    {
+      href: '/api/video/download/abc123',
+      filename: 'coran-s112-v1-4-16x9.mp4',
+      usesServerRelay: true,
+    }
+  );
+
+  assert.deepEqual(
+    resolveVideoDownloadLinkState({
+      inIframe: false,
+      stagedDownloadUrl: null,
+      objectUrl: 'blob:http://localhost:3000/456',
+      filename: 'coran-s1-v1-7-9x16.mp4',
+    }),
+    {
+      href: 'blob:http://localhost:3000/456',
+      filename: 'coran-s1-v1-7-9x16.mp4',
+      usesServerRelay: false,
+    }
+  );
+
+  assert.deepEqual(
+    resolveVideoDownloadLinkState({
+      inIframe: false,
+      stagedDownloadUrl: null,
+      objectUrl: null,
+      filename: '   ',
+    }),
+    {
+      href: null,
+      filename: 'coran-sanctuaire.mp4',
+      usesServerRelay: false,
+    }
   );
 });

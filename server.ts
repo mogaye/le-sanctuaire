@@ -1294,7 +1294,7 @@ async function startServer() {
 
   app.post(
     '/api/studio-media',
-    express.raw({ type: '*/*', limit: '55mb' }),
+    express.raw({ type: '*/*', limit: '2gb' }),
     async (req, res) => {
       try {
         const fs = await import('fs/promises');
@@ -1311,6 +1311,11 @@ async function startServer() {
             req.headers['content-type'] ||
             (kind === 'video' ? 'video/mp4' : 'image/jpeg')
         );
+        const durationHeader = Number(req.headers['x-media-duration']);
+        const durationSec =
+          kind === 'video' && Number.isFinite(durationHeader) && durationHeader > 0
+            ? Number(durationHeader.toFixed(2))
+            : undefined;
         const createdAt = Number(req.headers['x-media-created']) || Date.now();
         const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
 
@@ -1336,6 +1341,7 @@ async function startServer() {
           kind,
           mimeType,
           sizeBytes: bodyBuf.length,
+          ...(durationSec ? { durationSec } : {}),
           createdAt,
           url: `/api/studio-media/file/${encodeURIComponent(owner)}/${encodeURIComponent(id)}`,
         };
@@ -1415,7 +1421,7 @@ async function startServer() {
 
   app.post(
     '/api/video/convert-mp4',
-    express.raw({ type: '*/*', limit: '512mb' }),
+    express.raw({ type: '*/*', limit: '2gb' }),
     async (req, res) => {
       const fs = await import('fs/promises');
       const os = await import('os');
@@ -1448,6 +1454,8 @@ async function startServer() {
             'veryfast',
             '-crf',
             '18',
+            '-vsync',
+            'cfr',
             '-r',
             '30',
             '-pix_fmt',
@@ -1481,7 +1489,7 @@ async function startServer() {
 
   app.post(
     '/api/video/mux-mp4',
-    express.raw({ type: '*/*', limit: '512mb' }),
+    express.raw({ type: '*/*', limit: '2gb' }),
     async (req, res) => {
       const fs = await import('fs/promises');
       const os = await import('os');
@@ -1514,6 +1522,9 @@ async function startServer() {
           fs.writeFile(audioPath, audioBuf),
         ]);
 
+        const transcodeVideoToH264 =
+          String(req.headers['x-video-transcode'] || '').toLowerCase() === 'h264';
+
         await execFileAsync(
           'ffmpeg',
           [
@@ -1522,8 +1533,9 @@ async function startServer() {
             videoPath,
             '-i',
             audioPath,
-            '-c:v',
-            'copy',
+            ...(transcodeVideoToH264
+              ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-vsync', 'cfr', '-r', '30', '-pix_fmt', 'yuv420p']
+              : ['-c:v', 'copy']),
             '-c:a',
             'aac',
             '-b:a',
@@ -1574,7 +1586,7 @@ async function startServer() {
 
   app.post(
     '/api/video/stage-download',
-    express.raw({ type: '*/*', limit: '200mb' }),
+    express.raw({ type: '*/*', limit: '2gb' }),
     (req, res) => {
       try {
         pruneStagedDownloads();
@@ -1618,7 +1630,11 @@ async function startServer() {
       return res.status(404).json({ error: 'Download expired or not found' });
     }
     res.setHeader('Content-Type', entry.mimeType || 'video/mp4');
-    res.setHeader('Content-Disposition', `attachment; filename="${entry.filename}"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${entry.filename}"; filename*=UTF-8''${encodeURIComponent(entry.filename)}`
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Length', String(entry.buffer.length));
     res.setHeader('Cache-Control', 'no-store');
     return res.send(entry.buffer);
