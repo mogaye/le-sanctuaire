@@ -199,17 +199,20 @@ async function fetchAndDecodeSingleAyah(
   signal?: AbortSignal
 ): Promise<DecodedVerseBuffer> {
   let decoded: AudioBuffer | null = null;
-  const urlsToTry = [
-    `/api/quran-audio?surah=${surahNum}&ayah=${ayahNum}&reciter=${encodeURIComponent(reciterId)}`,
-    getAyahAudioUrl(surahNum, ayahNum, reciterId),
-  ];
+  const proxyUrl = `/api/quran-audio?surah=${surahNum}&ayah=${ayahNum}&reciter=${encodeURIComponent(reciterId)}`;
+  // cdn.islamic.network (fr.leclerc) does not send Access-Control-Allow-Origin headers,
+  // so browser fetch must rely on the same-origin proxy first and retry cleanly on transient hiccups.
+  const urlsToTry =
+    reciterId === 'leclerc_fr'
+      ? [proxyUrl, proxyUrl, proxyUrl]
+      : [proxyUrl, getAyahAudioUrl(surahNum, ayahNum, reciterId)];
 
   // Up to 2 passes across fallback URLs for resilience on long full-surah exports
   for (let attempt = 0; attempt < 2 && !decoded; attempt++) {
     for (const url of urlsToTry) {
       if (signal?.aborted || decoded) break;
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
+      const timer = setTimeout(() => controller.abort(), 14000);
       const onOuterAbort = () => controller.abort();
       signal?.addEventListener('abort', onOuterAbort, { once: true });
 

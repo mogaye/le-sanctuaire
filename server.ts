@@ -1180,6 +1180,8 @@ async function startServer() {
   // 3.6. SAME-ORIGIN QURAN AUDIO PROXY (Enables gapless Web Audio & 9:16 Video Export)
   // ============================================================================
 
+  const quranAudioCache = new Map<string, { buf: Buffer; contentType: string }>();
+
   app.get('/api/quran-audio', async (req, res) => {
     try {
       const surah = Math.floor(Number(req.query.surah));
@@ -1196,19 +1198,62 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid reciter id' });
       }
 
+      const cacheKey = `${reciter}:${surah}:${ayah}`;
+      const cached = quranAudioCache.get(cacheKey);
+      if (cached) {
+        res.setHeader('Content-Type', cached.contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        return res.send(cached.buf);
+      }
+
       const { getAyahAudioUrl } = await import('./src/utils/quranAudioUtils.ts');
       const targetUrl = getAyahAudioUrl(surah, ayah, reciter);
 
-      const upstream = await fetch(targetUrl);
-      if (!upstream.ok) {
-        return res.status(upstream.status).json({ error: 'Upstream audio fetch failed' });
+      let audioBuf: Buffer | null = null;
+      let contentType = 'audio/mpeg';
+      let lastStatus = 502;
+
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 10000);
+        try {
+          const upstream = await fetch(targetUrl, {
+            signal: ctrl.signal,
+            headers: {
+              'User-Agent': 'LeSanctuaire/1.0 (+https://lavoiedelaserenite.app)',
+            },
+          });
+          lastStatus = upstream.status;
+          if (upstream.ok) {
+            const arr = await upstream.arrayBuffer();
+            if (arr.byteLength > 256) {
+              audioBuf = Buffer.from(arr);
+              contentType = upstream.headers.get('content-type') || 'audio/mpeg';
+              break;
+            }
+          }
+        } catch {
+          // retry transient upstream failure
+        } finally {
+          clearTimeout(timer);
+        }
       }
 
-      const arrayBuf = await upstream.arrayBuffer();
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg');
+      if (!audioBuf) {
+        return res.status(lastStatus >= 400 ? lastStatus : 502).json({ error: 'Upstream audio fetch failed' });
+      }
+
+      if (quranAudioCache.size >= 120) {
+        const oldestKey = quranAudioCache.keys().next().value;
+        if (oldestKey) quranAudioCache.delete(oldestKey);
+      }
+      quranAudioCache.set(cacheKey, { buf: audioBuf, contentType });
+
+      res.setHeader('Content-Type', contentType);
       res.setHeader('Cache-Control', 'public, max-age=86400');
       res.setHeader('Access-Control-Allow-Origin', '*');
-      return res.send(Buffer.from(arrayBuf));
+      return res.send(audioBuf);
     } catch (error: any) {
       console.error('Error proxying quran audio:', error);
       return res.status(502).json({ error: 'Failed to fetch quran audio' });

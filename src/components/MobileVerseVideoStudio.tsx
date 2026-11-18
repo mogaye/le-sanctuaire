@@ -1265,6 +1265,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         `Encodage ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${videoSequence.length} séquences...`
       );
 
+      if (ctx.state !== 'running') {
+        await ctx.resume().catch(() => {});
+      }
+
       const exportResult = await exportQuranVideoToMp4({
         canvas,
         canvasCtx,
@@ -1306,6 +1310,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           }
         },
       });
+
+      if (audioCtxRef.current === ctx) {
+        try {
+          ctx.close();
+        } catch {}
+        audioCtxRef.current = null;
+      }
 
       if (abortCtrl.signal.aborted) return;
 

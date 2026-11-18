@@ -99,11 +99,12 @@ async function renderTimelineOfflineAudio(
   decodedBuffers: DecodedVerseBuffer[],
   timeline: ContinuousTimeline,
   paceMultiplier: number,
-  sampleRate = 48000
+  sampleRate = 48000,
+  numChannels = 2
 ): Promise<AudioBuffer> {
   const totalSec = Math.max(1.5, timeline.totalDurationSec);
   const frameCount = Math.ceil(totalSec * sampleRate);
-  const offlineCtx = new OfflineAudioContext(2, frameCount, sampleRate);
+  const offlineCtx = new OfflineAudioContext(numChannels, frameCount, sampleRate);
 
   const segStarts = timeline.segments.map((s) => s.startSec);
   const segDurs = timeline.segments.map((s) => s.durationSec);
@@ -201,34 +202,10 @@ async function resolveSupportedAacConfig(
   return null;
 }
 
-async function resolveSupportedOpusConfig(
-  sampleRate: number,
-  numberOfChannels: number
-): Promise<AudioEncoderConfig | null> {
-  if (typeof AudioEncoder === 'undefined' || typeof AudioData === 'undefined') {
-    return null;
-  }
-  try {
-    const candidate: AudioEncoderConfig = {
-      codec: 'opus',
-      sampleRate,
-      numberOfChannels,
-      bitrate: 128_000,
-    };
-    const support = await AudioEncoder.isConfigSupported(candidate);
-    if (support.supported) {
-      return support.config || candidate;
-    }
-  } catch {
-    // unsupported
-  }
-  return null;
-}
-
 async function canServerMuxMp4(abortSignal: AbortSignal): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 1500);
+    const timer = setTimeout(() => controller.abort(), 4000);
     const onOuterAbort = () => controller.abort();
     abortSignal.addEventListener('abort', onOuterAbort, { once: true });
     try {
@@ -246,6 +223,47 @@ async function canServerMuxMp4(abortSignal: AbortSignal): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function muxVideoBlobWithOfflineAudio(
+  videoBytes: Uint8Array,
+  decodedBuffers: DecodedVerseBuffer[],
+  timeline: ContinuousTimeline,
+  paceMultiplier: number,
+  abortSignal: AbortSignal
+): Promise<Uint8Array | null> {
+  const isLongVideo = timeline.totalDurationSec > 180;
+  const renderedAudio = await renderTimelineOfflineAudio(
+    decodedBuffers,
+    timeline,
+    paceMultiplier,
+    isLongVideo ? 44100 : 48000,
+    isLongVideo ? 1 : 2
+  );
+  if (abortSignal.aborted) return null;
+
+  const wavBytes = encodeAudioBufferToWavBytes(renderedAudio);
+  const packet = new Uint8Array(4 + videoBytes.byteLength + wavBytes.byteLength);
+  new DataView(packet.buffer).setUint32(0, videoBytes.byteLength, false);
+  packet.set(videoBytes, 4);
+  packet.set(wavBytes, 4 + videoBytes.byteLength);
+
+  const resp = await fetch('/api/video/mux-mp4', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: packet,
+    signal: abortSignal,
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Muxage MP4 échoué (${resp.status})`);
+  }
+
+  const outBuf = await resp.arrayBuffer();
+  if (outBuf.byteLength < 1024) {
+    throw new Error('Fichier MP4 généré invalide.');
+  }
+  return new Uint8Array(outBuf);
 }
 
 async function seekVideoToTime(videoEl: HTMLVideoElement, targetTime: number): Promise<void> {
@@ -327,56 +345,32 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
     }
   }
 
+  const aacConfig = await resolveSupportedAacConfig(48000, 2);
+
+  let serverMuxAvailable = false;
+  if (!aacConfig) {
+    serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
+    if (params.abortSignal.aborted) return null;
+  }
+
+  // Never put Opus inside .mp4 (silent on Apple/QuickTime/Windows/WhatsApp/many Android players).
+  // Require either native AAC or server FFmpeg AAC muxing; otherwise fall back to Tier 2.
+  if (!aacConfig && !serverMuxAvailable) {
+    return null;
+  }
+
+  const useCompactServerAudio = !aacConfig && params.timeline.totalDurationSec > 180;
   const renderedAudio = await renderTimelineOfflineAudio(
     params.decodedBuffers,
     params.timeline,
     params.paceMultiplier,
-    48000
+    useCompactServerAudio ? 44100 : 48000,
+    useCompactServerAudio ? 1 : 2
   );
   if (params.abortSignal.aborted) return null;
 
-  const aacConfig = await resolveSupportedAacConfig(
-    renderedAudio.sampleRate,
-    renderedAudio.numberOfChannels
-  );
-
-  let serverMuxAvailable = false;
-  let opusConfig: AudioEncoderConfig | null = null;
-
-  if (!aacConfig) {
-    // For long YouTube videos (> 2 min), prefer client-side Opus in MP4 before uploading huge raw WAVs
-    if (params.timeline.totalDurationSec > 120) {
-      opusConfig = await resolveSupportedOpusConfig(
-        renderedAudio.sampleRate,
-        renderedAudio.numberOfChannels
-      );
-      if (!opusConfig) {
-        serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
-      }
-    } else {
-      serverMuxAvailable = await canServerMuxMp4(params.abortSignal);
-      if (params.abortSignal.aborted) return null;
-      if (!serverMuxAvailable) {
-        opusConfig = await resolveSupportedOpusConfig(
-          renderedAudio.sampleRate,
-          renderedAudio.numberOfChannels
-        );
-      }
-    }
-    if (params.abortSignal.aborted) return null;
-  }
-
-  // If neither client AAC, nor server mux, nor client Opus is available, cannot build MP4 audio here
-  if (!aacConfig && !serverMuxAvailable && !opusConfig) {
-    return null;
-  }
-
-  const clientAudioConfig = aacConfig || opusConfig;
-  const clientAudioMuxCodec: 'aac' | 'opus' | null = aacConfig
-    ? 'aac'
-    : opusConfig
-    ? 'opus'
-    : null;
+  const clientAudioConfig = aacConfig;
+  const clientAudioMuxCodec: 'aac' | null = aacConfig ? 'aac' : null;
 
   const target = new ArrayBufferTarget();
   const muxer = new Muxer({
@@ -592,6 +586,10 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     );
   }
 
+  if (audioCtx.state !== 'running') {
+    await audioCtx.resume().catch(() => {});
+  }
+
   renderVideoCanvasFrame(canvasCtx, layout, timeline, 0, renderOpts);
 
   const videoStream: MediaStream = (canvas as any).captureStream(30);
@@ -725,8 +723,31 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     throw new Error('Export annulé.');
   }
 
-  // Safari / iOS native MP4 recording
+  // Safari / iOS native MP4 recording: mux lossless offline AAC audio onto video via FFmpeg when available
+  // so WebKit MediaStreamAudioDestination quirks can never leave the MP4 silent.
   if (rawMime.includes('mp4')) {
+    try {
+      if (await canServerMuxMp4(params.abortSignal)) {
+        params.onProgress(94, totalSec, 'Vérification et assemblage audio AAC dans le MP4...');
+        const rawBytes = new Uint8Array(await rawBlob.arrayBuffer());
+        const muxedBytes = await muxVideoBlobWithOfflineAudio(
+          rawBytes,
+          decodedBuffers,
+          timeline,
+          params.paceMultiplier,
+          params.abortSignal
+        );
+        if (muxedBytes && muxedBytes.byteLength >= 1024) {
+          return {
+            blob: new Blob([muxedBytes], { type: 'video/mp4' }),
+            extension: 'mp4',
+            mimeType: 'video/mp4',
+          };
+        }
+      }
+    } catch {
+      // Fallback to native MediaRecorder MP4 blob if server mux fails
+    }
     return {
       blob: rawBlob,
       extension: 'mp4',
