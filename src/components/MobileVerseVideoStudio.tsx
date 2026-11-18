@@ -37,32 +37,34 @@ import {
   VideoTemplateId,
   buildContinuousTimeline,
   buildMultiSurahVideoSequence,
-  buildStudioExportFilename,
   extendSequenceToTargetDuration,
   formatTimeMMSS,
   getVideoFormatPreset,
-  inferVideoQualityFromDimensions,
   normalizeVerseRange,
   resolveFormatDimensionsForQuality,
-  resolveVideoDownloadLinkState,
-  shouldStageVideoDownload,
 } from '../utils/mobileVideoStudioUtils';
 import {
   DecodedVerseBuffer,
   LoadedStudioSurah,
   ScheduledPlaybackHandle,
-  attachAudioStreamKeepalive,
   decodeVerseAudioSequence,
   fetchSurahVersesForStudio,
   scheduleContinuousAudioSequence,
 } from '../utils/continuousAudioEngine';
 import {
   VideoCanvasRenderOptions,
-  loadCanvasBackgroundImage,
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
 } from '../utils/canvasVideoRenderer';
-import { exportQuranVideoToMp4 } from '../utils/mp4VideoExporter';
+import {
+  cancelBackgroundVideoExport,
+  invalidateReadyBackgroundExportIfMatches,
+  markBackgroundVideoDownloaded,
+  setBackgroundExportStudioOpen,
+  sharePreparedBackgroundVideo,
+  startBackgroundVideoExport,
+  useBackgroundVideoExport,
+} from '../utils/backgroundVideoExportManager';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { useMobileDevice } from '../hooks/useMobileDevice';
 import {
@@ -106,128 +108,12 @@ interface CustomBackgroundMedia {
 
 type StudioTab = 'verses_audio' | 'style_bg';
 
-const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
-
 function makeSelectionId(surahNumber: number): string {
   return `s-${surahNumber}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 function getSurahMeta(surahNumber: number): CompleteSurahItem {
   return ALL_114_SURAHS.find((s) => s.number === surahNumber) || ALL_114_SURAHS[0];
-}
-
-function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null> {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.src = url;
-    video.muted = true;
-    video.loop = true;
-    video.playsInline = true;
-    video.autoplay = true;
-    video.preload = 'auto';
-    video.crossOrigin = 'anonymous';
-    video.style.position = 'fixed';
-    video.style.left = '0';
-    video.style.bottom = '0';
-    video.style.width = '16px';
-    video.style.height = '16px';
-    video.style.opacity = '0.01';
-    video.style.pointerEvents = 'none';
-    video.style.zIndex = '-1';
-    document.body.appendChild(video);
-
-    let settled = false;
-    const finish = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      if (!ok) {
-        try {
-          video.pause();
-          video.removeAttribute('src');
-          video.load();
-          video.remove();
-        } catch {}
-        resolve(null);
-        return;
-      }
-      video.play().catch(() => {});
-      resolve(video);
-    };
-
-    const timeout = setTimeout(() => finish(video.readyState >= 2), 60000);
-    video.onloadeddata = () => finish(true);
-    video.oncanplay = () => finish(true);
-    video.onerror = () => finish(false);
-    video.load();
-    if (video.readyState >= 2) {
-      finish(true);
-    }
-  });
-}
-
-function isRunningInIframe(): boolean {
-  try {
-    return window.self !== window.top;
-  } catch {
-    return true;
-  }
-}
-
-async function stageVideoBlobOnServer(
-  blob: Blob,
-  filename: string,
-  signal?: AbortSignal
-): Promise<string | null> {
-  if (!blob || blob.size === 0 || blob.size > MAX_STAGE_DOWNLOAD_BYTES) {
-    return null;
-  }
-  const timeoutMs = Math.min(
-    60_000,
-    Math.max(15_000, Math.round(blob.size / (5 * 1024 * 1024)) * 1000)
-  );
-  const localCtrl = new AbortController();
-  const timer = setTimeout(() => localCtrl.abort(), timeoutMs);
-  const onOuterAbort = () => localCtrl.abort();
-  signal?.addEventListener('abort', onOuterAbort, { once: true });
-
-  try {
-    const res = await fetch('/api/video/stage-download', {
-      method: 'POST',
-      headers: {
-        'Content-Type': blob.type || 'video/mp4',
-        'x-download-filename': encodeURIComponent(filename),
-        'x-download-mime': blob.type || 'video/mp4',
-      },
-      body: blob,
-      signal: localCtrl.signal,
-    });
-    if (!res.ok) return null;
-    const json = await res.json().catch(() => null);
-    return typeof json?.downloadUrl === 'string' ? json.downloadUrl : null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', onOuterAbort);
-  }
-}
-
-function triggerFileDownload(url: string, filename: string) {
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      try {
-        a.remove();
-      } catch {}
-    }, 1000);
-  } catch {}
 }
 
 export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
@@ -407,55 +293,47 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [simTimeSec, setSimTimeSec] = useState<number>(0);
   const [measuredDurations, setMeasuredDurations] = useState<Array<number | undefined>>([]);
 
-  // In-Place Direct Download State
-  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'preparing' | 'ready' | 'error'>(
-    'idle'
-  );
-  const [downloadProgressPct, setDownloadProgressPct] = useState<number>(0);
-  const [downloadStatusLabel, setDownloadStatusLabel] = useState<string>('');
-  const [downloadErrorMsg, setDownloadErrorMsg] = useState<string | null>(null);
-  const [preparedDownload, setPreparedDownload] = useState<{
-    blob: Blob;
-    objectUrl: string;
-    stagedUrl: string | null;
-    filename: string;
-    sizeBytes: number;
-    downloaded: boolean;
-  } | null>(null);
+  // Persistent site-wide background download state
+  const bgExport = useBackgroundVideoExport();
+  const downloadStatus = bgExport.status;
+  const downloadProgressPct = bgExport.progressPct;
+  const downloadStatusLabel = bgExport.statusLabel;
+  const downloadErrorMsg = bgExport.errorMsg;
 
   // Refs
   const wasOpenRef = useRef<boolean>(false);
   const loadedSurahsRef = useRef<Record<number, LoadedStudioSurah>>({});
   loadedSurahsRef.current = loadedSurahs;
-  const preparedDownloadRef = useRef(preparedDownload);
-  preparedDownloadRef.current = preparedDownload;
+  const prevConfigSignatureRef = useRef<string | null>(null);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const decodedBuffersRef = useRef<DecodedVerseBuffer[]>([]);
   const decodedSimKeyRef = useRef<string>('');
   const playbackHandleRef = useRef<ScheduledPlaybackHandle | null>(null);
-  const keepaliveRef = useRef<ReturnType<typeof attachAudioStreamKeepalive> | null>(null);
   const simCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const simLayoutRef = useRef<ReturnType<typeof precomputeVideoCanvasLayout> | null>(null);
   const simRenderOptsRef = useRef<VideoCanvasRenderOptions | null>(null);
   const simMediaRef = useRef<{
     bgImage: HTMLImageElement | null;
     bgVideo: HTMLVideoElement | null;
   }>({ bgImage: null, bgVideo: null });
-  const exportBgVideoRef = useRef<HTMLVideoElement | null>(null);
   const simTimelineRef = useRef<ReturnType<typeof buildContinuousTimeline> | null>(null);
   const playbackStartCtxTimeRef = useRef<number>(0);
   const playbackStartOffsetRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
   const simAbortRef = useRef<AbortController | null>(null);
-  const downloadAbortRef = useRef<AbortController | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   useWakeLock(isOpen && (simStatus === 'playing' || downloadStatus === 'preparing'));
+
+  useEffect(() => {
+    setBackgroundExportStudioOpen(isOpen);
+    return () => {
+      setBackgroundExportStudioOpen(false);
+    };
+  }, [isOpen]);
 
   // Load persistent media library when studio opens
   useEffect(() => {
@@ -920,19 +798,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [sequenceSignature, reciterId, durationMode, targetCustomVideoDurationSec]
   );
 
-  const clearPreparedDownload = useCallback(() => {
-    setPreparedDownload((prev) => {
-      if (prev?.objectUrl) {
-        try {
-          URL.revokeObjectURL(prev.objectUrl);
-        } catch {}
-      }
-      return null;
-    });
-    setDownloadStatus((prev) => (prev === 'preparing' ? prev : 'idle'));
-    setDownloadErrorMsg(null);
-  }, []);
-
   const stopSimulationPlayback = useCallback(() => {
     if (simAbortRef.current) {
       simAbortRef.current.abort();
@@ -953,31 +818,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   }, []);
 
+  // Stops ONLY inline preview simulation when closing/unmounting Studio;
+  // background downloads intentionally keep running across site navigation.
   const stopAllMedia = useCallback(() => {
     stopSimulationPlayback();
-    if (downloadAbortRef.current) {
-      downloadAbortRef.current.abort();
-      downloadAbortRef.current = null;
-    }
-    if (keepaliveRef.current) {
-      keepaliveRef.current.dispose();
-      keepaliveRef.current = null;
-    }
-    if (exportBgVideoRef.current) {
-      try {
-        exportBgVideoRef.current.pause();
-        exportBgVideoRef.current.removeAttribute('src');
-        exportBgVideoRef.current.load();
-        exportBgVideoRef.current.remove();
-      } catch {}
-      exportBgVideoRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {}
-    }
-    mediaRecorderRef.current = null;
     if (audioCtxRef.current) {
       try {
         audioCtxRef.current.close();
@@ -1053,19 +897,21 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     ]
   );
 
+  // Invalidate a previously completed export only when user modifies settings in-studio
   useEffect(() => {
-    clearPreparedDownload();
-  }, [configSignature, clearPreparedDownload]);
+    if (
+      prevConfigSignatureRef.current !== null &&
+      prevConfigSignatureRef.current !== configSignature
+    ) {
+      invalidateReadyBackgroundExportIfMatches(configSignature);
+    }
+    prevConfigSignatureRef.current = configSignature;
+  }, [configSignature]);
 
-  // Cleanup on unmount / close
+  // Cleanup preview simulation on unmount / close (background export stays alive!)
   useEffect(() => {
     return () => {
       stopAllMedia();
-      if (preparedDownloadRef.current?.objectUrl) {
-        try {
-          URL.revokeObjectURL(preparedDownloadRef.current.objectUrl);
-        } catch {}
-      }
       for (const item of customMediaRef.current) {
         try {
           URL.revokeObjectURL(item.url);
@@ -1079,7 +925,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (!isOpen) {
       stopAllMedia();
       setSimStatus('idle');
-      setDownloadStatus('idle');
     }
   }, [isOpen, stopAllMedia]);
 
@@ -1383,29 +1228,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   // =========================================================================
-  // IN-PLACE DIRECT MP4 DOWNLOAD (NO SEPARATE EXPORT PAGE)
+  // BACKGROUND-RESILIENT MP4 DOWNLOAD (CONTINUES ACROSS SITE & MOBILE TASKS)
   // =========================================================================
   const handleCancelDownload = () => {
-    if (downloadAbortRef.current) {
-      downloadAbortRef.current.abort();
-      downloadAbortRef.current = null;
-    }
-    if (keepaliveRef.current) {
-      keepaliveRef.current.dispose();
-      keepaliveRef.current = null;
-    }
-    if (exportBgVideoRef.current) {
-      try {
-        exportBgVideoRef.current.pause();
-        exportBgVideoRef.current.removeAttribute('src');
-        exportBgVideoRef.current.load();
-        exportBgVideoRef.current.remove();
-      } catch {}
-      exportBgVideoRef.current = null;
-    }
-    setDownloadStatus('idle');
-    setDownloadProgressPct(0);
-    setDownloadStatusLabel('');
+    cancelBackgroundVideoExport();
   };
 
   const startDirectDownload = async () => {
@@ -1416,304 +1242,64 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       setSimStatus('paused');
     }
 
-    clearPreparedDownload();
-    setDownloadErrorMsg(null);
-    setDownloadStatus('preparing');
-    setDownloadProgressPct(0);
-    setDownloadStatusLabel('Préparation...');
-
-    const abortCtrl = new AbortController();
-    downloadAbortRef.current = abortCtrl;
-
-    try {
-      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-        audioCtxRef.current = new AudioContextCtor();
-      }
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') {
-        await ctx.resume().catch(() => {});
-      }
-
-      const bgImgPromise =
-        activeMediaKind === 'image' && activeMediaUrl
-          ? loadCanvasBackgroundImage(activeMediaUrl)
-          : Promise.resolve(null);
-      const bgVideoPromise =
-        activeMediaKind === 'video' && activeMediaUrl
-          ? loadCanvasBackgroundVideo(activeMediaUrl)
-          : Promise.resolve(null);
-      const logoImgPromise = customLogoUrl
-        ? loadCanvasBackgroundImage(customLogoUrl)
-        : Promise.resolve(null);
-
-      const [decodedBase, bgImg, bgVideo, logoImg] = await Promise.all([
-        decodeVerseAudioSequence(
-          ctx,
-          primarySelection.surahNumber,
-          baseVideoSequence,
-          reciterId,
-          (loaded, total) => {
-            setDownloadProgressPct(Math.round((loaded / Math.max(1, total)) * 20));
-          },
-          abortCtrl.signal
-        ),
-        bgImgPromise,
-        bgVideoPromise,
-        logoImgPromise,
-      ]);
-
-      exportBgVideoRef.current = bgVideo;
-
-      if (abortCtrl.signal.aborted) {
-        if (bgVideo) {
-          try {
-            bgVideo.pause();
-            bgVideo.remove();
-          } catch {}
-          exportBgVideoRef.current = null;
-        }
-        return;
-      }
-
-      const okAudioCount = decodedBase.filter((d) => d.buffer !== null).length;
-      if (okAudioCount === 0) {
-        throw new Error('Audio indisponible pour ces versets.');
-      }
-
-      const baseDurations = decodedBase.map((d) =>
-        d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
-      );
-      setMeasuredDurations(baseDurations);
-
-      const detectedBgDurationSec =
-        targetCustomVideoDurationSec > 0
-          ? targetCustomVideoDurationSec
-          : durationMode === 'match_video' &&
-            bgVideo &&
-            Number.isFinite(bgVideo.duration) &&
-            bgVideo.duration > 0
-          ? bgVideo.duration
-          : 0;
-
-      const expanded =
-        detectedBgDurationSec > 0
-          ? extendSequenceToTargetDuration(
-              baseVideoSequence,
-              decodedBase,
-              baseDurations,
-              detectedBgDurationSec,
-              paceMultiplier
-            )
-          : {
-              sequence: baseVideoSequence,
-              decodedItems: decodedBase,
-              measuredDurationsSec: baseDurations,
-            };
-
-      decodedBuffersRef.current = expanded.decodedItems;
-      decodedSimKeyRef.current = currentSimKey;
-
-      const exportSeq = expanded.sequence;
-      const exportDecoded = expanded.decodedItems;
-      const exactTimeline = buildContinuousTimeline(
-        exportSeq,
-        expanded.measuredDurationsSec,
-        paceMultiplier
-      );
-
-      if (document.fonts?.ready) {
-        await document.fonts.ready.catch(() => {});
-      }
-
-      const canvas = exportCanvasRef.current;
-      if (!canvas) {
-        throw new Error('Surface vidéo indisponible.');
-      }
-      const exportW = activeFormat.width;
-      const exportH = activeFormat.height;
-      canvas.width = exportW;
-      canvas.height = exportH;
-      const canvasCtx = canvas.getContext('2d');
-      if (!canvasCtx) {
-        throw new Error('Contexte graphique indisponible.');
-      }
-
-      const renderOpts: VideoCanvasRenderOptions = {
-        width: exportW,
-        height: exportH,
-        surahName: primarySurahMeta.name,
-        surahNumber: primarySurahMeta.number,
-        startAyah: primaryNormalizedRange.startAyah,
-        endAyah: primaryNormalizedRange.endAyah,
-        selectedSurahsCount: selectedSurahs.length,
-        isLightSurface,
-        bgSurfaceColor,
-        bgVeilOpacity,
-        bgBlackBackdrop,
-        bgBrightness,
-        bgSharpness,
-        bgContrast,
-        bgImageMotion,
-        textShadowBoost,
-        arabicTextColor,
-        phoneticsTextColor,
-        frenchTextColor,
-        bgImage: bgImg,
-        bgVideo,
-        logoImage: logoImg,
-        showArabic,
-        useTajweed,
-        showPhonetics,
-        showFrench,
-        showSurahHeader,
-        textScale,
-        flowMode,
-        reciterName: selectedReciter.name,
-      };
-
-      const layout = precomputeVideoCanvasLayout(canvasCtx, exportSeq, renderOpts);
-      renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
-
-      if (ctx.state !== 'running') {
-        await ctx.resume().catch(() => {});
-      }
-
-      const exportResult = await exportQuranVideoToMp4({
-        canvas,
-        canvasCtx,
-        layout,
-        ayahs: exportSeq,
-        timeline: exactTimeline,
-        renderOpts,
-        audioCtx: ctx,
-        decodedBuffers: exportDecoded,
-        paceMultiplier,
-        monitorAudioDuringExport: false,
-        abortSignal: abortCtrl.signal,
-        onProgress: (pct, _elapsedSec, statusText) => {
-          setDownloadProgressPct(Math.max(20, Math.min(99, pct)));
-          setDownloadStatusLabel(statusText);
-        },
-        onKeepaliveReady: (ka) => {
-          keepaliveRef.current = ka;
-        },
-        onMediaRecorderReady: (rec) => {
-          mediaRecorderRef.current = rec;
-        },
-      });
-
-      if (abortCtrl.signal.aborted) return;
-
-      const actualQualityId = inferVideoQualityFromDimensions(
-        exportResult.width,
-        exportResult.height
-      );
-      const objectUrl = URL.createObjectURL(exportResult.blob);
-      const nextFilename = buildStudioExportFilename({
-        selections: selectedSurahs,
-        aspectLabel: activeFormat.aspectLabel,
-        extension: exportResult.extension,
-        qualityId: actualQualityId,
-      });
-
-      const inIframe = isRunningInIframe();
-      let readyStagedUrl: string | null = null;
-      if (shouldStageVideoDownload(exportResult.blob.size, inIframe, MAX_STAGE_DOWNLOAD_BYTES)) {
-        readyStagedUrl = await stageVideoBlobOnServer(
-          exportResult.blob,
-          nextFilename,
-          abortCtrl.signal
-        );
-      }
-
-      if (abortCtrl.signal.aborted) {
-        URL.revokeObjectURL(objectUrl);
-        return;
-      }
-
-      if (exportBgVideoRef.current) {
-        try {
-          exportBgVideoRef.current.pause();
-          exportBgVideoRef.current.removeAttribute('src');
-          exportBgVideoRef.current.load();
-          exportBgVideoRef.current.remove();
-        } catch {}
-        exportBgVideoRef.current = null;
-      }
-
-      const linkState = resolveVideoDownloadLinkState({
-        inIframe,
-        stagedDownloadUrl: readyStagedUrl,
-        objectUrl,
-        filename: nextFilename,
-      });
-
-      setPreparedDownload({
-        blob: exportResult.blob,
-        objectUrl,
-        stagedUrl: readyStagedUrl,
-        filename: linkState.filename,
-        sizeBytes: exportResult.blob.size,
-        downloaded: true,
-      });
-      setDownloadProgressPct(100);
-      setDownloadStatus('ready');
-      setDownloadStatusLabel('');
-
-      if (linkState.href) {
-        triggerFileDownload(linkState.href, linkState.filename);
-      }
-    } catch (err: any) {
-      if (!abortCtrl.signal.aborted) {
-        setDownloadStatus('error');
-        setDownloadErrorMsg(
-          err?.message || 'Téléchargement impossible sur cet appareil.'
-        );
-      }
-    }
+    const activeQualityPreset = VIDEO_QUALITY_PRESETS.find((q) => q.id === videoQualityId);
+    await startBackgroundVideoExport({
+      configSignature,
+      summaryLabel: playlistSummaryLabel,
+      qualityLabel: activeQualityPreset?.shortLabel || videoQualityId.toUpperCase(),
+      aspectLabel: activeFormat.aspectLabel,
+      reciterId,
+      reciterName: selectedReciter.name,
+      selectedSurahs,
+      baseVideoSequence,
+      primarySurahMeta,
+      primaryNormalizedRange,
+      targetCustomVideoDurationSec,
+      durationMode,
+      paceMultiplier,
+      exportWidth: activeFormat.width,
+      exportHeight: activeFormat.height,
+      activeMediaKind,
+      activeMediaUrl,
+      customLogoUrl,
+      isLightSurface,
+      bgSurfaceColor,
+      bgVeilOpacity,
+      bgBlackBackdrop,
+      bgBrightness,
+      bgSharpness,
+      bgContrast,
+      bgImageMotion,
+      textShadowBoost,
+      arabicTextColor,
+      phoneticsTextColor,
+      frenchTextColor,
+      showArabic,
+      useTajweed,
+      showPhonetics,
+      showFrench,
+      showSurahHeader,
+      textScale,
+      flowMode,
+    });
   };
 
   const handleSharePreparedVideo = async () => {
-    if (!preparedDownload) return;
-    const file = new File([preparedDownload.blob], preparedDownload.filename, {
-      type: preparedDownload.blob.type,
-    });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: playlistSummaryLabel,
-          files: [file],
-        });
-      } catch {}
-    }
+    await sharePreparedBackgroundVideo();
   };
 
   if (!isOpen) return null;
-
-  const inIframe = isRunningInIframe();
-  const activeDownloadHref = preparedDownload
-    ? resolveVideoDownloadLinkState({
-        inIframe,
-        stagedDownloadUrl: preparedDownload.stagedUrl,
-        objectUrl: preparedDownload.objectUrl,
-        filename: preparedDownload.filename,
-      }).href
-    : null;
 
   const downloadState: StudioDirectDownloadState = {
     status: downloadStatus,
     progressPct: downloadProgressPct,
     statusLabel: downloadStatusLabel,
     errorMsg: downloadErrorMsg,
-    url: activeDownloadHref,
-    filename: preparedDownload?.filename || null,
-    sizeBytes: preparedDownload?.sizeBytes || null,
-    downloaded: Boolean(preparedDownload?.downloaded),
-    canShare:
-      typeof navigator !== 'undefined' &&
-      typeof navigator.share === 'function' &&
-      Boolean(preparedDownload?.blob),
+    url: bgExport.downloadHref,
+    filename: bgExport.prepared?.filename || null,
+    sizeBytes: bgExport.prepared?.sizeBytes || null,
+    downloaded: Boolean(bgExport.prepared?.downloaded),
+    canShare: bgExport.canShare,
   };
 
   const switchTab = (tab: StudioTab) => {
@@ -1726,8 +1312,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       data-testid="mobile-video-studio-modal"
       className="fixed inset-0 z-[10040] studio-paper-canvas text-[#1F2421] flex flex-col h-[100dvh] overflow-hidden"
     >
-      {/* Hidden offscreen canvas strictly for full-res MP4 file generation */}
-      <canvas ref={exportCanvasRef} className="hidden" aria-hidden="true" />
 
       <input
         ref={mediaFileInputRef}
@@ -1842,7 +1426,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             onStartDownload={startDirectDownload}
             onCancelDownload={handleCancelDownload}
             onDirectLinkClicked={() => {
-              setPreparedDownload((prev) => (prev ? { ...prev, downloaded: true } : prev));
+              markBackgroundVideoDownloaded();
             }}
             onShareVideo={handleSharePreparedVideo}
           />

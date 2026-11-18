@@ -44,6 +44,45 @@ export interface Mp4ExportResult {
   height: number;
 }
 
+function yieldViaMessageChannel(): Promise<void> {
+  if (typeof MessageChannel !== 'undefined') {
+    return new Promise((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = () => {
+        ch.port1.onmessage = null;
+        resolve();
+      };
+      ch.port2.postMessage(null);
+    });
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function createBackgroundHeartbeatWorker(intervalMs: number, onTick: () => void): () => void {
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined') {
+    const id = setInterval(onTick, intervalMs);
+    return () => clearInterval(id);
+  }
+  try {
+    const code = `const id = setInterval(() => postMessage(1), ${Math.max(16, Math.round(intervalMs))});`;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+    worker.onmessage = () => onTick();
+    return () => {
+      try {
+        worker.terminate();
+      } catch {}
+      try {
+        URL.revokeObjectURL(workerUrl);
+      } catch {}
+    };
+  } catch {
+    const id = setInterval(onTick, intervalMs);
+    return () => clearInterval(id);
+  }
+}
+
 interface ResolvedVideoCandidate {
   config: VideoEncoderConfig;
   muxCodec: 'avc' | 'vp9';
@@ -620,7 +659,11 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
           if (Date.now() - lastChunkAdvanceAt > 45_000) {
             throw new Error('VideoEncoder stalled without output for 45s');
           }
-          await new Promise((r) => setTimeout(r, 15));
+          if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+            await yieldViaMessageChannel();
+          } else {
+            await new Promise((r) => setTimeout(r, 15));
+          }
         }
 
         if (videoChunkCount === 0 && f >= 120 && Date.now() - firstEncodeAt > 45_000) {
@@ -635,7 +678,7 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
             tSec,
             `Génération MP4 (${encodeWidth}×${encodeHeight}) ${Math.round(((f + 1) / totalFrames) * 100)}%...`
           );
-          await new Promise((r) => setTimeout(r, 0));
+          await yieldViaMessageChannel();
         }
       }
 
@@ -814,6 +857,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
 
   let rafId: number | null = null;
   let pumpIntervalId: ReturnType<typeof setInterval> | null = null;
+  let stopWorkerHeartbeat: (() => void) | null = null;
   let playbackHandle: ReturnType<typeof scheduleContinuousAudioSequence> | null = null;
 
   const stopLoopTimers = () => {
@@ -824,6 +868,10 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     if (pumpIntervalId !== null) {
       clearInterval(pumpIntervalId);
       pumpIntervalId = null;
+    }
+    if (stopWorkerHeartbeat) {
+      stopWorkerHeartbeat();
+      stopWorkerHeartbeat = null;
     }
   };
 
@@ -924,9 +972,17 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     }
   };
   rafId = requestAnimationFrame(renderLoop);
-  // Safety timer ensures multi-minute recordings never stall if browser throttles rAF
+  // Background-safe 30fps worker ticker + fallback timer keep frames flowing when mobile rAF pauses in recent tasks
+  stopWorkerHeartbeat = createBackgroundHeartbeatWorker(33, () => {
+    if (params.abortSignal.aborted || recorder.state === 'inactive') return;
+    if (Date.now() - lastFrameWallMs >= 30) {
+      lastFrameWallMs = Date.now();
+      drawRecordingStep();
+    }
+  });
   pumpIntervalId = setInterval(() => {
     if (Date.now() - lastFrameWallMs > 120) {
+      lastFrameWallMs = Date.now();
       drawRecordingStep();
     }
   }, 120);

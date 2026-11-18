@@ -46,6 +46,8 @@ import {
   DEFAULT_GIRL_HERO_BG,
 } from './utils/heroBackgrounds';
 import { pullAndMergeCloudSync, pushSettingToCloud } from './utils/prayerTrackerUtils';
+import { BackgroundVideoExportBar } from './components/BackgroundVideoExportBar';
+import { initBackgroundExportLifecycle } from './utils/backgroundVideoExportManager';
 
 export default function App() {
   const [selectedCity, setSelectedCity] = useState<CityData>(() => {
@@ -153,6 +155,10 @@ export default function App() {
   const activeHeroList = isDarkMode ? GREEN_HERO_BACKGROUNDS : WHITE_HERO_BACKGROUNDS;
   const currentHeroBg =
     activeHeroList[heroBgIndex % activeHeroList.length] || DEFAULT_GIRL_HERO_BG;
+
+  useEffect(() => {
+    initBackgroundExportLifecycle();
+  }, []);
 
   // Rotate landing hero background every 10 seconds smoothly and naturally
   useEffect(() => {
@@ -1281,6 +1287,9 @@ export default function App() {
           onOpenSignUp={() => setCurrentView('login')}
         />
       )}
+
+      {/* Persistent Global Video Export Progress Bar (continues across Home, Books/Library, and mobile recent tasks) */}
+      <BackgroundVideoExportBar />
     </div>
   );
 }
