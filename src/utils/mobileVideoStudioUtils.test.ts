@@ -711,3 +711,22 @@ test('toggleRenderQualitySelection, buildStudioExportFilename with quality, and 
   assert.equal(removedLast.nextActiveId, null);
 });
 
+test('getDeviceSimulationMeta maps 16:9 -> PC, 9:16 -> Phone, and 1:1 -> Tablet', async () => {
+  const { getDeviceSimulationMeta } = await import('./mobileVideoStudioUtils');
+
+  const pc = getDeviceSimulationMeta('16:9');
+  assert.equal(pc.deviceType, 'pc');
+  assert.equal(pc.defaultFormatId, 'youtube_1080p');
+  assert.equal(pc.shortLabel, 'PC 16:9');
+
+  const phone = getDeviceSimulationMeta('9:16');
+  assert.equal(phone.deviceType, 'phone');
+  assert.equal(phone.defaultFormatId, 'shorts_916');
+  assert.equal(phone.shortLabel, 'Téléphone 9:16');
+
+  const tablet = getDeviceSimulationMeta('1:1');
+  assert.equal(tablet.deviceType, 'tablet');
+  assert.equal(tablet.defaultFormatId, 'square_1080');
+  assert.equal(tablet.shortLabel, 'Tablette 1:1');
+});
+

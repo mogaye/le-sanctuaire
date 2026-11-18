@@ -5,12 +5,15 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Maximize2,
+  Minimize2,
   Monitor,
   Pause,
   Play,
   Share2,
   Smartphone,
   Square,
+  Tablet,
   X,
 } from 'lucide-react';
 import {
@@ -23,6 +26,7 @@ import {
   VideoTemplateId,
   findActiveTimelineEntry,
   formatTimeMMSS,
+  getDeviceSimulationMeta,
 } from '../../utils/mobileVideoStudioUtils';
 import {
   VideoCanvasRenderOptions,
@@ -156,6 +160,18 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
   const [bgReadyTick, setBgReadyTick] = useState(0);
   const [fontsReadyTick, setFontsReadyTick] = useState(0);
+  const [isFullscreenSim, setIsFullscreenSim] = useState(false);
+
+  useEffect(() => {
+    if (!isFullscreenSim) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreenSim(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isFullscreenSim]);
 
   useEffect(() => {
     let mounted = true;
@@ -333,13 +349,13 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
     return precomputeVideoCanvasLayout(ctx, ayahs, renderOpts);
-  }, [ayahs, renderOpts, fontsReadyTick]);
+  }, [ayahs, renderOpts, fontsReadyTick, isFullscreenSim]);
 
   useEffect(() => {
     onLayoutReady?.({ layout, renderOpts });
   }, [layout, renderOpts]);
 
-  // Auto-render canvas frame immediately whenever verses/style/time change
+  // Auto-render canvas frame immediately whenever verses/style/time/fullscreen mode change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !layout) return;
@@ -355,7 +371,16 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
     });
-  }, [layout, timeline, simTimeSec, renderOpts, bgReadyTick, format.previewWidth, format.previewHeight]);
+  }, [
+    layout,
+    timeline,
+    simTimeSec,
+    renderOpts,
+    bgReadyTick,
+    format.previewWidth,
+    format.previewHeight,
+    isFullscreenSim,
+  ]);
 
   // Keep background video frames updating smoothly when paused/idle
   useEffect(() => {
@@ -379,7 +404,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [simStatus, activeMediaKind, layout, timeline, simTimeSec, renderOpts]);
+  }, [simStatus, activeMediaKind, layout, timeline, simTimeSec, renderOpts, isFullscreenSim]);
 
   const activeEntry = useMemo(
     () => findActiveTimelineEntry(timeline, simTimeSec),
@@ -394,15 +419,99 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       ? 'aspect-square w-full max-w-[min(100%,24dvh)] md:max-w-[min(100%,44dvh)]'
       : 'aspect-[9/16] h-[25dvh] md:h-[48dvh] max-w-full';
 
+  const activeSimMeta = useMemo(
+    () => getDeviceSimulationMeta(format.aspectLabel),
+    [format.aspectLabel]
+  );
+
   const isPlaying = simStatus === 'playing';
   const isBufferingSim = simStatus === 'loading';
   const isPreparingDownload = downloadState.status === 'preparing';
   const isDownloadReady = downloadState.status === 'ready' && Boolean(downloadState.url);
 
+  const renderLiveCanvasElement = () => (
+    <canvas
+      ref={canvasRef}
+      data-testid="studio-monitor-canvas"
+      width={format.previewWidth}
+      height={format.previewHeight}
+      onClick={() => {
+        if (!isLoadingVerses && ayahs.length > 0 && !isPreparingDownload) {
+          onTogglePlay();
+        }
+      }}
+      className="w-full h-full object-contain cursor-pointer"
+    />
+  );
+
+  const renderFullscreenDeviceStage = () => {
+    if (activeSimMeta.deviceType === 'pc') {
+      return (
+        <div
+          data-testid="studio-sim-device-pc"
+          className="flex flex-col items-center justify-center w-full max-w-[min(94vw,calc(68dvh*16/9))]"
+        >
+          <div className="w-full p-2.5 sm:p-3.5 rounded-2xl sm:rounded-[22px] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_26px_65px_rgba(17,22,19,0.45)] flex flex-col items-center">
+            <div className="flex items-center gap-1.5 mb-2 shrink-0" aria-hidden="true">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4B534E] ring-1 ring-white/15" />
+            </div>
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center">
+              {renderLiveCanvasElement()}
+            </div>
+          </div>
+          <div className="hidden sm:flex flex-col items-center shrink-0" aria-hidden="true">
+            <div className="w-16 h-4 bg-gradient-to-b from-[#B4B1A8] to-[#949188] shadow-inner" />
+            <div className="w-44 h-2.5 rounded-full bg-gradient-to-b from-[#D2CFC7] to-[#A6A39B] shadow-[0_6px_14px_rgba(24,28,26,0.22)]" />
+          </div>
+        </div>
+      );
+    }
+
+    if (activeSimMeta.deviceType === 'tablet') {
+      return (
+        <div
+          data-testid="studio-sim-device-tablet"
+          className="p-3 sm:p-4 rounded-[1.85rem] sm:rounded-[2.25rem] bg-gradient-to-b from-[#262B28] to-[#111412] ring-1 ring-white/20 shadow-[0_26px_65px_rgba(17,22,19,0.45)] flex flex-col items-center"
+        >
+          <div className="flex items-center justify-center mb-2 shrink-0" aria-hidden="true">
+            <span className="w-2 h-2 rounded-full bg-[#444B47] ring-1 ring-white/15" />
+          </div>
+          <div className="relative w-[min(84vw,66dvh)] aspect-square rounded-[1.15rem] sm:rounded-[1.4rem] overflow-hidden bg-black flex items-center justify-center">
+            {renderLiveCanvasElement()}
+          </div>
+          <div className="w-16 h-1 rounded-full bg-white/25 mt-2.5 shrink-0" aria-hidden="true" />
+        </div>
+      );
+    }
+
+    return (
+      <div
+        data-testid="studio-sim-device-phone"
+        className="p-2.5 sm:p-3 rounded-[2.25rem] sm:rounded-[2.65rem] bg-gradient-to-b from-[#262B28] to-[#0E100F] ring-1 ring-white/25 shadow-[0_28px_70px_rgba(17,22,19,0.5)] flex flex-col items-center"
+      >
+        <div
+          className="w-16 sm:w-20 h-3 sm:h-3.5 rounded-full bg-black/95 border border-white/10 mb-2 flex items-center justify-end pr-2 shrink-0"
+          aria-hidden="true"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[#2B3D36]" />
+        </div>
+        <div className="relative h-[min(68dvh,780px)] aspect-[9/16] max-w-[84vw] rounded-[1.6rem] sm:rounded-[1.9rem] overflow-hidden bg-black flex items-center justify-center">
+          {renderLiveCanvasElement()}
+        </div>
+        <div className="w-20 h-1 rounded-full bg-white/30 mt-2.5 shrink-0" aria-hidden="true" />
+      </div>
+    );
+  };
+
   return (
     <aside
       data-testid="studio-desktop-916-preview"
-      className="flex flex-col justify-between min-h-0 px-3.5 py-2.5 md:p-5 studio-surface-raised md:studio-surface-stacked md:rounded-3xl border-b border-[#CECBC2] md:border-none shrink-0 md:shrink"
+      data-fullscreen-sim={isFullscreenSim ? 'true' : 'false'}
+      className={
+        isFullscreenSim
+          ? 'fixed inset-0 z-[10070] studio-paper-canvas flex flex-col justify-between px-3.5 py-3 sm:px-8 sm:py-5 overflow-hidden'
+          : 'flex flex-col justify-between min-h-0 px-3.5 py-2.5 md:p-5 studio-surface-raised md:studio-surface-stacked md:rounded-3xl border-b border-[#CECBC2] md:border-none shrink-0 md:shrink'
+      }
     >
       <div
         ref={videoHostRef}
@@ -419,30 +528,94 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         }}
       />
 
+      {/* Fullscreen Simulation Header Bar (Same-Page Overlay) */}
+      {isFullscreenSim && (
+        <div
+          data-testid="studio-fullscreen-header"
+          className="shrink-0 flex flex-wrap items-center justify-between gap-2.5 pb-2"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-8 h-8 rounded-full studio-pill-mint flex items-center justify-center shrink-0">
+              {activeSimMeta.deviceType === 'pc' ? (
+                <Monitor className="w-4 h-4 text-[#13251D]" />
+              ) : activeSimMeta.deviceType === 'tablet' ? (
+                <Tablet className="w-4 h-4 text-[#13251D]" />
+              ) : (
+                <Smartphone className="w-4 h-4 text-[#13251D]" />
+              )}
+            </span>
+            <span className="text-xs sm:text-sm font-bold text-[#1F2421] truncate">
+              {activeSimMeta.label}
+            </span>
+          </div>
+
+          <div
+            data-testid="studio-fullscreen-device-switcher"
+            role="group"
+            aria-label="Appareil simulé"
+            className="flex items-center gap-1 p-1 rounded-full studio-well-inset"
+          >
+            {[
+              { id: 'youtube_1080p' as VideoFormatId, aspect: '16:9' as const, label: 'PC 16:9', icon: Monitor },
+              { id: 'shorts_916' as VideoFormatId, aspect: '9:16' as const, label: 'Téléphone 9:16', icon: Smartphone },
+              { id: 'square_1080' as VideoFormatId, aspect: '1:1' as const, label: 'Tablette 1:1', icon: Tablet },
+            ].map((dev) => {
+              const active = format.aspectLabel === dev.aspect;
+              const DevIcon = dev.icon;
+              return (
+                <button
+                  key={dev.id}
+                  type="button"
+                  data-testid={`studio-sim-switch-${dev.aspect}`}
+                  disabled={isPreparingDownload}
+                  onClick={() => onSelectFormat(dev.id)}
+                  className={`h-8 px-3 rounded-full text-[11px] sm:text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
+                    active ? 'studio-pill-mint' : 'text-[#4F5551] hover:text-[#1F2421]'
+                  }`}
+                >
+                  <DevIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{dev.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            data-testid="studio-fullscreen-close-btn"
+            onClick={() => setIsFullscreenSim(false)}
+            aria-label="Quitter la simulation plein écran"
+            className="h-9 px-3.5 rounded-full studio-pill-raised text-xs font-semibold text-[#1F2421] inline-flex items-center gap-1.5 cursor-pointer shrink-0 transition-all"
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Réduire</span>
+          </button>
+        </div>
+      )}
+
       {/* Simulation Stage */}
       <div className="flex-1 min-h-0 flex items-center justify-center py-1 md:py-2">
-        <div
-          className={`relative ${aspectBoxClass} p-1 rounded-2xl bg-[#D1CFC7] shadow-[inset_0_2px_6px_rgba(24,28,26,0.18),0_4px_12px_rgba(24,28,26,0.08)] flex items-center justify-center`}
-        >
-          <div className="relative w-full h-full rounded-xl overflow-hidden bg-black flex items-center justify-center">
-            <canvas
-              ref={canvasRef}
-              data-testid="studio-monitor-canvas"
-              width={format.previewWidth}
-              height={format.previewHeight}
-              onClick={() => {
-                if (!isLoadingVerses && ayahs.length > 0 && !isPreparingDownload) {
-                  onTogglePlay();
-                }
-              }}
-              className="w-full h-full object-contain cursor-pointer"
-            />
+        {isFullscreenSim ? (
+          renderFullscreenDeviceStage()
+        ) : (
+          <div
+            className={`relative ${aspectBoxClass} p-1 rounded-2xl bg-[#D1CFC7] shadow-[inset_0_2px_6px_rgba(24,28,26,0.18),0_4px_12px_rgba(24,28,26,0.08)] flex items-center justify-center`}
+          >
+            <div className="relative w-full h-full rounded-xl overflow-hidden bg-black flex items-center justify-center">
+              {renderLiveCanvasElement()}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Inline Transport & Scrubber + Organized Format/Quality/Download Bar */}
-      <div className="space-y-3 pt-2.5 shrink-0">
+      <div
+        className={`space-y-3 pt-2.5 shrink-0 ${
+          isFullscreenSim
+            ? 'w-full max-w-4xl mx-auto studio-surface-raised rounded-2xl px-4 py-3'
+            : ''
+        }`}
+      >
         {/* Transport Row */}
         <div className="flex items-center gap-2">
           <button
@@ -501,6 +674,33 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           >
             {formatTimeMMSS(simTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
           </span>
+
+          <button
+            type="button"
+            data-testid="studio-fullscreen-sim-btn"
+            onClick={() => setIsFullscreenSim((v) => !v)}
+            aria-label={
+              isFullscreenSim
+                ? 'Quitter la simulation plein écran'
+                : 'Voir la vidéo en grand (simulation appareil)'
+            }
+            title={
+              isFullscreenSim
+                ? 'Quitter le plein écran'
+                : 'Voir en grand (PC / Téléphone / Tablette)'
+            }
+            className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all ${
+              isFullscreenSim
+                ? 'studio-pill-mint'
+                : 'studio-pill-raised text-[#1F2421]'
+            }`}
+          >
+            {isFullscreenSim ? (
+              <Minimize2 className="w-4 h-4 text-[#13251D]" />
+            ) : (
+              <Maximize2 className="w-4 h-4 text-[#1F2421]" />
+            )}
+          </button>
         </div>
 
         {/* Inline Download Progress / Error Feedback */}
@@ -538,8 +738,8 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         {/* Organized Format + Quality + Direct Download Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-[#D4D1C8]">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
-            {/* Aspect Ratio Selector (PC Only, placed cleanly inside recessed track) */}
-            {isPcMode && (
+            {/* Aspect Ratio Selector (PC Only when inline; fullscreen uses top device switcher) */}
+            {isPcMode && !isFullscreenSim && (
               <div
                 data-testid="studio-format-selector"
                 role="group"

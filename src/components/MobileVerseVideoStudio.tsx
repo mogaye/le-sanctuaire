@@ -1829,7 +1829,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           <div
             ref={scrollContainerRef}
             data-testid="studio-settings-scroll"
-            className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 pb-5 pt-2 space-y-5"
+            className="flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain touch-pan-y px-4 pb-5 pt-2 space-y-5"
           >
             {/* TAB 1: SOURATES, VERSETS & RÉCITATEUR */}
             {activeTab === 'verses_audio' && (
@@ -2068,7 +2068,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     </span>
                   </div>
 
-                  <div className="divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset px-2 py-1 max-h-[260px] overflow-y-auto">
+                  <div className="divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset px-2 py-1 max-h-[260px] overflow-y-auto no-scrollbar">
                     {RECITERS.map((r) => {
                       const active = r.id === reciterId;
                       return (
@@ -2322,7 +2322,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 ) : (
                   <div
                     data-testid="studio-backgrounds-strip"
-                    className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[250px] overflow-y-auto pr-0.5 py-0.5"
+                    className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[250px] overflow-y-auto no-scrollbar pr-0.5 py-0.5"
                   >
                     {visibleBackgroundCards.map((bg) => {
                       const active = bgId === bg.id;
@@ -2755,7 +2755,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset p-1">
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset p-1">
               {filteredSurahs.map((s) => {
                 const checked = draftPickerSurahNums.includes(s.number);
                 return (

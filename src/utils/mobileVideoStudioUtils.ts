@@ -1243,4 +1243,42 @@ export function removeRenderListItem<T extends { id: string }>(
   return { items, nextActiveId: items[0].id };
 }
 
+export type DeviceSimulationType = 'pc' | 'phone' | 'tablet';
 
+export interface DeviceSimulationMeta {
+  deviceType: DeviceSimulationType;
+  label: string;
+  shortLabel: string;
+  aspectLabel: '16:9' | '9:16' | '1:1';
+  defaultFormatId: VideoFormatId;
+}
+
+export function getDeviceSimulationMeta(
+  aspectLabel: '16:9' | '9:16' | '1:1'
+): DeviceSimulationMeta {
+  if (aspectLabel === '16:9') {
+    return {
+      deviceType: 'pc',
+      label: 'Simulation PC (16:9)',
+      shortLabel: 'PC 16:9',
+      aspectLabel: '16:9',
+      defaultFormatId: 'youtube_1080p',
+    };
+  }
+  if (aspectLabel === '1:1') {
+    return {
+      deviceType: 'tablet',
+      label: 'Simulation Tablette (1:1)',
+      shortLabel: 'Tablette 1:1',
+      aspectLabel: '1:1',
+      defaultFormatId: 'square_1080',
+    };
+  }
+  return {
+    deviceType: 'phone',
+    label: 'Simulation Téléphone (9:16)',
+    shortLabel: 'Téléphone 9:16',
+    aspectLabel: '9:16',
+    defaultFormatId: 'shorts_916',
+  };
+}
