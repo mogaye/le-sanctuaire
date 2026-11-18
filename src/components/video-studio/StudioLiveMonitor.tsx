@@ -65,6 +65,7 @@ interface StudioLiveMonitorProps {
   reciterName: string;
   activeMediaKind: 'video' | 'image' | 'solid';
   activeMediaUrl: string | null;
+  logoImageUrl?: string | null;
   isLightSurface: boolean;
   bgSurfaceColor: string;
   bgVeilOpacity: number;
@@ -123,6 +124,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   reciterName,
   activeMediaKind,
   activeMediaUrl,
+  logoImageUrl,
   isLightSurface,
   bgSurfaceColor,
   bgVeilOpacity,
@@ -160,7 +162,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
+  const logoImageRef = useRef<HTMLImageElement | null>(null);
   const [bgReadyTick, setBgReadyTick] = useState(0);
+  const [logoReadyTick, setLogoReadyTick] = useState(0);
   const [fontsReadyTick, setFontsReadyTick] = useState(0);
   const [isFullscreenSim, setIsFullscreenSim] = useState(false);
 
@@ -283,6 +287,26 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     };
   }, [activeMediaKind, activeMediaUrl]);
 
+  // Sync optional bottom-right custom logo image cleanly into canvas renderer
+  useEffect(() => {
+    let active = true;
+    logoImageRef.current = null;
+    if (!logoImageUrl) {
+      setLogoReadyTick((t) => t + 1);
+      return () => {
+        active = false;
+      };
+    }
+    loadCanvasBackgroundImage(logoImageUrl).then((img) => {
+      if (!active) return;
+      logoImageRef.current = img;
+      setLogoReadyTick((t) => t + 1);
+    });
+    return () => {
+      active = false;
+    };
+  }, [logoImageUrl]);
+
   const renderOpts: VideoCanvasRenderOptions = useMemo(
     () => ({
       width: format.previewWidth,
@@ -306,6 +330,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       frenchTextColor,
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
+      logoImage: logoImageRef.current,
       showArabic,
       useTajweed,
       showPhonetics,
@@ -336,6 +361,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       phoneticsTextColor,
       frenchTextColor,
       bgReadyTick,
+      logoReadyTick,
       showArabic,
       useTajweed,
       showPhonetics,
@@ -374,6 +400,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       ...renderOpts,
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
+      logoImage: logoImageRef.current,
     });
   }, [
     layout,
@@ -381,6 +408,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     simTimeSec,
     renderOpts,
     bgReadyTick,
+    logoReadyTick,
     format.previewWidth,
     format.previewHeight,
     isFullscreenSim,
@@ -413,6 +441,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
               bgMotionTimeSec: ambientSec,
               bgImage: bgImageRef.current,
               bgVideo: bgVideoRef.current,
+              logoImage: logoImageRef.current,
             });
           }
         }

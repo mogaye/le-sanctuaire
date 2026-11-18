@@ -70,6 +70,7 @@ import {
   formatStudioBytes,
   loadStudioBgPreferences,
   loadStudioMediaLibrary,
+  optimizeStudioLogoFile,
   saveStudioBgPreferences,
   saveStudioMediaFile,
   STUDIO_TEXT_COLOR_SWATCHES,
@@ -361,6 +362,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const prefs = loadStudioBgPreferences();
     return Boolean(prefs.bgImageMotion);
   });
+  const [customLogoUrl, setCustomLogoUrl] = useState<string | null>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.customLogoDataUrl === 'string' && prefs.customLogoDataUrl
+      ? prefs.customLogoDataUrl
+      : null;
+  });
+  const [customLogoName, setCustomLogoName] = useState<string | null>(() => {
+    const prefs = loadStudioBgPreferences();
+    return typeof prefs.customLogoName === 'string' && prefs.customLogoName
+      ? prefs.customLogoName
+      : null;
+  });
+  const [isSavingLogo, setIsSavingLogo] = useState<boolean>(false);
 
   const [showArabic, setShowArabic] = useState<boolean>(true);
   const [useTajweed, setUseTajweed] = useState<boolean>(true);
@@ -437,6 +451,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const simAbortRef = useRef<AbortController | null>(null);
   const downloadAbortRef = useRef<AbortController | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
@@ -507,6 +522,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       videoFormatId,
       videoQualityId,
       flowMode,
+      customLogoDataUrl: customLogoUrl,
+      customLogoName,
     });
   }, [
     bgId,
@@ -525,6 +542,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     videoFormatId,
     videoQualityId,
     flowMode,
+    customLogoUrl,
+    customLogoName,
   ]);
 
   // Initialize selection strictly on closed -> open transition
@@ -1004,6 +1023,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         textScale,
         flowMode,
         paceMultiplier,
+        customLogoUrl || '',
       ].join('|'),
     [
       currentSimKey,
@@ -1029,6 +1049,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       textScale,
       flowMode,
       paceMultiplier,
+      customLogoUrl,
     ]
   );
 
@@ -1100,6 +1121,27 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     });
     deleteStudioMediaItem(id).catch(() => {});
     if (bgId === id) setBgId('mobile_noir_minimal');
+  };
+
+  const handleImportCustomLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsSavingLogo(true);
+    try {
+      const result = await optimizeStudioLogoFile(file);
+      if (result) {
+        setCustomLogoUrl(result.dataUrl);
+        setCustomLogoName(result.name);
+      }
+    } finally {
+      setIsSavingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveCustomLogo = () => {
+    setCustomLogoUrl(null);
+    setCustomLogoName(null);
   };
 
   // =========================================================================
@@ -1401,8 +1443,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         activeMediaKind === 'video' && activeMediaUrl
           ? loadCanvasBackgroundVideo(activeMediaUrl)
           : Promise.resolve(null);
+      const logoImgPromise = customLogoUrl
+        ? loadCanvasBackgroundImage(customLogoUrl)
+        : Promise.resolve(null);
 
-      const [decodedBase, bgImg, bgVideo] = await Promise.all([
+      const [decodedBase, bgImg, bgVideo, logoImg] = await Promise.all([
         decodeVerseAudioSequence(
           ctx,
           primarySelection.surahNumber,
@@ -1415,6 +1460,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         ),
         bgImgPromise,
         bgVideoPromise,
+        logoImgPromise,
       ]);
 
       exportBgVideoRef.current = bgVideo;
@@ -1515,6 +1561,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         frenchTextColor,
         bgImage: bgImg,
         bgVideo,
+        logoImage: logoImg,
         showArabic,
         useTajweed,
         showPhonetics,
@@ -1692,6 +1739,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         className="hidden"
       />
 
+      <input
+        ref={logoFileInputRef}
+        type="file"
+        accept="image/*"
+        data-testid="studio-logo-file-input"
+        onChange={handleImportCustomLogo}
+        className="hidden"
+      />
+
       {/* Clean Minimal Top Bar */}
       <header className="shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 pt-[calc(env(safe-area-inset-top)+0.55rem)] pb-2.5 border-b border-[#CECBC2] bg-[#EAE8E1]/95 backdrop-blur-sm shadow-[0_2px_10px_rgba(24,28,26,0.06)]">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1737,6 +1793,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             reciterName={selectedReciter.name}
             activeMediaKind={activeMediaKind}
             activeMediaUrl={activeMediaUrl}
+            logoImageUrl={customLogoUrl}
             isLightSurface={isLightSurface}
             bgSurfaceColor={bgSurfaceColor}
             bgVeilOpacity={bgVeilOpacity}
@@ -2526,6 +2583,69 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   data-testid="studio-bottom-readability-panel"
                   className="pt-3 border-t border-[#D4D1C8] space-y-3.5"
                 >
+                  {/* Custom Logo Image (Bottom-Right opposite Le Sanctuaire watermark) */}
+                  <div
+                    data-testid="studio-logo-panel"
+                    className="pb-3 border-b border-[#D4D1C8] flex items-center justify-between gap-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {customLogoUrl ? (
+                        <div
+                          data-testid="studio-logo-preview"
+                          className="w-9 h-9 rounded-xl studio-input-inset p-1 flex items-center justify-center shrink-0 overflow-hidden"
+                        >
+                          <img
+                            src={customLogoUrl}
+                            alt={customLogoName || 'Logo personnalisé'}
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl studio-pill-raised flex items-center justify-center shrink-0 text-[#1B573E]">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-[11.5px] font-bold text-[#1F2421] leading-tight truncate">
+                          {customLogoUrl ? customLogoName || 'Logo personnalisé' : 'Votre logo (image)'}
+                        </div>
+                        <div className="text-[10px] text-[#565C58] leading-tight mt-0.5 truncate">
+                          Petit en bas à droite • opposé au filigrane
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        data-testid="studio-logo-upload-btn"
+                        disabled={isSavingLogo}
+                        onClick={() => logoFileInputRef.current?.click()}
+                        className="h-8 px-3 rounded-full studio-pill-mint text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-60"
+                      >
+                        {isSavingLogo ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5" />
+                        )}
+                        <span>{customLogoUrl ? 'Changer' : 'Ajouter'}</span>
+                      </button>
+
+                      {customLogoUrl && (
+                        <button
+                          type="button"
+                          data-testid="studio-logo-remove-btn"
+                          aria-label="Retirer le logo"
+                          title="Retirer le logo"
+                          onClick={handleRemoveCustomLogo}
+                          className="w-8 h-8 rounded-full studio-pill-raised text-[#9B3431] hover:bg-[#EE9B98]/40 flex items-center justify-center cursor-pointer transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Row 1: Polarity + Contre-fond noir + Ombre */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">

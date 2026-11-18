@@ -77,6 +77,8 @@ export interface StudioBgPreferences {
   videoFormatId?: string;
   videoQualityId?: string;
   flowMode?: string;
+  customLogoDataUrl?: string | null;
+  customLogoName?: string | null;
 }
 
 export function computeOptimizedImageDimensions(
@@ -450,6 +452,113 @@ async function optimizeUploadedImageFile(
     return { blob: mainBlob, mimeType: mainMime, thumbBlob };
   } catch {
     return { blob: file, mimeType: file.type || 'image/jpeg' };
+  } finally {
+    try {
+      bitmap?.close();
+    } catch {}
+    if (objUrl) {
+      try {
+        URL.revokeObjectURL(objUrl);
+      } catch {}
+    }
+  }
+}
+
+function readBlobAsDataUrl(blob: Blob): Promise<string | null> {
+  if (typeof FileReader === 'undefined') return Promise.resolve(null);
+  return new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(typeof reader.result === 'string' ? reader.result : null);
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export async function optimizeStudioLogoFile(
+  file: File,
+  maxLongEdge: number = 480
+): Promise<{ dataUrl: string; name: string } | null> {
+  const kind = classifyStudioMediaFile(file.name, file.type);
+  if (kind !== 'image') return null;
+
+  const cleanName = file.name.replace(/\.[^.]+$/, '') || 'Logo';
+
+  if (
+    typeof document === 'undefined' ||
+    file.type === 'image/svg+xml' ||
+    (file.size <= 160 * 1024 && (file.type === 'image/png' || file.type === 'image/webp'))
+  ) {
+    const directUrl = await readBlobAsDataUrl(file);
+    if (directUrl) {
+      return { dataUrl: directUrl, name: cleanName };
+    }
+  }
+
+  let bitmap: ImageBitmap | null = null;
+  let imgEl: HTMLImageElement | null = null;
+  let objUrl: string | null = null;
+  try {
+    let srcW = 0;
+    let srcH = 0;
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(file);
+        srcW = bitmap.width;
+        srcH = bitmap.height;
+      } catch {
+        bitmap = null;
+      }
+    }
+    if (!bitmap) {
+      objUrl = URL.createObjectURL(file);
+      imgEl = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = objUrl!;
+      });
+      if (!imgEl || !imgEl.naturalWidth || !imgEl.naturalHeight) {
+        const fallbackUrl = await readBlobAsDataUrl(file);
+        return fallbackUrl ? { dataUrl: fallbackUrl, name: cleanName } : null;
+      }
+      srcW = imgEl.naturalWidth;
+      srcH = imgEl.naturalHeight;
+    }
+
+    const source: CanvasImageSource = (bitmap || imgEl)!;
+    const targetDims = computeOptimizedImageDimensions(srcW, srcH, maxLongEdge);
+    const canvas = document.createElement('canvas');
+    canvas.width = targetDims.width;
+    canvas.height = targetDims.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      const fallbackUrl = await readBlobAsDataUrl(file);
+      return fallbackUrl ? { dataUrl: fallbackUrl, name: cleanName } : null;
+    }
+    ctx.clearRect(0, 0, targetDims.width, targetDims.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, targetDims.width, targetDims.height);
+
+    // Prefer PNG for small transparent logo fidelity, fall back to WebP if too large for localStorage
+    const pngUrl = canvas.toDataURL('image/png');
+    if (pngUrl && pngUrl.length <= 360_000) {
+      return { dataUrl: pngUrl, name: cleanName };
+    }
+    const webpUrl = canvas.toDataURL('image/webp', 0.88);
+    if (webpUrl && webpUrl.startsWith('data:image/webp')) {
+      return { dataUrl: webpUrl, name: cleanName };
+    }
+    return pngUrl ? { dataUrl: pngUrl, name: cleanName } : null;
+  } catch {
+    const fallbackUrl = await readBlobAsDataUrl(file);
+    return fallbackUrl ? { dataUrl: fallbackUrl, name: cleanName } : null;
   } finally {
     try {
       bitmap?.close();

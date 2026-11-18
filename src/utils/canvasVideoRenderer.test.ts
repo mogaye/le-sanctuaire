@@ -5,6 +5,8 @@ import {
   MANDATORY_WATERMARK_TAGLINE,
   VideoCanvasRenderOptions,
   buildCanvasBackgroundFilter,
+  computeBottomFooterMetrics,
+  computeBottomRightLogoRect,
   computeGentleBackgroundMotionScale,
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
@@ -98,8 +100,12 @@ test('renderVideoCanvasFrame always embeds mandatory watermark at the bottom and
     assert.ok(brandCall, 'Mandatory watermark brand must always be drawn');
     assert.ok(taglineCall, 'Mandatory watermark tagline must always be drawn');
     assert.ok(
-      brandCall.y > opts.height * 0.85,
-      `Watermark brand should be placed at the bottom (got y=${brandCall.y})`
+      brandCall.y > opts.height * 0.9,
+      `Watermark brand should stay placed near bottom (got y=${brandCall.y})`
+    );
+    assert.ok(
+      Math.abs(taglineCall.x - opts.width / 2) <= 2,
+      `Standalone watermark must be horizontally centered at bottom (got tagline.x=${taglineCall.x})`
     );
 
     // Ensure no timer text (MM:SS / MM:SS) is drawn anywhere
@@ -783,5 +789,99 @@ test('computeGentleBackgroundMotionScale creates slow subtle zoom-dezoom cycles 
   assert.ok(motion9.x < 0 && motion9.y < 0, 'Zoomed draw rect must stay centered with zero bare edges');
   assert.ok(Math.abs(motion18.w - motion0.w) < 0.01, 'Draw rect must gently zoom back out at cycle end');
 });
+
+test('mandatory watermark and custom logo center cleanly both horizontally and vertically as a readable pair across 16:9, 9:16, and 1:1', () => {
+  const ayahs = [
+    {
+      num: 1,
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwallahu ahad',
+      fr: 'Dis: Il est Allah, Unique.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(ayahs, [5.0], 1);
+  const squareLogo: any = { naturalWidth: 512, naturalHeight: 512, width: 512, height: 512 };
+
+  for (const [width, height] of [
+    [1920, 1080],
+    [1080, 1920],
+    [1080, 1080],
+  ] as Array<[number, number]>) {
+    const resScale = Math.max(0.5, Math.min(width, height) / 720);
+    const metrics = computeBottomFooterMetrics(width, height, resScale);
+
+    // Wide 3:1 logo preserves aspect ratio & fits within footer bounds
+    const wideRect = computeBottomRightLogoRect(width, height, resScale, 600, 200, 220);
+    assert.ok(wideRect, 'Expected computed logo rect for valid wide logo');
+    assert.ok(wideRect.w <= metrics.logoMaxW && wideRect.h <= metrics.logoMaxH);
+    assert.ok(Math.abs(wideRect.w / wideRect.h - 3) < 0.15, 'Aspect ratio must be preserved');
+
+    // Render with square logo on solid canvas (so logo drawImage is the only drawImage call)
+    const drawCalls: Array<{ img: any; x: number; y: number; w: number; h: number }> = [];
+    const { ctx, fillTexts } = createMockCanvasContext();
+    (ctx as any).drawImage = (img: any, x: number, y: number, w: number, h: number) => {
+      drawCalls.push({ img, x, y, w, h });
+    };
+
+    const opts: VideoCanvasRenderOptions = {
+      width,
+      height,
+      surahName: 'Al-Ikhlas',
+      surahNumber: 112,
+      startAyah: 1,
+      endAyah: 1,
+      isLightSurface: false,
+      bgImage: null,
+      logoImage: squareLogo,
+      showArabic: true,
+      useTajweed: false,
+      showPhonetics: true,
+      showFrench: true,
+      showSurahHeader: false,
+      textScale: 'standard',
+      flowMode: 'teleprompter',
+      reciterName: 'Alafasy',
+    };
+
+    const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
+    renderVideoCanvasFrame(ctx, layout, timeline, 2.5, opts);
+
+    const brandCall = fillTexts.find((c) => c.text === MANDATORY_WATERMARK_BRAND);
+    const taglineCall = fillTexts.find((c) => c.text === MANDATORY_WATERMARK_TAGLINE);
+    assert.ok(brandCall && taglineCall, `Watermark must always be present on ${width}x${height}`);
+    assert.ok(brandCall.y > height * 0.85, `Watermark brand must sit at bottom (${brandCall.y})`);
+    assert.ok(taglineCall.y > height * 0.85, `Watermark tagline must sit at bottom (${taglineCall.y})`);
+
+    const logoCall = drawCalls.find((d) => d.img === squareLogo);
+    assert.ok(logoCall, `Custom logo must be drawn on ${width}x${height}`);
+    assert.ok(taglineCall.x < width / 2, `Watermark sits left of center (${taglineCall.x})`);
+    assert.ok(logoCall.x > width / 2, `Logo sits right of center (${logoCall.x})`);
+    assert.ok(logoCall.y > height * 0.82, `Custom logo must sit near bottom (${logoCall.y})`);
+    assert.ok(logoCall.x + logoCall.w < width, 'Logo must respect right safe padding');
+    assert.ok(logoCall.y + logoCall.h < height, 'Logo must respect bottom safe padding');
+
+    // Vertical centers of watermark and logo should align closely on the same footer midline
+    const wmCenterY = (brandCall.y + taglineCall.y) / 2;
+    const logoCenterY = logoCall.y + logoCall.h / 2;
+    assert.ok(
+      Math.abs(wmCenterY - logoCenterY) <= Math.round(12 * resScale),
+      `Watermark (${wmCenterY}) and logo (${logoCenterY}) must be vertically centered together`
+    );
+
+    assert.ok(logoCall.h >= Math.round(92 * resScale), `Logo should be clearly legible (got h=${logoCall.h})`);
+    assert.ok(logoCall.w <= metrics.logoMaxW && logoCall.h <= metrics.logoMaxH, 'Logo must stay within corner bounds');
+
+    // Without custom logo, watermark must shift back to the exact horizontal center
+    const noLogo = createMockCanvasContext();
+    renderVideoCanvasFrame(noLogo.ctx, layout, timeline, 2.5, { ...opts, logoImage: null });
+    const soloTagline = noLogo.fillTexts.find((c) => c.text === MANDATORY_WATERMARK_TAGLINE);
+    assert.ok(soloTagline, `Standalone watermark tagline must render on ${width}x${height}`);
+    assert.ok(
+      Math.abs(soloTagline.x - width / 2) <= 2,
+      `Without custom logo, watermark shifts back to exact center (${soloTagline.x} vs ${width / 2})`
+    );
+  }
+});
+
 
 

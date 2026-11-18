@@ -34,6 +34,7 @@ export interface VideoCanvasRenderOptions {
   frenchTextColor?: string | null;
   bgImage: HTMLImageElement | null;
   bgVideo?: HTMLVideoElement | null;
+  logoImage?: HTMLImageElement | null;
   showArabic: boolean;
   useTajweed: boolean;
   showPhonetics: boolean;
@@ -155,7 +156,9 @@ export function loadCanvasBackgroundImage(url: string | null): Promise<HTMLImage
   if (!url) return Promise.resolve(null);
   return new Promise((resolve) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (!url.startsWith('data:')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
     img.src = url;
@@ -627,53 +630,162 @@ function drawFittedVerseInBox(
   ctx.restore();
 }
 
+export interface BottomFooterMetrics {
+  padX: number;
+  bottomPad: number;
+  dividerW: number;
+  brandFontPx: number;
+  subFontPx: number;
+  iconR: number;
+  gap: number;
+  pairGap: number;
+  watermarkH: number;
+  logoMaxW: number;
+  logoMaxH: number;
+}
+
+export function computeBottomFooterMetrics(
+  width: number,
+  height: number,
+  resScale: number
+): BottomFooterMetrics {
+  const isPortrait = height > width;
+  const padX = Math.round((isPortrait ? 34 : 46) * resScale);
+  const bottomPad = Math.round((isPortrait ? 18 : 16) * resScale);
+  const dividerW = Math.round((isPortrait ? 128 : 122) * resScale);
+  const brandFontPx = Math.round((isPortrait ? 17 : 16) * resScale);
+  const subFontPx = Math.round((isPortrait ? 11.5 : 10.5) * resScale);
+  const iconR = Math.round((isPortrait ? 7 : 6.5) * resScale);
+  const gap = Math.round(7 * resScale);
+  const pairGap = Math.round((isPortrait ? 36 : 46) * resScale);
+  const watermarkH = Math.round((isPortrait ? 52 : 48) * resScale);
+  const logoMaxW = Math.round((isPortrait ? 236 : 260) * resScale);
+  const logoMaxH = Math.round((isPortrait ? 104 : 96) * resScale);
+
+  return {
+    padX,
+    bottomPad,
+    dividerW,
+    brandFontPx,
+    subFontPx,
+    iconR,
+    gap,
+    pairGap,
+    watermarkH,
+    logoMaxW,
+    logoMaxH,
+  };
+}
+
+export function computeBottomRightLogoRect(
+  width: number,
+  height: number,
+  resScale: number,
+  imgWidth: number,
+  imgHeight: number,
+  watermarkWidth: number = 0
+): { x: number; y: number; w: number; h: number; footerCenterY: number } | null {
+  const safeW = Number.isFinite(imgWidth) && imgWidth > 0 ? imgWidth : 0;
+  const safeH = Number.isFinite(imgHeight) && imgHeight > 0 ? imgHeight : 0;
+  if (safeW <= 0 || safeH <= 0) return null;
+
+  const m = computeBottomFooterMetrics(width, height, resScale);
+  const scale = Math.min(m.logoMaxW / safeW, m.logoMaxH / safeH);
+  const drawW = Math.max(1, Math.round(safeW * scale));
+  const drawH = Math.max(1, Math.round(safeH * scale));
+
+  const footerBlockH = Math.max(m.watermarkH, drawH);
+  const footerCenterY = height - m.bottomPad - footerBlockH / 2;
+  const drawY = Math.round(footerCenterY - drawH / 2);
+
+  if (watermarkWidth > 0) {
+    const totalPairW = watermarkWidth + m.pairGap + drawW;
+    const pairLeft = Math.round((width - totalPairW) / 2);
+    const drawX = Math.min(width - m.padX - drawW, pairLeft + watermarkWidth + m.pairGap);
+    return { x: drawX, y: drawY, w: drawW, h: drawH, footerCenterY };
+  }
+
+  const drawX = Math.round((width - drawW) / 2);
+  return { x: drawX, y: drawY, w: drawW, h: drawH, footerCenterY };
+}
+
 /**
- * Draws the mandatory, non-removable "Le Sanctuaire" watermark at the bottom of the video.
+ * Draws the mandatory, non-removable "Le Sanctuaire" watermark and optional custom image logo
+ * centered horizontally & vertically together at the bottom of the video.
  */
 function drawMandatoryBottomWatermark(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   resScale: number,
-  isLightSurface: boolean
+  isLightSurface: boolean,
+  logoImage?: HTMLImageElement | null
 ) {
   ctx.save();
-  const isPortrait = height > width;
-  const centerX = width / 2;
-  const dividerY = height - Math.round((isPortrait ? 146 : 82) * resScale);
-  const dividerW = Math.round((isPortrait ? 168 : 140) * resScale);
+  const m = computeBottomFooterMetrics(width, height, resScale);
 
-  // Subtle ornamental rule right below the reading viewport
-  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.34)' : 'rgba(251, 191, 36, 0.42)';
-  ctx.fillRect(centerX - dividerW / 2, dividerY, dividerW, Math.max(2, Math.round(2 * resScale)));
+  const brandFont = `800 ${m.brandFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  const subFont = `600 ${m.subFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+
+  ctx.font = brandFont;
+  const brandTextWidth = ctx.measureText(MANDATORY_WATERMARK_BRAND).width;
+  ctx.font = subFont;
+  const subTextWidth = ctx.measureText(MANDATORY_WATERMARK_TAGLINE).width;
+
+  const brandRowWidth = m.iconR * 2 + m.gap + brandTextWidth;
+  const watermarkWidth = Math.ceil(Math.max(m.dividerW, brandRowWidth, subTextWidth));
+
+  const rawLogoW = logoImage ? (logoImage as any).naturalWidth || logoImage.width || 0 : 0;
+  const rawLogoH = logoImage ? (logoImage as any).naturalHeight || logoImage.height || 0 : 0;
+  const logoRect =
+    logoImage && rawLogoW > 0 && rawLogoH > 0
+      ? computeBottomRightLogoRect(width, height, resScale, rawLogoW, rawLogoH, watermarkWidth)
+      : null;
+
+  const footerCenterY = logoRect
+    ? logoRect.footerCenterY
+    : height - m.bottomPad - m.watermarkH / 2;
+
+  const wmCenterX = logoRect
+    ? Math.max(
+        m.padX + watermarkWidth / 2,
+        logoRect.x - m.pairGap - watermarkWidth / 2
+      )
+    : width / 2;
+
+  const ruleOffsetFromCenter = -m.watermarkH * 0.42;
+  const brandOffsetFromCenter = -m.watermarkH * 0.06;
+  const subOffsetFromCenter = m.watermarkH * 0.34;
+
+  const dividerY = Math.round(footerCenterY + ruleOffsetFromCenter);
+  const brandY = Math.round(footerCenterY + brandOffsetFromCenter);
+  const subY = Math.round(footerCenterY + subOffsetFromCenter);
+
+  // Subtle ornamental rule centered above the watermark text
+  ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.36)' : 'rgba(251, 191, 36, 0.44)';
+  ctx.fillRect(
+    Math.round(wmCenterX - m.dividerW / 2),
+    dividerY,
+    m.dividerW,
+    Math.max(1.5, Math.round(1.5 * resScale))
+  );
 
   // Soft legibility shadow over any custom background
   ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.88)' : 'rgba(0, 0, 0, 0.84)';
-  ctx.shadowBlur = Math.round(10 * resScale);
+  ctx.shadowBlur = Math.round(8 * resScale);
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = Math.round(1 * resScale);
 
-  const brandFontPx = Math.round((isPortrait ? 22 : 18) * resScale);
-  const subFontPx = Math.round((isPortrait ? 13.5 : 11.5) * resScale);
-  const brandY = height - Math.round((isPortrait ? 112 : 54) * resScale);
-  const subY = height - Math.round((isPortrait ? 82 : 30) * resScale);
-
-  ctx.font = `800 ${brandFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-  const brandTextWidth = ctx.measureText(MANDATORY_WATERMARK_BRAND).width;
-  const iconR = Math.round((isPortrait ? 8.5 : 7) * resScale);
-  const gap = Math.round(8 * resScale);
-  const totalUnitW = iconR * 2 + gap + brandTextWidth;
-  const unitLeft = centerX - totalUnitW / 2;
-
-  const crescentCx = unitLeft + iconR;
+  const unitLeft = wmCenterX - brandRowWidth / 2;
+  const crescentCx = unitLeft + m.iconR;
   const crescentCy = brandY;
   ctx.fillStyle = isLightSurface ? '#047857' : '#FBBF24';
   ctx.beginPath();
-  ctx.arc(crescentCx, crescentCy, iconR, 0.35 * Math.PI, 1.65 * Math.PI, false);
+  ctx.arc(crescentCx, crescentCy, m.iconR, 0.35 * Math.PI, 1.65 * Math.PI, false);
   ctx.arc(
-    crescentCx + iconR * 0.42,
-    crescentCy - iconR * 0.12,
-    iconR * 0.78,
+    crescentCx + m.iconR * 0.42,
+    crescentCy - m.iconR * 0.12,
+    m.iconR * 0.78,
     1.55 * Math.PI,
     0.45 * Math.PI,
     true
@@ -683,13 +795,37 @@ function drawMandatoryBottomWatermark(
 
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = isLightSurface ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.96)';
-  ctx.fillText(MANDATORY_WATERMARK_BRAND, unitLeft + iconR * 2 + gap, brandY);
+  ctx.font = brandFont;
+  ctx.fillStyle = isLightSurface ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+  ctx.fillText(MANDATORY_WATERMARK_BRAND, unitLeft + m.iconR * 2 + m.gap, brandY);
 
-  ctx.font = `600 ${subFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.font = subFont;
   ctx.textAlign = 'center';
-  ctx.fillStyle = isLightSurface ? 'rgba(51, 65, 85, 0.85)' : 'rgba(226, 232, 240, 0.82)';
-  ctx.fillText(MANDATORY_WATERMARK_TAGLINE, centerX, subY);
+  ctx.fillStyle = isLightSurface ? 'rgba(51, 65, 85, 0.86)' : 'rgba(226, 232, 240, 0.84)';
+  ctx.fillText(MANDATORY_WATERMARK_TAGLINE, wmCenterX, subY);
+
+  // Opposite right side of the centered pair: optional user custom image logo
+  if (logoImage && logoRect) {
+    ctx.save();
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    const sepH = Math.round(Math.min(Math.max(m.watermarkH, logoRect.h) * 0.56, 52 * resScale));
+    const sepX = Math.round((wmCenterX + watermarkWidth / 2 + logoRect.x) / 2);
+    const sepY = Math.round(footerCenterY - sepH / 2);
+    ctx.fillStyle = isLightSurface ? 'rgba(4, 120, 87, 0.24)' : 'rgba(251, 191, 36, 0.28)';
+    ctx.fillRect(sepX, sepY, Math.max(1, Math.round(1.2 * resScale)), sepH);
+    ctx.restore();
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.72)' : 'rgba(0, 0, 0, 0.72)';
+    ctx.shadowBlur = Math.round(6 * resScale);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round(1 * resScale);
+    ctx.drawImage(logoImage, logoRect.x, logoRect.y, logoRect.w, logoRect.h);
+    ctx.restore();
+  }
 
   ctx.restore();
 }
@@ -1743,7 +1879,14 @@ export function renderVideoCanvasFrame(
   const topSafeY = Math.round(
     (opts.showSurahHeader ? (isPortrait ? 146 : 114) : isPortrait ? 56 : 32) * resScale
   );
-  const bottomSafeY = height - Math.round((isPortrait ? 172 : 122) * resScale);
+  const hasCustomLogo = Boolean(
+    opts.logoImage &&
+      ((opts.logoImage as any).naturalWidth || opts.logoImage.width) > 0 &&
+      ((opts.logoImage as any).naturalHeight || opts.logoImage.height) > 0
+  );
+  const bottomSafeY =
+    height -
+    Math.round((hasCustomLogo ? (isPortrait ? 134 : 124) : isPortrait ? 92 : 82) * resScale);
   const hasMediaBg = Boolean(videoEl || opts.bgImage);
 
   ctx.save();
@@ -2000,12 +2143,13 @@ export function renderVideoCanvasFrame(
     ctx.restore();
   }
 
-  // 6. Mandatory non-removable bottom watermark (no progress bar or timer!)
+  // 6. Mandatory non-removable bottom-left watermark + optional opposite bottom-right logo
   drawMandatoryBottomWatermark(
     ctx,
     width,
     height,
     resScale,
-    isLightSurface && !opts.bgBlackBackdrop
+    isLightSurface && !opts.bgBlackBackdrop,
+    opts.logoImage
   );
 }
