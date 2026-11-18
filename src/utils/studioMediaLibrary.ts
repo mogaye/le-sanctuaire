@@ -73,6 +73,7 @@ export interface StudioBgPreferences {
   bgBrightness?: number;
   bgSharpness?: number;
   bgContrast?: number;
+  bgImageMotion?: boolean;
   videoFormatId?: string;
   videoQualityId?: string;
   flowMode?: string;

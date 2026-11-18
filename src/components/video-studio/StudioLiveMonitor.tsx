@@ -72,6 +72,7 @@ interface StudioLiveMonitorProps {
   bgBrightness: number;
   bgSharpness: number;
   bgContrast: number;
+  bgImageMotion: boolean;
   textShadowBoost: boolean;
   arabicTextColor: string | null;
   phoneticsTextColor: string | null;
@@ -129,6 +130,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   bgBrightness,
   bgSharpness,
   bgContrast,
+  bgImageMotion,
   textShadowBoost,
   arabicTextColor,
   phoneticsTextColor,
@@ -297,6 +299,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       bgBrightness,
       bgSharpness,
       bgContrast,
+      bgImageMotion,
       textShadowBoost,
       arabicTextColor,
       phoneticsTextColor,
@@ -327,6 +330,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       bgBrightness,
       bgSharpness,
       bgContrast,
+      bgImageMotion,
       textShadowBoost,
       arabicTextColor,
       phoneticsTextColor,
@@ -382,29 +386,51 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     isFullscreenSim,
   ]);
 
-  // Keep background video frames updating smoothly when paused/idle
+  // Keep background video frames OR gentle image zoom-dezoom breathing updating smoothly when paused/idle
   useEffect(() => {
-    if (simStatus === 'playing' || activeMediaKind !== 'video') return;
+    if (simStatus === 'playing') return;
+    const isVideoLive = activeMediaKind === 'video';
+    const isImageMotionLive = activeMediaKind === 'image' && bgImageMotion;
+    if (!isVideoLive && !isImageMotionLive) return;
+
     let rafId = 0;
-    const tick = () => {
-      if (bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
+    const startMs = performance.now();
+    let lastDrawMs = 0;
+    const tick = (nowMs: number) => {
+      if (isVideoLive && bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
         bgVideoRef.current.play().catch(() => {});
       }
-      if (canvasRef.current && layout) {
-        const ctx = canvasRef.current.getContext('2d');
-        if (ctx) {
-          renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
-            ...renderOpts,
-            bgImage: bgImageRef.current,
-            bgVideo: bgVideoRef.current,
-          });
+      if (!isImageMotionLive || nowMs - lastDrawMs >= 32) {
+        lastDrawMs = nowMs;
+        if (canvasRef.current && layout) {
+          const ctx = canvasRef.current.getContext('2d');
+          if (ctx) {
+            const ambientSec = isImageMotionLive
+              ? simTimeSec + (nowMs - startMs) / 1000
+              : undefined;
+            renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
+              ...renderOpts,
+              bgMotionTimeSec: ambientSec,
+              bgImage: bgImageRef.current,
+              bgVideo: bgVideoRef.current,
+            });
+          }
         }
       }
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [simStatus, activeMediaKind, layout, timeline, simTimeSec, renderOpts, isFullscreenSim]);
+  }, [
+    simStatus,
+    activeMediaKind,
+    bgImageMotion,
+    layout,
+    timeline,
+    simTimeSec,
+    renderOpts,
+    isFullscreenSim,
+  ]);
 
   const activeEntry = useMemo(
     () => findActiveTimelineEntry(timeline, simTimeSec),

@@ -26,6 +26,8 @@ export interface VideoCanvasRenderOptions {
   bgBrightness?: number;
   bgSharpness?: number;
   bgContrast?: number;
+  bgImageMotion?: boolean;
+  bgMotionTimeSec?: number;
   textShadowBoost?: boolean;
   arabicTextColor?: string | null;
   phoneticsTextColor?: string | null;
@@ -40,6 +42,20 @@ export interface VideoCanvasRenderOptions {
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
   reciterName: string;
+}
+
+export function computeGentleBackgroundMotionScale(
+  timeSec: number,
+  enabled: boolean = false
+): number {
+  if (!enabled || !Number.isFinite(timeSec) || timeSec <= 0) {
+    return 1;
+  }
+  const cycleDurationSec = 18;
+  const maxExtraZoom = 0.055;
+  const t = Math.max(0, timeSec);
+  const phase = (2 * Math.PI * t) / cycleDurationSec;
+  return Number((1 + maxExtraZoom * 0.5 * (1 - Math.cos(phase))).toFixed(6));
 }
 
 export function buildCanvasBackgroundFilter(
@@ -1670,7 +1686,15 @@ export function renderVideoCanvasFrame(
         ? getSharpenedImageSource(opts.bgImage, bgFilter.sharpenAmount)
         : opts.bgImage;
     const rect = computeCoverDrawRect(opts.bgImage.width, opts.bgImage.height, width, height);
-    const kbZoom = (1 + Math.min(0.055, Math.max(0, currentSec) * 0.0024)) * (bgFilter.blurPx > 0.2 ? 1.04 : 1);
+    const motionTimeSec =
+      typeof opts.bgMotionTimeSec === 'number' && Number.isFinite(opts.bgMotionTimeSec)
+        ? opts.bgMotionTimeSec
+        : currentSec;
+    const motionScale = computeGentleBackgroundMotionScale(
+      motionTimeSec,
+      Boolean(opts.bgImageMotion)
+    );
+    const kbZoom = motionScale * (bgFilter.blurPx > 0.2 ? 1.04 : 1);
     const zoomedW = rect.w * kbZoom;
     const zoomedH = rect.h * kbZoom;
     const zoomedX = rect.x - (zoomedW - rect.w) / 2;

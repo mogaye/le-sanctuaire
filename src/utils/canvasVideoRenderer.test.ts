@@ -5,6 +5,7 @@ import {
   MANDATORY_WATERMARK_TAGLINE,
   VideoCanvasRenderOptions,
   buildCanvasBackgroundFilter,
+  computeGentleBackgroundMotionScale,
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
   resolveLegibleShadowColor,
@@ -713,4 +714,74 @@ test('custom Arabic, Phonetics, and French text colors and black counter-backdro
     );
   }
 });
+
+test('computeGentleBackgroundMotionScale creates slow subtle zoom-dezoom cycles until video end when enabled', () => {
+  assert.equal(computeGentleBackgroundMotionScale(9, false), 1);
+  assert.equal(computeGentleBackgroundMotionScale(0, true), 1);
+
+  const midZoomIn = computeGentleBackgroundMotionScale(4.5, true);
+  const peakZoom = computeGentleBackgroundMotionScale(9, true);
+  const midZoomOut = computeGentleBackgroundMotionScale(13.5, true);
+  const cycleEnd = computeGentleBackgroundMotionScale(18, true);
+  const secondCyclePeak = computeGentleBackgroundMotionScale(27, true);
+  const secondCycleEnd = computeGentleBackgroundMotionScale(36, true);
+
+  assert.ok(midZoomIn > 1 && midZoomIn < peakZoom, 'Zoom-in should ease upward gently');
+  assert.ok(peakZoom > 1.04 && peakZoom <= 1.06, `Peak zoom must stay subtle (got ${peakZoom})`);
+  assert.ok(midZoomOut > 1 && midZoomOut < peakZoom, 'Zoom-out should return gently');
+  assert.ok(Math.abs(cycleEnd - 1) < 1e-5, `Cycle end at 18s must return cleanly to 1.0 (got ${cycleEnd})`);
+  assert.ok(Math.abs(secondCyclePeak - peakZoom) < 1e-5, 'Second cycle peak should repeat smoothly');
+  assert.ok(Math.abs(secondCycleEnd - 1) < 1e-5, 'Second cycle end should return cleanly to 1.0');
+
+  const ayahs = [
+    {
+      num: 1,
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwallahu ahad',
+      fr: 'Dis: Il est Allah, Unique.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(ayahs, [30.0], 1);
+  const captureDraw = (bgImageMotion: boolean, atSec: number) => {
+    const calls: Array<{ x: number; y: number; w: number; h: number }> = [];
+    const { ctx } = createMockCanvasContext();
+    (ctx as any).drawImage = (_src: any, x: number, y: number, w: number, h: number) => {
+      calls.push({ x, y, w, h });
+    };
+    const opts: VideoCanvasRenderOptions = {
+      width: 1080,
+      height: 1920,
+      surahName: 'Al-Ikhlas',
+      surahNumber: 112,
+      startAyah: 1,
+      endAyah: 1,
+      isLightSurface: false,
+      bgImage: { width: 1080, height: 1920 } as any,
+      bgImageMotion,
+      showArabic: true,
+      useTajweed: false,
+      showPhonetics: true,
+      showFrench: true,
+      showSurahHeader: false,
+      textScale: 'standard',
+      flowMode: 'teleprompter',
+      reciterName: 'Alafasy',
+    };
+    const layout = precomputeVideoCanvasLayout(ctx, ayahs, opts);
+    renderVideoCanvasFrame(ctx, layout, timeline, atSec, opts);
+    return calls[0];
+  };
+
+  const steady0 = captureDraw(false, 0);
+  const steady9 = captureDraw(false, 9);
+  assert.equal(steady9.w, steady0.w, 'Disabled motion must keep image width steady');
+
+  const motion0 = captureDraw(true, 0);
+  const motion9 = captureDraw(true, 9);
+  const motion18 = captureDraw(true, 18);
+  assert.ok(motion9.w > motion0.w && motion9.w <= motion0.w * 1.06, 'Peak draw rect must gently zoom in');
+  assert.ok(motion9.x < 0 && motion9.y < 0, 'Zoomed draw rect must stay centered with zero bare edges');
+  assert.ok(Math.abs(motion18.w - motion0.w) < 0.01, 'Draw rect must gently zoom back out at cycle end');
+});
+
 

@@ -357,6 +357,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [bgContrast, setBgContrast] = useState<number>(() =>
     clampBackgroundAdjustment(loadStudioBgPreferences().bgContrast, 50)
   );
+  const [bgImageMotion, setBgImageMotion] = useState<boolean>(() => {
+    const prefs = loadStudioBgPreferences();
+    return Boolean(prefs.bgImageMotion);
+  });
 
   const [showArabic, setShowArabic] = useState<boolean>(true);
   const [useTajweed, setUseTajweed] = useState<boolean>(true);
@@ -499,6 +503,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       bgBrightness,
       bgSharpness,
       bgContrast,
+      bgImageMotion,
       videoFormatId,
       videoQualityId,
       flowMode,
@@ -516,6 +521,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     bgBrightness,
     bgSharpness,
     bgContrast,
+    bgImageMotion,
     videoFormatId,
     videoQualityId,
     flowMode,
@@ -989,6 +995,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         bgBrightness,
         bgSharpness,
         bgContrast,
+        bgImageMotion ? '1' : '0',
         showArabic,
         useTajweed,
         showPhonetics,
@@ -1013,6 +1020,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       bgBrightness,
       bgSharpness,
       bgContrast,
+      bgImageMotion,
       showArabic,
       useTajweed,
       showPhonetics,
@@ -1500,6 +1508,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         bgBrightness,
         bgSharpness,
         bgContrast,
+        bgImageMotion,
         textShadowBoost,
         arabicTextColor,
         phoneticsTextColor,
@@ -1735,6 +1744,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             bgBrightness={bgBrightness}
             bgSharpness={bgSharpness}
             bgContrast={bgContrast}
+            bgImageMotion={bgImageMotion}
             textShadowBoost={textShadowBoost}
             arabicTextColor={arabicTextColor}
             phoneticsTextColor={phoneticsTextColor}
@@ -2476,6 +2486,38 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         </label>
                       ))}
                     </div>
+
+                    {activeMediaKind === 'image' && (
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={bgImageMotion}
+                        data-testid="studio-bg-motion-checkbox"
+                        onClick={() => setBgImageMotion((prev) => !prev)}
+                        className={`w-full mt-1 px-3 py-2.5 rounded-2xl flex items-center gap-3 text-left cursor-pointer transition-all ${
+                          bgImageMotion ? 'studio-pill-mint' : 'studio-pill-raised'
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-all ${
+                            bgImageMotion
+                              ? 'bg-[#1B573E] text-white shadow-sm'
+                              : 'bg-white/85 border border-[#B8B5AC] text-transparent'
+                          }`}
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[2.75]" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[11.5px] font-bold text-[#1F2421] leading-tight">
+                            Mouvement doux (zoom / dézoom)
+                          </div>
+                          <div className="text-[10px] text-[#565C58] leading-tight mt-0.5">
+                            Légers va-et-vient lents sur l&apos;image jusqu&apos;à la fin de la vidéo
+                          </div>
+                        </div>
+                      </button>
+                    )}
                   </div>
                 )}
 
