@@ -16,17 +16,18 @@ const TemplateWireframe: React.FC<{
   active: boolean;
   isLandscape?: boolean;
 }> = ({ id, active, isLandscape }) => {
-  const accent = active ? '#FBBF24' : '#94A3B8';
-  const muted = active ? 'rgba(251, 191, 36, 0.35)' : 'rgba(148, 163, 184, 0.25)';
+  const accent = active ? '#136F4E' : '#5E6460';
+  const muted = active ? 'rgba(19, 111, 78, 0.25)' : 'rgba(94, 100, 96, 0.22)';
+  const line = active ? '#1F2421' : '#737975';
 
   return (
     <div
-      className={`relative rounded-lg overflow-hidden border transition-colors ${
+      className={`relative rounded-xl overflow-hidden transition-all ${
         isLandscape ? 'w-16 h-10' : 'w-12 h-14'
       } shrink-0 flex items-center justify-center ${
         active
-          ? 'bg-neutral-950 border-amber-400/70'
-          : 'bg-black/60 border-white/10 group-hover:border-white/25'
+          ? 'bg-[#EAE8E2] shadow-[inset_0_1px_3px_rgba(19,37,29,0.14)] ring-1 ring-emerald-700/20'
+          : 'bg-[#DCDAD2] shadow-[inset_0_1.5px_3px_rgba(24,28,26,0.13)]'
       }`}
     >
       <svg viewBox="0 0 64 44" className="w-full h-full" aria-hidden="true">
@@ -54,7 +55,7 @@ const TemplateWireframe: React.FC<{
               width="48"
               height="32"
               rx="3"
-              fill="rgba(255,255,255,0.03)"
+              fill="rgba(255,255,255,0.65)"
               stroke={accent}
               strokeWidth="1.4"
             />
@@ -66,17 +67,17 @@ const TemplateWireframe: React.FC<{
         {id === 'cinema_subtitles' && (
           <>
             <rect x="15" y="12" width="34" height="7" rx="2" fill={accent} />
-            <rect x="7" y="27" width="50" height="11" rx="2" fill="rgba(0,0,0,0.85)" stroke={muted} strokeWidth="1" />
+            <rect x="7" y="27" width="50" height="11" rx="2" fill="#232926" stroke={muted} strokeWidth="1" />
             <line x1="7" y1="27" x2="57" y2="27" stroke={accent} strokeWidth="1.6" />
-            <rect x="14" y="31" width="36" height="3.5" rx="1.5" fill="#E2E8F0" />
+            <rect x="14" y="31" width="36" height="3.5" rx="1.5" fill="#F4F3EE" />
           </>
         )}
         {id === 'mushaf_split' && (
           <>
-            <rect x="6" y="7" width="23" height="30" rx="2" fill="rgba(255,255,255,0.04)" />
+            <rect x="6" y="7" width="23" height="30" rx="2" fill="rgba(255,255,255,0.75)" />
             <line x1="32" y1="7" x2="32" y2="37" stroke={accent} strokeWidth="1.4" />
             <rect x="10" y="15" width="15" height="3.5" rx="1.5" fill={muted} />
-            <rect x="9" y="22" width="17" height="3.5" rx="1.5" fill="#E2E8F0" />
+            <rect x="9" y="22" width="17" height="3.5" rx="1.5" fill={line} />
             <rect x="37" y="16" width="20" height="6" rx="2" fill={accent} />
             <rect x="40" y="25" width="14" height="3.5" rx="1.5" fill={muted} />
           </>
@@ -104,7 +105,7 @@ export const StudioTemplateGrid: React.FC<StudioTemplateGridProps> = ({
   isLandscape = true,
 }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="studio-template-grid">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5" data-testid="studio-template-grid">
       {VIDEO_TEMPLATE_PRESETS.map((tpl) => {
         const active = selectedTemplate === tpl.id;
         return (
@@ -112,37 +113,33 @@ export const StudioTemplateGrid: React.FC<StudioTemplateGridProps> = ({
             key={tpl.id}
             type="button"
             data-testid={`studio-template-${tpl.id}`}
+            title={tpl.subtitle}
             onClick={() => onSelect(tpl.id)}
-            className={`group text-left p-3 rounded-xl border transition-colors duration-150 cursor-pointer flex items-start gap-3 min-h-[76px] ${
+            className={`group text-left p-2.5 rounded-2xl transition-all duration-150 cursor-pointer flex flex-col gap-2 ${
               active
-                ? 'bg-amber-400/[0.11] border-amber-400/60'
-                : 'bg-white/[0.025] border-white/[0.08] hover:bg-white/[0.05] hover:border-white/20'
+                ? 'studio-pill-mint ring-2 ring-[#9CE2C5]/60'
+                : 'studio-pill-raised'
             }`}
           >
-            <TemplateWireframe id={tpl.id} active={active} isLandscape={isLandscape} />
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex items-start justify-between gap-1.5">
-                <span
-                  className={`text-[13px] font-semibold leading-snug ${
-                    active ? 'text-amber-300' : 'text-white'
-                  }`}
-                >
-                  {tpl.name}
+            <div className="w-full flex items-center justify-between gap-2">
+              <TemplateWireframe id={tpl.id} active={active} isLandscape={isLandscape} />
+              {active && (
+                <span className="w-5 h-5 rounded-full bg-white/85 flex items-center justify-center shadow-sm shrink-0">
+                  <Check className="w-3 h-3 text-[#13251D] stroke-[2.75]" />
                 </span>
-                {active && (
-                  <Check className="w-4 h-4 text-amber-300 shrink-0 stroke-[2.5] mt-0.5" />
-                )}
-              </div>
-              <p className="text-xs text-neutral-400 leading-snug line-clamp-2">
-                {tpl.subtitle}
-              </p>
-              <div className="text-[11px] text-neutral-500 truncate pt-0.5">
-                {tpl.recommendedFor}
-              </div>
+              )}
             </div>
+            <span
+              className={`text-xs font-semibold leading-tight truncate w-full ${
+                active ? 'text-[#13251D]' : 'text-[#1F2421]'
+              }`}
+            >
+              {tpl.name}
+            </span>
           </button>
         );
       })}
     </div>
   );
 };
+

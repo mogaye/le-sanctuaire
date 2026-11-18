@@ -2,10 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   X,
   Film,
-  Play,
-  Pause,
-  Download,
-  Share2,
   BookOpen,
   Headphones,
   Image as ImageIcon,
@@ -15,18 +11,11 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
-  Square,
-  SlidersHorizontal,
   Loader2,
   Upload,
   Video,
   Trash2,
-  Volume2,
-  Monitor,
-  Smartphone,
   Plus,
-  Clock,
-  CheckCircle2,
   Layers,
 } from 'lucide-react';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
@@ -37,22 +26,24 @@ import {
   STUDIO_4K_BACKGROUNDS,
   STUDIO_SOLID_BACKGROUNDS,
 } from '../data/mobileCinematicBackgrounds';
-import { TajweedText, cleanAyahArabic } from '../utils/tajweedColorizer';
 import {
   StudioAyahItem,
   StudioSurahSelection,
   VIDEO_FORMAT_PRESETS,
+  VIDEO_QUALITY_PRESETS,
   VIDEO_TEMPLATE_PRESETS,
   VideoFormatId,
+  VideoQualityId,
   VideoTemplateId,
-  YouTubeSurahSummaryItem,
   buildContinuousTimeline,
   buildMultiSurahVideoSequence,
   buildStudioExportFilename,
   extendSequenceToTargetDuration,
   formatTimeMMSS,
   getVideoFormatPreset,
+  inferVideoQualityFromDimensions,
   normalizeVerseRange,
+  resolveFormatDimensionsForQuality,
   resolveVideoDownloadLinkState,
   shouldStageVideoDownload,
 } from '../utils/mobileVideoStudioUtils';
@@ -66,7 +57,6 @@ import {
   scheduleContinuousAudioSequence,
 } from '../utils/continuousAudioEngine';
 import {
-  MANDATORY_WATERMARK_BRAND,
   VideoCanvasRenderOptions,
   loadCanvasBackgroundImage,
   precomputeVideoCanvasLayout,
@@ -84,8 +74,10 @@ import {
   saveStudioMediaFile,
 } from '../utils/studioMediaLibrary';
 import { StudioTemplateGrid } from './video-studio/StudioTemplateGrid';
-import { StudioLiveMonitor } from './video-studio/StudioLiveMonitor';
-import { YouTubePublishCard } from './video-studio/YouTubePublishCard';
+import {
+  StudioDirectDownloadState,
+  StudioLiveMonitor,
+} from './video-studio/StudioLiveMonitor';
 
 interface MobileVerseVideoStudioProps {
   isOpen: boolean;
@@ -107,9 +99,7 @@ interface CustomBackgroundMedia {
   syncedToServer?: boolean;
 }
 
-type StudioStage = 'setup' | 'player' | 'export';
 type StudioTab = 'verses' | 'style' | 'bg' | 'audio';
-type DownloadStatus = 'idle' | 'preparing' | 'done' | 'error';
 
 const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
@@ -131,7 +121,6 @@ function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null
     video.autoplay = true;
     video.preload = 'auto';
     video.crossOrigin = 'anonymous';
-    // Keep inside viewport compositor bounds so Chromium/Safari actively decode frames (never 2px offscreen)
     video.style.position = 'fixed';
     video.style.left = '0';
     video.style.bottom = '0';
@@ -188,7 +177,10 @@ async function stageVideoBlobOnServer(
   if (!blob || blob.size === 0 || blob.size > MAX_STAGE_DOWNLOAD_BYTES) {
     return null;
   }
-  const timeoutMs = Math.min(60_000, Math.max(15_000, Math.round(blob.size / (5 * 1024 * 1024)) * 1000));
+  const timeoutMs = Math.min(
+    60_000,
+    Math.max(15_000, Math.round(blob.size / (5 * 1024 * 1024)) * 1000)
+  );
   const localCtrl = new AbortController();
   const timer = setTimeout(() => localCtrl.abort(), timeoutMs);
   const onOuterAbort = () => localCtrl.abort();
@@ -216,6 +208,23 @@ async function stageVideoBlobOnServer(
   }
 }
 
+function triggerFileDownload(url: string, filename: string) {
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        a.remove();
+      } catch {}
+    }, 1000);
+  } catch {}
+}
+
 export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   isOpen,
   onClose,
@@ -228,24 +237,44 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const { isMobile, width: viewportWidth } = useMobileDevice();
   const isPcMode = !isMobile && viewportWidth >= 768;
 
-  // Format (PC-only selectable; Mobile strictly locked to 9:16)
+  // Format (PC-only aspect selectable; Mobile locked to 9:16) & Quality (4K..480p)
   const [videoFormatId, setVideoFormatId] = useState<VideoFormatId>(() => {
     const prefs = loadStudioBgPreferences();
     if (
       prefs.videoFormatId &&
       VIDEO_FORMAT_PRESETS.some((f) => f.id === prefs.videoFormatId)
     ) {
-      return prefs.videoFormatId as VideoFormatId;
+      return prefs.videoFormatId === 'youtube_720p'
+        ? 'youtube_1080p'
+        : (prefs.videoFormatId as VideoFormatId);
     }
     return 'youtube_1080p';
   });
 
-  const activeFormat = useMemo(
+  const [videoQualityId, setVideoQualityId] = useState<VideoQualityId>(() => {
+    const prefs = loadStudioBgPreferences();
+    if (
+      prefs.videoQualityId &&
+      VIDEO_QUALITY_PRESETS.some((q) => q.id === prefs.videoQualityId)
+    ) {
+      return prefs.videoQualityId as VideoQualityId;
+    }
+    if (prefs.videoFormatId === 'youtube_720p') {
+      return '720p';
+    }
+    return '1080p';
+  });
+
+  const baseAspectFormat = useMemo(
     () => getVideoFormatPreset(videoFormatId, !isPcMode),
     [videoFormatId, isPcMode]
   );
 
-  // Active workspace tab
+  const activeFormat = useMemo(
+    () => resolveFormatDimensionsForQuality(baseAspectFormat, videoQualityId),
+    [baseAspectFormat, videoQualityId]
+  );
+
   const [activeTab, setActiveTab] = useState<StudioTab>('verses');
 
   // Multi-Surah Playlist State
@@ -263,7 +292,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [loadingSurahNums, setLoadingSurahNums] = useState<number[]>([]);
   const [reciterId, setReciterId] = useState<string>(initialReciter?.id || 'mishary');
 
-  // Background Selection + Persistent Site Media Library
+  // Background Selection + Persistent Media Library
   const [customMedia, setCustomMedia] = useState<CustomBackgroundMedia[]>([]);
   const [isLoadingLibrary, setIsLoadingLibrary] = useState<boolean>(false);
   const [isSavingMedia, setIsSavingMedia] = useState<boolean>(false);
@@ -311,76 +340,66 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [paceMultiplier, setPaceMultiplier] = useState<number>(1.0);
   const [durationMode, setDurationMode] = useState<'verses' | 'match_video'>('verses');
 
-  // Pickers inside Setup
+  // Surah Picker Overlay
   const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
   const [surahQuery, setSurahQuery] = useState<string>('');
   const [draftPickerSurahNums, setDraftPickerSurahNums] = useState<number[]>([]);
-  const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
 
-  // Active Stage ('setup' | 'player' | 'export')
-  const [stage, setStage] = useState<StudioStage>('setup');
-
-  // Continuous Playback State (for Stage = 'player')
-  const [playerStatus, setPlayerStatus] = useState<'loading' | 'playing' | 'paused' | 'ended'>(
-    'loading'
-  );
-  const [playerLoadProgress, setPlayerLoadProgress] = useState<{ loaded: number; total: number }>({
-    loaded: 0,
-    total: 0,
-  });
-  const [currentTimeSec, setCurrentTimeSec] = useState<number>(0);
-  const [playerHudVisible, setPlayerHudVisible] = useState<boolean>(true);
+  // Inline Simulation Playback State
+  const [simStatus, setSimStatus] = useState<
+    'idle' | 'loading' | 'playing' | 'paused' | 'ended'
+  >('idle');
+  const [simTimeSec, setSimTimeSec] = useState<number>(0);
   const [measuredDurations, setMeasuredDurations] = useState<Array<number | undefined>>([]);
 
-  // Export & Download State (for Stage = 'export')
-  const [exportStatus, setExportStatus] = useState<
-    'preparing_audio' | 'encoding' | 'finalizing' | 'ready' | 'error'
-  >('preparing_audio');
-  const [exportStatusMessage, setExportStatusMessage] = useState<string>('');
-  const [exportProgressPct, setExportProgressPct] = useState<number>(0);
-  const [exportElapsedSec, setExportElapsedSec] = useState<number>(0);
-  const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
-  const [exportedVideoBlob, setExportedVideoBlob] = useState<Blob | null>(null);
-  const [exportedFileExt, setExportedFileExt] = useState<string>('mp4');
-  const [stagedDownloadUrl, setStagedDownloadUrl] = useState<string | null>(null);
-  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
-  const [downloadFeedback, setDownloadFeedback] = useState<string | null>(null);
-  const [exportedAudioInfo, setExportedAudioInfo] = useState<{
-    okCount: number;
-    totalCount: number;
-    mime: string;
+  // In-Place Direct Download State
+  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'preparing' | 'ready' | 'error'>(
+    'idle'
+  );
+  const [downloadProgressPct, setDownloadProgressPct] = useState<number>(0);
+  const [downloadStatusLabel, setDownloadStatusLabel] = useState<string>('');
+  const [downloadErrorMsg, setDownloadErrorMsg] = useState<string | null>(null);
+  const [preparedDownload, setPreparedDownload] = useState<{
+    blob: Blob;
+    objectUrl: string;
+    stagedUrl: string | null;
+    filename: string;
+    sizeBytes: number;
+    downloaded: boolean;
   } | null>(null);
-  const [exportErrorMsg, setExportErrorMsg] = useState<string | null>(null);
 
   // Refs
   const wasOpenRef = useRef<boolean>(false);
   const loadedSurahsRef = useRef<Record<number, LoadedStudioSurah>>({});
   loadedSurahsRef.current = loadedSurahs;
+  const preparedDownloadRef = useRef(preparedDownload);
+  preparedDownloadRef.current = preparedDownload;
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const decodedBuffersRef = useRef<DecodedVerseBuffer[]>([]);
+  const decodedSimKeyRef = useRef<string>('');
   const playbackHandleRef = useRef<ScheduledPlaybackHandle | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof attachAudioStreamKeepalive> | null>(null);
+  const simCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const exportCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const simLayoutRef = useRef<ReturnType<typeof precomputeVideoCanvasLayout> | null>(null);
+  const simRenderOptsRef = useRef<VideoCanvasRenderOptions | null>(null);
+  const simMediaRef = useRef<{
+    bgImage: HTMLImageElement | null;
+    bgVideo: HTMLVideoElement | null;
+  }>({ bgImage: null, bgVideo: null });
   const exportBgVideoRef = useRef<HTMLVideoElement | null>(null);
-  const playerBgVideoRef = useRef<HTMLVideoElement | null>(null);
-  const playerBgImageRef = useRef<HTMLImageElement | null>(null);
-  const playerLayoutRef = useRef<ReturnType<typeof precomputeVideoCanvasLayout> | null>(null);
-  const playerRenderOptsRef = useRef<VideoCanvasRenderOptions | null>(null);
-  const playerTimelineRef = useRef<ReturnType<typeof buildContinuousTimeline> | null>(null);
+  const simTimelineRef = useRef<ReturnType<typeof buildContinuousTimeline> | null>(null);
   const playbackStartCtxTimeRef = useRef<number>(0);
   const playbackStartOffsetRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
-  const hudHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const simAbortRef = useRef<AbortController | null>(null);
+  const downloadAbortRef = useRef<AbortController | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
-  const playerCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const hasRecorderChunkRef = useRef<boolean>(false);
 
-  useWakeLock(isOpen && stage !== 'setup');
+  useWakeLock(isOpen && (simStatus === 'playing' || downloadStatus === 'preparing'));
 
   // Load persistent media library when studio opens
   useEffect(() => {
@@ -426,19 +445,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     };
   }, [isOpen]);
 
-  // Persist background, template & PC format choices
+  // Persist user preferences
   useEffect(() => {
     saveStudioBgPreferences({
       bgId,
       textColorOverride,
       bgVeilOpacity,
       videoFormatId,
+      videoQualityId,
       flowMode,
     });
-  }, [bgId, textColorOverride, bgVeilOpacity, videoFormatId, flowMode]);
+  }, [bgId, textColorOverride, bgVeilOpacity, videoFormatId, videoQualityId, flowMode]);
 
-  // Initialize selection strictly on closed -> open transition so parent ayah updates
-  // never overwrite user multi-surah selection or active export/player stage.
+  // Initialize selection strictly on closed -> open transition
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       const num = initialSurahNum || 1;
@@ -452,12 +471,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         { id: makeSelectionId(num), surahNumber: num, startAyah: start, endAyah: end },
       ]);
       setReciterId(initialReciter?.id || 'mishary');
-      setStage('setup');
     }
     wasOpenRef.current = isOpen;
   }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id]);
 
-  // Parallel non-destructive loader for all selected Surahs
+  // Non-destructive Surah verse loader
   const selectedSurahNumbersKey = useMemo(
     () =>
       Array.from(new Set<number>(selectedSurahs.map((s) => s.surahNumber)))
@@ -475,7 +493,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       .filter((n) => n > 0 && !loadedSurahsRef.current[n]);
 
     if (nums.length === 0) return;
-
     setLoadingSurahNums((prev) => Array.from(new Set([...prev, ...nums])));
 
     Promise.all(
@@ -550,11 +567,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [baseVideoSequence]
   );
 
-  const hasBismillahIntro = useMemo(
-    () => baseVideoSequence.some((v) => v.isBismillah),
-    [baseVideoSequence]
-  );
-
   const playlistSummaryLabel = useMemo(() => {
     if (selectedSurahs.length === 1) {
       const meta = getSurahMeta(selectedSurahs[0].surahNumber);
@@ -573,23 +585,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     return `${selectedSurahs.length} sourates (${first} → ${last})`;
   }, [selectedSurahs]);
 
-  const youtubeSelectedSurahs: YouTubeSurahSummaryItem[] = useMemo(
-    () =>
-      selectedSurahs.map((sel) => {
-        const meta = getSurahMeta(sel.surahNumber);
-        const norm = normalizeVerseRange(sel.startAyah, sel.endAyah, meta.numberOfAyahs);
-        return {
-          surahNumber: sel.surahNumber,
-          surahName: meta.name,
-          surahArabicName: meta.arabicName,
-          startAyah: norm.startAyah,
-          endAyah: norm.endAyah,
-          totalAyahsInSurah: meta.numberOfAyahs,
-        };
-      }),
-    [selectedSurahs]
-  );
-
   const sequenceSignature = useMemo(
     () =>
       selectedSurahs
@@ -597,10 +592,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         .join('|'),
     [selectedSurahs]
   );
-
-  useEffect(() => {
-    setMeasuredDurations([]);
-  }, [sequenceSignature]);
 
   // Playlist mutation helpers
   const updateSurahRange = useCallback(
@@ -610,11 +601,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           if (item.id !== selectionId) return item;
           const meta = getSurahMeta(item.surahNumber);
           const norm = normalizeVerseRange(startAyah, endAyah, meta.numberOfAyahs);
-          return {
-            ...item,
-            startAyah: norm.startAyah,
-            endAyah: norm.endAyah,
-          };
+          return { ...item, startAyah: norm.startAyah, endAyah: norm.endAyah };
         })
       );
     },
@@ -702,9 +689,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const activeMediaUrl: string | null = activeCustomMedia
     ? activeCustomMedia.url
     : activeVerticalBg?.url || active4kBg?.url || null;
-  const activeMediaName: string = activeCustomMedia
-    ? activeCustomMedia.name
-    : activeVerticalBg?.name || active4kBg?.name || activeSolidBg?.name || 'Fond uni';
 
   const isLightSurface = useMemo(() => {
     if (textColorOverride === 'dark') return true;
@@ -726,7 +710,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       name: m.name,
       url: m.url,
       kind: m.kind,
-      sizeBytes: m.sizeBytes,
       durationSec: m.durationSec,
       isCustom: true,
     }));
@@ -811,15 +794,154 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [extendedPlan.sequence, extendedPlan.measuredDurationsSec, paceMultiplier]
   );
 
-  const exportFilename = useMemo(
-    () =>
-      buildStudioExportFilename({
-        selections: selectedSurahs,
-        aspectLabel: activeFormat.aspectLabel,
-        extension: exportedFileExt,
-      }),
-    [selectedSurahs, activeFormat.aspectLabel, exportedFileExt]
+  simTimelineRef.current = timeline;
+
+  const currentSimKey = useMemo(
+    () => `${sequenceSignature}__${reciterId}__${durationMode}__${targetCustomVideoDurationSec}`,
+    [sequenceSignature, reciterId, durationMode, targetCustomVideoDurationSec]
   );
+
+  const clearPreparedDownload = useCallback(() => {
+    setPreparedDownload((prev) => {
+      if (prev?.objectUrl) {
+        try {
+          URL.revokeObjectURL(prev.objectUrl);
+        } catch {}
+      }
+      return null;
+    });
+    setDownloadStatus((prev) => (prev === 'preparing' ? prev : 'idle'));
+    setDownloadErrorMsg(null);
+  }, []);
+
+  const stopSimulationPlayback = useCallback(() => {
+    if (simAbortRef.current) {
+      simAbortRef.current.abort();
+      simAbortRef.current = null;
+    }
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (playbackHandleRef.current) {
+      playbackHandleRef.current.stop();
+      playbackHandleRef.current = null;
+    }
+    if (simMediaRef.current.bgVideo) {
+      try {
+        simMediaRef.current.bgVideo.pause();
+      } catch {}
+    }
+  }, []);
+
+  const stopAllMedia = useCallback(() => {
+    stopSimulationPlayback();
+    if (downloadAbortRef.current) {
+      downloadAbortRef.current.abort();
+      downloadAbortRef.current = null;
+    }
+    if (keepaliveRef.current) {
+      keepaliveRef.current.dispose();
+      keepaliveRef.current = null;
+    }
+    if (exportBgVideoRef.current) {
+      try {
+        exportBgVideoRef.current.pause();
+        exportBgVideoRef.current.removeAttribute('src');
+        exportBgVideoRef.current.load();
+        exportBgVideoRef.current.remove();
+      } catch {}
+      exportBgVideoRef.current = null;
+    }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
+    mediaRecorderRef.current = null;
+    if (audioCtxRef.current) {
+      try {
+        audioCtxRef.current.close();
+      } catch {}
+      audioCtxRef.current = null;
+    }
+  }, [stopSimulationPlayback]);
+
+  // Reset audio cache & simulation position when sequence or reciter changes
+  useEffect(() => {
+    stopSimulationPlayback();
+    decodedBuffersRef.current = [];
+    decodedSimKeyRef.current = '';
+    setMeasuredDurations([]);
+    setSimStatus('idle');
+    setSimTimeSec(0);
+  }, [sequenceSignature, reciterId, durationMode, targetCustomVideoDurationSec, stopSimulationPlayback]);
+
+  // Invalidate any previously built download whenever any video setting changes
+  const configSignature = useMemo(
+    () =>
+      [
+        currentSimKey,
+        videoFormatId,
+        videoQualityId,
+        bgId,
+        textColorOverride,
+        bgVeilOpacity,
+        showArabic,
+        useTajweed,
+        showPhonetics,
+        showFrench,
+        showSurahHeader,
+        textScale,
+        flowMode,
+        paceMultiplier,
+      ].join('|'),
+    [
+      currentSimKey,
+      videoFormatId,
+      videoQualityId,
+      bgId,
+      textColorOverride,
+      bgVeilOpacity,
+      showArabic,
+      useTajweed,
+      showPhonetics,
+      showFrench,
+      showSurahHeader,
+      textScale,
+      flowMode,
+      paceMultiplier,
+    ]
+  );
+
+  useEffect(() => {
+    clearPreparedDownload();
+  }, [configSignature, clearPreparedDownload]);
+
+  // Cleanup on unmount / close
+  useEffect(() => {
+    return () => {
+      stopAllMedia();
+      if (preparedDownloadRef.current?.objectUrl) {
+        try {
+          URL.revokeObjectURL(preparedDownloadRef.current.objectUrl);
+        } catch {}
+      }
+      for (const item of customMediaRef.current) {
+        try {
+          URL.revokeObjectURL(item.url);
+        } catch {}
+      }
+    };
+  }, [stopAllMedia]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      stopAllMedia();
+      setSimStatus('idle');
+      setDownloadStatus('idle');
+    }
+  }, [isOpen, stopAllMedia]);
 
   const handleImportDeviceMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -858,26 +980,255 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (bgId === id) setBgId('mobile_noir_minimal');
   };
 
-  const stopAllMedia = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+  // =========================================================================
+  // INLINE SIMULATION ENGINE (plays directly inside StudioLiveMonitor)
+  // =========================================================================
+  const drawSimFrameAt = useCallback((atSec: number) => {
+    const canvas = simCanvasRef.current;
+    const layout = simLayoutRef.current;
+    const opts = simRenderOptsRef.current;
+    const activeTimeline = simTimelineRef.current;
+    if (!canvas || !layout || !opts || !activeTimeline) return;
+    const ctx2d = canvas.getContext('2d');
+    if (!ctx2d) return;
+    renderVideoCanvasFrame(ctx2d, layout, activeTimeline, atSec, {
+      ...opts,
+      bgImage: simMediaRef.current.bgImage,
+      bgVideo: simMediaRef.current.bgVideo,
+    });
+  }, []);
+
+  const beginInlineSimulationFromOffset = useCallback(
+    (
+      ctx: AudioContext,
+      decoded: DecodedVerseBuffer[],
+      exactTimeline: ReturnType<typeof buildContinuousTimeline>,
+      offsetSec: number
+    ) => {
+      if (playbackHandleRef.current) {
+        playbackHandleRef.current.stop();
+        playbackHandleRef.current = null;
+      }
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      simTimelineRef.current = exactTimeline;
+
+      if (simMediaRef.current.bgVideo) {
+        try {
+          const dur = simMediaRef.current.bgVideo.duration;
+          if (Number.isFinite(dur) && dur > 0) {
+            simMediaRef.current.bgVideo.currentTime = offsetSec % dur;
+          }
+          simMediaRef.current.bgVideo.play().catch(() => {});
+        } catch {}
+      }
+
+      const segStarts = exactTimeline.segments.map((s) => s.startSec);
+      const segDurs = exactTimeline.segments.map((s) => s.durationSec);
+
+      const handle = scheduleContinuousAudioSequence(
+        ctx,
+        decoded,
+        segStarts,
+        segDurs,
+        offsetSec,
+        [ctx.destination],
+        paceMultiplier
+      );
+      playbackHandleRef.current = handle;
+      playbackStartCtxTimeRef.current = ctx.currentTime;
+      playbackStartOffsetRef.current = offsetSec;
+      const wallStartMs = performance.now();
+      setSimStatus('playing');
+
+      const tick = () => {
+        if (!audioCtxRef.current) return;
+        const audioDelta =
+          audioCtxRef.current.currentTime - playbackStartCtxTimeRef.current;
+        const wallDelta = (performance.now() - wallStartMs) / 1000;
+        const delta = audioDelta > 0.02 ? audioDelta : wallDelta;
+        const elapsed = playbackStartOffsetRef.current + delta;
+        if (elapsed >= exactTimeline.totalDurationSec) {
+          setSimTimeSec(exactTimeline.totalDurationSec);
+          drawSimFrameAt(exactTimeline.totalDurationSec);
+          if (simMediaRef.current.bgVideo) {
+            try {
+              simMediaRef.current.bgVideo.pause();
+            } catch {}
+          }
+          setSimStatus('ended');
+          playbackHandleRef.current?.stop();
+          playbackHandleRef.current = null;
+          return;
+        }
+        setSimTimeSec(elapsed);
+        drawSimFrameAt(elapsed);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    [paceMultiplier, drawSimFrameAt]
+  );
+
+  const handleToggleSimulationPlay = async () => {
+    if (baseVideoSequence.length === 0 || downloadStatus === 'preparing') return;
+
+    if (simStatus === 'playing') {
+      stopSimulationPlayback();
+      setSimStatus('paused');
+      return;
     }
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
+
+    if (simStatus === 'loading') {
+      stopSimulationPlayback();
+      setSimStatus('idle');
+      return;
     }
-    if (playbackHandleRef.current) {
-      playbackHandleRef.current.stop();
-      playbackHandleRef.current = null;
+
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioContextCtor();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === 'suspended') {
+      await ctx.resume().catch(() => {});
+    }
+
+    const startOffset = simStatus === 'ended' ? 0 : simTimeSec;
+
+    if (decodedSimKeyRef.current === currentSimKey && decodedBuffersRef.current.length > 0) {
+      beginInlineSimulationFromOffset(ctx, decodedBuffersRef.current, timeline, startOffset);
+      return;
+    }
+
+    stopSimulationPlayback();
+    setSimStatus('loading');
+    const abortCtrl = new AbortController();
+    simAbortRef.current = abortCtrl;
+
+    try {
+      const decodedBase = await decodeVerseAudioSequence(
+        ctx,
+        primarySelection.surahNumber,
+        baseVideoSequence,
+        reciterId,
+        () => {},
+        abortCtrl.signal
+      );
+
+      if (abortCtrl.signal.aborted) return;
+
+      const baseDurations = decodedBase.map((d) =>
+        d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
+      );
+      setMeasuredDurations(baseDurations);
+
+      const detectedBgDurationSec =
+        targetCustomVideoDurationSec > 0
+          ? targetCustomVideoDurationSec
+          : durationMode === 'match_video' &&
+            simMediaRef.current.bgVideo &&
+            Number.isFinite(simMediaRef.current.bgVideo.duration) &&
+            simMediaRef.current.bgVideo.duration > 0
+          ? simMediaRef.current.bgVideo.duration
+          : 0;
+
+      const expanded =
+        detectedBgDurationSec > 0
+          ? extendSequenceToTargetDuration(
+              baseVideoSequence,
+              decodedBase,
+              baseDurations,
+              detectedBgDurationSec,
+              paceMultiplier
+            )
+          : {
+              sequence: baseVideoSequence,
+              decodedItems: decodedBase,
+              measuredDurationsSec: baseDurations,
+            };
+
+      decodedBuffersRef.current = expanded.decodedItems;
+      decodedSimKeyRef.current = currentSimKey;
+
+      const exactTimeline = buildContinuousTimeline(
+        expanded.sequence,
+        expanded.measuredDurationsSec,
+        paceMultiplier
+      );
+      simTimelineRef.current = exactTimeline;
+
+      if (document.fonts?.ready) {
+        await document.fonts.ready.catch(() => {});
+      }
+      if (abortCtrl.signal.aborted) return;
+
+      beginInlineSimulationFromOffset(
+        ctx,
+        expanded.decodedItems,
+        exactTimeline,
+        Math.min(startOffset, Math.max(0, exactTimeline.totalDurationSec - 0.1))
+      );
+    } catch {
+      if (!abortCtrl.signal.aborted) {
+        setSimStatus('idle');
+      }
+    }
+  };
+
+  const handleSeekSimulation = (targetSec: number) => {
+    const activeTimeline = simTimelineRef.current || timeline;
+    const clamped = Math.max(0, Math.min(activeTimeline.totalDurationSec, targetSec));
+    setSimTimeSec(clamped);
+    if (simMediaRef.current.bgVideo) {
+      try {
+        const dur = simMediaRef.current.bgVideo.duration;
+        if (Number.isFinite(dur) && dur > 0) {
+          simMediaRef.current.bgVideo.currentTime = clamped % dur;
+        }
+      } catch {}
+    }
+    drawSimFrameAt(clamped);
+    if (
+      simStatus === 'playing' &&
+      audioCtxRef.current &&
+      decodedSimKeyRef.current === currentSimKey
+    ) {
+      beginInlineSimulationFromOffset(
+        audioCtxRef.current,
+        decodedBuffersRef.current,
+        activeTimeline,
+        clamped
+      );
+    } else if (simStatus === 'ended') {
+      setSimStatus('paused');
+    }
+  };
+
+  const handleJumpToSegmentIndex = (nextIndex: number) => {
+    const activeTimeline = simTimelineRef.current || timeline;
+    if (activeTimeline.segments.length === 0) return;
+    const clampedIdx = Math.max(0, Math.min(activeTimeline.segments.length - 1, nextIndex));
+    const seg = activeTimeline.segments[clampedIdx];
+    if (seg) {
+      handleSeekSimulation(seg.startSec + Math.min(0.6, seg.durationSec * 0.2));
+    }
+  };
+
+  // =========================================================================
+  // IN-PLACE DIRECT MP4 DOWNLOAD (NO SEPARATE EXPORT PAGE)
+  // =========================================================================
+  const handleCancelDownload = () => {
+    if (downloadAbortRef.current) {
+      downloadAbortRef.current.abort();
+      downloadAbortRef.current = null;
     }
     if (keepaliveRef.current) {
       keepaliveRef.current.dispose();
       keepaliveRef.current = null;
-    }
-    if (hudHideTimerRef.current) {
-      clearTimeout(hudHideTimerRef.current);
-      hudHideTimerRef.current = null;
     }
     if (exportBgVideoRef.current) {
       try {
@@ -888,375 +1239,34 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       } catch {}
       exportBgVideoRef.current = null;
     }
-    if (playerBgVideoRef.current) {
-      try {
-        playerBgVideoRef.current.pause();
-        playerBgVideoRef.current.removeAttribute('src');
-        playerBgVideoRef.current.load();
-        playerBgVideoRef.current.remove();
-      } catch {}
-      playerBgVideoRef.current = null;
-    }
-    playerBgImageRef.current = null;
-    playerLayoutRef.current = null;
-    playerRenderOptsRef.current = null;
-    playerTimelineRef.current = null;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch {}
-    }
-    mediaRecorderRef.current = null;
-    if (audioCtxRef.current) {
-      try {
-        audioCtxRef.current.close();
-      } catch {}
-      audioCtxRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      stopAllMedia();
-      if (exportedVideoUrl) {
-        URL.revokeObjectURL(exportedVideoUrl);
-      }
-      for (const item of customMediaRef.current) {
-        try {
-          URL.revokeObjectURL(item.url);
-        } catch {}
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isOpen) {
-      stopAllMedia();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (hudHideTimerRef.current) {
-      clearTimeout(hudHideTimerRef.current);
-      hudHideTimerRef.current = null;
-    }
-    if (stage === 'player' && playerStatus === 'playing' && playerHudVisible) {
-      hudHideTimerRef.current = setTimeout(() => {
-        setPlayerHudVisible(false);
-      }, 3000);
-    }
-    return () => {
-      if (hudHideTimerRef.current) {
-        clearTimeout(hudHideTimerRef.current);
-        hudHideTimerRef.current = null;
-      }
-    };
-  }, [stage, playerStatus, playerHudVisible]);
-
-  const drawLivePlayerFrame = (atSec: number) => {
-    const canvas = playerCanvasRef.current;
-    const layout = playerLayoutRef.current;
-    const opts = playerRenderOptsRef.current;
-    const activeTimeline = playerTimelineRef.current;
-    if (!canvas || !layout || !opts || !activeTimeline) return;
-    const ctx2d = canvas.getContext('2d');
-    if (!ctx2d) return;
-    renderVideoCanvasFrame(ctx2d, layout, activeTimeline, atSec, opts);
-  };
-
-  // =========================================================================
-  // STAGE 2 — REAL-TIME CONTINUOUS VIDEO PLAYER ("Lire le contenu")
-  // =========================================================================
-  const startContinuousPlayer = async () => {
-    if (baseVideoSequence.length === 0) return;
-    stopAllMedia();
-    setStage('player');
-    setPlayerStatus('loading');
-    setPlayerHudVisible(true);
-    setCurrentTimeSec(0);
-    setPlayerLoadProgress({ loaded: 0, total: baseVideoSequence.length });
-
-    const abortCtrl = new AbortController();
-    abortControllerRef.current = abortCtrl;
-
-    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new AudioContextCtor();
-    audioCtxRef.current = ctx;
-    if (ctx.state === 'suspended') {
-      await ctx.resume().catch(() => {});
-    }
-
-    const bgImgPromise =
-      activeMediaKind === 'image' && activeMediaUrl
-        ? loadCanvasBackgroundImage(activeMediaUrl)
-        : Promise.resolve(null);
-    const bgVideoPromise =
-      activeMediaKind === 'video' && activeMediaUrl
-        ? loadCanvasBackgroundVideo(activeMediaUrl)
-        : Promise.resolve(null);
-
-    const [decodedBase, bgImg, bgVideo] = await Promise.all([
-      decodeVerseAudioSequence(
-        ctx,
-        primarySelection.surahNumber,
-        baseVideoSequence,
-        reciterId,
-        (loaded, total) => setPlayerLoadProgress({ loaded, total }),
-        abortCtrl.signal
-      ),
-      bgImgPromise,
-      bgVideoPromise,
-    ]);
-
-    if (abortCtrl.signal.aborted) {
-      if (bgVideo) {
-        try {
-          bgVideo.pause();
-          bgVideo.remove();
-        } catch {}
-      }
-      return;
-    }
-
-    playerBgImageRef.current = bgImg;
-    playerBgVideoRef.current = bgVideo;
-
-    const baseDurations = decodedBase.map((d) =>
-      d.effectiveDurationSec > 0 ? d.effectiveDurationSec : undefined
-    );
-    setMeasuredDurations(baseDurations);
-
-    const detectedBgDurationSec =
-      targetCustomVideoDurationSec > 0
-        ? targetCustomVideoDurationSec
-        : durationMode === 'match_video' &&
-          bgVideo &&
-          Number.isFinite(bgVideo.duration) &&
-          bgVideo.duration > 0
-        ? bgVideo.duration
-        : 0;
-
-    const expanded =
-      detectedBgDurationSec > 0
-        ? extendSequenceToTargetDuration(
-            baseVideoSequence,
-            decodedBase,
-            baseDurations,
-            detectedBgDurationSec,
-            paceMultiplier
-          )
-        : {
-            sequence: baseVideoSequence,
-            decodedItems: decodedBase,
-            measuredDurationsSec: baseDurations,
-          };
-
-    decodedBuffersRef.current = expanded.decodedItems;
-
-    if (document.fonts?.ready) {
-      await document.fonts.ready.catch(() => {});
-    }
-
-    const exactTimeline = buildContinuousTimeline(
-      expanded.sequence,
-      expanded.measuredDurationsSec,
-      paceMultiplier
-    );
-    playerTimelineRef.current = exactTimeline;
-
-    const liveWidth = activeFormat.previewWidth;
-    const liveHeight = activeFormat.previewHeight;
-    const canvas = playerCanvasRef.current;
-    if (canvas) {
-      canvas.width = liveWidth;
-      canvas.height = liveHeight;
-      const canvasCtx = canvas.getContext('2d');
-      if (canvasCtx) {
-        const renderOpts: VideoCanvasRenderOptions = {
-          width: liveWidth,
-          height: liveHeight,
-          surahName: primarySurahMeta.name,
-          surahNumber: primarySurahMeta.number,
-          startAyah: primaryNormalizedRange.startAyah,
-          endAyah: primaryNormalizedRange.endAyah,
-          selectedSurahsCount: selectedSurahs.length,
-          isLightSurface,
-          bgSurfaceColor,
-          bgVeilOpacity,
-          bgImage: bgImg,
-          bgVideo,
-          showArabic,
-          useTajweed,
-          showPhonetics,
-          showFrench,
-          showSurahHeader,
-          textScale,
-          flowMode,
-          reciterName: selectedReciter.name,
-        };
-        playerRenderOptsRef.current = renderOpts;
-        playerLayoutRef.current = precomputeVideoCanvasLayout(
-          canvasCtx,
-          expanded.sequence,
-          renderOpts
-        );
-        renderVideoCanvasFrame(canvasCtx, playerLayoutRef.current, exactTimeline, 0, renderOpts);
-      }
-    }
-
-    beginContinuousAudioFromOffset(ctx, expanded.decodedItems, exactTimeline, 0);
-  };
-
-  const beginContinuousAudioFromOffset = (
-    ctx: AudioContext,
-    decoded: DecodedVerseBuffer[],
-    exactTimeline: ReturnType<typeof buildContinuousTimeline>,
-    offsetSec: number
-  ) => {
-    if (playbackHandleRef.current) {
-      playbackHandleRef.current.stop();
-      playbackHandleRef.current = null;
-    }
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-
-    playerTimelineRef.current = exactTimeline;
-
-    if (playerBgVideoRef.current) {
-      try {
-        const dur = playerBgVideoRef.current.duration;
-        if (Number.isFinite(dur) && dur > 0) {
-          playerBgVideoRef.current.currentTime = offsetSec % dur;
-        }
-        playerBgVideoRef.current.play().catch(() => {});
-      } catch {}
-    }
-
-    const segStarts = exactTimeline.segments.map((s) => s.startSec);
-    const segDurs = exactTimeline.segments.map((s) => s.durationSec);
-
-    const handle = scheduleContinuousAudioSequence(
-      ctx,
-      decoded,
-      segStarts,
-      segDurs,
-      offsetSec,
-      [ctx.destination],
-      paceMultiplier
-    );
-    playbackHandleRef.current = handle;
-    playbackStartCtxTimeRef.current = ctx.currentTime;
-    playbackStartOffsetRef.current = offsetSec;
-    setPlayerStatus('playing');
-
-    const tick = () => {
-      if (!audioCtxRef.current) return;
-      const elapsed =
-        playbackStartOffsetRef.current +
-        (audioCtxRef.current.currentTime - playbackStartCtxTimeRef.current);
-      if (elapsed >= exactTimeline.totalDurationSec) {
-        setCurrentTimeSec(exactTimeline.totalDurationSec);
-        drawLivePlayerFrame(exactTimeline.totalDurationSec);
-        if (playerBgVideoRef.current) {
-          try {
-            playerBgVideoRef.current.pause();
-          } catch {}
-        }
-        setPlayerStatus('ended');
-        setPlayerHudVisible(true);
-        playbackHandleRef.current?.stop();
-        playbackHandleRef.current = null;
-        return;
-      }
-      setCurrentTimeSec(elapsed);
-      drawLivePlayerFrame(elapsed);
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  };
-
-  const togglePlayPauseContinuous = async () => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-
-    if (playerStatus === 'playing') {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      playbackHandleRef.current?.stop();
-      playbackHandleRef.current = null;
-      if (playerBgVideoRef.current) {
-        try {
-          playerBgVideoRef.current.pause();
-        } catch {}
-      }
-      setPlayerStatus('paused');
-    } else if (playerStatus === 'paused' || playerStatus === 'ended') {
-      if (ctx.state === 'suspended') {
-        await ctx.resume().catch(() => {});
-      }
-      const nextOffset = playerStatus === 'ended' ? 0 : currentTimeSec;
-      const exactTimeline = playerTimelineRef.current || timeline;
-      beginContinuousAudioFromOffset(ctx, decodedBuffersRef.current, exactTimeline, nextOffset);
-    }
-  };
-
-  const seekContinuousPlayer = (targetSec: number) => {
-    const ctx = audioCtxRef.current;
-    const exactTimeline = playerTimelineRef.current || timeline;
-    const clamped = Math.max(0, Math.min(exactTimeline.totalDurationSec, targetSec));
-    setCurrentTimeSec(clamped);
-    if (playerBgVideoRef.current) {
-      try {
-        const dur = playerBgVideoRef.current.duration;
-        if (Number.isFinite(dur) && dur > 0) {
-          playerBgVideoRef.current.currentTime = clamped % dur;
-        }
-      } catch {}
-    }
-    drawLivePlayerFrame(clamped);
-    if (ctx && playerStatus === 'playing') {
-      beginContinuousAudioFromOffset(ctx, decodedBuffersRef.current, exactTimeline, clamped);
-    }
-  };
-
-  // =========================================================================
-  // STAGE 3 — MP4 EXPORT & BULLETPROOF DOWNLOAD HANDLER
-  // =========================================================================
-  const startVideoExport = async () => {
-    if (baseVideoSequence.length === 0) return;
-    stopAllMedia();
-    if (exportedVideoUrl) {
-      URL.revokeObjectURL(exportedVideoUrl);
-      setExportedVideoUrl(null);
-    }
-    setExportedVideoBlob(null);
-    setStagedDownloadUrl(null);
     setDownloadStatus('idle');
-    setDownloadFeedback(null);
-    setExportedAudioInfo(null);
-    setExportErrorMsg(null);
-    setExportProgressPct(0);
-    setExportElapsedSec(0);
-    setStage('export');
-    setExportStatus('preparing_audio');
-    setExportStatusMessage(
-      `Chargement audio continu (${playlistSummaryLabel} · ${baseVideoSequence.length} séquences)...`
-    );
+    setDownloadProgressPct(0);
+    setDownloadStatusLabel('');
+  };
+
+  const startDirectDownload = async () => {
+    if (baseVideoSequence.length === 0 || downloadStatus === 'preparing') return;
+
+    stopSimulationPlayback();
+    if (simStatus === 'playing' || simStatus === 'loading') {
+      setSimStatus('paused');
+    }
+
+    clearPreparedDownload();
+    setDownloadErrorMsg(null);
+    setDownloadStatus('preparing');
+    setDownloadProgressPct(0);
+    setDownloadStatusLabel('Préparation...');
 
     const abortCtrl = new AbortController();
-    abortControllerRef.current = abortCtrl;
-
-    const exportW = activeFormat.width;
-    const exportH = activeFormat.height;
+    downloadAbortRef.current = abortCtrl;
 
     try {
       const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioContextCtor();
-      audioCtxRef.current = ctx;
+      if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+        audioCtxRef.current = new AudioContextCtor();
+      }
+      const ctx = audioCtxRef.current;
       if (ctx.state === 'suspended') {
         await ctx.resume().catch(() => {});
       }
@@ -1277,8 +1287,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           baseVideoSequence,
           reciterId,
           (loaded, total) => {
-            setPlayerLoadProgress({ loaded, total });
-            setExportProgressPct(Math.round((loaded / Math.max(1, total)) * 25));
+            setDownloadProgressPct(Math.round((loaded / Math.max(1, total)) * 20));
           },
           abortCtrl.signal
         ),
@@ -1301,9 +1310,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
       const okAudioCount = decodedBase.filter((d) => d.buffer !== null).length;
       if (okAudioCount === 0) {
-        throw new Error(
-          'Impossible de charger le son de la récitation pour ces versets. Vérifiez votre connexion internet et réessayez.'
-        );
+        throw new Error('Audio indisponible pour ces versets.');
       }
 
       const baseDurations = decodedBase.map((d) =>
@@ -1336,6 +1343,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               measuredDurationsSec: baseDurations,
             };
 
+      decodedBuffersRef.current = expanded.decodedItems;
+      decodedSimKeyRef.current = currentSimKey;
+
       const exportSeq = expanded.sequence;
       const exportDecoded = expanded.decodedItems;
       const exactTimeline = buildContinuousTimeline(
@@ -1348,15 +1358,17 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         await document.fonts.ready.catch(() => {});
       }
 
-      const canvas = previewCanvasRef.current;
+      const canvas = exportCanvasRef.current;
       if (!canvas) {
         throw new Error('Surface vidéo indisponible.');
       }
+      const exportW = activeFormat.width;
+      const exportH = activeFormat.height;
       canvas.width = exportW;
       canvas.height = exportH;
       const canvasCtx = canvas.getContext('2d');
       if (!canvasCtx) {
-        throw new Error('Contexte graphique 2D indisponible.');
+        throw new Error('Contexte graphique indisponible.');
       }
 
       const renderOpts: VideoCanvasRenderOptions = {
@@ -1385,11 +1397,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       const layout = precomputeVideoCanvasLayout(canvasCtx, exportSeq, renderOpts);
       renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
 
-      setExportStatus('encoding');
-      setExportStatusMessage(
-        `Génération MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${formatTimeMMSS(exactTimeline.totalDurationSec)} (${okAudioCount}/${baseVideoSequence.length} séquences)...`
-      );
-
       if (ctx.state !== 'running') {
         await ctx.resume().catch(() => {});
       }
@@ -1406,32 +1413,46 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         paceMultiplier,
         monitorAudioDuringExport: false,
         abortSignal: abortCtrl.signal,
-        onProgress: (pct, elapsedSec, statusText) => {
-          setExportProgressPct(pct);
-          setExportElapsedSec(elapsedSec);
-          setExportStatusMessage(statusText);
-          if (pct >= 90) setExportStatus('finalizing');
+        onProgress: (pct, _elapsedSec, statusText) => {
+          setDownloadProgressPct(Math.max(20, Math.min(99, pct)));
+          setDownloadStatusLabel(statusText);
         },
         onKeepaliveReady: (ka) => {
           keepaliveRef.current = ka;
         },
         onMediaRecorderReady: (rec) => {
           mediaRecorderRef.current = rec;
-          hasRecorderChunkRef.current = false;
-        },
-        onRecordingChunkAvailable: () => {
-          hasRecorderChunkRef.current = true;
         },
       });
 
-      if (audioCtxRef.current === ctx) {
-        try {
-          ctx.close();
-        } catch {}
-        audioCtxRef.current = null;
+      if (abortCtrl.signal.aborted) return;
+
+      const actualQualityId = inferVideoQualityFromDimensions(
+        exportResult.width,
+        exportResult.height
+      );
+      const objectUrl = URL.createObjectURL(exportResult.blob);
+      const nextFilename = buildStudioExportFilename({
+        selections: selectedSurahs,
+        aspectLabel: activeFormat.aspectLabel,
+        extension: exportResult.extension,
+        qualityId: actualQualityId,
+      });
+
+      const inIframe = isRunningInIframe();
+      let readyStagedUrl: string | null = null;
+      if (shouldStageVideoDownload(exportResult.blob.size, inIframe, MAX_STAGE_DOWNLOAD_BYTES)) {
+        readyStagedUrl = await stageVideoBlobOnServer(
+          exportResult.blob,
+          nextFilename,
+          abortCtrl.signal
+        );
       }
 
-      if (abortCtrl.signal.aborted) return;
+      if (abortCtrl.signal.aborted) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
 
       if (exportBgVideoRef.current) {
         try {
@@ -1443,69 +1464,78 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         exportBgVideoRef.current = null;
       }
 
-      const url = URL.createObjectURL(exportResult.blob);
-      const nextFilename = buildStudioExportFilename({
-        selections: selectedSurahs,
-        aspectLabel: activeFormat.aspectLabel,
-        extension: exportResult.extension,
+      const linkState = resolveVideoDownloadLinkState({
+        inIframe,
+        stagedDownloadUrl: readyStagedUrl,
+        objectUrl,
+        filename: nextFilename,
       });
 
-      const inIframe = isRunningInIframe();
-      let readyStagedUrl: string | null = null;
-      if (shouldStageVideoDownload(exportResult.blob.size, inIframe, MAX_STAGE_DOWNLOAD_BYTES)) {
-        setExportStatus('finalizing');
-        setExportProgressPct(97);
-        setExportStatusMessage('Préparation du téléchargement MP4...');
-        readyStagedUrl = await stageVideoBlobOnServer(
-          exportResult.blob,
-          nextFilename,
-          abortCtrl.signal
-        );
-      }
-
-      if (abortCtrl.signal.aborted) {
-        URL.revokeObjectURL(url);
-        return;
-      }
-
-      setStagedDownloadUrl(readyStagedUrl);
-      setExportedVideoBlob(exportResult.blob);
-      setExportedVideoUrl(url);
-      setExportedFileExt(exportResult.extension);
-      setExportedAudioInfo({
-        okCount: okAudioCount,
-        totalCount: baseVideoSequence.length,
-        mime: exportResult.mimeType,
+      setPreparedDownload({
+        blob: exportResult.blob,
+        objectUrl,
+        stagedUrl: readyStagedUrl,
+        filename: linkState.filename,
+        sizeBytes: exportResult.blob.size,
+        downloaded: true,
       });
-      setExportProgressPct(100);
-      setExportStatus('ready');
-      setExportStatusMessage(
-        `Vidéo MP4 ${activeFormat.aspectLabel} (${formatTimeMMSS(exactTimeline.totalDurationSec)}) prête`
-      );
+      setDownloadProgressPct(100);
+      setDownloadStatus('ready');
+      setDownloadStatusLabel('');
+
+      if (linkState.href) {
+        triggerFileDownload(linkState.href, linkState.filename);
+      }
     } catch (err: any) {
       if (!abortCtrl.signal.aborted) {
-        setExportStatus('error');
-        setExportErrorMsg(
-          err?.message || 'Impossible de générer la vidéo MP4 sur cet appareil.'
+        setDownloadStatus('error');
+        setDownloadErrorMsg(
+          err?.message || 'Téléchargement impossible sur cet appareil.'
         );
       }
     }
   };
 
-  const handleShareVideo = async () => {
-    if (!exportedVideoBlob) return;
-    const file = new File([exportedVideoBlob], exportFilename, { type: exportedVideoBlob.type });
+  const handleSharePreparedVideo = async () => {
+    if (!preparedDownload) return;
+    const file = new File([preparedDownload.blob], preparedDownload.filename, {
+      type: preparedDownload.blob.type,
+    });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({
           title: playlistSummaryLabel,
-          text: `Récitation continue par ${selectedReciter.name}`,
           files: [file],
         });
-      } catch {
-        // user cancelled share
-      }
+      } catch {}
     }
+  };
+
+  if (!isOpen) return null;
+
+  const inIframe = isRunningInIframe();
+  const activeDownloadHref = preparedDownload
+    ? resolveVideoDownloadLinkState({
+        inIframe,
+        stagedDownloadUrl: preparedDownload.stagedUrl,
+        objectUrl: preparedDownload.objectUrl,
+        filename: preparedDownload.filename,
+      }).href
+    : null;
+
+  const downloadState: StudioDirectDownloadState = {
+    status: downloadStatus,
+    progressPct: downloadProgressPct,
+    statusLabel: downloadStatusLabel,
+    errorMsg: downloadErrorMsg,
+    url: activeDownloadHref,
+    filename: preparedDownload?.filename || null,
+    sizeBytes: preparedDownload?.sizeBytes || null,
+    downloaded: Boolean(preparedDownload?.downloaded),
+    canShare:
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      Boolean(preparedDownload?.blob),
   };
 
   const switchTab = (tab: StudioTab) => {
@@ -1513,377 +1543,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  if (!isOpen) return null;
-
-  const playerFrameClass =
-    activeFormat.aspectLabel === '16:9'
-      ? 'w-full max-w-[min(94vw,calc(86dvh*16/9))] aspect-video'
-      : activeFormat.aspectLabel === '1:1'
-      ? 'w-full max-w-[min(94vw,86dvh)] aspect-square'
-      : 'w-full h-full max-w-[calc(100dvh*9/16)] max-h-[calc(100vw*16/9)] md:max-h-[94dvh] aspect-[9/16]';
-
-  const exportPreviewFrameClass =
-    activeFormat.aspectLabel === '16:9'
-      ? 'w-full max-w-xl aspect-video'
-      : activeFormat.aspectLabel === '1:1'
-      ? 'h-[40vh] max-h-[360px] aspect-square'
-      : 'h-[44vh] max-h-[410px] aspect-[9/16]';
-
-  // =========================================================================
-  // RENDER: STAGE 2 — CLEAN VIDEO PLAYER ("Lire le contenu")
-  // =========================================================================
-  if (stage === 'player') {
-    return (
-      <div
-        data-testid="mobile-video-continuous-player"
-        data-surface={isLightSurface ? 'light' : 'dark'}
-        data-format={activeFormat.id}
-        className="fixed inset-0 z-[10050] w-full h-[100dvh] bg-black flex items-center justify-center overflow-hidden select-none p-0 md:p-4"
-        onClick={() => setPlayerHudVisible((v) => !v)}
-      >
-        <div
-          className={`relative ${playerFrameClass} bg-black overflow-hidden flex items-center justify-center md:rounded-2xl md:border md:border-white/15 md:shadow-2xl`}
-        >
-          <canvas
-            ref={playerCanvasRef}
-            data-testid="studio-video-player-canvas"
-            width={activeFormat.previewWidth}
-            height={activeFormat.previewHeight}
-            className={`w-full h-full object-contain transition-opacity duration-300 ${
-              playerStatus === 'loading' ? 'opacity-0' : 'opacity-100'
-            }`}
-          />
-
-          {playerStatus === 'loading' && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center gap-3 bg-black text-white">
-              <Loader2 className="w-10 h-10 animate-spin text-amber-300" />
-              <div className="space-y-1">
-                <p className="text-sm font-bold">
-                  Préparation de la vidéo ({activeFormat.aspectLabel})...
-                </p>
-                <p className="text-xs text-neutral-400 tabular-nums">
-                  {playerLoadProgress.loaded}/{playerLoadProgress.total}{' '}
-                  {hasBismillahIntro ? 'séquences (avec Bismillah)' : 'versets'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Minimal Floating Header */}
-          <div
-            className={`absolute top-0 inset-x-0 z-30 flex items-center justify-between px-3.5 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-2 transition-opacity duration-200 ${
-              playerHudVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                stopAllMedia();
-                setStage('setup');
-              }}
-              aria-label="Retour au studio vidéo"
-              className="h-10 px-3.5 rounded-xl bg-black/75 hover:bg-black/90 text-white border border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
-              <span>Studio</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                stopAllMedia();
-                onClose();
-              }}
-              aria-label="Fermer la lecture vidéo"
-              className="w-10 h-10 rounded-xl bg-black/75 hover:bg-rose-600/90 text-white border border-white/15 backdrop-blur-md flex items-center justify-center cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Minimal Bottom Transport Bar */}
-          <div
-            className={`absolute bottom-0 inset-x-0 z-30 px-3.5 pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-2 transition-opacity duration-200 ${
-              playerHudVisible && playerStatus !== 'loading'
-                ? 'opacity-100'
-                : 'opacity-0 pointer-events-none'
-            }`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="max-w-xl mx-auto bg-black/80 border border-white/15 backdrop-blur-xl rounded-2xl px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
-              <button
-                type="button"
-                onClick={togglePlayPauseContinuous}
-                aria-label={
-                  playerStatus === 'playing' ? 'Mettre en pause la vidéo' : 'Lire la vidéo'
-                }
-                className="w-9 h-9 rounded-xl bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 cursor-pointer transition"
-              >
-                {playerStatus === 'playing' ? (
-                  <Pause className="w-4 h-4 fill-current" />
-                ) : (
-                  <Play className="w-4 h-4 fill-current ml-0.5" />
-                )}
-              </button>
-
-              <input
-                type="range"
-                aria-label="Progression de la vidéo"
-                min={0}
-                max={Math.max(1, timeline.totalDurationSec)}
-                step={0.1}
-                value={Math.min(currentTimeSec, timeline.totalDurationSec)}
-                onChange={(e) => seekContinuousPlayer(Number(e.target.value))}
-                className="flex-1 min-w-0 accent-amber-400 h-1.5 rounded-lg cursor-pointer"
-              />
-
-              <span className="text-xs font-mono text-neutral-300 tabular-nums shrink-0">
-                {formatTimeMMSS(currentTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
-              </span>
-
-              <button
-                type="button"
-                onClick={startVideoExport}
-                aria-label="Exporter en MP4"
-                className="h-9 px-3 rounded-xl bg-emerald-500 text-neutral-950 font-bold text-xs flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>MP4</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // RENDER: STAGE 3 — VIDEO EXPORT & RELIABLE DOWNLOAD
-  // =========================================================================
-  if (stage === 'export') {
-    const canNativeShare =
-      typeof navigator !== 'undefined' &&
-      typeof navigator.share === 'function' &&
-      Boolean(exportedVideoBlob);
-
-    const downloadLinkState = resolveVideoDownloadLinkState({
-      inIframe: isRunningInIframe(),
-      stagedDownloadUrl,
-      objectUrl: exportedVideoUrl,
-      filename: exportFilename,
-    });
-
-    return (
-      <div
-        data-testid="mobile-video-export-view"
-        className="fixed inset-0 z-[10050] bg-[#060A08] text-white flex flex-col h-[100dvh] overflow-hidden"
-      >
-        <header className="shrink-0 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 border-b border-white/[0.08] bg-[#0B120F]">
-          <div className="flex items-center justify-between gap-3 max-w-4xl w-full mx-auto">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-400/12 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
-                <Film className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-bold truncate">
-                  Export MP4 · {activeFormat.shortLabel} ({activeFormat.width}×{activeFormat.height})
-                </h2>
-                <p className="text-xs text-neutral-400 truncate tabular-nums">
-                  {playlistSummaryLabel} · {totalSelectedVerses} versets · Audio continu
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                stopAllMedia();
-                setStage('setup');
-              }}
-              aria-label="Retour à la configuration vidéo"
-              className="h-10 px-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors"
-            >
-              Retour au studio
-            </button>
-          </div>
-        </header>
-
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-5">
-          <div className="max-w-4xl w-full mx-auto flex flex-col items-center gap-4">
-            <div
-              className={`relative ${exportPreviewFrameClass} rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl shrink-0`}
-            >
-            {exportStatus === 'ready' && exportedVideoUrl ? (
-              <video
-                data-testid="exported-video-preview"
-                src={exportedVideoUrl}
-                controls
-                playsInline
-                muted={false}
-                className="w-full h-full object-contain bg-black"
-              />
-            ) : (
-              <canvas
-                ref={previewCanvasRef}
-                data-testid="export-render-canvas"
-                className="w-full h-full object-contain"
-              />
-            )}
-
-            {exportStatus === 'preparing_audio' && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-4 text-center gap-2">
-                <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-                <span className="text-xs font-semibold tabular-nums">
-                  Assemblage audio ({playerLoadProgress.loaded}/{playerLoadProgress.total})
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="w-full max-w-md space-y-2.5 text-center">
-            {exportStatus === 'error' ? (
-              <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/35 text-xs text-rose-200 leading-relaxed">
-                {exportErrorMsg}
-              </div>
-            ) : (
-              <>
-                <div className="text-xs font-semibold text-amber-300">{exportStatusMessage}</div>
-                <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-200"
-                    style={{ width: `${exportProgressPct}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-xs font-mono text-neutral-400 tabular-nums">
-                  <span>{exportProgressPct}%</span>
-                  <span>
-                    {formatTimeMMSS(exportElapsedSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
-                  </span>
-                </div>
-
-                {exportStatus === 'ready' && exportedAudioInfo && (
-                  <div
-                    data-testid="exported-video-audio-badge"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 tabular-nums"
-                  >
-                    <Volume2 className="w-4 h-4 shrink-0" />
-                    <span>
-                      Audio continu inclus : {exportedAudioInfo.okCount}/{exportedAudioInfo.totalCount}{' '}
-                      séquences
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {exportStatus === 'ready' && (
-            <YouTubePublishCard
-              surahName={primarySurahMeta.name}
-              surahArabicName={primarySurahMeta.arabicName}
-              surahNumber={primarySurahMeta.number}
-              startAyah={primaryNormalizedRange.startAyah}
-              endAyah={primaryNormalizedRange.endAyah}
-              totalAyahsInSurah={primarySurahMeta.numberOfAyahs}
-              selectedSurahs={youtubeSelectedSurahs}
-              reciterName={selectedReciter.name}
-              timeline={timeline}
-            />
-          )}
-          </div>
-        </div>
-
-        {/* Bottom Export & Download Action Dock */}
-        <footer className="shrink-0 border-t border-white/[0.08] bg-[#0B120F]/95 backdrop-blur-xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)]">
-          <div className="space-y-2.5 max-w-md w-full mx-auto">
-          {exportStatus === 'ready' && downloadLinkState.href && (
-            <div className="space-y-2">
-              <div className={`grid gap-2.5 ${canNativeShare ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                <a
-                  data-testid="download-exported-video-link"
-                  href={downloadLinkState.href}
-                  download={downloadLinkState.filename}
-                  onClick={() => {
-                    setDownloadStatus('done');
-                    setDownloadFeedback(`Téléchargement lancé (${downloadLinkState.filename})`);
-                  }}
-                  className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-[0.99] text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer transition whitespace-nowrap no-underline"
-                >
-                  {downloadStatus === 'done' ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Télécharger à nouveau</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      <span>Télécharger MP4</span>
-                    </>
-                  )}
-                </a>
-
-                {canNativeShare && (
-                  <button
-                    type="button"
-                    onClick={handleShareVideo}
-                    className="h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span>Partager</span>
-                  </button>
-                )}
-              </div>
-
-              {downloadFeedback && (
-                <div
-                  data-testid="download-status-feedback"
-                  className="px-3 py-2 rounded-xl border bg-emerald-950/40 border-emerald-500/30 text-emerald-200 text-xs flex items-center justify-between gap-2"
-                >
-                  <span className="inline-flex items-center gap-1.5 truncate">
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                    <span className="truncate">{downloadFeedback}</span>
-                  </span>
-
-                  <a
-                    href={downloadLinkState.href}
-                    download={downloadLinkState.filename}
-                    data-testid="download-direct-fallback-link"
-                    className="text-amber-300 hover:text-amber-200 font-semibold underline inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
-                  >
-                    <span>Télécharger</span>
-                    <Download className="w-3 h-3" />
-                  </a>
-                </div>
-              )}
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              stopAllMedia();
-              setStage('setup');
-            }}
-            className="w-full h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-semibold text-xs cursor-pointer transition-colors"
-          >
-            Modifier les réglages
-          </button>
-          </div>
-        </footer>
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // RENDER: STAGE 1 — SANCTUARY EDITORIAL STUDIO
-  // =========================================================================
-  const previewVerses = videoSequence.slice(0, 2);
-
   return (
     <div
       data-testid="mobile-video-studio-modal"
-      className="fixed inset-0 z-[10040] bg-[#060A08] text-white flex flex-col h-[100dvh] overflow-hidden"
+      className="fixed inset-0 z-[10040] studio-paper-canvas text-[#1F2421] flex flex-col h-[100dvh] overflow-hidden"
     >
+      {/* Hidden offscreen canvas strictly for full-res MP4 file generation */}
+      <canvas ref={exportCanvasRef} className="hidden" aria-hidden="true" />
+
       <input
         ref={mediaFileInputRef}
         type="file"
@@ -1894,236 +1561,181 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         className="hidden"
       />
 
-      {/* Studio Top Bar */}
-      <header className="shrink-0 flex items-center justify-between gap-2.5 md:gap-4 px-3.5 md:px-6 pt-[calc(env(safe-area-inset-top)+0.65rem)] pb-2.5 border-b border-white/[0.08] bg-[#0B120F]">
-        <div className="flex items-center gap-2.5 md:gap-3 min-w-0 flex-1 md:flex-initial">
-          <div className="w-9 h-9 rounded-xl bg-amber-400/12 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
-            <Film className="w-4 h-4" />
+      {/* Clean Minimal Top Bar */}
+      <header className="shrink-0 flex items-center justify-between gap-4 px-4 md:px-6 pt-[calc(env(safe-area-inset-top)+0.55rem)] pb-2.5 border-b border-[#CECBC2] bg-[#EAE8E1]/95 backdrop-blur-sm shadow-[0_2px_10px_rgba(24,28,26,0.06)]">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl studio-pill-mint flex items-center justify-center shrink-0">
+            <Film className="w-4 h-4 text-[#11221A]" />
           </div>
-          <div className="min-w-0">
-            <h2 className="text-sm md:text-[15px] font-bold leading-tight tracking-tight truncate">
-              Studio Vidéo Coran
-            </h2>
-            <p className="text-xs text-neutral-400 truncate tabular-nums">
-              {selectedSurahs.length} sourate{selectedSurahs.length > 1 ? 's' : ''} ·{' '}
-              {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''} · {formatTimeMMSS(timeline.totalDurationSec)}
-            </p>
-          </div>
+          <h2 className="text-sm md:text-[15px] font-bold tracking-tight text-[#1F2421] whitespace-nowrap truncate">
+            Studio Le Sanctuaire
+          </h2>
         </div>
 
-        {/* PC-ONLY FORMAT & DIMENSION SWITCHER */}
-        {isPcMode && (
-          <div
-            data-testid="studio-format-selector"
-            role="group"
-            aria-label="Dimensions vidéo (Mode PC)"
-            className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-black/50 border border-white/[0.08]"
-          >
-            {VIDEO_FORMAT_PRESETS.map((fmt) => {
-              const active = activeFormat.id === fmt.id;
-              return (
-                <button
-                  key={fmt.id}
-                  type="button"
-                  data-testid={`studio-format-${fmt.id}`}
-                  onClick={() => setVideoFormatId(fmt.id)}
-                  title={fmt.platformHint}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
-                    active
-                      ? 'bg-amber-400 text-neutral-950'
-                      : 'text-neutral-300 hover:text-white hover:bg-white/[0.06]'
-                  }`}
-                >
-                  {fmt.aspectLabel === '16:9' ? (
-                    <Monitor className="w-3.5 h-3.5 shrink-0" />
-                  ) : fmt.aspectLabel === '9:16' ? (
-                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                  ) : (
-                    <Square className="w-3 h-3 shrink-0" />
-                  )}
-                  <span>{fmt.shortLabel}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-neutral-300 tabular-nums pr-1">
-            <Clock className="w-3.5 h-3.5 text-emerald-400" />
-            <span data-testid="studio-total-duration">{formatTimeMMSS(timeline.totalDurationSec)}</span>
-            <span className="text-neutral-600" aria-hidden="true">·</span>
-            <span data-testid="studio-total-verses-count">{totalSelectedVerses} v.</span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer le studio vidéo"
-            className="w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 flex items-center justify-center cursor-pointer shrink-0 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            stopAllMedia();
+            onClose();
+          }}
+          aria-label="Fermer le studio"
+          className="w-9 h-9 rounded-full studio-pill-raised text-[#1F2421] flex items-center justify-center cursor-pointer shrink-0 transition-all"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </header>
 
-      {/* Architectural Navigation Tabs */}
-      <nav
-        aria-label="Sections du studio vidéo"
-        className="shrink-0 grid grid-cols-4 px-2 md:px-6 bg-[#080E0B] border-b border-white/[0.08]"
-      >
-        {[
-          { id: 'verses' as const, testId: 'jump-verses', shortLabel: '1. Sourates', longLabel: '1. Sourates & Versets' },
-          { id: 'style' as const, testId: 'jump-style', shortLabel: '2. Style', longLabel: '2. Modèles & Style' },
-          { id: 'bg' as const, testId: 'jump-bg', shortLabel: '3. Fond', longLabel: '3. Fond & Médias' },
-          { id: 'audio' as const, testId: 'jump-audio', shortLabel: '4. Audio', longLabel: '4. Récitateur & Audio' },
-        ].map((tab) => {
-          const isCurrent = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              data-testid={`studio-${tab.testId}-btn`}
-              onClick={() => switchTab(tab.id)}
-              className={`min-h-[44px] px-2 text-xs font-semibold text-center whitespace-nowrap truncate border-b-2 transition-colors cursor-pointer ${
-                isCurrent
-                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
-                  : 'border-transparent text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              <span className="md:hidden">{tab.shortLabel}</span>
-              <span className="hidden md:inline">{tab.longLabel}</span>
-            </button>
-          );
-        })}
-      </nav>
+      {/* Unified Workspace: Desktop Left Controls + Right Simulation | Mobile Top Simulation + Bottom Controls */}
+      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[0.92fr_1.08fr] md:max-w-7xl md:w-full md:mx-auto md:gap-6 md:px-6 md:py-5 overflow-hidden">
+        {/* Video Simulation & Direct Download Theater */}
+        <div className="order-1 md:order-2 flex flex-col min-h-0">
+          <StudioLiveMonitor
+            canvasRef={simCanvasRef}
+            isPcMode={isPcMode}
+            format={activeFormat}
+            onSelectFormat={(id) => setVideoFormatId(id)}
+            qualityId={videoQualityId}
+            onSelectQuality={(id) => setVideoQualityId(id)}
+            ayahs={videoSequence}
+            timeline={timeline}
+            surahName={primarySurahMeta.name}
+            surahNumber={primarySurahMeta.number}
+            startAyah={primaryNormalizedRange.startAyah}
+            endAyah={primaryNormalizedRange.endAyah}
+            selectedSurahsCount={selectedSurahs.length}
+            reciterName={selectedReciter.name}
+            activeMediaKind={activeMediaKind}
+            activeMediaUrl={activeMediaUrl}
+            isLightSurface={isLightSurface}
+            bgSurfaceColor={bgSurfaceColor}
+            bgVeilOpacity={bgVeilOpacity}
+            showArabic={showArabic}
+            useTajweed={useTajweed}
+            showPhonetics={showPhonetics}
+            showFrench={showFrench}
+            showSurahHeader={showSurahHeader}
+            textScale={textScale}
+            flowMode={flowMode}
+            simStatus={simStatus}
+            simTimeSec={simTimeSec}
+            isLoadingVerses={isLoadingVerses}
+            onTogglePlay={handleToggleSimulationPlay}
+            onSeek={handleSeekSimulation}
+            onJumpToSegmentIndex={handleJumpToSegmentIndex}
+            onDetectedVideoDurationSec={(durSec) => {
+              if (!activeCustomMedia || activeCustomMedia.kind !== 'video') return;
+              if (
+                !activeCustomMedia.durationSec ||
+                Math.abs(activeCustomMedia.durationSec - durSec) > 0.5
+              ) {
+                const targetId = activeCustomMedia.id;
+                setCustomMedia((prev) =>
+                  prev.map((m) => (m.id === targetId ? { ...m, durationSec: durSec } : m))
+                );
+              }
+            }}
+            onMediaElementsChange={(media) => {
+              simMediaRef.current = media;
+            }}
+            onLayoutReady={({ layout, renderOpts }) => {
+              simLayoutRef.current = layout;
+              simRenderOptsRef.current = renderOpts;
+            }}
+            downloadState={downloadState}
+            onStartDownload={startDirectDownload}
+            onCancelDownload={handleCancelDownload}
+            onDirectLinkClicked={() => {
+              setPreparedDownload((prev) => (prev ? { ...prev, downloaded: true } : prev));
+            }}
+            onShareVideo={handleSharePreparedVideo}
+          />
+        </div>
 
-      {/* Main Responsive Workspace */}
-      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[1.04fr_0.96fr] md:max-w-7xl md:w-full md:mx-auto md:gap-5 md:px-6 md:py-4 overflow-hidden">
-        {/* Left Configurator Column */}
-        <div
-          ref={scrollContainerRef}
-          data-testid="studio-settings-scroll"
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-3.5 py-3.5 pb-8 md:px-0.5 md:py-0 md:pb-4 space-y-4"
-        >
-          {/* Compact Mobile 9:16 Summary Card */}
-          <div className="md:hidden rounded-xl border border-white/[0.08] bg-[#0B120F] p-3 flex items-center gap-3">
-            <div
-              className="relative w-12 aspect-[9/16] rounded-lg overflow-hidden border border-white/15 shrink-0 flex flex-col justify-between p-1.5 text-center"
-              style={{ backgroundColor: bgSurfaceColor }}
+        {/* Left Controls Rail (Sourates, Modèle, Fond, Récitateur) */}
+        <div className="order-2 md:order-1 flex-1 min-h-0 flex flex-col overflow-hidden md:rounded-3xl md:studio-surface-stacked bg-[#EAE8E1]/85">
+          {/* Tactile Segmented Recessed Tab Track */}
+          <div className="shrink-0 px-3 pt-3 pb-2">
+            <nav
+              aria-label="Réglages du studio"
+              className="flex items-center gap-1 p-1 rounded-full studio-well-inset"
             >
-              {activeMediaKind === 'video' && activeMediaUrl && (
-                <video
-                  src={activeMediaUrl}
-                  muted
-                  loop
-                  playsInline
-                  autoPlay
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              )}
-              {activeMediaKind === 'image' && activeMediaUrl && (
-                <img
-                  src={activeMediaUrl}
-                  alt={activeMediaName}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              )}
-              <div className="relative z-10 text-[6px] font-bold text-amber-300 truncate">
-                {primarySurahMeta.name}
-              </div>
-              {previewVerses[0] && (
-                <div className="relative z-10 text-[7px] font-arabic text-white line-clamp-2" dir="rtl">
-                  <TajweedText
-                    text={cleanAyahArabic(previewVerses[0].ar)}
-                    enabled={useTajweed}
-                    variant={isLightSurface ? 'light' : 'dark'}
-                  />
-                </div>
-              )}
-              <div className="relative z-10 text-[5px] font-semibold text-neutral-300">
-                {MANDATORY_WATERMARK_BRAND}
-              </div>
-            </div>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="text-xs font-bold text-white truncate">
-                {playlistSummaryLabel}
-              </div>
-              <div className="text-xs text-neutral-400 truncate">
-                {VIDEO_TEMPLATE_PRESETS.find((t) => t.id === flowMode)?.name} · {activeMediaName}
-              </div>
-              <div className="text-xs text-emerald-300 font-semibold tabular-nums">
-                Durée estimée {formatTimeMMSS(timeline.totalDurationSec)} · {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''}
-              </div>
-            </div>
+              {[
+                { id: 'verses' as const, testId: 'jump-verses', label: 'Sourates', icon: BookOpen },
+                { id: 'style' as const, testId: 'jump-style', label: 'Modèle', icon: Sparkles },
+                { id: 'bg' as const, testId: 'jump-bg', label: 'Fond', icon: ImageIcon },
+                { id: 'audio' as const, testId: 'jump-audio', label: 'Récitateur', icon: Headphones },
+              ].map((tab) => {
+                const isCurrent = activeTab === tab.id;
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    data-testid={`studio-${tab.testId}-btn`}
+                    onClick={() => switchTab(tab.id)}
+                    className={`flex-auto min-h-[38px] px-2 sm:px-3 rounded-full flex items-center justify-center gap-1 sm:gap-1.5 text-[11.5px] sm:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                      isCurrent
+                        ? 'studio-pill-mint'
+                        : 'text-[#4F5551] hover:text-[#1F2421]'
+                    }`}
+                  >
+                    <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
           </div>
 
-          {/* TAB 1: MULTI-SURAH PLAYLIST & RANGES */}
-          {activeTab === 'verses' && (
-            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-0.5">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span>Programme de Sourates &amp; Versets</span>
-                  </h3>
-                  <p className="text-xs text-neutral-400">
-                    Composez une ou plusieurs sourates complètes en une seule vidéo continue.
-                  </p>
-                </div>
-
-                <div className="text-left sm:text-right tabular-nums shrink-0">
-                  <div className="text-xs font-bold text-emerald-300">
-                    {selectedSurahs.length} sourate{selectedSurahs.length > 1 ? 's' : ''} · {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''}
-                  </div>
-                  <div className="text-xs font-mono text-neutral-400">
-                    Durée ~{formatTimeMMSS(timeline.totalDurationSec)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Primary Multi-Surah Picker Button + Quick Compilations */}
-              <div className="space-y-2.5">
-                <button
-                  type="button"
-                  data-testid="studio-surah-picker-btn"
-                  onClick={openSurahPicker}
-                  className="w-full min-h-[48px] flex items-center justify-between px-3.5 sm:px-4 py-3 rounded-xl bg-[#111C17] hover:bg-[#15231D] border border-amber-400/35 text-left cursor-pointer transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-400/15 text-amber-300 flex items-center justify-center shrink-0">
-                      <Layers className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-bold text-white truncate">
-                        Sourates sélectionnées
-                      </div>
-                      <div className="text-xs text-neutral-400 truncate">
+          {/* Scrollable Tab Body — Clean Whitespace & Hairline Dividers */}
+          <div
+            ref={scrollContainerRef}
+            data-testid="studio-settings-scroll"
+            className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 pb-5 pt-2 space-y-5"
+          >
+            {/* TAB 1: SOURATES & VERSETS */}
+            {activeTab === 'verses' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    data-testid="studio-surah-picker-btn"
+                    onClick={openSurahPicker}
+                    className="flex-1 min-w-0 h-11 px-3.5 rounded-2xl studio-pill-raised flex items-center justify-between gap-2 cursor-pointer transition-all"
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-7 h-7 rounded-xl studio-pill-mint flex items-center justify-center shrink-0">
+                        <Layers className="w-3.5 h-3.5 text-[#13251D]" />
+                      </span>
+                      <span className="text-xs font-bold text-[#1F2421] truncate">
                         {playlistSummaryLabel}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-amber-300 inline-flex items-center gap-1 whitespace-nowrap shrink-0 pl-2">
-                    <span>Modifier</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </span>
-                </button>
+                      </span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-[#565C58] shrink-0" />
+                  </button>
 
+                  {isLoadingVerses && (
+                    <Loader2 className="w-4 h-4 animate-spin text-[#1B573E] shrink-0" />
+                  )}
+                </div>
+
+                {/* Compact Tactile Chips */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <button
                     type="button"
                     data-testid="studio-preset-3qul"
                     onClick={() => applySurahCompilation([112, 113, 114])}
-                    className="h-9 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-200 font-medium cursor-pointer transition-colors whitespace-nowrap"
+                    className="h-8 px-3 rounded-full studio-pill-raised font-semibold cursor-pointer transition-all whitespace-nowrap"
                   >
-                    3 Qul (112–114)
+                    3 Qul
                   </button>
                   <button
                     type="button"
                     data-testid="studio-preset-fatiha-ikhlas"
                     onClick={() => applySurahCompilation([1, 112])}
-                    className="h-9 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-200 font-medium cursor-pointer transition-colors whitespace-nowrap"
+                    className="h-8 px-3 rounded-full studio-pill-raised font-semibold cursor-pointer transition-all whitespace-nowrap"
                   >
-                    Al-Fatiha + Al-Ikhlas
+                    Fatiha + Ikhlas
                   </button>
                   <button
                     type="button"
@@ -2137,101 +1749,94 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         }))
                       )
                     }
-                    className="h-9 px-3 rounded-lg bg-emerald-500/12 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-semibold cursor-pointer transition-colors whitespace-nowrap"
+                    className={`h-8 px-3 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
+                      selectedSurahs.every(
+                        (s) =>
+                          s.startAyah === 1 &&
+                          s.endAyah === getSurahMeta(s.surahNumber).numberOfAyahs
+                      )
+                        ? 'studio-pill-mint'
+                        : 'studio-pill-raised'
+                    }`}
                   >
-                    Tout en entier
+                    Toute
                   </button>
                 </div>
-              </div>
 
-              {/* Clean Ordered Playlist */}
-              <div
-                data-testid="studio-playlist-list"
-                className="rounded-xl border border-white/[0.08] bg-black/35 divide-y divide-white/[0.07]"
-              >
-                {selectedSurahs.map((sel, index) => {
-                  const meta = getSurahMeta(sel.surahNumber);
-                  const maxN = meta.numberOfAyahs;
-                  const norm = normalizeVerseRange(sel.startAyah, sel.endAyah, maxN);
-                  const isFull = norm.startAyah === 1 && norm.endAyah === maxN;
-                  const presets: Array<{ label: string; s: number; e: number }> = [
-                    { label: '1→5', s: 1, e: Math.min(5, maxN) },
-                  ];
-                  if (maxN > 5 && maxN <= 15) {
-                    presets.push({ label: `Toute (${maxN})`, s: 1, e: maxN });
-                  } else if (maxN > 15) {
-                    presets.push({ label: '1→15', s: 1, e: Math.min(15, maxN) });
-                    presets.push({ label: `Toute (${maxN})`, s: 1, e: maxN });
-                  }
+                {/* Clean Hairline-Divided Surah Playlist */}
+                <div
+                  data-testid="studio-playlist-list"
+                  className="divide-y divide-[#D4D1C8] border-t border-[#D4D1C8]"
+                >
+                  {selectedSurahs.map((sel, index) => {
+                    const meta = getSurahMeta(sel.surahNumber);
+                    const maxN = meta.numberOfAyahs;
+                    const norm = normalizeVerseRange(sel.startAyah, sel.endAyah, maxN);
+                    const presets: Array<{ label: string; s: number; e: number }> = [
+                      { label: '1→5', s: 1, e: Math.min(5, maxN) },
+                    ];
+                    if (maxN > 5 && maxN <= 15) {
+                      presets.push({ label: `1→${maxN}`, s: 1, e: maxN });
+                    } else if (maxN > 15) {
+                      presets.push({ label: '1→15', s: 1, e: Math.min(15, maxN) });
+                      presets.push({ label: `1→${maxN}`, s: 1, e: maxN });
+                    }
 
-                  return (
-                    <div
-                      key={sel.id}
-                      data-testid={`studio-playlist-item-${sel.surahNumber}`}
-                      className="p-3.5 space-y-3"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-bold text-white flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span className="text-amber-300 font-mono text-xs tabular-nums">
-                              {String(index + 1).padStart(2, '0')}
+                    return (
+                      <div
+                        key={sel.id}
+                        data-testid={`studio-playlist-item-${sel.surahNumber}`}
+                        className="py-3.5 space-y-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-xs font-mono font-bold text-[#1B573E] tabular-nums shrink-0">
+                              {meta.number}.
                             </span>
-                            <span>
-                              {meta.number}. {meta.name}
+                            <span className="text-xs sm:text-sm font-bold text-[#1F2421] truncate">
+                              {meta.name}
                             </span>
-                            <span className="font-arabic text-base text-amber-200 shrink-0" dir="rtl">
+                            <span className="font-arabic text-base text-[#1B573E] shrink-0" dir="rtl">
                               {meta.arabicName}
                             </span>
                           </div>
-                          <div className="text-xs text-neutral-400 mt-0.5 tabular-nums">
-                            {isFull
-                              ? `Sourate complète · ${norm.count} versets`
-                              : `Versets ${norm.startAyah} à ${norm.endAyah} (${norm.count}/${maxN})`}
-                          </div>
+
+                          {selectedSurahs.length > 1 && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => moveSurahItem(index, -1)}
+                                disabled={index === 0}
+                                aria-label={`Monter ${meta.name}`}
+                                className="w-7 h-7 rounded-full studio-pill-raised flex items-center justify-center text-[#565C58] disabled:opacity-35 cursor-pointer"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveSurahItem(index, 1)}
+                                disabled={index === selectedSurahs.length - 1}
+                                aria-label={`Descendre ${meta.name}`}
+                                className="w-7 h-7 rounded-full studio-pill-raised flex items-center justify-center text-[#565C58] disabled:opacity-35 cursor-pointer"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeSurahItem(sel.id)}
+                                aria-label={`Retirer ${meta.name}`}
+                                className="w-7 h-7 rounded-full studio-pill-raised hover:bg-[#EE9B98]/40 text-[#9B3431] flex items-center justify-center cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
 
-                        {selectedSurahs.length > 1 && (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => moveSurahItem(index, -1)}
-                              disabled={index === 0}
-                              aria-label={`Monter ${meta.name}`}
-                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-neutral-300 disabled:opacity-30 cursor-pointer"
-                            >
-                              <ChevronUp className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => moveSurahItem(index, 1)}
-                              disabled={index === selectedSurahs.length - 1}
-                              aria-label={`Descendre ${meta.name}`}
-                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-neutral-300 disabled:opacity-30 cursor-pointer"
-                            >
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => removeSurahItem(sel.id)}
-                              aria-label={`Retirer ${meta.name}`}
-                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 border border-white/10 text-neutral-300 hover:text-rose-300 flex items-center justify-center cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="space-y-1">
-                          <label
-                            htmlFor={`studio-start-ayah-${sel.id}`}
-                            className="block text-xs font-medium text-neutral-400"
-                          >
-                            Du verset
-                          </label>
+                        <div className="grid grid-cols-2 gap-2.5">
                           <select
                             id={`studio-start-ayah-${sel.id}`}
+                            aria-label={`Premier verset de ${meta.name}`}
                             value={norm.startAyah}
                             onChange={(e) => {
                               const nextStart = Number(e.target.value);
@@ -2241,346 +1846,242 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                                 Math.max(nextStart, norm.endAyah)
                               );
                             }}
-                            className="w-full h-10 px-2.5 rounded-lg bg-black/60 border border-white/15 text-xs font-semibold text-white tabular-nums"
+                            className="w-full h-9 px-3 rounded-xl studio-input-inset text-xs font-semibold text-[#1F2421] tabular-nums cursor-pointer"
                           >
                             {Array.from({ length: maxN }, (_, i) => i + 1).map((n) => (
-                              <option key={n} value={n}>
-                                Verset {n}
+                              <option key={n} value={n} className="bg-white text-[#1F2421]">
+                                Du verset {n}
                               </option>
                             ))}
                           </select>
-                        </div>
 
-                        <div className="space-y-1">
-                          <label
-                            htmlFor={`studio-end-ayah-${sel.id}`}
-                            className="block text-xs font-medium text-neutral-400"
-                          >
-                            Au verset
-                          </label>
                           <select
                             id={`studio-end-ayah-${sel.id}`}
+                            aria-label={`Dernier verset de ${meta.name}`}
                             value={norm.endAyah}
                             onChange={(e) => {
                               const nextEnd = Number(e.target.value);
                               updateSurahRange(sel.id, norm.startAyah, nextEnd);
                             }}
-                            className="w-full h-10 px-2.5 rounded-lg bg-black/60 border border-white/15 text-xs font-semibold text-white tabular-nums"
+                            className="w-full h-9 px-3 rounded-xl studio-input-inset text-xs font-semibold text-[#1F2421] tabular-nums cursor-pointer"
                           >
                             {Array.from(
                               { length: maxN - norm.startAyah + 1 },
                               (_, i) => norm.startAyah + i
                             ).map((n) => (
-                              <option key={n} value={n}>
-                                Verset {n}
+                              <option key={n} value={n} className="bg-white text-[#1F2421]">
+                                Au verset {n}
                               </option>
                             ))}
                           </select>
                         </div>
-                      </div>
 
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        {presets.map((preset) => {
-                          const active =
-                            norm.startAyah === preset.s && norm.endAyah === preset.e;
-                          return (
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          {presets.map((preset) => {
+                            const active =
+                              norm.startAyah === preset.s && norm.endAyah === preset.e;
+                            return (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => updateSurahRange(sel.id, preset.s, preset.e)}
+                                className={`h-7 px-3 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap tabular-nums ${
+                                  active ? 'studio-pill-mint' : 'studio-pill-raised'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            );
+                          })}
+                          {norm.endAyah < maxN && (
                             <button
-                              key={preset.label}
                               type="button"
-                              onClick={() => updateSurahRange(sel.id, preset.s, preset.e)}
-                              className={`h-8 px-2.5 rounded-lg border font-semibold cursor-pointer transition-colors whitespace-nowrap tabular-nums ${
-                                active
-                                  ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                                  : 'bg-white/[0.04] hover:bg-white/[0.09] text-neutral-300 border-white/10'
-                              }`}
+                              onClick={() =>
+                                updateSurahRange(
+                                  sel.id,
+                                  norm.startAyah,
+                                  Math.min(maxN, norm.endAyah + 10)
+                                )
+                              }
+                              aria-label="Ajouter 10 versets"
+                              className="h-7 px-2.5 rounded-full studio-pill-raised text-[#165C41] font-semibold inline-flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
                             >
-                              {preset.label}
+                              <Plus className="w-3 h-3" />
+                              <span>10</span>
                             </button>
-                          );
-                        })}
-                        {norm.endAyah < maxN && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateSurahRange(
-                                sel.id,
-                                norm.startAyah,
-                                Math.min(maxN, norm.endAyah + 10)
-                              )
-                            }
-                            className="h-8 px-2.5 rounded-lg border border-emerald-400/30 bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-200 font-medium inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>10 versets</span>
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
+            )}
 
-              {isPcMode && (
-                <div className="px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/[0.07] text-xs text-neutral-300">
-                  <span className="font-semibold text-white">Format {activeFormat.label}</span>
-                  <span className="text-neutral-500"> · </span>
-                  <span>{activeFormat.platformHint}</span>
-                </div>
-              )}
+            {/* TAB 2: MODÈLE & STYLE */}
+            {activeTab === 'style' && (
+              <div className="space-y-5">
+                <StudioTemplateGrid
+                  selectedTemplate={flowMode}
+                  onSelect={setFlowMode}
+                  isLandscape={activeFormat.aspectLabel !== '9:16'}
+                />
 
-              {hasBismillahIntro && (
-                <div
-                  data-testid="studio-bismillah-intro-notice"
-                  className="px-3.5 py-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/25 flex items-center justify-between gap-3 text-xs"
-                >
-                  <span className="font-medium text-emerald-100">
-                    Bismillah inclus en ouverture des sourates concernées
-                  </span>
-                  <span className="font-arabic text-sm text-amber-200 shrink-0" dir="rtl">
-                    بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
-                  </span>
-                </div>
-              )}
-
-              {isLoadingVerses && (
-                <div className="text-xs text-amber-300 flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Chargement des textes coraniques sélectionnés...</span>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* TAB 2: 6 MODÈLES DE VIDÉO & STYLE */}
-          {activeTab === 'style' && (
-            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
-                  <span>Modèles Graphiques &amp; Typographie</span>
-                </h3>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  Choisissez la mise en scène adaptée à votre format et observez l&apos;aperçu en direct.
-                </p>
-              </div>
-
-              <StudioTemplateGrid
-                selectedTemplate={flowMode}
-                onSelect={setFlowMode}
-                isLandscape={activeFormat.aspectLabel !== '9:16'}
-              />
-
-              <div className="space-y-2 pt-3 border-t border-white/[0.08]">
-                <div className="text-xs font-semibold text-neutral-300">Éléments affichés</div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
+                <div className="pt-4 border-t border-[#D4D1C8] flex flex-wrap gap-2 text-xs font-semibold">
                   {[
-                    { label: 'Calligraphie Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
-                    { label: 'Couleurs Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
+                    { label: 'Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
+                    { label: 'Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
                     { label: 'Phonétique', val: showPhonetics, toggle: () => setShowPhonetics((v) => !v) },
-                    { label: 'Traduction FR', val: showFrench, toggle: () => setShowFrench((v) => !v) },
-                    { label: 'Titre Sourate', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
+                    { label: 'Français', val: showFrench, toggle: () => setShowFrench((v) => !v) },
+                    { label: 'Titre', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
                   ].map((item) => (
                     <button
                       key={item.label}
                       type="button"
+                      aria-pressed={item.val}
                       onClick={item.toggle}
-                      className={`min-h-[42px] px-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
+                      className={`h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 cursor-pointer transition-all ${
                         item.val
-                          ? 'bg-amber-400/12 border-amber-400/60 text-amber-200'
-                          : 'bg-black/35 border-white/[0.08] text-neutral-400 hover:text-neutral-200'
+                          ? 'studio-pill-mint'
+                          : 'studio-pill-raised text-[#565C58]'
                       }`}
                     >
+                      {item.val && <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />}
                       <span>{item.label}</span>
-                      {item.val && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-neutral-300">Taille du texte</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
-                    {(['compact', 'standard', 'grand'] as const).map((sz) => (
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#D4D1C8]">
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-[#565C58]">Taille</div>
+                    <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold">
+                      {(['compact', 'standard', 'grand'] as const).map((sz) => (
+                        <button
+                          key={sz}
+                          type="button"
+                          data-testid={`studio-text-scale-${sz}`}
+                          onClick={() => setTextScale(sz)}
+                          className={`h-8 rounded-full cursor-pointer transition-all ${
+                            textScale === sz
+                              ? 'studio-pill-mint'
+                              : 'text-[#4F5551] hover:text-[#1F2421]'
+                          }`}
+                        >
+                          {sz === 'compact' ? 'S' : sz === 'standard' ? 'M' : 'L'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-[#565C58]">Vitesse</div>
+                    <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold tabular-nums">
+                      {([0.9, 1.0, 1.15] as const).map((pace) => (
+                        <button
+                          key={pace}
+                          type="button"
+                          data-testid={`studio-pace-${pace}`}
+                          onClick={() => setPaceMultiplier(pace)}
+                          className={`h-8 rounded-full cursor-pointer transition-all ${
+                            paceMultiplier === pace
+                              ? 'studio-pill-mint'
+                              : 'text-[#4F5551] hover:text-[#1F2421]'
+                          }`}
+                        >
+                          {pace}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: FOND & MÉDIA */}
+            {activeTab === 'bg' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                    {[
+                      { id: 'all' as const, label: 'Tous' },
+                      { id: 'custom' as const, label: `Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
+                      { id: 'noir' as const, label: 'Noir' },
+                      { id: 'blanc' as const, label: 'Blanc' },
+                      { id: '4k' as const, label: '4K' },
+                    ].map((flt) => (
                       <button
-                        key={sz}
+                        key={flt.id}
                         type="button"
-                        data-testid={`studio-text-scale-${sz}`}
-                        onClick={() => setTextScale(sz)}
-                        className={`h-10 rounded-lg border cursor-pointer transition-colors ${
-                          textScale === sz
-                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
+                        data-testid={flt.testId}
+                        onClick={() => setBgFilter(flt.id)}
+                        className={`h-8 px-3 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                          bgFilter === flt.id ? 'studio-pill-mint' : 'studio-pill-raised'
                         }`}
                       >
-                        {sz === 'compact' ? 'S' : sz === 'standard' ? 'M' : 'L'}
+                        {flt.label}
                       </button>
                     ))}
                   </div>
+
+                  <button
+                    type="button"
+                    data-testid="studio-upload-media-btn"
+                    aria-label="Importer une photo ou vidéo"
+                    title="Importer une photo ou vidéo"
+                    disabled={isSavingMedia}
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    className="w-9 h-9 rounded-full studio-pill-mint flex items-center justify-center cursor-pointer transition-all disabled:opacity-60 shrink-0"
+                  >
+                    {isSavingMedia ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-neutral-300">Cadence audio</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
-                    {([0.9, 1.0, 1.15] as const).map((pace) => (
+                {/* Tactile Soft-3D Color Circles */}
+                <div className="flex items-center gap-3 py-1">
+                  {STUDIO_SOLID_BACKGROUNDS.map((swatch) => {
+                    const active = bgId === swatch.id;
+                    return (
                       <button
-                        key={pace}
+                        key={swatch.id}
                         type="button"
-                        data-testid={`studio-pace-${pace}`}
-                        onClick={() => setPaceMultiplier(pace)}
-                        className={`h-10 rounded-lg border cursor-pointer transition-colors tabular-nums ${
-                          paceMultiplier === pace
-                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
+                        aria-label={swatch.name}
+                        title={swatch.name}
+                        onClick={() => setBgId(swatch.id)}
+                        className={`w-8 h-8 rounded-full cursor-pointer transition-transform shadow-[0_4px_10px_rgba(24,28,26,0.18),inset_0_1px_1px_rgba(255,255,255,0.5)] ${
+                          active
+                            ? 'ring-[3px] ring-[#82C4A9] ring-offset-2 ring-offset-[#EAE8E1] scale-110'
+                            : 'ring-1 ring-[#C2BFB6] hover:scale-105'
                         }`}
-                      >
-                        {pace}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="md:hidden px-3 py-2.5 rounded-xl border border-emerald-500/25 bg-emerald-950/30 flex items-center justify-between gap-2 text-xs">
-                <span className="font-medium text-emerald-100 truncate">
-                  Signature « {MANDATORY_WATERMARK_BRAND} » incluse
-                </span>
-                <span className="text-emerald-300 font-semibold shrink-0">Inclus</span>
-              </div>
-            </section>
-          )}
-
-          {/* TAB 3: FOND & MÉDIAS */}
-          {activeTab === 'bg' && (
-            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-amber-300 shrink-0" />
-                    <span>Arrière-Plan &amp; Bibliothèque</span>
-                  </h3>
-                  <p data-testid="studio-library-status" className="text-xs text-neutral-400 mt-0.5">
-                    {isSavingMedia
-                      ? 'Enregistrement dans la bibliothèque...'
-                      : isLoadingLibrary
-                      ? 'Chargement de vos médias enregistrés...'
-                      : customMedia.length > 0
-                      ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} personnel${customMedia.length > 1 ? 's' : ''} (${formatStudioBytes(
-                          customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
-                        )})`
-                      : 'Importez vos photos ou vidéos (sans limite de durée)'}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  data-testid="studio-upload-media-btn"
-                  disabled={isSavingMedia}
-                  onClick={() => mediaFileInputRef.current?.click()}
-                  className="h-10 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
-                >
-                  {isSavingMedia ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="w-3.5 h-3.5" />
+                        style={{ backgroundColor: swatch.color }}
+                      />
+                    );
+                  })}
+                  {isLoadingLibrary && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#565C58] ml-auto" />
                   )}
-                  <span>Importer Photo / Vidéo</span>
-                </button>
-              </div>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-                {[
-                  { id: 'all' as const, label: 'Tous' },
-                  { id: 'custom' as const, label: `Mes Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
-                  { id: 'noir' as const, label: 'Noirs (10)' },
-                  { id: 'blanc' as const, label: 'Blancs (10)' },
-                  { id: '4k' as const, label: 'Fonds 4K (16)' },
-                ].map((flt) => (
-                  <button
-                    key={flt.id}
-                    type="button"
-                    data-testid={flt.testId}
-                    onClick={() => setBgFilter(flt.id)}
-                    className={`h-9 px-3 rounded-lg shrink-0 cursor-pointer transition-colors whitespace-nowrap ${
-                      bgFilter === flt.id
-                        ? 'bg-amber-400 text-neutral-950'
-                        : 'bg-white/[0.06] hover:bg-white/[0.12] text-neutral-300'
-                    }`}
+                {activeCustomMedia?.kind === 'video' && (
+                  <div
+                    data-testid="studio-video-duration-mode-panel"
+                    className="grid grid-cols-2 gap-1.5 p-1 rounded-full studio-well-inset text-xs font-semibold"
                   >
-                    {flt.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Solid Swatches */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-                {STUDIO_SOLID_BACKGROUNDS.map((swatch) => (
-                  <button
-                    key={swatch.id}
-                    type="button"
-                    onClick={() => setBgId(swatch.id)}
-                    className={`h-9 inline-flex items-center gap-2 px-3 rounded-lg border cursor-pointer whitespace-nowrap ${
-                      bgId === swatch.id
-                        ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                        : 'bg-black/35 text-neutral-200 border-white/10'
-                    }`}
-                  >
-                    <span
-                      className="w-3 h-3 rounded-full border border-white/35 shrink-0"
-                      style={{ backgroundColor: swatch.color }}
-                    />
-                    <span>{swatch.name}</span>
-                  </button>
-                ))}
-              </div>
-
-              {bgFilter === 'custom' && customMedia.length === 0 && (
-                <button
-                  type="button"
-                  onClick={() => mediaFileInputRef.current?.click()}
-                  className="w-full py-5 px-4 rounded-xl border border-dashed border-emerald-400/45 bg-emerald-500/5 text-center space-y-1.5 cursor-pointer hover:bg-emerald-500/10 transition-colors"
-                >
-                  <Upload className="w-5 h-5 text-emerald-400 mx-auto" />
-                  <div className="text-xs font-bold text-white">
-                    Importer et sauvegarder vos images ou vidéos
-                  </div>
-                  <div className="text-xs text-neutral-400">
-                    Aucune limite de durée : vos vidéos sont conservées et exportées intégralement.
-                  </div>
-                </button>
-              )}
-
-              {activeCustomMedia?.kind === 'video' && (
-                <div
-                  data-testid="studio-video-duration-mode-panel"
-                  className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-400/35 space-y-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2 text-xs">
-                    <span className="font-bold text-emerald-200 flex items-center gap-1.5">
-                      <Video className="w-3.5 h-3.5 shrink-0" />
-                      <span>
-                        Vidéo sélectionnée
-                        {activeCustomMedia.durationSec
-                          ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
-                          : ''}
-                      </span>
-                    </span>
-                    <span className="text-emerald-300 font-mono tabular-nums">
-                      Export : {formatTimeMMSS(timeline.totalDurationSec)}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
                     <button
                       type="button"
                       data-testid="studio-duration-mode-match-video"
                       onClick={() => setDurationMode('match_video')}
-                      className={`min-h-[38px] px-2.5 rounded-lg border cursor-pointer transition-colors tabular-nums ${
+                      className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
                         durationMode === 'match_video'
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-black/40 text-neutral-200 border-white/10 hover:bg-white/[0.08]'
+                          ? 'studio-pill-mint'
+                          : 'text-[#4F5551] hover:text-[#1F2421]'
                       }`}
                     >
-                      Toute ma vidéo
+                      Vidéo complète
                       {activeCustomMedia.durationSec
                         ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
                         : ''}
@@ -2589,187 +2090,166 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       type="button"
                       data-testid="studio-duration-mode-verses"
                       onClick={() => setDurationMode('verses')}
-                      className={`min-h-[38px] px-2.5 rounded-lg border cursor-pointer transition-colors tabular-nums ${
+                      className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
                         durationMode === 'verses'
-                          ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                          : 'bg-black/40 text-neutral-200 border-white/10 hover:bg-white/[0.08]'
+                          ? 'studio-pill-mint'
+                          : 'text-[#4F5551] hover:text-[#1F2421]'
                       }`}
                     >
-                      Versets seuls ({formatTimeMMSS(baseTimeline.totalDurationSec)})
+                      Versets ({formatTimeMMSS(baseTimeline.totalDurationSec)})
                     </button>
                   </div>
-                </div>
-              )}
+                )}
 
-              {visibleBackgroundCards.length > 0 && (
-                <div
-                  data-testid="studio-backgrounds-strip"
-                  className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[260px] overflow-y-auto pr-1"
-                >
-                  {visibleBackgroundCards.map((bg) => {
-                    const active = bgId === bg.id;
-                    return (
-                      <div
-                        key={bg.id}
-                        onClick={() => {
-                          setBgId(bg.id);
-                          if (bg.kind === 'video') {
-                            setDurationMode('match_video');
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
+                {bgFilter === 'custom' && customMedia.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => mediaFileInputRef.current?.click()}
+                    className="w-full py-8 rounded-2xl studio-input-inset border-dashed border-2 border-[#CFCBC2] hover:border-[#9CE2C5] text-center space-y-1.5 cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-5 h-5 text-[#1B573E] mx-auto" />
+                    <div className="text-xs font-semibold text-[#1F2421]">
+                      Importer photo ou vidéo
+                    </div>
+                  </button>
+                ) : (
+                  <div
+                    data-testid="studio-backgrounds-strip"
+                    className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[250px] overflow-y-auto pr-0.5 py-0.5"
+                  >
+                    {visibleBackgroundCards.map((bg) => {
+                      const active = bgId === bg.id;
+                      return (
+                        <div
+                          key={bg.id}
+                          onClick={() => {
                             setBgId(bg.id);
                             if (bg.kind === 'video') {
                               setDurationMode('match_video');
                             }
-                          }
-                        }}
-                        data-testid={`studio-bg-card-${bg.id}`}
-                        className={`relative aspect-[4/5] rounded-xl overflow-hidden border text-left flex flex-col justify-between p-2 cursor-pointer transition-colors ${
-                          active ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-white/15 hover:border-white/35'
-                        }`}
-                      >
-                        {bg.kind === 'video' ? (
-                          <video
-                            src={bg.url}
-                            muted
-                            loop
-                            playsInline
-                            autoPlay
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                        ) : (
-                          <img
-                            src={bg.url}
-                            alt={bg.name}
-                            referrerPolicy="no-referrer"
-                            className="absolute inset-0 w-full h-full object-cover"
-                          />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
-                        <div className="relative z-10 flex items-center justify-between gap-1">
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={bg.name}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              setBgId(bg.id);
+                              if (bg.kind === 'video') {
+                                setDurationMode('match_video');
+                              }
+                            }
+                          }}
+                          data-testid={`studio-bg-card-${bg.id}`}
+                          className={`relative aspect-[4/5] rounded-2xl overflow-hidden cursor-pointer transition-all ${
+                            active
+                              ? 'ring-[3px] ring-[#82C4A9] shadow-[0_6px_14px_rgba(68,140,110,0.3)]'
+                              : 'ring-1 ring-[#C6C3BA] shadow-[0_3px_8px_rgba(24,28,26,0.09)] hover:ring-[#9E9B92]'
+                          }`}
+                        >
                           {bg.kind === 'video' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[10px] font-bold inline-flex items-center gap-0.5 tabular-nums">
-                              <Video className="w-2.5 h-2.5" />
-                              {'durationSec' in bg && bg.durationSec
-                                ? formatTimeMMSS(bg.durationSec)
-                                : 'Vidéo'}
-                            </span>
+                            <video
+                              src={bg.url}
+                              muted
+                              loop
+                              playsInline
+                              autoPlay
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
                           ) : (
-                            <span />
+                            <img
+                              src={bg.url}
+                              alt={bg.name}
+                              referrerPolicy="no-referrer"
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
                           )}
-                          {bg.isCustom && (
-                            <button
-                              type="button"
-                              aria-label={`Supprimer ${bg.name}`}
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                handleRemoveCustomMedia(bg.id);
-                              }}
-                              className="w-6 h-6 rounded-full bg-black/75 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                        <div className="relative z-10 flex items-center justify-between gap-1">
-                          <span className="text-[11px] font-semibold text-white leading-tight line-clamp-2">
-                            {bg.name}
-                          </span>
-                          {active && (
-                            <span className="w-4 h-4 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.08]">
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-neutral-300">Couleur du texte</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
-                    {[
-                      { id: 'auto' as const, label: 'Auto' },
-                      { id: 'light' as const, label: 'Blanc' },
-                      { id: 'dark' as const, label: 'Noir' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setTextColorOverride(opt.id)}
-                        className={`h-9 rounded-lg border cursor-pointer ${
-                          textColorOverride === opt.id
-                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                          <div className="relative z-10 p-1.5 flex items-start justify-between">
+                            {bg.kind === 'video' ? (
+                              <span className="px-1.5 py-0.5 rounded-full bg-white/90 text-[#13251D] text-[10px] font-bold inline-flex items-center gap-0.5 tabular-nums shadow-sm">
+                                <Video className="w-2.5 h-2.5" />
+                                {'durationSec' in bg && bg.durationSec
+                                  ? formatTimeMMSS(bg.durationSec)
+                                  : ''}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            {bg.isCustom && (
+                              <button
+                                type="button"
+                                aria-label={`Supprimer ${bg.name}`}
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  handleRemoveCustomMedia(bg.id);
+                                }}
+                                className="w-6 h-6 rounded-full bg-white/90 text-[#9B3431] hover:bg-[#EE9B98] hover:text-[#591A18] flex items-center justify-center cursor-pointer shadow-sm"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+                )}
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold text-neutral-300">Voile de contraste</div>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs font-semibold tabular-nums">
-                    {[0, 0.25, 0.45, 0.65].map((alpha) => (
-                      <button
-                        key={alpha}
-                        type="button"
-                        onClick={() => setBgVeilOpacity(alpha)}
-                        className={`h-9 rounded-lg border cursor-pointer ${
-                          Math.abs(bgVeilOpacity - alpha) < 0.02
-                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
-                        }`}
-                      >
-                        {Math.round(alpha * 100)}%
-                      </button>
-                    ))}
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#D4D1C8]">
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-[#565C58]">Texte</div>
+                    <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold">
+                      {[
+                        { id: 'auto' as const, label: 'Auto' },
+                        { id: 'light' as const, label: 'Blanc' },
+                        { id: 'dark' as const, label: 'Noir' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setTextColorOverride(opt.id)}
+                          className={`h-7 rounded-full cursor-pointer transition-all ${
+                            textColorOverride === opt.id
+                              ? 'studio-pill-mint'
+                              : 'text-[#4F5551] hover:text-[#1F2421]'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-[#565C58]">Voile</div>
+                    <div className="grid grid-cols-4 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-semibold tabular-nums">
+                      {[0, 0.25, 0.45, 0.65].map((alpha) => (
+                        <button
+                          key={alpha}
+                          type="button"
+                          onClick={() => setBgVeilOpacity(alpha)}
+                          className={`h-7 rounded-full cursor-pointer transition-all ${
+                            Math.abs(bgVeilOpacity - alpha) < 0.02
+                              ? 'studio-pill-mint'
+                              : 'text-[#4F5551] hover:text-[#1F2421]'
+                          }`}
+                        >
+                          {Math.round(alpha * 100)}%
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </section>
-          )}
+            )}
 
-          {/* TAB 4: RÉCITATEUR & AUDIO */}
-          {activeTab === 'audio' && (
-            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Headphones className="w-4 h-4 text-amber-300 shrink-0" />
-                  <span>Récitateur &amp; Qualité Sonore</span>
-                </h3>
-                <p className="text-xs text-neutral-400 mt-0.5">
-                  Les silences entre versets sont automatiquement ajustés pour un enchaînement sans coupure.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                data-testid="studio-reciter-picker-btn"
-                onClick={() => setIsReciterPickerOpen(true)}
-                className="w-full min-h-[52px] flex items-center justify-between p-3.5 rounded-xl bg-black/35 hover:bg-black/55 border border-white/15 text-left cursor-pointer transition-colors"
-              >
-                <div>
-                  <div className="text-sm font-bold text-white">{selectedReciter.name}</div>
-                  <div className="text-xs text-neutral-400">{selectedReciter.style}</div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
-              </button>
-
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-neutral-300">Accès rapide aux récitateurs</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
-                  {RECITERS.map((r) => (
+            {/* TAB 4: RÉCITATEUR */}
+            {activeTab === 'audio' && (
+              <div className="divide-y divide-[#D4D1C8]">
+                {RECITERS.map((r) => {
+                  const active = r.id === reciterId;
+                  return (
                     <button
                       key={r.id}
                       type="button"
@@ -2777,150 +2257,75 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         setReciterId(r.id);
                         onSyncReciter?.(r);
                       }}
-                      className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-                        r.id === reciterId
-                          ? 'bg-amber-400/12 border-amber-400/70 text-amber-200'
-                          : 'bg-white/[0.03] border-white/[0.08] text-neutral-300 hover:bg-white/[0.07]'
+                      className={`w-full py-3 px-3 flex items-center justify-between gap-2 text-left cursor-pointer transition-all rounded-2xl my-0.5 ${
+                        active
+                          ? 'studio-pill-mint'
+                          : 'text-[#1F2421] hover:bg-white/75'
                       }`}
                     >
                       <div className="min-w-0">
-                        <div className="text-xs font-bold truncate">{r.name}</div>
-                        <div className="text-xs opacity-75 truncate">{r.style}</div>
+                        <div className="text-xs sm:text-sm font-semibold truncate">{r.name}</div>
+                        <div
+                          className={`text-[11px] truncate ${
+                            active ? 'text-[#214637]' : 'text-[#565C58]'
+                          }`}
+                        >
+                          {r.style}
+                        </div>
                       </div>
-                      {r.id === reciterId && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
+                      {active && (
+                        <span className="w-6 h-6 rounded-full bg-white/85 flex items-center justify-center shadow-sm shrink-0">
+                          <Check className="w-3.5 h-3.5 text-[#13251D] stroke-[2.75]" />
+                        </span>
+                      )}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-
-            </section>
-          )}
+            )}
+          </div>
         </div>
-
-        {/* Right Column (Desktop Only): Live WYSIWYG Canvas Monitor */}
-        <StudioLiveMonitor
-          format={activeFormat}
-          ayahs={videoSequence}
-          timeline={timeline}
-          surahName={primarySurahMeta.name}
-          surahNumber={primarySurahMeta.number}
-          startAyah={primaryNormalizedRange.startAyah}
-          endAyah={primaryNormalizedRange.endAyah}
-          selectedSurahsCount={selectedSurahs.length}
-          reciterName={selectedReciter.name}
-          activeMediaKind={activeMediaKind}
-          activeMediaUrl={activeMediaUrl}
-          activeMediaName={activeMediaName}
-          isLightSurface={isLightSurface}
-          bgSurfaceColor={bgSurfaceColor}
-          bgVeilOpacity={bgVeilOpacity}
-          showArabic={showArabic}
-          useTajweed={useTajweed}
-          showPhonetics={showPhonetics}
-          showFrench={showFrench}
-          showSurahHeader={showSurahHeader}
-          textScale={textScale}
-          flowMode={flowMode}
-          onDetectedVideoDurationSec={(durSec) => {
-            if (!activeCustomMedia || activeCustomMedia.kind !== 'video') return;
-            if (!activeCustomMedia.durationSec || Math.abs(activeCustomMedia.durationSec - durSec) > 0.5) {
-              const targetId = activeCustomMedia.id;
-              setCustomMedia((prev) =>
-                prev.map((m) => (m.id === targetId ? { ...m, durationSec: durSec } : m))
-              );
-            }
-          }}
-        />
       </div>
 
-      {/* Bottom Sticky Dual Action Bar */}
-      <footer className="shrink-0 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.08] bg-[#0B120F]/95 backdrop-blur-xl">
-        <div className="max-w-4xl mx-auto grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            data-testid="studio-play-continuous-btn"
-            disabled={isLoadingVerses || videoSequence.length === 0}
-            onClick={startContinuousPlayer}
-            className="h-11 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-semibold text-xs md:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap transition-colors"
-          >
-            <Play className="w-4 h-4 fill-current text-amber-300 shrink-0" />
-            <span>Lire le contenu</span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="studio-create-video-btn"
-            disabled={isLoadingVerses || videoSequence.length === 0}
-            onClick={startVideoExport}
-            className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 whitespace-nowrap transition-colors"
-          >
-            <Film className="w-4 h-4 shrink-0" />
-            <span>
-              {isPcMode
-                ? `Créer Vidéo MP4 (${activeFormat.aspectLabel})`
-                : 'Créer Vidéo MP4 (9:16)'}
-            </span>
-          </button>
-        </div>
-      </footer>
-
-      {/* Multi-Surah Picker Modal */}
+      {/* Multi-Surah Picker Overlay */}
       {isSurahPickerOpen && (
         <div
-          className="fixed inset-0 z-[10060] bg-black/80 backdrop-blur-md flex items-center justify-center p-3"
+          className="fixed inset-0 z-[10060] bg-[#1F2421]/30 backdrop-blur-sm flex items-center justify-center p-3"
           onClick={() => setIsSurahPickerOpen(false)}
         >
           <div
             data-testid="studio-multi-surah-picker-modal"
-            className="w-full max-w-lg max-h-[85vh] bg-[#0B120F] border border-white/15 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl"
+            className="w-full max-w-lg max-h-[85vh] studio-surface-stacked rounded-3xl p-4 sm:p-5 flex flex-col gap-3 text-[#1F2421]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-white">Choisir une ou plusieurs sourates</h3>
-                <p className="text-xs text-neutral-400 tabular-nums">
-                  {draftPickerSurahNums.length} sélectionnée{draftPickerSurahNums.length > 1 ? 's' : ''} (sourate complète par défaut)
-                </p>
-              </div>
+            <div className="shrink-0 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-[#1F2421]">
+                Sourates ({draftPickerSurahNums.length})
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsSurahPickerOpen(false)}
                 aria-label="Fermer la sélection des sourates"
-                className="w-9 h-9 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full studio-pill-raised flex items-center justify-center cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-[#1F2421]" />
               </button>
             </div>
 
-            <div className="relative">
-              <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={surahQuery}
-                onChange={(e) => setSurahQuery(e.target.value)}
-                placeholder="Rechercher par nom, traduction ou numéro..."
-                className="w-full h-10 pl-9 pr-3 rounded-xl bg-black/50 border border-white/15 text-xs text-white placeholder:text-neutral-500"
-              />
+            <div className="shrink-0 p-1 rounded-full studio-well-inset">
+              <div className="relative">
+                <Search className="w-4 h-4 text-[#565C58] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={surahQuery}
+                  onChange={(e) => setSurahQuery(e.target.value)}
+                  placeholder="Rechercher..."
+                  className="w-full h-9 pl-9 pr-4 rounded-full studio-input-inset text-xs text-[#1F2421] placeholder:text-[#787E7A]"
+                />
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setDraftPickerSurahNums([112, 113, 114])}
-                className="h-8 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-medium cursor-pointer whitespace-nowrap"
-              >
-                3 Qul (112–114)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDraftPickerSurahNums([105, 106, 107, 108, 109, 110, 111, 112, 113, 114])}
-                className="h-8 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-medium cursor-pointer whitespace-nowrap"
-              >
-                10 dernières sourates
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/[0.06] rounded-xl border border-white/[0.08] bg-black/30">
+            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[#D4D1C8] rounded-2xl studio-input-inset p-1">
               {filteredSurahs.map((s) => {
                 const checked = draftPickerSurahNums.includes(s.number);
                 return (
@@ -2930,32 +2335,27 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     data-testid={`surah-picker-option-${s.number}`}
                     aria-pressed={checked}
                     onClick={() => toggleDraftSurah(s.number)}
-                    className={`w-full flex items-center justify-between p-3 text-left cursor-pointer transition-colors ${
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left cursor-pointer transition-colors ${
                       checked
-                        ? 'bg-amber-400/12 text-white'
-                        : 'hover:bg-white/[0.05] text-neutral-200'
+                        ? 'bg-[#9ED9C1]/50 text-[#11221A]'
+                        : 'hover:bg-[#DFDDD5]/70 text-[#1F2421]'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <span
-                        className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                        className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
                           checked
-                            ? 'bg-amber-400 border-amber-300 text-neutral-950'
-                            : 'border-white/25 bg-black/40'
+                            ? 'bg-[#83C6AA] border-[#5BB68F] text-[#11221A]'
+                            : 'border-[#B8B5AC] bg-[#F2F0EA]'
                         }`}
                       >
-                        {checked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        {checked && <Check className="w-3 h-3 stroke-[3]" />}
                       </span>
-                      <div className="min-w-0">
-                        <div className="text-xs font-bold truncate">
-                          {s.number}. {s.name}
-                        </div>
-                        <div className="text-xs text-neutral-400 truncate tabular-nums">
-                          {s.frenchTranslation} · {s.numberOfAyahs} versets
-                        </div>
-                      </div>
+                      <span className="text-xs font-semibold truncate">
+                        {s.number}. {s.name}
+                      </span>
                     </div>
-                    <span className="font-arabic text-base text-amber-200 shrink-0 pl-2" dir="rtl">
+                    <span className="font-arabic text-base text-[#1B573E] shrink-0 pl-2" dir="rtl">
                       {s.arabicName}
                     </span>
                   </button>
@@ -2967,59 +2367,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               type="button"
               data-testid="surah-picker-confirm-btn"
               onClick={confirmSurahPicker}
-              className="w-full h-11 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs cursor-pointer transition-colors"
+              className="shrink-0 w-full h-11 rounded-full studio-pill-mint font-bold text-xs cursor-pointer transition-all"
             >
-              Valider la sélection ({draftPickerSurahNums.length} sourate{draftPickerSurahNums.length > 1 ? 's' : ''})
+              Valider ({draftPickerSurahNums.length})
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Reciter Picker Overlay */}
-      {isReciterPickerOpen && (
-        <div
-          className="fixed inset-0 z-[10060] bg-black/80 backdrop-blur-md flex items-center justify-center p-3"
-          onClick={() => setIsReciterPickerOpen(false)}
-        >
-          <div
-            className="w-full max-w-md max-h-[82vh] bg-[#0B120F] border border-white/15 rounded-2xl p-4 flex flex-col gap-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white">Choisir le Récitateur</h3>
-              <button
-                type="button"
-                onClick={() => setIsReciterPickerOpen(false)}
-                aria-label="Fermer le choix du récitateur"
-                className="w-9 h-9 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] flex items-center justify-center cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
-              {RECITERS.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => {
-                    setReciterId(r.id);
-                    onSyncReciter?.(r);
-                    setIsReciterPickerOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-left border cursor-pointer transition-colors ${
-                    r.id === reciterId
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300 font-bold'
-                      : 'bg-white/[0.04] text-white border-white/[0.07] hover:bg-white/[0.08]'
-                  }`}
-                >
-                  <div>
-                    <div className="text-xs font-bold">{r.name}</div>
-                    <div className="text-xs opacity-75">{r.style}</div>
-                  </div>
-                  {r.id === reciterId && <Check className="w-4 h-4 stroke-[3]" />}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}

@@ -1,33 +1,66 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Pause, Play, Check } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Loader2,
+  Monitor,
+  Pause,
+  Play,
+  Share2,
+  Smartphone,
+  Square,
+  X,
+} from 'lucide-react';
 import {
   ContinuousTimeline,
   StudioAyahItem,
+  VIDEO_QUALITY_PRESETS,
+  VideoFormatId,
   VideoFormatPreset,
+  VideoQualityId,
   VideoTemplateId,
+  findActiveTimelineEntry,
   formatTimeMMSS,
 } from '../../utils/mobileVideoStudioUtils';
 import {
-  MANDATORY_WATERMARK_BRAND,
   VideoCanvasRenderOptions,
   loadCanvasBackgroundImage,
   precomputeVideoCanvasLayout,
   renderVideoCanvasFrame,
 } from '../../utils/canvasVideoRenderer';
+import { formatStudioBytes } from '../../utils/studioMediaLibrary';
+
+export interface StudioDirectDownloadState {
+  status: 'idle' | 'preparing' | 'ready' | 'error';
+  progressPct: number;
+  statusLabel: string;
+  errorMsg: string | null;
+  url: string | null;
+  filename: string | null;
+  sizeBytes: number | null;
+  downloaded: boolean;
+  canShare: boolean;
+}
 
 interface StudioLiveMonitorProps {
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
+  isPcMode: boolean;
   format: VideoFormatPreset;
+  onSelectFormat: (id: VideoFormatId) => void;
+  qualityId: VideoQualityId;
+  onSelectQuality: (id: VideoQualityId) => void;
   ayahs: StudioAyahItem[];
   timeline: ContinuousTimeline;
   surahName: string;
   surahNumber: number;
   startAyah: number;
   endAyah: number;
-  selectedSurahsCount?: number;
+  selectedSurahsCount: number;
   reciterName: string;
   activeMediaKind: 'video' | 'image' | 'solid';
   activeMediaUrl: string | null;
-  activeMediaName: string;
   isLightSurface: boolean;
   bgSurfaceColor: string;
   bgVeilOpacity: number;
@@ -38,22 +71,45 @@ interface StudioLiveMonitorProps {
   showSurahHeader: boolean;
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
+  simStatus: 'idle' | 'loading' | 'playing' | 'paused' | 'ended';
+  simTimeSec: number;
+  isLoadingVerses: boolean;
+  onTogglePlay: () => void;
+  onSeek: (sec: number) => void;
+  onJumpToSegmentIndex: (index: number) => void;
   onDetectedVideoDurationSec?: (durationSec: number) => void;
+  onMediaElementsChange?: (media: {
+    bgImage: HTMLImageElement | null;
+    bgVideo: HTMLVideoElement | null;
+  }) => void;
+  onLayoutReady?: (data: {
+    layout: ReturnType<typeof precomputeVideoCanvasLayout> | null;
+    renderOpts: VideoCanvasRenderOptions;
+  }) => void;
+  downloadState: StudioDirectDownloadState;
+  onStartDownload: () => void;
+  onCancelDownload: () => void;
+  onDirectLinkClicked: () => void;
+  onShareVideo: () => void;
 }
 
 export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
+  canvasRef,
+  isPcMode,
   format,
+  onSelectFormat,
+  qualityId,
+  onSelectQuality,
   ayahs,
   timeline,
   surahName,
   surahNumber,
   startAyah,
   endAyah,
-  selectedSurahsCount = 1,
+  selectedSurahsCount,
   reciterName,
   activeMediaKind,
   activeMediaUrl,
-  activeMediaName,
   isLightSurface,
   bgSurfaceColor,
   bgVeilOpacity,
@@ -64,46 +120,27 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   showSurahHeader,
   textScale,
   flowMode,
+  simStatus,
+  simTimeSec,
+  isLoadingVerses,
+  onTogglePlay,
+  onSeek,
+  onJumpToSegmentIndex,
   onDetectedVideoDurationSec,
+  onMediaElementsChange,
+  onLayoutReady,
+  downloadState,
+  onStartDownload,
+  onCancelDownload,
+  onDirectLinkClicked,
+  onShareVideo,
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
-
   const [bgReadyTick, setBgReadyTick] = useState(0);
-  const [selectedVerseIdx, setSelectedVerseIdx] = useState(0);
-  const [isAnimatingPreview, setIsAnimatingPreview] = useState(false);
-  const [previewSec, setPreviewSec] = useState(0);
 
-  const previewSecRef = useRef<number>(0);
-  previewSecRef.current = previewSec;
-
-  // Snap preview to opening frame when sequence structure resets to a different primary surah/start
-  useEffect(() => {
-    setSelectedVerseIdx(0);
-    setIsAnimatingPreview(false);
-    const firstSeg = timeline.segments[0];
-    const nextSec = firstSeg ? firstSeg.startSec + Math.min(1.0, firstSeg.durationSec * 0.35) : 0;
-    previewSecRef.current = nextSec;
-    setPreviewSec(nextSec);
-  }, [surahNumber, startAyah]);
-
-  // Clamp selected verse index when total sequence shrinks
-  useEffect(() => {
-    setSelectedVerseIdx((prev) => {
-      const next = Math.min(Math.max(0, prev), Math.max(0, ayahs.length - 1));
-      const seg = timeline.segments[next];
-      if (seg) {
-        const nextSec = seg.startSec + Math.min(1.0, seg.durationSec * 0.35);
-        previewSecRef.current = nextSec;
-        setPreviewSec(nextSec);
-      }
-      return next;
-    });
-  }, [ayahs.length, endAyah, selectedSurahsCount]);
-
-  // Load background image or video for true WYSIWYG canvas preview
+  // Sync background media into canvas renderer cleanly
   useEffect(() => {
     let active = true;
     bgImageRef.current = null;
@@ -121,6 +158,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       loadCanvasBackgroundImage(activeMediaUrl).then((img) => {
         if (!active) return;
         bgImageRef.current = img;
+        onMediaElementsChange?.({ bgImage: img, bgVideo: null });
         setBgReadyTick((t) => t + 1);
       });
     } else if (activeMediaKind === 'video' && activeMediaUrl) {
@@ -148,6 +186,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           onDetectedVideoDurationSec?.(Number(vid.duration.toFixed(2)));
         }
         vid.play().catch(() => {});
+        onMediaElementsChange?.({ bgImage: null, bgVideo: vid });
         setBgReadyTick((t) => t + 1);
       };
       vid.onloadedmetadata = () => {
@@ -160,6 +199,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       vid.oncanplay = markReady;
       vid.load();
     } else {
+      onMediaElementsChange?.({ bgImage: null, bgVideo: null });
       setBgReadyTick((t) => t + 1);
     }
 
@@ -223,7 +263,6 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     ]
   );
 
-  // Precompute layout whenever verses, format, or template changes
   const layout = useMemo(() => {
     const canvas = canvasRef.current;
     if (!canvas || ayahs.length === 0) return null;
@@ -232,67 +271,41 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     return precomputeVideoCanvasLayout(ctx, ayahs, renderOpts);
   }, [ayahs, renderOpts]);
 
-  const layoutRef = useRef(layout);
-  layoutRef.current = layout;
-  const timelineRef = useRef(timeline);
-  timelineRef.current = timeline;
-  const renderOptsRef = useRef(renderOpts);
-  renderOptsRef.current = renderOpts;
+  useEffect(() => {
+    onLayoutReady?.({ layout, renderOpts });
+  }, [layout, renderOpts]);
 
-  // Draw current frame whenever layout, clock, or options change
+  // Auto-render canvas frame immediately whenever verses/style/time change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !layout) return;
+    if (canvas.width !== format.previewWidth || canvas.height !== format.previewHeight) {
+      canvas.width = format.previewWidth;
+      canvas.height = format.previewHeight;
+    }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const optsWithMedia: VideoCanvasRenderOptions = {
+    renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
       ...renderOpts,
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
-    };
-    renderVideoCanvasFrame(ctx, layout, timeline, previewSec, optsWithMedia);
-  }, [layout, timeline, previewSec, renderOpts, bgReadyTick]);
+    });
+  }, [layout, timeline, simTimeSec, renderOpts, bgReadyTick, format.previewWidth, format.previewHeight]);
 
-  // Animated silent preview loop when Play Preview is toggled OR when background video is looping
+  // Keep background video frames updating smoothly when paused/idle
   useEffect(() => {
-    if (!isAnimatingPreview && activeMediaKind !== 'video') return;
+    if (simStatus === 'playing' || activeMediaKind !== 'video') return;
     let rafId = 0;
-    let lastTs = performance.now();
-
-    const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - lastTs) / 1000);
-      lastTs = now;
-      const activeTimeline = timelineRef.current;
-      const activeLayout = layoutRef.current;
-      const activeOpts = renderOptsRef.current;
-
+    const tick = () => {
       if (bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
         bgVideoRef.current.play().catch(() => {});
       }
-
-      if (isAnimatingPreview && activeTimeline.totalDurationSec > 0) {
-        const next =
-          previewSecRef.current + dt >= activeTimeline.totalDurationSec
-            ? 0
-            : previewSecRef.current + dt;
-        previewSecRef.current = next;
-        setPreviewSec(next);
-        if (canvasRef.current && activeLayout) {
-          const ctx = canvasRef.current.getContext('2d');
-          if (ctx) {
-            renderVideoCanvasFrame(ctx, activeLayout, activeTimeline, next, {
-              ...activeOpts,
-              bgImage: bgImageRef.current,
-              bgVideo: bgVideoRef.current,
-            });
-          }
-        }
-      } else if (activeMediaKind === 'video' && canvasRef.current && activeLayout) {
+      if (canvasRef.current && layout) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
-          renderVideoCanvasFrame(ctx, activeLayout, activeTimeline, previewSecRef.current, {
-            ...activeOpts,
+          renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
+            ...renderOpts,
             bgImage: bgImageRef.current,
             bgVideo: bgVideoRef.current,
           });
@@ -300,42 +313,32 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       }
       rafId = requestAnimationFrame(tick);
     };
-
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [isAnimatingPreview, activeMediaKind]);
+  }, [simStatus, activeMediaKind, layout, timeline, simTimeSec, renderOpts]);
 
-  const jumpToVerse = (nextIdx: number) => {
-    if (ayahs.length === 0) return;
-    const clamped = Math.max(0, Math.min(ayahs.length - 1, nextIdx));
-    setSelectedVerseIdx(clamped);
-    setIsAnimatingPreview(false);
-    const seg = timeline.segments[clamped];
-    if (seg) {
-      const nextSec = seg.startSec + Math.min(1.2, seg.durationSec * 0.35);
-      previewSecRef.current = nextSec;
-      setPreviewSec(nextSec);
-    }
-  };
+  const activeEntry = useMemo(
+    () => findActiveTimelineEntry(timeline, simTimeSec),
+    [timeline, simTimeSec]
+  );
+  const currentSegIdx = activeEntry.index;
 
-  const aspectClass =
+  const aspectBoxClass =
     format.aspectLabel === '16:9'
-      ? 'aspect-video w-full max-w-[580px]'
+      ? 'aspect-video w-full max-w-[min(100%,calc(26dvh*16/9))] md:max-w-[min(100%,calc(48dvh*16/9))]'
       : format.aspectLabel === '1:1'
-      ? 'aspect-square h-full max-h-[430px]'
-      : 'aspect-[9/16] h-full max-h-[460px]';
+      ? 'aspect-square w-full max-w-[min(100%,24dvh)] md:max-w-[min(100%,44dvh)]'
+      : 'aspect-[9/16] h-[25dvh] md:h-[48dvh] max-w-full';
 
-  const activeItem = ayahs[selectedVerseIdx];
-  const verseStepLabel = activeItem
-    ? `${selectedSurahsCount > 1 && activeItem.surahName ? `${activeItem.surahName} · ` : ''}${
-        activeItem.isBismillah ? 'Bismillah' : `Verset ${activeItem.num}`
-      }`
-    : `Verset ${startAyah}`;
+  const isPlaying = simStatus === 'playing';
+  const isBufferingSim = simStatus === 'loading';
+  const isPreparingDownload = downloadState.status === 'preparing';
+  const isDownloadReady = downloadState.status === 'ready' && Boolean(downloadState.url);
 
   return (
     <aside
       data-testid="studio-desktop-916-preview"
-      className="hidden md:flex flex-col justify-between min-h-0 p-5 rounded-2xl bg-[#0A110E] border border-white/[0.08]"
+      className="flex flex-col justify-between min-h-0 px-3.5 py-2.5 md:p-5 studio-surface-raised md:studio-surface-stacked md:rounded-3xl border-b border-[#CECBC2] md:border-none shrink-0 md:shrink"
     >
       <div
         ref={videoHostRef}
@@ -351,115 +354,258 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           zIndex: -1,
         }}
       />
-      {/* Monitor Top Spec Bar */}
-      <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-white/[0.08] shrink-0">
-        <div className="min-w-0 space-y-0.5">
-          <div className="text-[13px] font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Aperçu en direct</span>
-            <span className="text-neutral-500" aria-hidden="true">·</span>
-            <span className="text-xs font-mono text-amber-300 tabular-nums">
-              {format.aspectLabel} ({format.width}×{format.height})
-            </span>
-          </div>
-          <div className="text-xs text-neutral-400 truncate flex items-center gap-1.5 tabular-nums">
-            <span className="truncate">{activeMediaName}</span>
-            <span aria-hidden="true">·</span>
-            <span>{selectedSurahsCount} sourate{selectedSurahsCount > 1 ? 's' : ''}</span>
-            <span aria-hidden="true">·</span>
-            <span>Durée {formatTimeMMSS(timeline.totalDurationSec)}</span>
+
+      {/* Simulation Stage */}
+      <div className="flex-1 min-h-0 flex items-center justify-center py-1 md:py-2">
+        <div
+          className={`relative ${aspectBoxClass} p-1 rounded-2xl bg-[#D1CFC7] shadow-[inset_0_2px_6px_rgba(24,28,26,0.18),0_4px_12px_rgba(24,28,26,0.08)] flex items-center justify-center`}
+        >
+          <div className="relative w-full h-full rounded-xl overflow-hidden bg-black flex items-center justify-center">
+            <canvas
+              ref={canvasRef}
+              data-testid="studio-monitor-canvas"
+              width={format.previewWidth}
+              height={format.previewHeight}
+              onClick={() => {
+                if (!isLoadingVerses && ayahs.length > 0 && !isPreparingDownload) {
+                  onTogglePlay();
+                }
+              }}
+              className="w-full h-full object-contain cursor-pointer"
+            />
           </div>
         </div>
-
-        <button
-          type="button"
-          data-testid="studio-monitor-animate-btn"
-          onClick={() => setIsAnimatingPreview((v) => !v)}
-          className={`h-9 px-3.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition duration-150 ${
-            isAnimatingPreview
-              ? 'bg-amber-400 text-neutral-950 border-amber-300'
-              : 'bg-white/[0.05] hover:bg-white/[0.1] text-neutral-100 border-white/10'
-          }`}
-        >
-          {isAnimatingPreview ? (
-            <>
-              <Pause className="w-3.5 h-3.5 fill-current" />
-              <span>Pause</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5 fill-current text-amber-300" />
-              <span>Animer</span>
-            </>
-          )}
-        </button>
       </div>
 
-      {/* Centered Live Canvas Stage */}
-      <div className="flex-1 min-h-0 flex items-center justify-center py-4">
-        <div
-          className={`relative ${aspectClass} rounded-xl overflow-hidden border border-white/15 bg-black shadow-[0_24px_60px_rgba(0,0,0,0.7)] flex items-center justify-center`}
-        >
-          <canvas
-            ref={canvasRef}
-            data-testid="studio-monitor-canvas"
-            width={format.previewWidth}
-            height={format.previewHeight}
-            className="w-full h-full object-contain"
+      {/* Inline Transport & Scrubber + Organized Format/Quality/Download Bar */}
+      <div className="space-y-3 pt-2.5 shrink-0">
+        {/* Transport Row */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={currentSegIdx <= 0 || isBufferingSim}
+            onClick={() => onJumpToSegmentIndex(currentSegIdx - 1)}
+            aria-label="Verset précédent"
+            className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
+          >
+            <ChevronLeft className="w-4 h-4 text-[#1F2421]" />
+          </button>
+
+          <button
+            type="button"
+            data-testid="studio-monitor-animate-btn"
+            disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+            onClick={onTogglePlay}
+            aria-label={isPlaying ? 'Mettre en pause' : 'Lire la simulation'}
+            className={`w-10 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all disabled:opacity-45 ${
+              isPlaying ? 'studio-pill-mint' : 'studio-pill-raised'
+            }`}
+          >
+            {isBufferingSim ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#13251D]" />
+            ) : isPlaying ? (
+              <Pause className="w-4 h-4 fill-current text-[#13251D]" />
+            ) : (
+              <Play className="w-4 h-4 fill-current ml-0.5 text-[#1F2421]" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            disabled={currentSegIdx >= ayahs.length - 1 || isBufferingSim}
+            onClick={() => onJumpToSegmentIndex(currentSegIdx + 1)}
+            aria-label="Verset suivant"
+            className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
+          >
+            <ChevronRight className="w-4 h-4 text-[#1F2421]" />
+          </button>
+
+          <input
+            type="range"
+            aria-label="Position dans la simulation"
+            min={0}
+            max={Math.max(0.5, timeline.totalDurationSec)}
+            step={0.05}
+            value={Math.min(simTimeSec, Math.max(0.5, timeline.totalDurationSec))}
+            onChange={(e) => onSeek(Number(e.target.value))}
+            className="flex-1 min-w-0 studio-range-mint cursor-pointer"
           />
-        </div>
-      </div>
 
-      {/* Interactive Verse Scrubber + Mandatory Watermark Info */}
-      <div className="space-y-3 pt-3.5 border-t border-white/[0.08] shrink-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <button
-              type="button"
-              onClick={() => jumpToVerse(selectedVerseIdx - 1)}
-              disabled={selectedVerseIdx <= 0}
-              aria-label="Séquence précédente dans l'aperçu"
-              className="w-9 h-9 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer shrink-0 transition duration-150"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span
-              data-testid="studio-monitor-verse-label"
-              className="text-xs font-semibold text-neutral-200 px-2 tabular-nums truncate"
-            >
-              {verseStepLabel} ({selectedVerseIdx + 1}/{Math.max(1, ayahs.length)})
+          <span
+            data-testid="studio-monitor-time"
+            className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums whitespace-nowrap shrink-0"
+          >
+            {formatTimeMMSS(simTimeSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
+          </span>
+        </div>
+
+        {/* Inline Download Progress / Error Feedback */}
+        {isPreparingDownload && (
+          <div
+            data-testid="studio-download-progress"
+            className="flex items-center gap-2.5 pt-0.5"
+          >
+            <div className="flex-1 h-2.5 rounded-full studio-well-inset overflow-hidden p-0.5">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#8ACBB0] to-[#5BB68F] transition-all duration-200"
+                style={{ width: `${downloadState.progressPct}%` }}
+              />
+            </div>
+            <span className="text-[11px] font-mono font-bold text-[#1B573E] tabular-nums shrink-0">
+              {downloadState.progressPct}%
             </span>
             <button
               type="button"
-              onClick={() => jumpToVerse(selectedVerseIdx + 1)}
-              disabled={selectedVerseIdx >= ayahs.length - 1}
-              aria-label="Séquence suivante dans l'aperçu"
-              className="w-9 h-9 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer shrink-0 transition duration-150"
+              onClick={onCancelDownload}
+              aria-label="Annuler le téléchargement"
+              className="w-7 h-7 rounded-full studio-pill-raised text-[#565C58] hover:text-[#1F2421] flex items-center justify-center cursor-pointer shrink-0"
             >
-              <ChevronRight className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
+        )}
 
-          <span className="text-xs font-mono text-amber-300 tabular-nums whitespace-nowrap shrink-0">
-            {formatTimeMMSS(previewSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
-          </span>
-        </div>
+        {downloadState.status === 'error' && downloadState.errorMsg && (
+          <div className="px-3 py-1.5 rounded-full bg-[#E3908D]/90 text-[#591A18] text-xs font-semibold shadow-sm truncate">
+            {downloadState.errorMsg}
+          </div>
+        )}
 
-        <div
-          data-testid="studio-mandatory-watermark-notice"
-          className="flex items-center justify-between gap-2 text-xs text-emerald-200/90 pt-1"
-        >
-          <span className="inline-flex items-center gap-1.5 truncate">
-            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="truncate">
-              Signature « {MANDATORY_WATERMARK_BRAND} » incluse en pied de vidéo
+        {/* Organized Format + Quality + Direct Download Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-[#D4D1C8]">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {/* Aspect Ratio Selector (PC Only, placed cleanly inside recessed track) */}
+            {isPcMode && (
+              <div
+                data-testid="studio-format-selector"
+                role="group"
+                aria-label="Format vidéo"
+                className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
+              >
+                {[
+                  { id: 'youtube_1080p' as VideoFormatId, aspect: '16:9' as const, icon: Monitor },
+                  { id: 'shorts_916' as VideoFormatId, aspect: '9:16' as const, icon: Smartphone },
+                  { id: 'square_1080' as VideoFormatId, aspect: '1:1' as const, icon: Square },
+                ].map((fmt) => {
+                  const active = format.aspectLabel === fmt.aspect;
+                  const Icon = fmt.icon;
+                  return (
+                    <button
+                      key={fmt.id}
+                      type="button"
+                      data-testid={`studio-format-${fmt.id}`}
+                      aria-label={`Format ${fmt.aspect}`}
+                      title={`Format ${fmt.aspect}`}
+                      disabled={isPreparingDownload}
+                      onClick={() => onSelectFormat(fmt.id)}
+                      className={`h-7 px-2.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
+                        active
+                          ? 'studio-pill-mint'
+                          : 'text-[#4F5551] hover:text-[#1F2421]'
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5 shrink-0" />
+                      <span>{fmt.aspect}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Quality Selector (4K -> 480p) */}
+            <div
+              data-testid="studio-quality-selector"
+              role="group"
+              aria-label="Qualité vidéo"
+              className="flex items-center gap-0.5 p-1 rounded-full studio-well-inset"
+            >
+              {VIDEO_QUALITY_PRESETS.map((q) => {
+                const active = qualityId === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    data-testid={`studio-quality-${q.id}`}
+                    aria-pressed={active}
+                    aria-label={`Qualité ${q.label}`}
+                    disabled={isPreparingDownload}
+                    onClick={() => onSelectQuality(q.id)}
+                    className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
+                      active
+                        ? 'studio-pill-mint'
+                        : 'text-[#4F5551] hover:text-[#1F2421]'
+                    }`}
+                  >
+                    {q.shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+
+            <span
+              data-testid="studio-active-resolution-label"
+              className="hidden sm:inline text-[11px] font-mono font-medium text-[#6B716D] tabular-nums"
+            >
+              {format.width}×{format.height}
             </span>
-          </span>
-          <span className="text-[11px] font-medium text-emerald-300 shrink-0">
-            Actif
-          </span>
+          </div>
+
+          {/* Direct Download Action */}
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            {isDownloadReady && downloadState.canShare && (
+              <button
+                type="button"
+                onClick={onShareVideo}
+                aria-label="Partager la vidéo"
+                title="Partager"
+                className="w-9 h-9 rounded-full studio-pill-raised flex items-center justify-center cursor-pointer transition-all"
+              >
+                <Share2 className="w-4 h-4 text-[#1F2421]" />
+              </button>
+            )}
+
+            {isDownloadReady && downloadState.url && downloadState.filename ? (
+              <a
+                data-testid="download-exported-video-link"
+                href={downloadState.url}
+                download={downloadState.filename}
+                aria-label={`Télécharger ${downloadState.filename}`}
+                onClick={onDirectLinkClicked}
+                className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap no-underline"
+              >
+                {downloadState.downloaded ? (
+                  <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
+                ) : (
+                  <Download className="w-4 h-4 shrink-0" />
+                )}
+                <span>
+                  {downloadState.sizeBytes
+                    ? formatStudioBytes(downloadState.sizeBytes)
+                    : 'MP4'}
+                </span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                data-testid="studio-create-video-btn"
+                aria-label={`Télécharger la vidéo MP4 (${qualityId.toUpperCase()})`}
+                disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+                onClick={onStartDownload}
+                className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-45 whitespace-nowrap"
+              >
+                {isPreparingDownload ? (
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                ) : (
+                  <Download className="w-4 h-4 shrink-0" />
+                )}
+                <span className="hidden sm:inline">
+                  {isPreparingDownload ? `${downloadState.progressPct}%` : 'Télécharger'}
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </aside>
   );
 };
-

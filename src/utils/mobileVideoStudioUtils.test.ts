@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   VIDEO_EXPORT_HEIGHT,
   VIDEO_EXPORT_WIDTH,
+  VIDEO_QUALITY_PRESETS,
   VIDEO_TEMPLATE_PRESETS,
+  appendRenderListItem,
   buildContinuousTimeline,
   buildMultiSurahVideoSequence,
   buildStudioExportFilename,
@@ -18,13 +20,17 @@ import {
   generateYouTubePublishPack,
   getResolutionFallbackTiers,
   getVideoFormatPreset,
+  inferVideoQualityFromDimensions,
   normalizeVerseRange,
+  removeRenderListItem,
+  resolveFormatDimensionsForQuality,
   resolveVideoDownloadLinkState,
   selectPreferredVideoMimeType,
   shouldPrependBismillah,
   shouldStageVideoDownload,
   sliceSelectedAyahs,
   stripLeadingBismillahFromAyah1,
+  toggleRenderQualitySelection,
   wrapTextLines,
 } from './mobileVideoStudioUtils';
 
@@ -530,3 +536,110 @@ test('resolveVideoDownloadLinkState provides a ready synchronous download URL fo
     }
   );
 });
+
+test('VIDEO_QUALITY_PRESETS and resolveFormatDimensionsForQuality support 4K UHD down to 480p across all aspects', () => {
+  assert.deepEqual(
+    VIDEO_QUALITY_PRESETS.map((q) => q.id),
+    ['4k', '1080p', '720p', '480p']
+  );
+
+  const landscapeBase = getVideoFormatPreset('youtube_1080p', false);
+  const portraitBase = getVideoFormatPreset('shorts_916', true);
+  const squareBase = getVideoFormatPreset('square_1080', false);
+
+  const l4k = resolveFormatDimensionsForQuality(landscapeBase, '4k');
+  assert.equal(l4k.width, 3840);
+  assert.equal(l4k.height, 2160);
+  assert.equal(l4k.previewWidth, 1280);
+  assert.equal(l4k.previewHeight, 720);
+
+  const l480 = resolveFormatDimensionsForQuality(landscapeBase, '480p');
+  assert.equal(l480.width, 854);
+  assert.equal(l480.height, 480);
+  assert.equal(l480.previewWidth, 854);
+  assert.equal(l480.previewHeight, 480);
+
+  const p4k = resolveFormatDimensionsForQuality(portraitBase, '4k');
+  assert.equal(p4k.width, 2160);
+  assert.equal(p4k.height, 3840);
+
+  const p480 = resolveFormatDimensionsForQuality(portraitBase, '480p');
+  assert.equal(p480.width, 480);
+  assert.equal(p480.height, 854);
+
+  const s4k = resolveFormatDimensionsForQuality(squareBase, '4k');
+  assert.equal(s4k.width, 2160);
+  assert.equal(s4k.height, 2160);
+
+  const s480 = resolveFormatDimensionsForQuality(squareBase, '480p');
+  assert.equal(s480.width, 480);
+  assert.equal(s480.height, 480);
+
+  assert.equal(inferVideoQualityFromDimensions(3840, 2160), '4k');
+  assert.equal(inferVideoQualityFromDimensions(2160, 3840), '4k');
+  assert.equal(inferVideoQualityFromDimensions(1920, 1080), '1080p');
+  assert.equal(inferVideoQualityFromDimensions(1280, 720), '720p');
+  assert.equal(inferVideoQualityFromDimensions(854, 480), '480p');
+});
+
+test('getResolutionFallbackTiers supports 4K UHD top tiers with clean aspect-preserving fallbacks', () => {
+  const tiers169_4k = getResolutionFallbackTiers(3840, 2160, 45);
+  assert.equal(tiers169_4k[0].w, 3840);
+  assert.equal(tiers169_4k[0].h, 2160);
+  assert.ok(tiers169_4k[0].bitrate >= 20_000_000);
+  for (const t of tiers169_4k) {
+    assert.ok(Math.abs(t.w / t.h - 16 / 9) < 0.01);
+  }
+
+  const tiers916_4k = getResolutionFallbackTiers(2160, 3840, 45);
+  assert.equal(tiers916_4k[0].w, 2160);
+  assert.equal(tiers916_4k[0].h, 3840);
+  for (const t of tiers916_4k) {
+    assert.ok(Math.abs(t.w / t.h - 9 / 16) < 0.01);
+  }
+
+  const tiers480p = getResolutionFallbackTiers(854, 480, 45);
+  assert.equal(tiers480p[0].w, 854);
+  assert.equal(tiers480p[0].h, 480);
+});
+
+test('toggleRenderQualitySelection, buildStudioExportFilename with quality, and multi-render list helpers work cleanly', () => {
+  let selected = toggleRenderQualitySelection(['1080p'], '4k');
+  assert.deepEqual(selected, ['4k', '1080p']);
+  selected = toggleRenderQualitySelection(selected, '480p');
+  assert.deepEqual(selected, ['4k', '1080p', '480p']);
+  selected = toggleRenderQualitySelection(selected, '1080p');
+  assert.deepEqual(selected, ['4k', '480p']);
+  // Cannot unselect the very last quality
+  selected = toggleRenderQualitySelection(['4k'], '4k');
+  assert.deepEqual(selected, ['4k']);
+
+  assert.equal(
+    buildStudioExportFilename({
+      selections: [{ surahNumber: 1, startAyah: 1, endAyah: 7 }],
+      aspectLabel: '16:9',
+      extension: 'mp4',
+      qualityId: '4k',
+    }),
+    'coran-s1-v1-7-16x9-4k.mp4'
+  );
+
+  const r1 = { id: 'r1', label: '480p' };
+  const r2 = { id: 'r2', label: '4k' };
+  let list = appendRenderListItem([], r1);
+  list = appendRenderListItem(list, r2);
+  assert.deepEqual(list.map((r) => r.id), ['r2', 'r1']);
+
+  const removedInactive = removeRenderListItem(list, 'r1', 'r2');
+  assert.deepEqual(removedInactive.items.map((r) => r.id), ['r2']);
+  assert.equal(removedInactive.nextActiveId, 'r2');
+
+  const removedActive = removeRenderListItem(list, 'r2', 'r2');
+  assert.deepEqual(removedActive.items.map((r) => r.id), ['r1']);
+  assert.equal(removedActive.nextActiveId, 'r1');
+
+  const removedLast = removeRenderListItem([r1], 'r1', 'r1');
+  assert.equal(removedLast.items.length, 0);
+  assert.equal(removedLast.nextActiveId, null);
+});
+

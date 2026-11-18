@@ -48,6 +48,7 @@ export interface StudioBgPreferences {
   textColorOverride?: 'auto' | 'light' | 'dark';
   bgVeilOpacity?: number;
   videoFormatId?: string;
+  videoQualityId?: string;
   flowMode?: string;
 }
 

@@ -1577,7 +1577,7 @@ async function startServer() {
         stagedVideoDownloads.delete(key);
       }
     }
-    while (stagedVideoDownloads.size > 8) {
+    while (stagedVideoDownloads.size > 24) {
       const oldestKey = stagedVideoDownloads.keys().next().value;
       if (!oldestKey) break;
       stagedVideoDownloads.delete(oldestKey);

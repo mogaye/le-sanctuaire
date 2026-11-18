@@ -245,21 +245,23 @@ export function buildStudioExportFilename(params: {
   selections: Array<Pick<StudioSurahSelection, 'surahNumber' | 'startAyah' | 'endAyah'>>;
   aspectLabel: string;
   extension: string;
+  qualityId?: VideoQualityId;
 }): string {
   const aspect = params.aspectLabel.replace(':', 'x');
   const ext = params.extension || 'mp4';
+  const qualitySuffix = params.qualityId ? `-${params.qualityId}` : '';
   if (!params.selections || params.selections.length === 0) {
-    return `coran-studio-${aspect}.${ext}`;
+    return `coran-studio-${aspect}${qualitySuffix}.${ext}`;
   }
   if (params.selections.length === 1) {
     const s = params.selections[0];
-    return `coran-s${s.surahNumber}-v${s.startAyah}-${s.endAyah}-${aspect}.${ext}`;
+    return `coran-s${s.surahNumber}-v${s.startAyah}-${s.endAyah}-${aspect}${qualitySuffix}.${ext}`;
   }
   const nums = params.selections
     .slice(0, 4)
     .map((s) => s.surahNumber)
     .join('-');
-  return `coran-${params.selections.length}sourates-s${nums}-${aspect}.${ext}`;
+  return `coran-${params.selections.length}sourates-s${nums}-${aspect}${qualitySuffix}.${ext}`;
 }
 
 export function estimateAyahDurationSeconds(
@@ -536,6 +538,126 @@ export const VIDEO_TEMPLATE_PRESETS: VideoTemplatePreset[] = [
   },
 ];
 
+export type VideoQualityId = '4k' | '1080p' | '720p' | '480p';
+
+export interface VideoQualityPreset {
+  id: VideoQualityId;
+  label: string;
+  shortLabel: string;
+  description: string;
+  shortSidePx: number;
+  longSide169Px: number;
+}
+
+export const VIDEO_QUALITY_PRESETS: VideoQualityPreset[] = [
+  {
+    id: '4k',
+    label: '4K Ultra HD',
+    shortLabel: '4K',
+    description: '2160p · Netteté maximale',
+    shortSidePx: 2160,
+    longSide169Px: 3840,
+  },
+  {
+    id: '1080p',
+    label: 'Full HD 1080p',
+    shortLabel: '1080p',
+    description: '1080p · Haute définition',
+    shortSidePx: 1080,
+    longSide169Px: 1920,
+  },
+  {
+    id: '720p',
+    label: 'HD 720p',
+    shortLabel: '720p',
+    description: '720p · Export rapide',
+    shortSidePx: 720,
+    longSide169Px: 1280,
+  },
+  {
+    id: '480p',
+    label: 'Éco 480p',
+    shortLabel: '480p',
+    description: '480p · Fichier léger',
+    shortSidePx: 480,
+    longSide169Px: 854,
+  },
+];
+
+export function getVideoQualityPreset(qualityId?: string | null): VideoQualityPreset {
+  return VIDEO_QUALITY_PRESETS.find((q) => q.id === qualityId) || VIDEO_QUALITY_PRESETS[1];
+}
+
+export function resolveFormatDimensionsForQuality(
+  baseFormat: VideoFormatPreset,
+  qualityId: VideoQualityId
+): VideoFormatPreset {
+  const q = getVideoQualityPreset(qualityId);
+  let width = q.longSide169Px;
+  let height = q.shortSidePx;
+  let previewWidth = 1280;
+  let previewHeight = 720;
+
+  if (baseFormat.aspectLabel === '9:16') {
+    width = q.shortSidePx;
+    height = q.longSide169Px;
+    previewWidth = qualityId === '480p' ? 480 : 720;
+    previewHeight = qualityId === '480p' ? 854 : 1280;
+  } else if (baseFormat.aspectLabel === '1:1') {
+    width = q.shortSidePx;
+    height = q.shortSidePx;
+    previewWidth = qualityId === '480p' ? 480 : 720;
+    previewHeight = qualityId === '480p' ? 480 : 720;
+  } else {
+    width = q.longSide169Px;
+    height = q.shortSidePx;
+    previewWidth = qualityId === '480p' ? 854 : 1280;
+    previewHeight = qualityId === '480p' ? 480 : 720;
+  }
+
+  const baseAspectName =
+    baseFormat.aspectLabel === '16:9'
+      ? 'Paysage 16:9'
+      : baseFormat.aspectLabel === '9:16'
+      ? 'Vertical 9:16'
+      : 'Carré 1:1';
+
+  return {
+    ...baseFormat,
+    width,
+    height,
+    previewWidth,
+    previewHeight,
+    label: `${baseAspectName} · ${q.label}`,
+    shortLabel: `${baseFormat.aspectLabel} ${q.shortLabel}`,
+    platformHint: `${q.description} (${width}×${height})`,
+  };
+}
+
+const QUALITY_CANONICAL_ORDER: VideoQualityId[] = ['4k', '1080p', '720p', '480p'];
+
+export function toggleRenderQualitySelection(
+  selected: VideoQualityId[],
+  qualityId: VideoQualityId
+): VideoQualityId[] {
+  const current = new Set<VideoQualityId>(selected);
+  if (current.has(qualityId)) {
+    if (current.size <= 1) return QUALITY_CANONICAL_ORDER.filter((q) => current.has(q));
+    current.delete(qualityId);
+  } else {
+    current.add(qualityId);
+  }
+  return QUALITY_CANONICAL_ORDER.filter((q) => current.has(q));
+}
+
+export function inferVideoQualityFromDimensions(width: number, height: number): VideoQualityId {
+  const shortSide = Math.min(width, height);
+  if (shortSide >= 2000) return '4k';
+  if (shortSide >= 1000) return '1080p';
+  if (shortSide >= 680) return '720p';
+  return '480p';
+}
+
 export function getVideoFormatPreset(
   formatId: VideoFormatId,
   isMobile: boolean
@@ -629,6 +751,15 @@ export function getResolutionFallbackTiers(
 
   // Landscape 16:9
   if (w > h) {
+    if (w >= 3840) {
+      return [
+        { w: 3840, h: 2160, bitrate: scaleBps(22_000_000) },
+        { w: 3840, h: 2160, bitrate: scaleBps(14_000_000) },
+        { w: 1920, h: 1080, bitrate: scaleBps(8_000_000) },
+        { w: 1280, h: 720, bitrate: scaleBps(4_500_000) },
+        { w: 854, h: 480, bitrate: scaleBps(2_400_000) },
+      ];
+    }
     if (w >= 1920) {
       return [
         { w: 1920, h: 1080, bitrate: scaleBps(8_000_000) },
@@ -637,28 +768,76 @@ export function getResolutionFallbackTiers(
         { w: 960, h: 540, bitrate: scaleBps(2_800_000) },
       ];
     }
+    if (w >= 1280) {
+      return [
+        { w: 1280, h: 720, bitrate: scaleBps(5_000_000) },
+        { w: 1280, h: 720, bitrate: scaleBps(3_500_000) },
+        { w: 854, h: 480, bitrate: scaleBps(2_200_000) },
+      ];
+    }
     return [
-      { w, h, bitrate: scaleBps(5_000_000) },
-      { w, h, bitrate: scaleBps(3_500_000) },
-      { w: 960, h: 540, bitrate: scaleBps(2_500_000) },
+      { w, h, bitrate: scaleBps(2_600_000) },
+      { w, h, bitrate: scaleBps(1_800_000) },
     ];
   }
 
   // Square 1:1
   if (w === h) {
+    if (w >= 2160) {
+      return [
+        { w: 2160, h: 2160, bitrate: scaleBps(18_000_000) },
+        { w: 2160, h: 2160, bitrate: scaleBps(12_000_000) },
+        { w: 1080, h: 1080, bitrate: scaleBps(6_500_000) },
+        { w: 720, h: 720, bitrate: scaleBps(3_500_000) },
+      ];
+    }
+    if (w >= 1080) {
+      return [
+        { w, h, bitrate: scaleBps(6_500_000) },
+        { w, h, bitrate: scaleBps(4_500_000) },
+        { w: 720, h: 720, bitrate: scaleBps(3_500_000) },
+      ];
+    }
+    if (w >= 720) {
+      return [
+        { w, h, bitrate: scaleBps(3_800_000) },
+        { w: 480, h: 480, bitrate: scaleBps(2_000_000) },
+      ];
+    }
     return [
-      { w, h, bitrate: scaleBps(6_500_000) },
-      { w, h, bitrate: scaleBps(4_500_000) },
-      { w: 720, h: 720, bitrate: scaleBps(3_500_000) },
+      { w, h, bitrate: scaleBps(2_200_000) },
+      { w, h, bitrate: scaleBps(1_600_000) },
     ];
   }
 
   // Portrait 9:16
+  if (h >= 3840) {
+    return [
+      { w: 2160, h: 3840, bitrate: scaleBps(22_000_000) },
+      { w: 2160, h: 3840, bitrate: scaleBps(14_000_000) },
+      { w: 1080, h: 1920, bitrate: scaleBps(8_000_000) },
+      { w: 720, h: 1280, bitrate: scaleBps(4_500_000) },
+      { w: 480, h: 854, bitrate: scaleBps(2_400_000) },
+    ];
+  }
+  if (h >= 1920) {
+    return [
+      { w, h, bitrate: scaleBps(8_000_000) },
+      { w, h, bitrate: scaleBps(5_000_000) },
+      { w: 720, h: 1280, bitrate: scaleBps(4_500_000) },
+      { w: 540, h: 960, bitrate: scaleBps(3_000_000) },
+    ];
+  }
+  if (h >= 1280) {
+    return [
+      { w, h, bitrate: scaleBps(4_500_000) },
+      { w, h, bitrate: scaleBps(3_200_000) },
+      { w: 480, h: 854, bitrate: scaleBps(2_200_000) },
+    ];
+  }
   return [
-    { w, h, bitrate: scaleBps(8_000_000) },
-    { w, h, bitrate: scaleBps(5_000_000) },
-    { w: 720, h: 1280, bitrate: scaleBps(4_500_000) },
-    { w: 540, h: 960, bitrate: scaleBps(3_000_000) },
+    { w, h, bitrate: scaleBps(2_400_000) },
+    { w, h, bitrate: scaleBps(1_600_000) },
   ];
 }
 
@@ -870,4 +1049,39 @@ export function resolveVideoDownloadLinkState(params: {
     usesServerRelay: false,
   };
 }
+
+export interface StudioRenderListItem {
+  id: string;
+  qualityId: VideoQualityId;
+  qualityLabel: string;
+  aspectLabel: '16:9' | '9:16' | '1:1';
+  width: number;
+  height: number;
+  filename: string;
+  sizeBytes: number;
+  durationSec: number;
+  summaryLabel: string;
+  templateName: string;
+  createdAt: number;
+}
+
+export function appendRenderListItem<T extends { id: string }>(list: T[], item: T): T[] {
+  return [item, ...list.filter((existing) => existing.id !== item.id)];
+}
+
+export function removeRenderListItem<T extends { id: string }>(
+  list: T[],
+  targetId: string,
+  currentActiveId: string | null
+): { items: T[]; nextActiveId: string | null } {
+  const items = list.filter((item) => item.id !== targetId);
+  if (items.length === 0) {
+    return { items, nextActiveId: null };
+  }
+  if (currentActiveId && currentActiveId !== targetId && items.some((i) => i.id === currentActiveId)) {
+    return { items, nextActiveId: currentActiveId };
+  }
+  return { items, nextActiveId: items[0].id };
+}
+
 

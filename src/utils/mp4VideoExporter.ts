@@ -40,6 +40,8 @@ export interface Mp4ExportResult {
   blob: Blob;
   extension: 'mp4' | 'webm';
   mimeType: string;
+  width: number;
+  height: number;
 }
 
 interface ResolvedVideoCandidate {
@@ -67,7 +69,7 @@ async function resolveSupportedVideoCandidates(
     targetDurationSec
   );
 
-  const avcCodecs = [
+  const baseAvcCodecs = [
     'avc1.4d402a', // Main Profile L4.2
     'avc1.64002a', // High Profile L4.2
     'avc1.42e02a', // Constrained Baseline L4.2
@@ -77,11 +79,21 @@ async function resolveSupportedVideoCandidates(
     'avc1.42002a',
   ];
 
+  const uhdAvcCodecs = [
+    'avc1.640033', // High Profile L5.1 (4K UHD)
+    'avc1.4d4033', // Main Profile L5.1 (4K UHD)
+    'avc1.640034', // High Profile L5.2 (4K UHD high frame)
+    'avc1.4d4034', // Main Profile L5.2
+    'avc1.42e033', // Constrained Baseline L5.1
+  ];
+
   const hwModes: HardwareAcceleration[] = ['no-preference', 'prefer-hardware', 'prefer-software'];
   const candidates: ResolvedVideoCandidate[] = [];
   const seenKeys = new Set<string>();
 
   for (const tier of resolutionTiers) {
+    const isAbove2K = tier.w > 2048 || tier.h > 2048;
+    const avcCodecs = isAbove2K ? [...uhdAvcCodecs, ...baseAvcCodecs] : baseAvcCodecs;
     let foundTierH264 = false;
     for (const hardwareAcceleration of hwModes) {
       for (const codec of avcCodecs) {
@@ -124,7 +136,11 @@ async function resolveSupportedVideoCandidates(
 
   if (includeVp9Fallback) {
     for (const tier of resolutionTiers) {
-      for (const codec of ['vp09.00.10.08', 'vp09.00.20.08']) {
+      const isAbove2K = tier.w > 2048 || tier.h > 2048;
+      const vp9Codecs = isAbove2K
+        ? ['vp09.00.51.08', 'vp09.00.50.08', 'vp09.00.41.08', 'vp09.00.40.08']
+        : ['vp09.00.40.08', 'vp09.00.31.08', 'vp09.00.20.08', 'vp09.00.10.08'];
+      for (const codec of vp9Codecs) {
         try {
           const candidate: VideoEncoderConfig = {
             codec,
@@ -611,7 +627,8 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
           throw new Error('VideoEncoder produced no initial output within 45s');
         }
 
-        if (f % 6 === 0 || f === totalFrames - 1) {
+        const progressStride = encodeWidth >= 2160 || encodeHeight >= 2160 ? 2 : 6;
+        if (f % progressStride === 0 || f === totalFrames - 1) {
           const pct = 25 + Math.round(((f + 1) / totalFrames) * 65);
           params.onProgress(
             Math.min(90, pct),
@@ -641,6 +658,8 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
           blob: new Blob([mp4Bytes], { type: 'video/mp4' }),
           extension: 'mp4',
           mimeType: 'video/mp4',
+          width: encodeWidth,
+          height: encodeHeight,
         };
       }
 
@@ -675,6 +694,8 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
         blob: new Blob([outBuf], { type: 'video/mp4' }),
         extension: 'mp4',
         mimeType: 'video/mp4',
+        width: encodeWidth,
+        height: encodeHeight,
       };
     } catch (err) {
       if (params.abortSignal.aborted) return null;
@@ -743,7 +764,18 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
 
   const totalSec = Math.max(2, timeline.totalDurationSec);
   const isLongVideo = totalSec > 180;
-  const targetVideoBps = chosenMime.includes('mp4')
+  const pixelCount = renderOpts.width * renderOpts.height;
+  const isUhd = pixelCount >= 3_800_000;
+  const isSd = pixelCount <= 500_000;
+  const baseBps = isUhd
+    ? isLongVideo
+      ? 9_000_000
+      : 16_000_000
+    : isSd
+    ? isLongVideo
+      ? 1_800_000
+      : 2_600_000
+    : chosenMime.includes('mp4')
     ? isLongVideo
       ? 4_200_000
       : 8_000_000
@@ -754,6 +786,7 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     : isLongVideo
     ? 3_600_000
     : 6_000_000;
+  const targetVideoBps = baseBps;
 
   const recorder = chosenMime
     ? new MediaRecorder(combinedStream, {
@@ -924,6 +957,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
             blob: new Blob([muxedBytes], { type: 'video/mp4' }),
             extension: 'mp4',
             mimeType: 'video/mp4',
+            width: renderOpts.width,
+            height: renderOpts.height,
           };
         }
       }
@@ -934,6 +969,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
       blob: rawBlob,
       extension: 'mp4',
       mimeType: 'video/mp4',
+      width: renderOpts.width,
+      height: renderOpts.height,
     };
   }
 
@@ -961,6 +998,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     blob: new Blob([mp4Buf], { type: 'video/mp4' }),
     extension: 'mp4',
     mimeType: 'video/mp4',
+    width: renderOpts.width,
+    height: renderOpts.height,
   };
 }
 
