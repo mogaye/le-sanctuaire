@@ -18,6 +18,7 @@ export interface VideoCanvasRenderOptions {
   surahNumber: number;
   startAyah: number;
   endAyah: number;
+  selectedSurahsCount?: number;
   isLightSurface: boolean;
   bgSurfaceColor?: string;
   bgVeilOpacity?: number;
@@ -36,6 +37,8 @@ export interface VideoCanvasRenderOptions {
 interface LaidOutVerseBlock {
   ayahNum: number;
   isBismillah?: boolean;
+  surahNumber?: number;
+  surahName?: string;
   yStart: number;
   centerY: number;
   height: number;
@@ -130,6 +133,8 @@ export function precomputeVideoCanvasLayout(
     blocks.push({
       ayahNum: ayah.num,
       isBismillah: ayah.isBismillah,
+      surahNumber: ayah.surahNumber,
+      surahName: ayah.surahName,
       yStart: blockStart,
       centerY: blockStart + blockHeight / 2,
       height: blockHeight,
@@ -990,13 +995,18 @@ export function renderVideoCanvasFrame(
     const headerTitleY = Math.round((isLandscape ? 46 : 88) * resScale);
     const headerSubY = Math.round((isLandscape ? 72 : 116) * resScale);
 
+    const activeSurahName = activeBlock?.surahName || opts.surahName;
+    const activeSurahNum = activeBlock?.surahNumber || opts.surahNumber;
+    const isMultiSurah = (opts.selectedSurahsCount || 1) > 1;
+    const headerText = isMultiSurah
+      ? `Sourate ${activeSurahName} (${activeSurahNum})  •  ${
+          activeBlock?.isBismillah ? 'Bismillah' : `Verset ${activeBlock?.ayahNum ?? opts.startAyah}`
+        }`
+      : `Sourate ${activeSurahName} (${activeSurahNum})  •  Versets ${opts.startAyah}–${opts.endAyah}`;
+
     ctx.font = `700 ${Math.round((isLandscape ? 19 : 20) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = isLightSurface ? 'rgba(23, 23, 23, 0.88)' : 'rgba(251, 191, 36, 0.96)';
-    ctx.fillText(
-      `Sourate ${opts.surahName} (${opts.surahNumber})  •  Versets ${opts.startAyah}–${opts.endAyah}`,
-      width / 2,
-      headerTitleY
-    );
+    ctx.fillText(headerText, width / 2, headerTitleY);
     ctx.font = `500 ${Math.round((isLandscape ? 14 : 15) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = isLightSurface ? 'rgba(82, 82, 82, 0.82)' : 'rgba(226, 232, 240, 0.78)';
     ctx.fillText(opts.reciterName, width / 2, headerSubY);

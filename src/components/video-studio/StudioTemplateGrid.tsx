@@ -113,36 +113,31 @@ export const StudioTemplateGrid: React.FC<StudioTemplateGridProps> = ({
             type="button"
             data-testid={`studio-template-${tpl.id}`}
             onClick={() => onSelect(tpl.id)}
-            className={`group text-left p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+            className={`group text-left p-3 rounded-xl border transition-colors duration-150 cursor-pointer flex items-start gap-3 min-h-[76px] ${
               active
-                ? 'bg-amber-400/12 border-amber-400/70 shadow-sm'
-                : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06] hover:border-white/20'
+                ? 'bg-amber-400/[0.11] border-amber-400/60'
+                : 'bg-white/[0.025] border-white/[0.08] hover:bg-white/[0.05] hover:border-white/20'
             }`}
           >
             <TemplateWireframe id={tpl.id} active={active} isLandscape={isLandscape} />
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex items-start justify-between gap-1.5">
                 <span
-                  className={`text-xs font-bold leading-snug ${
+                  className={`text-[13px] font-semibold leading-snug ${
                     active ? 'text-amber-300' : 'text-white'
                   }`}
                 >
                   {tpl.name}
                 </span>
                 {active && (
-                  <Check className="w-3.5 h-3.5 text-amber-300 shrink-0 stroke-[2.8] mt-0.5" />
+                  <Check className="w-4 h-4 text-amber-300 shrink-0 stroke-[2.5] mt-0.5" />
                 )}
               </div>
-              <p className="text-[11px] text-neutral-400 leading-snug line-clamp-2">
+              <p className="text-xs text-neutral-400 leading-snug line-clamp-2">
                 {tpl.subtitle}
               </p>
-              <div className="flex items-center justify-between gap-1.5 pt-0.5 text-[10px] font-medium">
-                <span className="text-neutral-500 truncate">{tpl.recommendedFor}</span>
-                {tpl.isNew && (
-                  <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-emerald-400 shrink-0">
-                    Nouveau
-                  </span>
-                )}
+              <div className="text-[11px] text-neutral-500 truncate pt-0.5">
+                {tpl.recommendedFor}
               </div>
             </div>
           </button>

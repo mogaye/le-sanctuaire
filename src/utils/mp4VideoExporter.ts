@@ -32,6 +32,7 @@ export interface Mp4ExportParams {
   onProgress: (pct: number, elapsedSec: number, statusText: string) => void;
   onKeepaliveReady?: (keepalive: ReturnType<typeof attachAudioStreamKeepalive>) => void;
   onMediaRecorderReady?: (recorder: MediaRecorder) => void;
+  onRecordingChunkAvailable?: () => void;
 }
 
 export interface Mp4ExportResult {
@@ -142,27 +143,32 @@ async function resolveSupportedH264Config(
     'avc1.42002a',
   ];
 
+  const hwModes: HardwareAcceleration[] = ['prefer-software', 'no-preference'];
+
   for (const tier of resolutionTiers) {
-    for (const codec of codecs) {
-      try {
-        const candidate: VideoEncoderConfig = {
-          codec,
-          width: tier.w,
-          height: tier.h,
-          bitrate: tier.bitrate,
-          framerate: fps,
-          avc: { format: 'avc' },
-        };
-        const support = await VideoEncoder.isConfigSupported(candidate);
-        if (support.supported) {
-          return {
-            config: support.config || candidate,
-            encodeWidth: tier.w,
-            encodeHeight: tier.h,
+    for (const hardwareAcceleration of hwModes) {
+      for (const codec of codecs) {
+        try {
+          const candidate: VideoEncoderConfig = {
+            codec,
+            width: tier.w,
+            height: tier.h,
+            bitrate: tier.bitrate,
+            framerate: fps,
+            hardwareAcceleration,
+            avc: { format: 'avc' },
           };
+          const support = await VideoEncoder.isConfigSupported(candidate);
+          if (support.supported) {
+            return {
+              config: support.config || candidate,
+              encodeWidth: tier.w,
+              encodeHeight: tier.h,
+            };
+          }
+        } catch {
+          // try next profile
         }
-      } catch {
-        // try next profile
       }
     }
   }
@@ -488,14 +494,14 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
       frame.close();
 
       while (videoEncoder.encodeQueueSize >= 3 && !params.abortSignal.aborted && !encoderError) {
-        if (Date.now() - lastChunkAdvanceAt > 7000) {
-          throw new Error('VideoEncoder stalled without output for 7s');
+        if (Date.now() - lastChunkAdvanceAt > 3500) {
+          throw new Error('VideoEncoder stalled without output for 3.5s');
         }
         await new Promise((r) => setTimeout(r, 15));
       }
 
-      if (videoChunkCount === 0 && Date.now() - videoLoopStartAt > 6000) {
-        throw new Error('VideoEncoder produced no initial output within 6s');
+      if (videoChunkCount === 0 && Date.now() - videoLoopStartAt > 2500) {
+        throw new Error('VideoEncoder produced no initial output within 2.5s');
       }
 
       if (f % 2 === 0 || f === totalFrames - 1) {
@@ -628,9 +634,14 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   params.onMediaRecorderReady?.(recorder);
 
   const chunks: BlobPart[] = [];
+  let notifiedFirstChunk = false;
   recorder.ondataavailable = (ev) => {
     if (ev.data && ev.data.size > 0) {
       chunks.push(ev.data);
+      if (!notifiedFirstChunk) {
+        notifiedFirstChunk = true;
+        params.onRecordingChunkAvailable?.();
+      }
     }
   };
 
@@ -653,7 +664,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     recorder.onerror = () => reject(new Error('Erreur MediaRecorder lors de la création vidéo.'));
   });
 
-  recorder.start(250);
+  recorder.start(200);
+  renderVideoCanvasFrame(canvasCtx, layout, timeline, 0.01, renderOpts);
 
   const segStarts = timeline.segments.map((s) => s.startSec);
   const segDurs = timeline.segments.map((s) => s.durationSec);
@@ -698,11 +710,8 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     );
     if (elapsed >= totalSec) {
       if (recorder.state === 'recording') {
-        try {
-          recorder.requestData();
-        } catch {}
+        recorder.stop();
       }
-      recorder.stop();
       return;
     }
     rafId = requestAnimationFrame(renderLoop);

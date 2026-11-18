@@ -5,7 +5,10 @@ import {
   VIDEO_EXPORT_WIDTH,
   VIDEO_TEMPLATE_PRESETS,
   buildContinuousTimeline,
+  buildMultiSurahVideoSequence,
+  buildStudioExportFilename,
   buildStudioVideoSequence,
+  buildSurahPlaceholderAyahs,
   computeContinuousScrollY,
   computeCoverDrawRect,
   findActiveTimelineEntry,
@@ -291,6 +294,103 @@ test('buildStudioVideoSequence prepends Bismillah audio+text intro when starting
   assert.equal(seqTawbah[0].isBismillah, undefined);
 });
 
+test('buildMultiSurahVideoSequence preserves ALL selected surahs, full lengths, and total duration > 9s', () => {
+  const catalog = [
+    { number: 112, name: 'Al-Ikhlas', arabicName: 'الإخلاص', numberOfAyahs: 4 },
+    { number: 113, name: 'Al-Falaq', arabicName: 'الفلق', numberOfAyahs: 5 },
+    { number: 114, name: 'An-Nas', arabicName: 'الناس', numberOfAyahs: 6 },
+    { number: 78, name: 'An-Naba', arabicName: 'النبأ', numberOfAyahs: 40 },
+  ];
 
+  const makeVerses = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      num: i + 1,
+      ar: `بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ آيَة ${i + 1}`,
+      tr: `Verset ${i + 1}`,
+      fr: `Traduction du verset ${i + 1}`,
+    }));
 
+  const versesBySurah = new Map([
+    [112, makeVerses(4)],
+    [113, makeVerses(5)],
+    [114, makeVerses(6)],
+  ]);
 
+  // 3 Qul selected: 4 + 5 + 6 = 15 verses + 3 Bismillah intros = 18 items
+  const seq = buildMultiSurahVideoSequence(
+    [
+      { id: '112', surahNumber: 112, startAyah: 1, endAyah: 4 },
+      { id: '113', surahNumber: 113, startAyah: 1, endAyah: 5 },
+      { id: '114', surahNumber: 114, startAyah: 1, endAyah: 6 },
+    ],
+    versesBySurah,
+    catalog
+  );
+
+  assert.equal(seq.length, 18);
+  assert.equal(seq[0].surahNumber, 112);
+  assert.equal(seq[0].isBismillah, true);
+  assert.equal(seq[0].audioSurahNum, 1);
+  assert.equal(seq[1].surahNumber, 112);
+  assert.equal(seq[1].audioSurahNum, 112);
+  assert.equal(seq[1].audioAyahNum, 1);
+
+  assert.equal(seq[5].surahNumber, 113);
+  assert.equal(seq[5].isBismillah, true);
+  assert.equal(seq[6].audioSurahNum, 113);
+
+  assert.equal(seq[11].surahNumber, 114);
+  assert.equal(seq[11].isBismillah, true);
+  assert.equal(seq[12].audioSurahNum, 114);
+
+  const tl = buildContinuousTimeline(seq, undefined, 1);
+  assert.ok(tl.totalDurationSec > 45, `Multi-surah duration must reflect all surahs, got ${tl.totalDurationSec}s`);
+
+  // Verify placeholder generator does NOT cap long surahs to 10 verses while loading/offline
+  const placeholders = buildSurahPlaceholderAyahs(catalog[3]);
+  assert.equal(placeholders.length, 40);
+
+  // Verify multi-surah YouTube pack lists all surahs and prefixed chapters
+  const multiPack = generateYouTubePublishPack({
+    surahName: 'Al-Ikhlas',
+    surahNumber: 112,
+    startAyah: 1,
+    endAyah: 4,
+    totalAyahsInSurah: 4,
+    reciterName: 'Alafasy',
+    timeline: tl,
+    selectedSurahs: [
+      { surahNumber: 112, surahName: 'Al-Ikhlas', startAyah: 1, endAyah: 4, totalAyahsInSurah: 4 },
+      { surahNumber: 113, surahName: 'Al-Falaq', startAyah: 1, endAyah: 5, totalAyahsInSurah: 5 },
+      { surahNumber: 114, surahName: 'An-Nas', startAyah: 1, endAyah: 6, totalAyahsInSurah: 6 },
+    ],
+  });
+  assert.ok(multiPack.title.includes('Al-Ikhlas'));
+  assert.ok(multiPack.title.includes('Al-Falaq'));
+  assert.ok(multiPack.title.includes('An-Nas'));
+  assert.ok(multiPack.description.includes('Al-Ikhlas — Bismillah'));
+  assert.ok(multiPack.description.includes('An-Nas — Verset 6'));
+});
+
+test('buildStudioExportFilename formats single and multi-surah filenames cleanly', () => {
+  assert.equal(
+    buildStudioExportFilename({
+      selections: [{ surahNumber: 112, startAyah: 1, endAyah: 4 }],
+      aspectLabel: '9:16',
+      extension: 'mp4',
+    }),
+    'coran-s112-v1-4-9x16.mp4'
+  );
+  assert.equal(
+    buildStudioExportFilename({
+      selections: [
+        { surahNumber: 112, startAyah: 1, endAyah: 4 },
+        { surahNumber: 113, startAyah: 1, endAyah: 5 },
+        { surahNumber: 114, startAyah: 1, endAyah: 6 },
+      ],
+      aspectLabel: '16:9',
+      extension: 'mp4',
+    }),
+    'coran-3sourates-s112-113-114-16x9.mp4'
+  );
+});

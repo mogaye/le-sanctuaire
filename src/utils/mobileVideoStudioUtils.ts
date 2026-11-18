@@ -7,6 +7,27 @@ export interface StudioAyahItem {
   isBismillah?: boolean;
   audioSurahNum?: number;
   audioAyahNum?: number;
+  surahNumber?: number;
+  surahName?: string;
+  surahArabicName?: string;
+  surahTotalAyahs?: number;
+}
+
+export interface StudioSurahSelection {
+  id: string;
+  surahNumber: number;
+  startAyah: number;
+  endAyah: number;
+}
+
+export interface StudioSurahMetaInput {
+  number: number;
+  name: string;
+  arabicName?: string;
+  frenchTranslation?: string;
+  numberOfAyahs: number;
+  openingAyahArabic?: string;
+  openingAyahFrench?: string;
 }
 
 export const STUDIO_BISMILLAH_ITEM: StudioAyahItem = {
@@ -23,6 +44,8 @@ export interface ContinuousTimelineSegment {
   index: number;
   ayahNum: number;
   isBismillah?: boolean;
+  surahNumber?: number;
+  surahName?: string;
   startSec: number;
   endSec: number;
   durationSec: number;
@@ -107,25 +130,136 @@ export function buildStudioVideoSequence(
   surahNumber: number,
   ayahs: StudioAyahItem[],
   startAyah: number,
-  endAyah: number
+  endAyah: number,
+  surahMeta?: Partial<Pick<StudioSurahMetaInput, 'name' | 'arabicName' | 'numberOfAyahs'>>
 ): StudioAyahItem[] {
   const sliced = sliceSelectedAyahs(ayahs, startAyah, endAyah);
   if (sliced.length === 0) return [];
+
+  const withMeta = (item: StudioAyahItem): StudioAyahItem => ({
+    ...item,
+    audioSurahNum: item.audioSurahNum ?? surahNumber,
+    audioAyahNum: item.audioAyahNum ?? item.num,
+    surahNumber: item.surahNumber ?? surahNumber,
+    surahName: item.surahName ?? surahMeta?.name,
+    surahArabicName: item.surahArabicName ?? surahMeta?.arabicName,
+    surahTotalAyahs: item.surahTotalAyahs ?? surahMeta?.numberOfAyahs,
+  });
+
   if (!shouldPrependBismillah(surahNumber, startAyah)) {
-    return sliced;
+    return sliced.map(withMeta);
   }
 
   const normalizedVerses = sliced.map((item, idx) => {
+    const enriched = withMeta(item);
     if (idx === 0 && item.num === 1) {
       return {
-        ...item,
+        ...enriched,
         ar: stripLeadingBismillahFromAyah1(item.ar),
       };
     }
-    return item;
+    return enriched;
   });
 
-  return [{ ...STUDIO_BISMILLAH_ITEM }, ...normalizedVerses];
+  return [
+    {
+      ...STUDIO_BISMILLAH_ITEM,
+      surahNumber,
+      surahName: surahMeta?.name,
+      surahArabicName: surahMeta?.arabicName,
+      surahTotalAyahs: surahMeta?.numberOfAyahs,
+    },
+    ...normalizedVerses,
+  ];
+}
+
+export function buildSurahPlaceholderAyahs(meta: StudioSurahMetaInput): StudioAyahItem[] {
+  const count = Math.max(1, meta.numberOfAyahs || 1);
+  return Array.from({ length: count }, (_, idx) => {
+    const num = idx + 1;
+    return {
+      num,
+      ar:
+        idx === 0 && meta.openingAyahArabic
+          ? meta.openingAyahArabic
+          : 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
+      tr: idx === 0 ? `Sourate ${meta.name}` : `Verset ${num}`,
+      fr:
+        idx === 0 && meta.openingAyahFrench
+          ? meta.openingAyahFrench
+          : `${meta.frenchTranslation || meta.name} — Verset ${num}`,
+      audioSurahNum: meta.number,
+      audioAyahNum: num,
+      surahNumber: meta.number,
+      surahName: meta.name,
+      surahArabicName: meta.arabicName,
+      surahTotalAyahs: meta.numberOfAyahs,
+    };
+  });
+}
+
+/**
+ * Builds an ordered continuous video sequence across one or multiple selected Surahs,
+ * preserving each Surah's Bismillah intro (when starting at verse 1 outside Surahs 1 & 9),
+ * exact audio coordinates (audioSurahNum/audioAyahNum), and full verse counts.
+ */
+export function buildMultiSurahVideoSequence(
+  selections: StudioSurahSelection[],
+  versesBySurah: Map<number, StudioAyahItem[]> | Record<number, StudioAyahItem[]>,
+  surahCatalog: StudioSurahMetaInput[]
+): StudioAyahItem[] {
+  if (!Array.isArray(selections) || selections.length === 0) return [];
+
+  const getVerses = (num: number): StudioAyahItem[] | undefined =>
+    versesBySurah instanceof Map ? versesBySurah.get(num) : versesBySurah[num];
+
+  const sequence: StudioAyahItem[] = [];
+
+  for (const sel of selections) {
+    const meta = surahCatalog.find((s) => s.number === sel.surahNumber);
+    const loaded = getVerses(sel.surahNumber);
+    const sourceAyahs =
+      loaded && loaded.length > 0
+        ? loaded
+        : meta
+        ? buildSurahPlaceholderAyahs(meta)
+        : [];
+    if (sourceAyahs.length === 0) continue;
+
+    const maxAyahs = Math.max(sourceAyahs.length, meta?.numberOfAyahs || 1);
+    const normalized = normalizeVerseRange(sel.startAyah, sel.endAyah, maxAyahs);
+    const part = buildStudioVideoSequence(
+      sel.surahNumber,
+      sourceAyahs,
+      normalized.startAyah,
+      normalized.endAyah,
+      meta
+    );
+    sequence.push(...part);
+  }
+
+  return sequence;
+}
+
+export function buildStudioExportFilename(params: {
+  selections: Array<Pick<StudioSurahSelection, 'surahNumber' | 'startAyah' | 'endAyah'>>;
+  aspectLabel: string;
+  extension: string;
+}): string {
+  const aspect = params.aspectLabel.replace(':', 'x');
+  const ext = params.extension || 'mp4';
+  if (!params.selections || params.selections.length === 0) {
+    return `coran-studio-${aspect}.${ext}`;
+  }
+  if (params.selections.length === 1) {
+    const s = params.selections[0];
+    return `coran-s${s.surahNumber}-v${s.startAyah}-${s.endAyah}-${aspect}.${ext}`;
+  }
+  const nums = params.selections
+    .slice(0, 4)
+    .map((s) => s.surahNumber)
+    .join('-');
+  return `coran-${params.selections.length}sourates-s${nums}-${aspect}.${ext}`;
 }
 
 export function estimateAyahDurationSeconds(
@@ -140,7 +274,7 @@ export function estimateAyahDurationSeconds(
 }
 
 export function buildContinuousTimeline(
-  ayahs: Array<Pick<StudioAyahItem, 'num' | 'ar' | 'fr' | 'isBismillah'>>,
+  ayahs: Array<Pick<StudioAyahItem, 'num' | 'ar' | 'fr' | 'isBismillah' | 'surahNumber' | 'surahName'>>,
   measuredDurationsSec?: Array<number | undefined | null>,
   paceMultiplier: number = 1
 ): ContinuousTimeline {
@@ -161,6 +295,8 @@ export function buildContinuousTimeline(
       index: i,
       ayahNum: ayah.num,
       isBismillah: ayah.isBismillah,
+      surahNumber: ayah.surahNumber,
+      surahName: ayah.surahName,
       startSec,
       endSec,
       durationSec: Number((endSec - startSec).toFixed(3)),
@@ -449,6 +585,15 @@ export function getResolutionFallbackTiers(
   ];
 }
 
+export interface YouTubeSurahSummaryItem {
+  surahNumber: number;
+  surahName: string;
+  surahArabicName?: string;
+  startAyah: number;
+  endAyah: number;
+  totalAyahsInSurah: number;
+}
+
 export function generateYouTubePublishPack(params: {
   surahName: string;
   surahArabicName?: string;
@@ -458,36 +603,76 @@ export function generateYouTubePublishPack(params: {
   totalAyahsInSurah: number;
   reciterName: string;
   timeline: ContinuousTimeline;
+  selectedSurahs?: YouTubeSurahSummaryItem[];
 }): { title: string; description: string } {
-  const isFullSurah =
-    params.startAyah === 1 && params.endAyah >= params.totalAyahsInSurah;
-  const rangeLabel = isFullSurah
-    ? `Sourate complète (${params.totalAyahsInSurah} versets)`
-    : `Versets ${params.startAyah} à ${params.endAyah}`;
+  const surahs =
+    params.selectedSurahs && params.selectedSurahs.length > 0
+      ? params.selectedSurahs
+      : [
+          {
+            surahNumber: params.surahNumber,
+            surahName: params.surahName,
+            surahArabicName: params.surahArabicName,
+            startAyah: params.startAyah,
+            endAyah: params.endAyah,
+            totalAyahsInSurah: params.totalAyahsInSurah,
+          },
+        ];
 
-  const title = `Sourate ${params.surahName} (${params.surahNumber}) — ${rangeLabel} | ${params.reciterName} (Arabe, Phonétique & Français)`;
+  const isMultiSurah = surahs.length > 1;
+  const first = surahs[0];
+  const isFirstFull =
+    first.startAyah === 1 && first.endAyah >= first.totalAyahsInSurah;
+  const singleRangeLabel = isFirstFull
+    ? `Sourate complète (${first.totalAyahsInSurah} versets)`
+    : `Versets ${first.startAyah} à ${first.endAyah}`;
+
+  const title = isMultiSurah
+    ? surahs.length <= 3
+      ? `Sourates ${surahs.map((s) => `${s.surahName} (${s.surahNumber})`).join(', ')} | ${params.reciterName} (Arabe, Phonétique & Français)`
+      : `Compilation Coran : ${surahs.length} sourates (${surahs[0].surahName} à ${surahs[surahs.length - 1].surahName}) | ${params.reciterName}`
+    : `Sourate ${first.surahName} (${first.surahNumber}) — ${singleRangeLabel} | ${params.reciterName} (Arabe, Phonétique & Français)`;
 
   // Sample chapters cleanly (at most 40 entries for super long surahs, or every verse up to 35 verses)
   const segments = params.timeline.segments;
   const step = segments.length > 40 ? Math.ceil(segments.length / 30) : 1;
   const chapterLines: string[] = [];
+  const formatSegLabel = (seg: ContinuousTimelineSegment) => {
+    const base = seg.isBismillah ? 'Bismillah' : `Verset ${seg.ayahNum}`;
+    return isMultiSurah && seg.surahName ? `${seg.surahName} — ${base}` : base;
+  };
   for (let i = 0; i < segments.length; i += step) {
     const seg = segments[i];
-    const label = seg.isBismillah ? 'Bismillah' : `Verset ${seg.ayahNum}`;
-    chapterLines.push(`${formatTimeMMSS(seg.startSec)} ${label}`);
+    chapterLines.push(`${formatTimeMMSS(seg.startSec)} ${formatSegLabel(seg)}`);
   }
   if (segments.length > 1 && (segments.length - 1) % step !== 0) {
     const lastSeg = segments[segments.length - 1];
-    const label = lastSeg.isBismillah ? 'Bismillah' : `Verset ${lastSeg.ayahNum}`;
-    chapterLines.push(`${formatTimeMMSS(lastSeg.startSec)} ${label}`);
+    chapterLines.push(`${formatTimeMMSS(lastSeg.startSec)} ${formatSegLabel(lastSeg)}`);
   }
+
+  const introSummary = isMultiSurah
+    ? [
+        `Récitation apaisante de ${surahs.length} sourates du Noble Coran :`,
+        ...surahs.map((s) => {
+          const full = s.startAyah === 1 && s.endAyah >= s.totalAyahsInSurah;
+          return `• Sourate ${s.surahName}${s.surahArabicName ? ` (${s.surahArabicName})` : ''} — ${
+            full ? `Complète (${s.totalAyahsInSurah} versets)` : `Versets ${s.startAyah} à ${s.endAyah}`
+          }`;
+        }),
+      ].join('\n')
+    : `Récitation apaisante de la Sourate ${first.surahName}${
+        first.surahArabicName ? ` (${first.surahArabicName})` : ''
+      } — ${singleRangeLabel}.`;
+
+  const hashtags = surahs
+    .slice(0, 4)
+    .map((s) => `#Sourate${s.surahName.replace(/[^a-zA-Z0-9]/g, '')}`)
+    .join(' ');
 
   const description = [
     `بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ`,
     ``,
-    `Récitation apaisante de la Sourate ${params.surahName}${
-      params.surahArabicName ? ` (${params.surahArabicName})` : ''
-    } — ${rangeLabel}.`,
+    introSummary,
     `Récitateur : ${params.reciterName}`,
     `Texte arabe, transcription phonétique et traduction en français.`,
     ``,
@@ -495,7 +680,7 @@ export function generateYouTubePublishPack(params: {
     ...chapterLines,
     ``,
     `Créé avec Le Sanctuaire — La Voie de la Sérénité`,
-    `#Coran #Quran #Sourate${params.surahName.replace(/[^a-zA-Z0-9]/g, '')} #Islam`,
+    `#Coran #Quran ${hashtags} #Islam`,
   ].join('\n');
 
   return { title, description };

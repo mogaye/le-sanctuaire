@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   X,
   Film,
@@ -13,6 +13,8 @@ import {
   Check,
   Search,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Square,
   SlidersHorizontal,
   Loader2,
@@ -25,6 +27,10 @@ import {
   Smartphone,
   Plus,
   Clock,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Layers,
 } from 'lucide-react';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
 import { RECITERS } from '../data/islamicData';
@@ -37,20 +43,22 @@ import {
 import { TajweedText, cleanAyahArabic } from '../utils/tajweedColorizer';
 import {
   StudioAyahItem,
+  StudioSurahSelection,
   VIDEO_FORMAT_PRESETS,
   VIDEO_TEMPLATE_PRESETS,
   VideoFormatId,
   VideoTemplateId,
+  YouTubeSurahSummaryItem,
   buildContinuousTimeline,
-  buildStudioVideoSequence,
+  buildMultiSurahVideoSequence,
+  buildStudioExportFilename,
   formatTimeMMSS,
   getVideoFormatPreset,
   normalizeVerseRange,
-  shouldPrependBismillah,
-  sliceSelectedAyahs,
 } from '../utils/mobileVideoStudioUtils';
 import {
   DecodedVerseBuffer,
+  LoadedStudioSurah,
   ScheduledPlaybackHandle,
   attachAudioStreamKeepalive,
   decodeVerseAudioSequence,
@@ -59,7 +67,6 @@ import {
 } from '../utils/continuousAudioEngine';
 import {
   MANDATORY_WATERMARK_BRAND,
-  MANDATORY_WATERMARK_TAGLINE,
   VideoCanvasRenderOptions,
   loadCanvasBackgroundImage,
   precomputeVideoCanvasLayout,
@@ -101,6 +108,17 @@ interface CustomBackgroundMedia {
 
 type StudioStage = 'setup' | 'player' | 'export';
 type StudioTab = 'verses' | 'style' | 'bg' | 'audio';
+type DownloadStatus = 'idle' | 'preparing' | 'done' | 'error';
+
+const MAX_STAGE_DOWNLOAD_BYTES = 150 * 1024 * 1024;
+
+function makeSelectionId(surahNumber: number): string {
+  return `s-${surahNumber}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function getSurahMeta(surahNumber: number): CompleteSurahItem {
+  return ALL_114_SURAHS.find((s) => s.number === surahNumber) || ALL_114_SURAHS[0];
+}
 
 function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null> {
   return new Promise((resolve) => {
@@ -146,6 +164,33 @@ function loadCanvasBackgroundVideo(url: string): Promise<HTMLVideoElement | null
   });
 }
 
+async function stageVideoBlobOnServer(
+  blob: Blob,
+  filename: string,
+  signal?: AbortSignal
+): Promise<string | null> {
+  if (!blob || blob.size === 0 || blob.size > MAX_STAGE_DOWNLOAD_BYTES) {
+    return null;
+  }
+  try {
+    const res = await fetch('/api/video/stage-download', {
+      method: 'POST',
+      headers: {
+        'Content-Type': blob.type || 'video/mp4',
+        'x-download-filename': filename,
+        'x-download-mime': blob.type || 'video/mp4',
+      },
+      body: blob,
+      signal,
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => null);
+    return typeof json?.downloadUrl === 'string' ? json.downloadUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   isOpen,
   onClose,
@@ -156,7 +201,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   onSyncReciter,
 }) => {
   const { isMobile, width: viewportWidth } = useMobileDevice();
-  // PC-only dimensions are strictly gated to non-mobile desktop viewports (>= 768px)
   const isPcMode = !isMobile && viewportWidth >= 768;
 
   // Format (PC-only selectable; Mobile strictly locked to 9:16)
@@ -179,15 +223,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // Active workspace tab
   const [activeTab, setActiveTab] = useState<StudioTab>('verses');
 
-  // Configuration State
-  const [surahNum, setSurahNum] = useState<number>(initialSurahNum || 1);
-  const [surahVerses, setSurahVerses] = useState<StudioAyahItem[]>([]);
-  const [isLoadingVerses, setIsLoadingVerses] = useState<boolean>(false);
-
-  const [startAyah, setStartAyah] = useState<number>(initialStartAyah || 1);
-  const [endAyah, setEndAyah] = useState<number>(() =>
-    Math.min(7, Math.max(initialStartAyah || 1, 5))
-  );
+  // Multi-Surah Playlist State
+  const [selectedSurahs, setSelectedSurahs] = useState<StudioSurahSelection[]>(() => {
+    const num = initialSurahNum || 1;
+    const meta = getSurahMeta(num);
+    const start = Math.max(1, Math.min(meta.numberOfAyahs, initialStartAyah || 1));
+    const end =
+      start === 1 && meta.numberOfAyahs <= 15
+        ? meta.numberOfAyahs
+        : Math.min(meta.numberOfAyahs, start + 4);
+    return [{ id: makeSelectionId(num), surahNumber: num, startAyah: start, endAyah: end }];
+  });
+  const [loadedSurahs, setLoadedSurahs] = useState<Record<number, LoadedStudioSurah>>({});
+  const [loadingSurahNums, setLoadingSurahNums] = useState<number[]>([]);
   const [reciterId, setReciterId] = useState<string>(initialReciter?.id || 'mishary');
 
   // Background Selection + Persistent Site Media Library
@@ -199,9 +247,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   const [bgId, setBgId] = useState<string>(() => {
     const prefs = loadStudioBgPreferences();
-    if (prefs.bgId) {
-      return prefs.bgId;
-    }
+    if (prefs.bgId) return prefs.bgId;
     if (
       STUDIO_SOLID_BACKGROUNDS.some((s) => s.id === initialBgId) ||
       MOBILE_VERTICAL_BACKGROUNDS.some((b) => b.id === initialBgId) ||
@@ -243,6 +289,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // Pickers inside Setup
   const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
   const [surahQuery, setSurahQuery] = useState<string>('');
+  const [draftPickerSurahNums, setDraftPickerSurahNums] = useState<number[]>([]);
   const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
 
   // Active Stage ('setup' | 'player' | 'export')
@@ -260,7 +307,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [playerHudVisible, setPlayerHudVisible] = useState<boolean>(true);
   const [measuredDurations, setMeasuredDurations] = useState<Array<number | undefined>>([]);
 
-  // Export State (for Stage = 'export')
+  // Export & Download State (for Stage = 'export')
   const [exportStatus, setExportStatus] = useState<
     'preparing_audio' | 'recording' | 'finalizing' | 'ready' | 'error'
   >('preparing_audio');
@@ -270,14 +317,22 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
   const [exportedVideoBlob, setExportedVideoBlob] = useState<Blob | null>(null);
   const [exportedFileExt, setExportedFileExt] = useState<string>('mp4');
+  const [stagedDownloadUrl, setStagedDownloadUrl] = useState<string | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('idle');
+  const [downloadFeedback, setDownloadFeedback] = useState<string | null>(null);
   const [exportedAudioInfo, setExportedAudioInfo] = useState<{
     okCount: number;
     totalCount: number;
     mime: string;
   } | null>(null);
   const [exportErrorMsg, setExportErrorMsg] = useState<string | null>(null);
+  const [canFinishEarly, setCanFinishEarly] = useState<boolean>(false);
 
-  // Refs for audio, background media & live video player canvas
+  // Refs
+  const wasOpenRef = useRef<boolean>(false);
+  const loadedSurahsRef = useRef<Record<number, LoadedStudioSurah>>({});
+  loadedSurahsRef.current = loadedSurahs;
+
   const audioCtxRef = useRef<AudioContext | null>(null);
   const decodedBuffersRef = useRef<DecodedVerseBuffer[]>([]);
   const playbackHandleRef = useRef<ScheduledPlaybackHandle | null>(null);
@@ -299,6 +354,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const playerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const hasRecorderChunkRef = useRef<boolean>(false);
 
   useWakeLock(isOpen && stage !== 'setup');
 
@@ -343,7 +399,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     };
   }, [isOpen]);
 
-  // Persist background, template & PC format choices across sessions
+  // Persist background, template & PC format choices
   useEffect(() => {
     saveStudioBgPreferences({
       bgId,
@@ -354,23 +410,102 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     });
   }, [bgId, textColorOverride, bgVeilOpacity, videoFormatId, flowMode]);
 
-  // Sync Surah / Reciter defaults on open
+  // Initialize selection strictly on closed -> open transition so parent ayah updates
+  // never overwrite user multi-surah selection or active export/player stage.
   useEffect(() => {
-    if (!isOpen) return;
-    setSurahNum(initialSurahNum || 1);
-    const meta =
-      ALL_114_SURAHS.find((s) => s.number === (initialSurahNum || 1)) || ALL_114_SURAHS[0];
-    const start = Math.max(1, Math.min(meta.numberOfAyahs, initialStartAyah || 1));
-    const end = Math.min(meta.numberOfAyahs, start + 4);
-    setStartAyah(start);
-    setEndAyah(end);
-    setReciterId(initialReciter?.id || 'mishary');
-    setStage('setup');
+    if (isOpen && !wasOpenRef.current) {
+      const num = initialSurahNum || 1;
+      const meta = getSurahMeta(num);
+      const start = Math.max(1, Math.min(meta.numberOfAyahs, initialStartAyah || 1));
+      const end =
+        start === 1 && meta.numberOfAyahs <= 15
+          ? meta.numberOfAyahs
+          : Math.min(meta.numberOfAyahs, start + 4);
+      setSelectedSurahs([
+        { id: makeSelectionId(num), surahNumber: num, startAyah: start, endAyah: end },
+      ]);
+      setReciterId(initialReciter?.id || 'mishary');
+      setStage('setup');
+    }
+    wasOpenRef.current = isOpen;
   }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id]);
 
-  const surahMeta: CompleteSurahItem = useMemo(
-    () => ALL_114_SURAHS.find((s) => s.number === surahNum) || ALL_114_SURAHS[0],
-    [surahNum]
+  // Parallel non-destructive loader for all selected Surahs
+  const selectedSurahNumbersKey = useMemo(
+    () =>
+      Array.from(new Set<number>(selectedSurahs.map((s) => s.surahNumber)))
+        .sort((a, b) => a - b)
+        .join(','),
+    [selectedSurahs]
+  );
+
+  useEffect(() => {
+    if (!isOpen || !selectedSurahNumbersKey) return;
+    let active = true;
+    const nums = selectedSurahNumbersKey
+      .split(',')
+      .map(Number)
+      .filter((n) => n > 0 && !loadedSurahsRef.current[n]);
+
+    if (nums.length === 0) return;
+
+    setLoadingSurahNums((prev) => Array.from(new Set([...prev, ...nums])));
+
+    Promise.all(
+      nums.map(async (num) => {
+        const meta = getSurahMeta(num);
+        const loaded = await fetchSurahVersesForStudio(meta);
+        return { num, loaded };
+      })
+    )
+      .then((results) => {
+        if (!active) return;
+        setLoadedSurahs((prev) => {
+          const next = { ...prev };
+          for (const item of results) {
+            next[item.num] = item.loaded;
+          }
+          return next;
+        });
+      })
+      .finally(() => {
+        if (!active) return;
+        setLoadingSurahNums((prev) => prev.filter((n) => !nums.includes(n)));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, selectedSurahNumbersKey]);
+
+  const isLoadingVerses = loadingSurahNums.length > 0;
+
+  const loadedVersesMap = useMemo(() => {
+    const map: Record<number, StudioAyahItem[]> = {};
+    for (const [key, val] of Object.entries(loadedSurahs) as Array<[string, LoadedStudioSurah]>) {
+      map[Number(key)] = val.ayahs;
+    }
+    return map;
+  }, [loadedSurahs]);
+
+  const primarySelection = selectedSurahs[0] || {
+    id: 'fallback',
+    surahNumber: initialSurahNum || 1,
+    startAyah: 1,
+    endAyah: 5,
+  };
+  const primarySurahMeta = useMemo(
+    () => getSurahMeta(primarySelection.surahNumber),
+    [primarySelection.surahNumber]
+  );
+  const primaryNormalizedRange = useMemo(
+    () =>
+      normalizeVerseRange(
+        primarySelection.startAyah,
+        primarySelection.endAyah,
+        primarySurahMeta.numberOfAyahs
+      ),
+    [primarySelection.startAyah, primarySelection.endAyah, primarySurahMeta.numberOfAyahs]
   );
 
   const selectedReciter: Reciter = useMemo(
@@ -378,59 +513,141 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [reciterId]
   );
 
-  // Load verses when surahNum changes
-  useEffect(() => {
-    if (!isOpen) return;
-    let active = true;
-    setIsLoadingVerses(true);
-    setMeasuredDurations([]);
-    fetchSurahVersesForStudio(surahMeta)
-      .then((data) => {
-        if (!active) return;
-        setSurahVerses(data.ayahs);
-        const maxN = data.ayahs.length || surahMeta.numberOfAyahs;
-        const normalized = normalizeVerseRange(startAyah, endAyah, maxN);
-        setStartAyah(normalized.startAyah);
-        setEndAyah(normalized.endAyah);
-      })
-      .finally(() => {
-        if (active) setIsLoadingVerses(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [isOpen, surahMeta]);
-
-  const maxAyahNum = surahVerses.length || surahMeta.numberOfAyahs || 1;
-  const normalizedRange = useMemo(
-    () => normalizeVerseRange(startAyah, endAyah, maxAyahNum),
-    [startAyah, endAyah, maxAyahNum]
+  const videoSequence = useMemo(
+    () => buildMultiSurahVideoSequence(selectedSurahs, loadedVersesMap, ALL_114_SURAHS),
+    [selectedSurahs, loadedVersesMap]
   );
 
-  const selectedVerses = useMemo(
-    () => sliceSelectedAyahs(surahVerses, normalizedRange.startAyah, normalizedRange.endAyah),
-    [surahVerses, normalizedRange]
+  const totalSelectedVerses = useMemo(
+    () => videoSequence.filter((v) => !v.isBismillah).length,
+    [videoSequence]
   );
 
   const hasBismillahIntro = useMemo(
-    () => shouldPrependBismillah(surahNum, normalizedRange.startAyah),
-    [surahNum, normalizedRange.startAyah]
+    () => videoSequence.some((v) => v.isBismillah),
+    [videoSequence]
   );
 
-  const videoSequence = useMemo(
+  const playlistSummaryLabel = useMemo(() => {
+    if (selectedSurahs.length === 1) {
+      const meta = getSurahMeta(selectedSurahs[0].surahNumber);
+      const norm = normalizeVerseRange(
+        selectedSurahs[0].startAyah,
+        selectedSurahs[0].endAyah,
+        meta.numberOfAyahs
+      );
+      const isFull = norm.startAyah === 1 && norm.endAyah === meta.numberOfAyahs;
+      return isFull
+        ? `${meta.name} (complète)`
+        : `${meta.name} (${norm.startAyah}–${norm.endAyah})`;
+    }
+    const first = getSurahMeta(selectedSurahs[0].surahNumber).name;
+    const last = getSurahMeta(selectedSurahs[selectedSurahs.length - 1].surahNumber).name;
+    return `${selectedSurahs.length} sourates (${first} → ${last})`;
+  }, [selectedSurahs]);
+
+  const youtubeSelectedSurahs: YouTubeSurahSummaryItem[] = useMemo(
     () =>
-      buildStudioVideoSequence(
-        surahNum,
-        surahVerses,
-        normalizedRange.startAyah,
-        normalizedRange.endAyah
-      ),
-    [surahNum, surahVerses, normalizedRange]
+      selectedSurahs.map((sel) => {
+        const meta = getSurahMeta(sel.surahNumber);
+        const norm = normalizeVerseRange(sel.startAyah, sel.endAyah, meta.numberOfAyahs);
+        return {
+          surahNumber: sel.surahNumber,
+          surahName: meta.name,
+          surahArabicName: meta.arabicName,
+          startAyah: norm.startAyah,
+          endAyah: norm.endAyah,
+          totalAyahsInSurah: meta.numberOfAyahs,
+        };
+      }),
+    [selectedSurahs]
+  );
+
+  const sequenceSignature = useMemo(
+    () =>
+      selectedSurahs
+        .map((s) => `${s.surahNumber}:${s.startAyah}-${s.endAyah}`)
+        .join('|'),
+    [selectedSurahs]
   );
 
   useEffect(() => {
     setMeasuredDurations([]);
-  }, [surahNum, normalizedRange.startAyah, normalizedRange.endAyah]);
+  }, [sequenceSignature]);
+
+  // Playlist mutation helpers
+  const updateSurahRange = useCallback(
+    (selectionId: string, startAyah: number, endAyah: number) => {
+      setSelectedSurahs((prev) =>
+        prev.map((item) => {
+          if (item.id !== selectionId) return item;
+          const meta = getSurahMeta(item.surahNumber);
+          const norm = normalizeVerseRange(startAyah, endAyah, meta.numberOfAyahs);
+          return {
+            ...item,
+            startAyah: norm.startAyah,
+            endAyah: norm.endAyah,
+          };
+        })
+      );
+    },
+    []
+  );
+
+  const moveSurahItem = useCallback((index: number, delta: -1 | 1) => {
+    setSelectedSurahs((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const copy = [...prev];
+      const [moved] = copy.splice(index, 1);
+      copy.splice(target, 0, moved);
+      return copy;
+    });
+  }, []);
+
+  const removeSurahItem = useCallback((selectionId: string) => {
+    setSelectedSurahs((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((item) => item.id !== selectionId);
+    });
+  }, []);
+
+  const applySurahCompilation = useCallback((surahNumbers: number[]) => {
+    const uniqueNums = Array.from(new Set(surahNumbers)).filter((n) => n >= 1 && n <= 114);
+    if (uniqueNums.length === 0) return;
+    setSelectedSurahs((prev) =>
+      uniqueNums.map((num) => {
+        const existing = prev.find((p) => p.surahNumber === num);
+        if (existing) return existing;
+        const meta = getSurahMeta(num);
+        return {
+          id: makeSelectionId(num),
+          surahNumber: num,
+          startAyah: 1,
+          endAyah: meta.numberOfAyahs,
+        };
+      })
+    );
+  }, []);
+
+  const openSurahPicker = () => {
+    setDraftPickerSurahNums(selectedSurahs.map((s) => s.surahNumber));
+    setIsSurahPickerOpen(true);
+  };
+
+  const toggleDraftSurah = (surahNumber: number) => {
+    setDraftPickerSurahNums((prev) => {
+      if (prev.includes(surahNumber)) {
+        return prev.length > 1 ? prev.filter((n) => n !== surahNumber) : prev;
+      }
+      return [...prev, surahNumber];
+    });
+  };
+
+  const confirmSurahPicker = () => {
+    applySurahCompilation(draftPickerSurahNums);
+    setIsSurahPickerOpen(false);
+  };
 
   // Resolve Active Background
   const activeCustomMedia = useMemo(
@@ -525,23 +742,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [videoSequence, measuredDurations, paceMultiplier]
   );
 
-  // Quick range presets including long YouTube presets on PC or large surahs
-  const rangePresets = useMemo(() => {
-    const list: Array<{ label: string; s: number; e: number }> = [
-      { label: '1 → 5', s: 1, e: Math.min(5, maxAyahNum) },
-    ];
-    if (maxAyahNum >= 10) {
-      list.push({ label: '1 → 15', s: 1, e: Math.min(15, maxAyahNum) });
-    }
-    if (maxAyahNum >= 20) {
-      list.push({ label: '1 → 30', s: 1, e: Math.min(30, maxAyahNum) });
-    }
-    if (maxAyahNum >= 45) {
-      list.push({ label: '1 → 60', s: 1, e: Math.min(60, maxAyahNum) });
-    }
-    list.push({ label: `Toute (${maxAyahNum})`, s: 1, e: maxAyahNum });
-    return list;
-  }, [maxAyahNum]);
+  const exportFilename = useMemo(
+    () =>
+      buildStudioExportFilename({
+        selections: selectedSurahs,
+        aspectLabel: activeFormat.aspectLabel,
+        extension: exportedFileExt,
+      }),
+    [selectedSurahs, activeFormat.aspectLabel, exportedFileExt]
+  );
 
   const handleImportDeviceMedia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -553,9 +762,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const saved = await saveStudioMediaFile(file, i);
-        if (saved) {
-          added.push(saved);
-        }
+        if (saved) added.push(saved);
       }
 
       if (added.length > 0) {
@@ -572,15 +779,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const handleRemoveCustomMedia = (id: string) => {
     setCustomMedia((prev) => {
       const target = prev.find((m) => m.id === id);
-      if (target) {
-        URL.revokeObjectURL(target.url);
-      }
+      if (target) URL.revokeObjectURL(target.url);
       return prev.filter((m) => m.id !== id);
     });
     deleteStudioMediaItem(id).catch(() => {});
-    if (bgId === id) {
-      setBgId('mobile_noir_minimal');
-    }
+    if (bgId === id) setBgId('mobile_noir_minimal');
   };
 
   const stopAllMedia = () => {
@@ -704,8 +907,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const abortCtrl = new AbortController();
     abortControllerRef.current = abortCtrl;
 
-    const AudioContextCtor =
-      window.AudioContext || (window as any).webkitAudioContext;
+    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new AudioContextCtor();
     audioCtxRef.current = ctx;
     if (ctx.state === 'suspended') {
@@ -724,7 +926,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const [decoded, bgImg, bgVideo] = await Promise.all([
       decodeVerseAudioSequence(
         ctx,
-        surahNum,
+        primarySelection.surahNumber,
         videoSequence,
         reciterId,
         (loaded, total) => setPlayerLoadProgress({ loaded, total }),
@@ -771,10 +973,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         const renderOpts: VideoCanvasRenderOptions = {
           width: liveWidth,
           height: liveHeight,
-          surahName: surahMeta.name,
-          surahNumber: surahMeta.number,
-          startAyah: normalizedRange.startAyah,
-          endAyah: normalizedRange.endAyah,
+          surahName: primarySurahMeta.name,
+          surahNumber: primarySurahMeta.number,
+          startAyah: primaryNormalizedRange.startAyah,
+          endAyah: primaryNormalizedRange.endAyah,
+          selectedSurahsCount: selectedSurahs.length,
           isLightSurface,
           bgSurfaceColor,
           bgVeilOpacity,
@@ -927,7 +1130,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   // =========================================================================
-  // STAGE 3 — MP4 EXPORT AT ACTIVE FORMAT RESOLUTION (16:9 / 9:16 / 1:1)
+  // STAGE 3 — MP4 EXPORT & BULLETPROOF DOWNLOAD HANDLER
   // =========================================================================
   const startVideoExport = async () => {
     if (videoSequence.length === 0) return;
@@ -937,16 +1140,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       setExportedVideoUrl(null);
     }
     setExportedVideoBlob(null);
+    setStagedDownloadUrl(null);
+    setDownloadStatus('idle');
+    setDownloadFeedback(null);
     setExportedAudioInfo(null);
     setExportErrorMsg(null);
+    setCanFinishEarly(false);
     setExportProgressPct(0);
     setExportElapsedSec(0);
     setStage('export');
     setExportStatus('preparing_audio');
     setExportStatusMessage(
-      `Chargement et assemblage audio continu (${
-        hasBismillahIntro ? `Bismillah + ${selectedVerses.length}` : selectedVerses.length
-      } versets)...`
+      `Chargement audio continu (${playlistSummaryLabel} · ${videoSequence.length} séquences)...`
     );
 
     const abortCtrl = new AbortController();
@@ -956,8 +1161,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const exportH = activeFormat.height;
 
     try {
-      const AudioContextCtor =
-        window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
       const ctx = new AudioContextCtor();
       audioCtxRef.current = ctx;
       if (ctx.state === 'suspended') {
@@ -976,7 +1180,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       const [decoded, bgImg, bgVideo] = await Promise.all([
         decodeVerseAudioSequence(
           ctx,
-          surahNum,
+          primarySelection.surahNumber,
           videoSequence,
           reciterId,
           (loaded, total) => {
@@ -1033,10 +1237,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       const renderOpts: VideoCanvasRenderOptions = {
         width: exportW,
         height: exportH,
-        surahName: surahMeta.name,
-        surahNumber: surahMeta.number,
-        startAyah: normalizedRange.startAyah,
-        endAyah: normalizedRange.endAyah,
+        surahName: primarySurahMeta.name,
+        surahNumber: primarySurahMeta.number,
+        startAyah: primaryNormalizedRange.startAyah,
+        endAyah: primaryNormalizedRange.endAyah,
+        selectedSurahsCount: selectedSurahs.length,
         isLightSurface,
         bgSurfaceColor,
         bgVeilOpacity,
@@ -1057,7 +1262,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
       setExportStatus('recording');
       setExportStatusMessage(
-        `Encodage MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${videoSequence.length} séquences...`
+        `Encodage ${activeFormat.aspectLabel} (${exportW}×${exportH}) — ${okAudioCount}/${videoSequence.length} séquences...`
       );
 
       const exportResult = await exportQuranVideoToMp4({
@@ -1076,15 +1281,29 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           setExportProgressPct(pct);
           setExportElapsedSec(elapsedSec);
           setExportStatusMessage(statusText);
-          if (pct >= 90) {
-            setExportStatus('finalizing');
-          }
+          if (pct >= 90) setExportStatus('finalizing');
         },
         onKeepaliveReady: (ka) => {
           keepaliveRef.current = ka;
         },
         onMediaRecorderReady: (rec) => {
           mediaRecorderRef.current = rec;
+          hasRecorderChunkRef.current = false;
+        },
+        onRecordingChunkAvailable: () => {
+          hasRecorderChunkRef.current = true;
+          const activeRec = mediaRecorderRef.current;
+          if (activeRec && activeRec.state === 'recording') {
+            setTimeout(() => {
+              if (
+                mediaRecorderRef.current === activeRec &&
+                activeRec.state === 'recording' &&
+                hasRecorderChunkRef.current
+              ) {
+                setCanFinishEarly(true);
+              }
+            }, 600);
+          }
         },
       });
 
@@ -1101,6 +1320,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       }
 
       const url = URL.createObjectURL(exportResult.blob);
+      const nextFilename = buildStudioExportFilename({
+        selections: selectedSurahs,
+        aspectLabel: activeFormat.aspectLabel,
+        extension: exportResult.extension,
+      });
+
       setExportedVideoBlob(exportResult.blob);
       setExportedVideoUrl(url);
       setExportedFileExt(exportResult.extension);
@@ -1112,7 +1337,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       setExportProgressPct(100);
       setExportStatus('ready');
       setExportStatusMessage(
-        `Vidéo MP4 ${activeFormat.aspectLabel} (${exportW}×${exportH}) prête avec son continu (${okAudioCount}/${videoSequence.length} séquences) !`
+        `Vidéo MP4 ${activeFormat.aspectLabel} prête (${okAudioCount}/${videoSequence.length} séquences)`
+      );
+
+      // Background stage for iframe / WebView HTTP Attachment fallback
+      stageVideoBlobOnServer(exportResult.blob, nextFilename, abortCtrl.signal).then(
+        (stagedUrl) => {
+          if (!abortCtrl.signal.aborted && stagedUrl) {
+            setStagedDownloadUrl(stagedUrl);
+          }
+        }
       );
     } catch (err: any) {
       if (!abortCtrl.signal.aborted) {
@@ -1124,7 +1358,79 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   };
 
+  const handleDownloadVideo = async () => {
+    if (!exportedVideoUrl && !exportedVideoBlob) return;
+    setDownloadStatus('preparing');
+    setDownloadFeedback('Préparation du fichier...');
+
+    try {
+      let blob = exportedVideoBlob;
+      if (!blob && exportedVideoUrl) {
+        const res = await fetch(exportedVideoUrl);
+        blob = await res.blob();
+      }
+      if (!blob || blob.size === 0) {
+        throw new Error('Fichier vidéo introuvable en mémoire.');
+      }
+
+      let targetHref: string | null = null;
+      let objectUrlToRevoke: string | null = null;
+      const inIframe = (() => {
+        try {
+          return window.self !== window.top;
+        } catch {
+          return true;
+        }
+      })();
+
+      // Inside iframes, prefer real HTTP Content-Disposition attachment relay when available
+      if (inIframe) {
+        let relayUrl = stagedDownloadUrl;
+        if (!relayUrl && blob.size <= MAX_STAGE_DOWNLOAD_BYTES) {
+          relayUrl = await stageVideoBlobOnServer(blob, exportFilename);
+          if (relayUrl) setStagedDownloadUrl(relayUrl);
+        }
+        if (relayUrl) {
+          targetHref = relayUrl;
+        }
+      }
+
+      if (!targetHref) {
+        objectUrlToRevoke = URL.createObjectURL(blob);
+        targetHref = objectUrlToRevoke;
+      }
+
+      const anchor = document.createElement('a');
+      anchor.href = targetHref;
+      anchor.download = exportFilename;
+      anchor.rel = 'noopener';
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      if (objectUrlToRevoke) {
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(objectUrlToRevoke!);
+          } catch {}
+        }, 60_000);
+      }
+
+      setDownloadStatus('done');
+      setDownloadFeedback(`Téléchargement lancé (${exportFilename})`);
+    } catch (err: any) {
+      setDownloadStatus('error');
+      setDownloadFeedback(
+        err?.message || 'Échec du téléchargement automatique. Utilisez le lien direct ci-dessous.'
+      );
+    }
+  };
+
   const finishRecordingEarly = () => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === 'inactive' || !hasRecorderChunkRef.current) return;
+    setCanFinishEarly(false);
     setExportStatus('finalizing');
     setExportStatusMessage('Finalisation de votre extrait vidéo avec audio...');
     if (rafRef.current !== null) {
@@ -1133,8 +1439,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
     playbackHandleRef.current?.stop();
     playbackHandleRef.current = null;
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    if (rec.state === 'recording') {
+      try {
+        rec.stop();
+      } catch {}
     }
   };
 
@@ -1148,12 +1456,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   const handleShareVideo = async () => {
     if (!exportedVideoBlob) return;
-    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}-${activeFormat.aspectLabel.replace(':', 'x')}.${exportedFileExt}`;
-    const file = new File([exportedVideoBlob], filename, { type: exportedVideoBlob.type });
+    const file = new File([exportedVideoBlob], exportFilename, { type: exportedVideoBlob.type });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({
-          title: `Sourate ${surahMeta.name} (${normalizedRange.startAyah}-${normalizedRange.endAyah})`,
+          title: playlistSummaryLabel,
           text: `Récitation continue par ${selectedReciter.name}`,
           files: [file],
         });
@@ -1170,7 +1477,6 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   if (!isOpen) return null;
 
-  // Dynamic container sizing for Player & Export based on active aspect ratio
   const playerFrameClass =
     activeFormat.aspectLabel === '16:9'
       ? 'w-full max-w-[min(94vw,calc(86dvh*16/9))] aspect-video'
@@ -1182,8 +1488,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     activeFormat.aspectLabel === '16:9'
       ? 'w-full max-w-xl aspect-video'
       : activeFormat.aspectLabel === '1:1'
-      ? 'h-[42vh] max-h-[380px] aspect-square'
-      : 'h-[46vh] max-h-[430px] aspect-[9/16]';
+      ? 'h-[40vh] max-h-[360px] aspect-square'
+      : 'h-[44vh] max-h-[410px] aspect-[9/16]';
 
   // =========================================================================
   // RENDER: STAGE 2 — CLEAN VIDEO PLAYER ("Lire le contenu")
@@ -1214,7 +1520,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center gap-3 bg-black text-white">
               <Loader2 className="w-10 h-10 animate-spin text-amber-300" />
               <div className="space-y-1">
-                <p className="text-sm font-extrabold">
+                <p className="text-sm font-bold">
                   Préparation de la vidéo ({activeFormat.aspectLabel})...
                 </p>
                 <p className="text-xs text-neutral-400 tabular-nums">
@@ -1239,7 +1545,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 setStage('setup');
               }}
               aria-label="Retour au studio vidéo"
-              className="h-9 px-3 rounded-full bg-black/70 hover:bg-black/85 text-white border border-white/20 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+              className="h-10 px-3.5 rounded-xl bg-black/75 hover:bg-black/90 text-white border border-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap"
             >
               <SlidersHorizontal className="w-3.5 h-3.5 text-amber-300" />
               <span>Studio</span>
@@ -1252,7 +1558,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 onClose();
               }}
               aria-label="Fermer la lecture vidéo"
-              className="w-9 h-9 rounded-full bg-black/70 hover:bg-rose-600/90 text-white border border-white/20 backdrop-blur-md flex items-center justify-center cursor-pointer"
+              className="w-10 h-10 rounded-xl bg-black/75 hover:bg-rose-600/90 text-white border border-white/15 backdrop-blur-md flex items-center justify-center cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1267,16 +1573,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="max-w-xl mx-auto bg-black/75 border border-white/15 backdrop-blur-xl rounded-full px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
+            <div className="max-w-xl mx-auto bg-black/80 border border-white/15 backdrop-blur-xl rounded-2xl px-3 py-2 text-white flex items-center gap-2.5 shadow-xl">
               <button
                 type="button"
                 onClick={togglePlayPauseContinuous}
                 aria-label={
-                  playerStatus === 'playing'
-                    ? 'Mettre en pause la vidéo'
-                    : 'Lire la vidéo'
+                  playerStatus === 'playing' ? 'Mettre en pause la vidéo' : 'Lire la vidéo'
                 }
-                className="w-8 h-8 rounded-full bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 cursor-pointer active:scale-95 transition"
+                className="w-9 h-9 rounded-xl bg-amber-400 text-neutral-950 flex items-center justify-center shrink-0 cursor-pointer transition"
               >
                 {playerStatus === 'playing' ? (
                   <Pause className="w-4 h-4 fill-current" />
@@ -1304,9 +1608,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 type="button"
                 onClick={startVideoExport}
                 aria-label="Exporter en MP4"
-                className="h-8 px-3 rounded-full bg-emerald-500 text-neutral-950 font-black text-xs flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition whitespace-nowrap"
+                className="h-9 px-3 rounded-xl bg-emerald-500 text-neutral-950 font-bold text-xs flex items-center gap-1 shrink-0 cursor-pointer whitespace-nowrap"
               >
-                <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+                <Download className="w-3.5 h-3.5" />
                 <span>MP4</span>
               </button>
             </div>
@@ -1317,46 +1621,53 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   }
 
   // =========================================================================
-  // RENDER: STAGE 3 — VIDEO EXPORT & YOUTUBE PUBLISH PACK
+  // RENDER: STAGE 3 — VIDEO EXPORT & RELIABLE DOWNLOAD
   // =========================================================================
   if (stage === 'export') {
-    const filename = `coran-s${surahNum}-v${normalizedRange.startAyah}-${normalizedRange.endAyah}-${activeFormat.aspectLabel.replace(':', 'x')}.${exportedFileExt}`;
+    const canNativeShare =
+      typeof navigator !== 'undefined' &&
+      typeof navigator.share === 'function' &&
+      Boolean(exportedVideoBlob);
+
     return (
       <div
         data-testid="mobile-video-export-view"
-        className="fixed inset-0 z-[10050] bg-[#080C0A] text-white flex flex-col justify-between p-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-[calc(env(safe-area-inset-bottom)+1rem)] overflow-y-auto"
+        className="fixed inset-0 z-[10050] bg-[#060A08] text-white flex flex-col h-[100dvh] overflow-hidden"
       >
-        <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0 max-w-4xl w-full mx-auto">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-amber-400/15 border border-amber-400/35 text-amber-300 flex items-center justify-center shrink-0">
-              <Film className="w-5 h-5" />
+        <header className="shrink-0 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3 border-b border-white/[0.08] bg-[#0B120F]">
+          <div className="flex items-center justify-between gap-3 max-w-4xl w-full mx-auto">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-400/12 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
+                <Film className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold truncate">
+                  Export MP4 · {activeFormat.shortLabel} ({activeFormat.width}×{activeFormat.height})
+                </h2>
+                <p className="text-xs text-neutral-400 truncate tabular-nums">
+                  {playlistSummaryLabel} · {totalSelectedVerses} versets · Audio continu
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm font-black">
-                Export MP4 {activeFormat.label} ({activeFormat.width}×{activeFormat.height})
-              </h2>
-              <p className="text-[11px] text-neutral-400">
-                Sourate {surahMeta.name} ({normalizedRange.startAyah}–{normalizedRange.endAyah}) • Audio continu inclus
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                stopAllMedia();
+                setStage('setup');
+              }}
+              aria-label="Retour à la configuration vidéo"
+              className="h-10 px-3.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            >
+              Retour au studio
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              stopAllMedia();
-              setStage('setup');
-            }}
-            aria-label="Retour à la configuration vidéo"
-            className="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold cursor-pointer whitespace-nowrap"
-          >
-            Retour au studio
-          </button>
-        </div>
+        </header>
 
-        <div className="flex-1 flex flex-col items-center justify-center py-4 gap-4 min-h-0 max-w-4xl w-full mx-auto">
-          <div
-            className={`relative ${exportPreviewFrameClass} rounded-2xl overflow-hidden border border-white/20 bg-black shadow-2xl shrink-0`}
-          >
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-5">
+          <div className="max-w-4xl w-full mx-auto flex flex-col items-center gap-4">
+            <div
+              className={`relative ${exportPreviewFrameClass} rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl shrink-0`}
+            >
             {exportStatus === 'ready' && exportedVideoUrl ? (
               <video
                 data-testid="exported-video-preview"
@@ -1377,7 +1688,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             {exportStatus === 'preparing_audio' && (
               <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-4 text-center gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-                <span className="text-xs font-bold tabular-nums">
+                <span className="text-xs font-semibold tabular-nums">
                   Assemblage audio ({playerLoadProgress.loaded}/{playerLoadProgress.total})
                 </span>
               </div>
@@ -1386,19 +1697,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
           <div className="w-full max-w-md space-y-2.5 text-center">
             {exportStatus === 'error' ? (
-              <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/40 text-xs text-rose-200">
+              <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/35 text-xs text-rose-200 leading-relaxed">
                 {exportErrorMsg}
               </div>
             ) : (
               <>
-                <div className="text-xs font-bold text-amber-300">{exportStatusMessage}</div>
+                <div className="text-xs font-semibold text-amber-300">{exportStatusMessage}</div>
                 <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 transition-all duration-200"
                     style={{ width: `${exportProgressPct}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 tabular-nums">
+                <div className="flex items-center justify-between text-xs font-mono text-neutral-400 tabular-nums">
                   <span>{exportProgressPct}%</span>
                   <span>
                     {formatTimeMMSS(exportElapsedSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
@@ -1409,12 +1720,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   <button
                     type="button"
                     onClick={handleToggleMonitorAudio}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-[11px] font-bold text-neutral-200 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-xs font-medium text-neutral-200 cursor-pointer"
                   >
                     {monitorAudioDuringExport ? (
                       <>
                         <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Son actif pendant l&apos;export (Cliquer pour couper l&apos;écoute)</span>
+                        <span>Son actif pendant l&apos;export (cliquer pour couper l&apos;écoute)</span>
                       </>
                     ) : (
                       <>
@@ -1428,12 +1739,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 {exportStatus === 'ready' && exportedAudioInfo && (
                   <div
                     data-testid="exported-video-audio-badge"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-300"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 tabular-nums"
                   >
-                    <Volume2 className="w-4 h-4" />
+                    <Volume2 className="w-4 h-4 shrink-0" />
                     <span>
                       Audio continu inclus : {exportedAudioInfo.okCount}/{exportedAudioInfo.totalCount}{' '}
-                      {hasBismillahIntro ? 'séquences (Bismillah + versets)' : 'versets'}
+                      séquences
                     </span>
                   </div>
                 )}
@@ -1443,26 +1754,29 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
           {exportStatus === 'ready' && (
             <YouTubePublishCard
-              surahName={surahMeta.name}
-              surahArabicName={surahMeta.arabicName}
-              surahNumber={surahMeta.number}
-              startAyah={normalizedRange.startAyah}
-              endAyah={normalizedRange.endAyah}
-              totalAyahsInSurah={maxAyahNum}
+              surahName={primarySurahMeta.name}
+              surahArabicName={primarySurahMeta.arabicName}
+              surahNumber={primarySurahMeta.number}
+              startAyah={primaryNormalizedRange.startAyah}
+              endAyah={primaryNormalizedRange.endAyah}
+              totalAyahsInSurah={primarySurahMeta.numberOfAyahs}
+              selectedSurahs={youtubeSelectedSurahs}
               reciterName={selectedReciter.name}
               timeline={timeline}
             />
           )}
+          </div>
         </div>
 
-        {/* Bottom Actions */}
-        <div className="shrink-0 space-y-2 pt-3 border-t border-white/10 max-w-md w-full mx-auto">
-          {exportStatus === 'recording' && (
+        {/* Bottom Export & Download Action Dock */}
+        <footer className="shrink-0 border-t border-white/[0.08] bg-[#0B120F]/95 backdrop-blur-xl px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.9rem)]">
+          <div className="space-y-2.5 max-w-md w-full mx-auto">
+          {exportStatus === 'recording' && canFinishEarly && (
             <button
               type="button"
               data-testid="export-finish-early-btn"
               onClick={finishRecordingEarly}
-              className="w-full py-3 rounded-xl bg-amber-400 text-neutral-950 font-black text-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-11 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors"
             >
               <Square className="w-4 h-4 fill-current" />
               <span>Terminer &amp; Sauvegarder maintenant</span>
@@ -1470,24 +1784,76 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           )}
 
           {exportStatus === 'ready' && exportedVideoUrl && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <a
-                href={exportedVideoUrl}
-                download={filename}
-                data-testid="download-exported-video-link"
-                className="py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-lg transition"
-              >
-                <Download className="w-4 h-4" />
-                <span>Télécharger MP4</span>
-              </a>
-              <button
-                type="button"
-                onClick={handleShareVideo}
-                className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition"
-              >
-                <Share2 className="w-4 h-4" />
-                <span>Partager</span>
-              </button>
+            <div className="space-y-2">
+              <div className={`grid gap-2.5 ${canNativeShare ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <button
+                  type="button"
+                  data-testid="download-exported-video-link"
+                  onClick={handleDownloadVideo}
+                  disabled={downloadStatus === 'preparing'}
+                  className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-[0.99] text-neutral-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer transition disabled:opacity-60 whitespace-nowrap"
+                >
+                  {downloadStatus === 'preparing' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Préparation...</span>
+                    </>
+                  ) : downloadStatus === 'done' ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Télécharger à nouveau</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Télécharger MP4</span>
+                    </>
+                  )}
+                </button>
+
+                {canNativeShare && (
+                  <button
+                    type="button"
+                    onClick={handleShareVideo}
+                    className="h-11 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors whitespace-nowrap"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>Partager</span>
+                  </button>
+                )}
+              </div>
+
+              {downloadFeedback && (
+                <div
+                  data-testid="download-status-feedback"
+                  className={`px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-2 ${
+                    downloadStatus === 'error'
+                      ? 'bg-rose-950/50 border-rose-500/35 text-rose-200'
+                      : 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1.5 truncate">
+                    {downloadStatus === 'error' ? (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                    ) : (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                    )}
+                    <span className="truncate">{downloadFeedback}</span>
+                  </span>
+
+                  <a
+                    href={stagedDownloadUrl || exportedVideoUrl}
+                    download={exportFilename}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="download-direct-fallback-link"
+                    className="text-amber-300 hover:text-amber-200 font-semibold underline inline-flex items-center gap-1 shrink-0 whitespace-nowrap"
+                  >
+                    <span>Lien direct</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
             </div>
           )}
 
@@ -1497,24 +1863,25 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               stopAllMedia();
               setStage('setup');
             }}
-            className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 font-bold text-xs cursor-pointer"
+            className="w-full h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-semibold text-xs cursor-pointer transition-colors"
           >
             Modifier les réglages
           </button>
-        </div>
+          </div>
+        </footer>
       </div>
     );
   }
 
   // =========================================================================
-  // RENDER: STAGE 1 — REFURBISHED PRO NLE STUDIO CONFIGURATOR
+  // RENDER: STAGE 1 — SANCTUARY EDITORIAL STUDIO
   // =========================================================================
   const previewVerses = videoSequence.slice(0, 2);
 
   return (
     <div
       data-testid="mobile-video-studio-modal"
-      className="fixed inset-0 z-[10040] bg-[#080C0A] text-white flex flex-col h-[100dvh] overflow-hidden"
+      className="fixed inset-0 z-[10040] bg-[#060A08] text-white flex flex-col h-[100dvh] overflow-hidden"
     >
       <input
         ref={mediaFileInputRef}
@@ -1526,31 +1893,30 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         className="hidden"
       />
 
-      {/* Welcoming Pro Top Studio Header */}
-      <header className="shrink-0 flex items-center justify-between gap-2 md:gap-3 px-3.5 md:px-6 pt-[calc(env(safe-area-inset-top)+0.65rem)] pb-2.5 border-b border-white/10 bg-[#0D1411]/95 backdrop-blur-md">
+      {/* Studio Top Bar */}
+      <header className="shrink-0 flex items-center justify-between gap-2.5 md:gap-4 px-3.5 md:px-6 pt-[calc(env(safe-area-inset-top)+0.65rem)] pb-2.5 border-b border-white/[0.08] bg-[#0B120F]">
         <div className="flex items-center gap-2.5 md:gap-3 min-w-0 flex-1 md:flex-initial">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400/25 to-emerald-500/15 border border-amber-400/40 text-amber-300 flex items-center justify-center shrink-0">
-            <Film className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-amber-400/12 border border-amber-400/30 text-amber-300 flex items-center justify-center shrink-0">
+            <Film className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm md:text-base font-black leading-tight tracking-tight truncate">
+            <h2 className="text-sm md:text-[15px] font-bold leading-tight tracking-tight truncate">
               Studio Vidéo Coran
             </h2>
-            <p className="text-[11px] text-neutral-400 truncate">
-              {isPcMode
-                ? 'Formats YouTube longs 16:9, Shorts 9:16 & 6 modèles graphiques'
-                : 'Vidéos verticales 9:16 • Fonds personnalisés'}
+            <p className="text-xs text-neutral-400 truncate tabular-nums">
+              {selectedSurahs.length} sourate{selectedSurahs.length > 1 ? 's' : ''} ·{' '}
+              {totalSelectedVerses} versets · {formatTimeMMSS(timeline.totalDurationSec)}
             </p>
           </div>
         </div>
 
-        {/* PC-ONLY FORMAT & DIMENSION SWITCHER (Strictly hidden on Mobile) */}
+        {/* PC-ONLY FORMAT & DIMENSION SWITCHER */}
         {isPcMode && (
           <div
             data-testid="studio-format-selector"
             role="group"
             aria-label="Dimensions vidéo (Mode PC)"
-            className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-black/50 border border-white/10"
+            className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-black/50 border border-white/[0.08]"
           >
             {VIDEO_FORMAT_PRESETS.map((fmt) => {
               const active = activeFormat.id === fmt.id;
@@ -1561,10 +1927,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   data-testid={`studio-format-${fmt.id}`}
                   onClick={() => setVideoFormatId(fmt.id)}
                   title={fmt.platformHint}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                     active
-                      ? 'bg-amber-400 text-neutral-950 shadow-sm'
-                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                      ? 'bg-amber-400 text-neutral-950'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/[0.06]'
                   }`}
                 >
                   {fmt.aspectLabel === '16:9' ? (
@@ -1582,31 +1948,31 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         )}
 
         <div className="flex items-center gap-2.5 shrink-0">
-          <div className="hidden lg:flex items-center gap-2 text-xs font-semibold text-neutral-300 tabular-nums pr-1">
+          <div className="hidden lg:flex items-center gap-2 text-xs font-medium text-neutral-300 tabular-nums pr-1">
             <Clock className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{formatTimeMMSS(timeline.totalDurationSec)}</span>
-            <span className="text-neutral-600">•</span>
-            <span>{normalizedRange.count} v.</span>
+            <span data-testid="studio-total-duration">{formatTimeMMSS(timeline.totalDurationSec)}</span>
+            <span className="text-neutral-600" aria-hidden="true">·</span>
+            <span data-testid="studio-total-verses-count">{totalSelectedVerses} v.</span>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fermer le studio vidéo"
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-200 cursor-pointer shrink-0 transition"
+            className="w-10 h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 flex items-center justify-center cursor-pointer shrink-0 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      {/* Studio Navigation Tabs */}
+      {/* Architectural Navigation Tabs */}
       <nav
         aria-label="Sections du studio vidéo"
-        className="shrink-0 grid grid-cols-4 gap-1.5 px-3 md:px-6 py-2 bg-[#0B110E] border-b border-white/10"
+        className="shrink-0 grid grid-cols-4 px-2 md:px-6 bg-[#080E0B] border-b border-white/[0.08]"
       >
         {[
-          { id: 'verses' as const, testId: 'jump-verses', shortLabel: '1. Versets', longLabel: '1. Contenu & Durée' },
-          { id: 'style' as const, testId: 'jump-style', shortLabel: '2. Style', longLabel: '2. Modèles (6) & Style' },
+          { id: 'verses' as const, testId: 'jump-verses', shortLabel: '1. Sourates', longLabel: '1. Sourates & Versets' },
+          { id: 'style' as const, testId: 'jump-style', shortLabel: '2. Style', longLabel: '2. Modèles & Style' },
           { id: 'bg' as const, testId: 'jump-bg', shortLabel: '3. Fond', longLabel: '3. Fond & Médias' },
           { id: 'audio' as const, testId: 'jump-audio', shortLabel: '4. Audio', longLabel: '4. Récitateur & Audio' },
         ].map((tab) => {
@@ -1617,10 +1983,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               type="button"
               data-testid={`studio-${tab.testId}-btn`}
               onClick={() => switchTab(tab.id)}
-              className={`px-2.5 py-2 rounded-xl text-xs font-bold text-center truncate transition cursor-pointer border ${
+              className={`min-h-[44px] px-2 text-xs font-semibold text-center whitespace-nowrap truncate border-b-2 transition-colors cursor-pointer ${
                 isCurrent
-                  ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-sm'
-                  : 'bg-white/[0.04] hover:bg-white/10 text-neutral-300 border-white/10'
+                  ? 'border-amber-400 text-amber-300 bg-amber-400/[0.04]'
+                  : 'border-transparent text-neutral-400 hover:text-neutral-200'
               }`}
             >
               <span className="md:hidden">{tab.shortLabel}</span>
@@ -1630,18 +1996,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         })}
       </nav>
 
-      {/* Main Responsive Workspace: Tabbed Configurator (Left) + True WYSIWYG Canvas Monitor (Right on PC) */}
-      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[1.02fr_0.98fr] md:max-w-7xl md:w-full md:mx-auto md:gap-5 md:px-6 md:py-4 overflow-hidden">
+      {/* Main Responsive Workspace */}
+      <div className="flex-1 min-h-0 flex flex-col md:grid md:grid-cols-[1.04fr_0.96fr] md:max-w-7xl md:w-full md:mx-auto md:gap-5 md:px-6 md:py-4 overflow-hidden">
         {/* Left Configurator Column */}
         <div
           ref={scrollContainerRef}
           data-testid="studio-settings-scroll"
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-4 py-3.5 pb-10 md:px-1 md:py-0 md:pb-4 space-y-4"
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y px-3.5 py-3.5 pb-8 md:px-0.5 md:py-0 md:pb-4 space-y-4"
         >
-          {/* Compact Mobile 9:16 Quick Preview Card (Hidden on PC where Live Canvas Monitor sits right next to it) */}
-          <div className="md:hidden rounded-xl border border-white/10 bg-[#0D1411] p-3 flex items-center gap-3">
+          {/* Compact Mobile 9:16 Summary Card */}
+          <div className="md:hidden rounded-xl border border-white/[0.08] bg-[#0B120F] p-3 flex items-center gap-3">
             <div
-              className="relative w-14 aspect-[9/16] rounded-lg overflow-hidden border border-white/20 shrink-0 flex flex-col justify-between p-1.5 text-center"
+              className="relative w-12 aspect-[9/16] rounded-lg overflow-hidden border border-white/15 shrink-0 flex flex-col justify-between p-1.5 text-center"
               style={{ backgroundColor: bgSurfaceColor }}
             >
               {activeMediaKind === 'image' && activeMediaUrl && (
@@ -1652,7 +2018,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 />
               )}
               <div className="relative z-10 text-[6px] font-bold text-amber-300 truncate">
-                {surahMeta.name}
+                {primarySurahMeta.name}
               </div>
               {previewVerses[0] && (
                 <div className="relative z-10 text-[7px] font-arabic text-white line-clamp-2" dir="rtl">
@@ -1663,193 +2029,301 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   />
                 </div>
               )}
-              <div className="relative z-10 text-[5px] font-bold text-neutral-300">
+              <div className="relative z-10 text-[5px] font-semibold text-neutral-300">
                 {MANDATORY_WATERMARK_BRAND}
               </div>
             </div>
             <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="text-xs font-extrabold text-white truncate">
-                Vidéo 9:16 • {surahMeta.name} ({normalizedRange.startAyah}–{normalizedRange.endAyah})
+              <div className="text-xs font-bold text-white truncate">
+                {playlistSummaryLabel}
               </div>
-              <div className="text-[11px] text-neutral-400 truncate">
-                Modèle : {VIDEO_TEMPLATE_PRESETS.find((t) => t.id === flowMode)?.name}
+              <div className="text-xs text-neutral-400 truncate">
+                {VIDEO_TEMPLATE_PRESETS.find((t) => t.id === flowMode)?.name} · {activeMediaName}
               </div>
-              <div className="text-[11px] text-emerald-300 font-semibold tabular-nums">
-                Durée estimée : {formatTimeMMSS(timeline.totalDurationSec)} • {activeMediaName}
+              <div className="text-xs text-emerald-300 font-semibold tabular-nums">
+                Durée estimée {formatTimeMMSS(timeline.totalDurationSec)} · {totalSelectedVerses} versets
               </div>
             </div>
           </div>
 
-          {/* TAB 1: CONTENU & DURÉE */}
+          {/* TAB 1: MULTI-SURAH PLAYLIST & RANGES */}
           {activeTab === 'verses' && (
-            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-4">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <BookOpen className="w-3.5 h-3.5" />
-                    <span>Sélection de la Sourate &amp; Plage</span>
-                  </span>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">
-                    {isPcMode
-                      ? 'Sélectionnez quelques versets ou toute une sourate pour une vidéo YouTube longue.'
-                      : 'Choisissez les versets à inclure dans votre récitation continue.'}
+            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
+                    <span>Programme de Sourates &amp; Versets</span>
+                  </h3>
+                  <p className="text-xs text-neutral-400">
+                    Composez une ou plusieurs sourates complètes en une seule vidéo continue.
                   </p>
                 </div>
-                <div className="text-right shrink-0 tabular-nums">
-                  <div className="text-xs font-extrabold text-emerald-300">
-                    {normalizedRange.count} verset{normalizedRange.count > 1 ? 's' : ''}
+
+                <div className="text-left sm:text-right tabular-nums shrink-0">
+                  <div className="text-xs font-bold text-emerald-300">
+                    {selectedSurahs.length} sourate{selectedSurahs.length > 1 ? 's' : ''} · {totalSelectedVerses} verset{totalSelectedVerses > 1 ? 's' : ''}
                   </div>
-                  <div className="text-[11px] font-mono text-neutral-400">
-                    ~{formatTimeMMSS(timeline.totalDurationSec)}
+                  <div className="text-xs font-mono text-neutral-400">
+                    Durée ~{formatTimeMMSS(timeline.totalDurationSec)}
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                data-testid="studio-surah-picker-btn"
-                onClick={() => setIsSurahPickerOpen(true)}
-                className="w-full flex items-center justify-between p-3.5 rounded-xl bg-black/45 hover:bg-black/65 border border-white/15 text-left cursor-pointer transition"
-              >
-                <div>
-                  <div className="text-sm font-bold text-white">
-                    {surahMeta.number}. {surahMeta.name}
+              {/* Primary Multi-Surah Picker Button + Quick Compilations */}
+              <div className="space-y-2.5">
+                <button
+                  type="button"
+                  data-testid="studio-surah-picker-btn"
+                  onClick={openSurahPicker}
+                  className="w-full min-h-[48px] flex items-center justify-between px-3.5 sm:px-4 py-3 rounded-xl bg-[#111C17] hover:bg-[#15231D] border border-amber-400/35 text-left cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-400/15 text-amber-300 flex items-center justify-center shrink-0">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs sm:text-sm font-bold text-white truncate">
+                        Sourates sélectionnées
+                      </div>
+                      <div className="text-xs text-neutral-400 truncate">
+                        {playlistSummaryLabel}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-neutral-400">
-                    {surahMeta.frenchTranslation} • {maxAyahNum} versets au total
-                  </div>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className="font-arabic text-lg text-amber-200" dir="rtl">
-                    {surahMeta.arabicName}
+                  <span className="text-xs font-semibold text-amber-300 inline-flex items-center gap-1 whitespace-nowrap shrink-0 pl-2">
+                    <span>Modifier</span>
+                    <ChevronRight className="w-4 h-4" />
                   </span>
-                  <ChevronRight className="w-4 h-4 text-neutral-400" />
-                </div>
-              </button>
+                </button>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="studio-start-ayah"
-                    className="block text-[11px] font-bold text-neutral-300"
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    data-testid="studio-preset-3qul"
+                    onClick={() => applySurahCompilation([112, 113, 114])}
+                    className="h-9 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-200 font-medium cursor-pointer transition-colors whitespace-nowrap"
                   >
-                    Du verset
-                  </label>
-                  <select
-                    id="studio-start-ayah"
-                    value={normalizedRange.startAyah}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setStartAyah(val);
-                      if (endAyah < val) setEndAyah(val);
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
+                    3 Qul (112–114)
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="studio-preset-fatiha-ikhlas"
+                    onClick={() => applySurahCompilation([1, 112])}
+                    className="h-9 px-3 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-200 font-medium cursor-pointer transition-colors whitespace-nowrap"
                   >
-                    {Array.from({ length: maxAyahNum }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>
-                        Verset {n}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label
-                    htmlFor="studio-end-ayah"
-                    className="block text-[11px] font-bold text-neutral-300"
+                    Al-Fatiha + Al-Ikhlas
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="studio-range-full-surah-btn"
+                    onClick={() =>
+                      setSelectedSurahs((prev) =>
+                        prev.map((item) => ({
+                          ...item,
+                          startAyah: 1,
+                          endAyah: getSurahMeta(item.surahNumber).numberOfAyahs,
+                        }))
+                      )
+                    }
+                    className="h-9 px-3 rounded-lg bg-emerald-500/12 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 font-semibold cursor-pointer transition-colors whitespace-nowrap"
                   >
-                    Au verset
-                  </label>
-                  <select
-                    id="studio-end-ayah"
-                    value={normalizedRange.endAyah}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setEndAyah(Math.max(normalizedRange.startAyah, val));
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/15 text-sm font-bold text-white"
-                  >
-                    {Array.from(
-                      { length: maxAyahNum - normalizedRange.startAyah + 1 },
-                      (_, i) => normalizedRange.startAyah + i
-                    ).map((n) => (
-                      <option key={n} value={n}>
-                        Verset {n}
-                      </option>
-                    ))}
-                  </select>
+                    Tout en entier
+                  </button>
                 </div>
               </div>
 
-              {/* Long Video YouTube Presets + Quick Extender */}
-              <div className="space-y-2 pt-1">
-                <div className="text-[11px] font-bold text-neutral-300">
-                  Plages rapides (Shorts ou Vidéo longue YouTube)
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
-                  {rangePresets.map((preset) => {
-                    const active =
-                      normalizedRange.startAyah === preset.s &&
-                      normalizedRange.endAyah === preset.e;
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        data-testid={
-                          preset.e === maxAyahNum && preset.s === 1
-                            ? 'studio-range-full-surah-btn'
-                            : undefined
-                        }
-                        onClick={() => {
-                          setStartAyah(preset.s);
-                          setEndAyah(preset.e);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg border cursor-pointer transition whitespace-nowrap ${
-                          active
-                            ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/5 hover:bg-white/10 text-neutral-200 border-white/10'
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
+              {/* Clean Ordered Playlist */}
+              <div
+                data-testid="studio-playlist-list"
+                className="rounded-xl border border-white/[0.08] bg-black/35 divide-y divide-white/[0.07]"
+              >
+                {selectedSurahs.map((sel, index) => {
+                  const meta = getSurahMeta(sel.surahNumber);
+                  const maxN = meta.numberOfAyahs;
+                  const norm = normalizeVerseRange(sel.startAyah, sel.endAyah, maxN);
+                  const isFull = norm.startAyah === 1 && norm.endAyah === maxN;
+                  const presets: Array<{ label: string; s: number; e: number }> = [
+                    { label: '1→5', s: 1, e: Math.min(5, maxN) },
+                  ];
+                  if (maxN > 5 && maxN <= 15) {
+                    presets.push({ label: `Toute (${maxN})`, s: 1, e: maxN });
+                  } else if (maxN > 15) {
+                    presets.push({ label: '1→15', s: 1, e: Math.min(15, maxN) });
+                    presets.push({ label: `Toute (${maxN})`, s: 1, e: maxN });
+                  }
 
-                  {normalizedRange.endAyah < maxAyahNum && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEndAyah((prev) => Math.min(maxAyahNum, prev + 10))
-                      }
-                      className="px-2.5 py-1.5 rounded-lg border border-emerald-400/35 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                  return (
+                    <div
+                      key={sel.id}
+                      data-testid={`studio-playlist-item-${sel.surahNumber}`}
+                      className="p-3.5 space-y-3"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>10 versets</span>
-                    </button>
-                  )}
-                </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-bold text-white flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className="text-amber-300 font-mono text-xs tabular-nums">
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span>
+                              {meta.number}. {meta.name}
+                            </span>
+                            <span className="font-arabic text-base text-amber-200 shrink-0" dir="rtl">
+                              {meta.arabicName}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-400 mt-0.5 tabular-nums">
+                            {isFull
+                              ? `Sourate complète · ${norm.count} versets`
+                              : `Versets ${norm.startAyah} à ${norm.endAyah} (${norm.count}/${maxN})`}
+                          </div>
+                        </div>
+
+                        {selectedSurahs.length > 1 && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => moveSurahItem(index, -1)}
+                              disabled={index === 0}
+                              aria-label={`Monter ${meta.name}`}
+                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-neutral-300 disabled:opacity-30 cursor-pointer"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => moveSurahItem(index, 1)}
+                              disabled={index === selectedSurahs.length - 1}
+                              aria-label={`Descendre ${meta.name}`}
+                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-neutral-300 disabled:opacity-30 cursor-pointer"
+                            >
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removeSurahItem(sel.id)}
+                              aria-label={`Retirer ${meta.name}`}
+                              className="w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 border border-white/10 text-neutral-300 hover:text-rose-300 flex items-center justify-center cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="space-y-1">
+                          <label
+                            htmlFor={`studio-start-ayah-${sel.id}`}
+                            className="block text-xs font-medium text-neutral-400"
+                          >
+                            Du verset
+                          </label>
+                          <select
+                            id={`studio-start-ayah-${sel.id}`}
+                            value={norm.startAyah}
+                            onChange={(e) => {
+                              const nextStart = Number(e.target.value);
+                              updateSurahRange(
+                                sel.id,
+                                nextStart,
+                                Math.max(nextStart, norm.endAyah)
+                              );
+                            }}
+                            className="w-full h-10 px-2.5 rounded-lg bg-black/60 border border-white/15 text-xs font-semibold text-white tabular-nums"
+                          >
+                            {Array.from({ length: maxN }, (_, i) => i + 1).map((n) => (
+                              <option key={n} value={n}>
+                                Verset {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label
+                            htmlFor={`studio-end-ayah-${sel.id}`}
+                            className="block text-xs font-medium text-neutral-400"
+                          >
+                            Au verset
+                          </label>
+                          <select
+                            id={`studio-end-ayah-${sel.id}`}
+                            value={norm.endAyah}
+                            onChange={(e) => {
+                              const nextEnd = Number(e.target.value);
+                              updateSurahRange(sel.id, norm.startAyah, nextEnd);
+                            }}
+                            className="w-full h-10 px-2.5 rounded-lg bg-black/60 border border-white/15 text-xs font-semibold text-white tabular-nums"
+                          >
+                            {Array.from(
+                              { length: maxN - norm.startAyah + 1 },
+                              (_, i) => norm.startAyah + i
+                            ).map((n) => (
+                              <option key={n} value={n}>
+                                Verset {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        {presets.map((preset) => {
+                          const active =
+                            norm.startAyah === preset.s && norm.endAyah === preset.e;
+                          return (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => updateSurahRange(sel.id, preset.s, preset.e)}
+                              className={`h-8 px-2.5 rounded-lg border font-semibold cursor-pointer transition-colors whitespace-nowrap tabular-nums ${
+                                active
+                                  ? 'bg-amber-400 text-neutral-950 border-amber-300'
+                                  : 'bg-white/[0.04] hover:bg-white/[0.09] text-neutral-300 border-white/10'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                        {norm.endAyah < maxN && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateSurahRange(
+                                sel.id,
+                                norm.startAyah,
+                                Math.min(maxN, norm.endAyah + 10)
+                              )
+                            }
+                            className="h-8 px-2.5 rounded-lg border border-emerald-400/30 bg-emerald-500/12 hover:bg-emerald-500/20 text-emerald-200 font-medium inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>10 versets</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {isPcMode && (
-                <div className="p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 text-xs">
-                  <div className="space-y-0.5">
-                    <div className="font-bold text-white">
-                      Format actif : {activeFormat.label} ({activeFormat.width}×{activeFormat.height})
-                    </div>
-                    <div className="text-[11px] text-neutral-400">
-                      {activeFormat.platformHint} • Chapitres YouTube générés automatiquement après export
-                    </div>
-                  </div>
+                <div className="px-3.5 py-2.5 rounded-xl bg-black/35 border border-white/[0.07] text-xs text-neutral-300">
+                  <span className="font-semibold text-white">Format {activeFormat.label}</span>
+                  <span className="text-neutral-500"> · </span>
+                  <span>{activeFormat.platformHint}</span>
                 </div>
               )}
 
               {hasBismillahIntro && (
                 <div
                   data-testid="studio-bismillah-intro-notice"
-                  className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-400/30 flex items-center justify-between gap-2 text-xs"
+                  className="px-3.5 py-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/25 flex items-center justify-between gap-3 text-xs"
                 >
-                  <span className="font-semibold text-emerald-100">
-                    Début au verset 1 : Bismillah inclus en ouverture (audio &amp; texte)
+                  <span className="font-medium text-emerald-100">
+                    Bismillah inclus en ouverture des sourates concernées
                   </span>
                   <span className="font-arabic text-sm text-amber-200 shrink-0" dir="rtl">
                     بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ
@@ -1860,7 +2334,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               {isLoadingVerses && (
                 <div className="text-xs text-amber-300 flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Chargement complet de la sourate...</span>
+                  <span>Chargement des textes coraniques sélectionnés...</span>
                 </div>
               )}
             </section>
@@ -1868,14 +2342,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
           {/* TAB 2: 6 MODÈLES DE VIDÉO & STYLE */}
           {activeTab === 'style' && (
-            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-4">
+            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
               <div>
-                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Modèles Graphiques (6 Styles)</span>
-                </span>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
-                  Choisissez la mise en scène adaptée à votre format et observez le rendu en direct à droite.
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+                  <span>Modèles Graphiques &amp; Typographie</span>
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Choisissez la mise en scène adaptée à votre format et observez l&apos;aperçu en direct.
                 </p>
               </div>
 
@@ -1885,9 +2359,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 isLandscape={activeFormat.aspectLabel !== '9:16'}
               />
 
-              <div className="space-y-2 pt-2 border-t border-white/10">
-                <div className="text-[11px] font-bold text-neutral-300">Éléments affichés</div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+              <div className="space-y-2 pt-3 border-t border-white/[0.08]">
+                <div className="text-xs font-semibold text-neutral-300">Éléments affichés</div>
+                <div className="grid grid-cols-2 gap-2 text-xs font-semibold">
                   {[
                     { label: 'Calligraphie Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
                     { label: 'Couleurs Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
@@ -1899,14 +2373,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       key={item.label}
                       type="button"
                       onClick={item.toggle}
-                      className={`px-3 py-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${
+                      className={`min-h-[42px] px-3 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
                         item.val
-                          ? 'bg-amber-400/15 border-amber-400/70 text-amber-200'
-                          : 'bg-black/40 border-white/10 text-neutral-400 hover:text-neutral-200'
+                          ? 'bg-amber-400/12 border-amber-400/60 text-amber-200'
+                          : 'bg-black/35 border-white/[0.08] text-neutral-400 hover:text-neutral-200'
                       }`}
                     >
                       <span>{item.label}</span>
-                      {item.val && <Check className="w-3.5 h-3.5 text-amber-300" />}
+                      {item.val && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
                     </button>
                   ))}
                 </div>
@@ -1914,18 +2388,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-bold text-neutral-300">Taille du texte</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                  <div className="text-xs font-semibold text-neutral-300">Taille du texte</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
                     {(['compact', 'standard', 'grand'] as const).map((sz) => (
                       <button
                         key={sz}
                         type="button"
                         data-testid={`studio-text-scale-${sz}`}
                         onClick={() => setTextScale(sz)}
-                        className={`py-2 rounded-lg border cursor-pointer transition ${
+                        className={`h-10 rounded-lg border cursor-pointer transition-colors ${
                           textScale === sz
                             ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/5 text-neutral-300 border-white/10'
+                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
                         }`}
                       >
                         {sz === 'compact' ? 'S' : sz === 'standard' ? 'M' : 'L'}
@@ -1935,18 +2409,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-bold text-neutral-300">Cadence audio</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                  <div className="text-xs font-semibold text-neutral-300">Cadence audio</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
                     {([0.9, 1.0, 1.15] as const).map((pace) => (
                       <button
                         key={pace}
                         type="button"
                         data-testid={`studio-pace-${pace}`}
                         onClick={() => setPaceMultiplier(pace)}
-                        className={`py-2 rounded-lg border cursor-pointer transition tabular-nums ${
+                        className={`h-10 rounded-lg border cursor-pointer transition-colors tabular-nums ${
                           paceMultiplier === pace
                             ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/5 text-neutral-300 border-white/10'
+                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
                         }`}
                       >
                         {pace}x
@@ -1956,31 +2430,25 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 </div>
               </div>
 
-              {/* Mobile-visible Watermark Notice */}
-              <div className="md:hidden px-3 py-2 rounded-xl border border-emerald-400/35 bg-emerald-500/10 flex items-center justify-between gap-2 text-[11px]">
-                <span className="font-bold text-emerald-100 truncate">
-                  Filigrane « {MANDATORY_WATERMARK_BRAND} » inclus en bas du rendu
+              <div className="md:hidden px-3 py-2.5 rounded-xl border border-emerald-500/25 bg-emerald-950/30 flex items-center justify-between gap-2 text-xs">
+                <span className="font-medium text-emerald-100 truncate">
+                  Signature « {MANDATORY_WATERMARK_BRAND} » incluse
                 </span>
-                <span className="text-emerald-300 font-extrabold uppercase text-[10px] shrink-0">
-                  Inclus
-                </span>
+                <span className="text-emerald-300 font-semibold shrink-0">Inclus</span>
               </div>
             </section>
           )}
 
           {/* TAB 3: FOND & MÉDIAS */}
           {activeTab === 'bg' && (
-            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-3.5">
+            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5" />
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-amber-300 shrink-0" />
                     <span>Arrière-Plan &amp; Bibliothèque</span>
-                  </span>
-                  <p
-                    data-testid="studio-library-status"
-                    className="text-[11px] text-neutral-400 mt-0.5"
-                  >
+                  </h3>
+                  <p data-testid="studio-library-status" className="text-xs text-neutral-400 mt-0.5">
                     {isSavingMedia
                       ? 'Enregistrement dans la bibliothèque...'
                       : isLoadingLibrary
@@ -1989,7 +2457,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       ? `${customMedia.length} média${customMedia.length > 1 ? 's' : ''} personnel${customMedia.length > 1 ? 's' : ''} (${formatStudioBytes(
                           customMedia.reduce((acc, m) => acc + (m.sizeBytes || 0), 0)
                         )})`
-                      : 'Importez vos propres photos ou vidéos bouclées sur le site'}
+                      : 'Importez vos photos ou vidéos bouclées'}
                   </p>
                 </div>
 
@@ -1998,18 +2466,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   data-testid="studio-upload-media-btn"
                   disabled={isSavingMedia}
                   onClick={() => mediaFileInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md cursor-pointer transition active:scale-95 disabled:opacity-60 whitespace-nowrap"
+                  className="h-10 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-60 whitespace-nowrap shrink-0"
                 >
                   {isSavingMedia ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <Upload className="w-3.5 h-3.5" />
                   )}
                   <span>Importer Photo / Vidéo</span>
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
                 {[
                   { id: 'all' as const, label: 'Tous' },
                   { id: 'custom' as const, label: `Mes Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
@@ -2022,10 +2490,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     type="button"
                     data-testid={flt.testId}
                     onClick={() => setBgFilter(flt.id)}
-                    className={`px-2.5 py-1.5 rounded-lg shrink-0 cursor-pointer transition ${
+                    className={`h-9 px-3 rounded-lg shrink-0 cursor-pointer transition-colors whitespace-nowrap ${
                       bgFilter === flt.id
                         ? 'bg-amber-400 text-neutral-950'
-                        : 'bg-white/10 hover:bg-white/15 text-neutral-300'
+                        : 'bg-white/[0.06] hover:bg-white/[0.12] text-neutral-300'
                     }`}
                   >
                     {flt.label}
@@ -2034,20 +2502,20 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               </div>
 
               {/* Solid Swatches */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
                 {STUDIO_SOLID_BACKGROUNDS.map((swatch) => (
                   <button
                     key={swatch.id}
                     type="button"
                     onClick={() => setBgId(swatch.id)}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border cursor-pointer ${
+                    className={`h-9 inline-flex items-center gap-2 px-3 rounded-lg border cursor-pointer whitespace-nowrap ${
                       bgId === swatch.id
                         ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                        : 'bg-black/40 text-neutral-200 border-white/15'
+                        : 'bg-black/35 text-neutral-200 border-white/10'
                     }`}
                   >
                     <span
-                      className="w-3 h-3 rounded-full border border-white/40 shrink-0"
+                      className="w-3 h-3 rounded-full border border-white/35 shrink-0"
                       style={{ backgroundColor: swatch.color }}
                     />
                     <span>{swatch.name}</span>
@@ -2059,14 +2527,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 <button
                   type="button"
                   onClick={() => mediaFileInputRef.current?.click()}
-                  className="w-full py-5 px-4 rounded-xl border border-dashed border-emerald-400/50 bg-emerald-500/5 text-center space-y-1.5 cursor-pointer hover:bg-emerald-500/10 transition"
+                  className="w-full py-5 px-4 rounded-xl border border-dashed border-emerald-400/45 bg-emerald-500/5 text-center space-y-1.5 cursor-pointer hover:bg-emerald-500/10 transition-colors"
                 >
                   <Upload className="w-5 h-5 text-emerald-400 mx-auto" />
                   <div className="text-xs font-bold text-white">
                     Importer et sauvegarder vos images ou vidéos
                   </div>
-                  <div className="text-[11px] text-neutral-400">
-                    Vos fichiers restent sauvegardés pour vos prochaines vidéos YouTube ou Shorts.
+                  <div className="text-xs text-neutral-400">
+                    Vos fichiers restent sauvegardés pour vos prochaines vidéos.
                   </div>
                 </button>
               )}
@@ -2091,8 +2559,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                           }
                         }}
                         data-testid={`studio-bg-card-${bg.id}`}
-                        className={`relative aspect-[4/5] rounded-xl overflow-hidden border text-left flex flex-col justify-between p-2 cursor-pointer transition ${
-                          active ? 'border-amber-400 ring-2 ring-amber-400/60' : 'border-white/15 hover:border-white/35'
+                        className={`relative aspect-[4/5] rounded-xl overflow-hidden border text-left flex flex-col justify-between p-2 cursor-pointer transition-colors ${
+                          active ? 'border-amber-400 ring-2 ring-amber-400/50' : 'border-white/15 hover:border-white/35'
                         }`}
                       >
                         {bg.kind === 'video' ? (
@@ -2115,9 +2583,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent pointer-events-none" />
                         <div className="relative z-10 flex items-center justify-between gap-1">
                           {bg.kind === 'video' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[9px] font-black inline-flex items-center gap-0.5">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500 text-neutral-950 text-[10px] font-bold inline-flex items-center gap-0.5">
                               <Video className="w-2.5 h-2.5" />
-                              VIDÉO
+                              Vidéo
                             </span>
                           ) : (
                             <span />
@@ -2130,14 +2598,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                                 ev.stopPropagation();
                                 handleRemoveCustomMedia(bg.id);
                               }}
-                              className="w-5 h-5 rounded-full bg-black/75 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
+                              className="w-6 h-6 rounded-full bg-black/75 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center justify-center cursor-pointer"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
                           )}
                         </div>
                         <div className="relative z-10 flex items-center justify-between gap-1">
-                          <span className="text-[10px] font-bold text-white leading-tight line-clamp-2">
+                          <span className="text-[11px] font-semibold text-white leading-tight line-clamp-2">
                             {bg.name}
                           </span>
                           {active && (
@@ -2152,10 +2620,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-white/10">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.08]">
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-bold text-neutral-300">Couleur du texte</div>
-                  <div className="grid grid-cols-3 gap-1.5 text-xs font-bold">
+                  <div className="text-xs font-semibold text-neutral-300">Couleur du texte</div>
+                  <div className="grid grid-cols-3 gap-1.5 text-xs font-semibold">
                     {[
                       { id: 'auto' as const, label: 'Auto' },
                       { id: 'light' as const, label: 'Blanc' },
@@ -2165,10 +2633,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         key={opt.id}
                         type="button"
                         onClick={() => setTextColorOverride(opt.id)}
-                        className={`py-1.5 rounded-lg border cursor-pointer ${
+                        className={`h-9 rounded-lg border cursor-pointer ${
                           textColorOverride === opt.id
                             ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/5 text-neutral-300 border-white/10'
+                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
                         }`}
                       >
                         {opt.label}
@@ -2178,17 +2646,17 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[11px] font-bold text-neutral-300">Voile de contraste</div>
-                  <div className="grid grid-cols-4 gap-1.5 text-xs font-bold tabular-nums">
+                  <div className="text-xs font-semibold text-neutral-300">Voile de contraste</div>
+                  <div className="grid grid-cols-4 gap-1.5 text-xs font-semibold tabular-nums">
                     {[0, 0.25, 0.45, 0.65].map((alpha) => (
                       <button
                         key={alpha}
                         type="button"
                         onClick={() => setBgVeilOpacity(alpha)}
-                        className={`py-1.5 rounded-lg border cursor-pointer ${
+                        className={`h-9 rounded-lg border cursor-pointer ${
                           Math.abs(bgVeilOpacity - alpha) < 0.02
                             ? 'bg-amber-400 text-neutral-950 border-amber-300'
-                            : 'bg-white/5 text-neutral-300 border-white/10'
+                            : 'bg-white/[0.04] text-neutral-300 border-white/10'
                         }`}
                       >
                         {Math.round(alpha * 100)}%
@@ -2202,14 +2670,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
           {/* TAB 4: RÉCITATEUR & AUDIO */}
           {activeTab === 'audio' && (
-            <section className="p-4 rounded-2xl bg-[#0D1411] border border-white/10 space-y-3.5">
+            <section className="p-4 sm:p-5 rounded-2xl bg-[#0B120F] border border-white/[0.08] space-y-4">
               <div>
-                <span className="text-xs font-extrabold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                  <Headphones className="w-3.5 h-3.5" />
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Headphones className="w-4 h-4 text-amber-300 shrink-0" />
                   <span>Récitateur &amp; Qualité Sonore</span>
-                </span>
-                <p className="text-[11px] text-neutral-400 mt-0.5">
-                  Les silences entre versets sont automatiquement ajustés pour une récitation fluide sans coupures.
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Les silences entre versets sont automatiquement ajustés pour un enchaînement sans coupure.
                 </p>
               </div>
 
@@ -2217,17 +2685,17 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 type="button"
                 data-testid="studio-reciter-picker-btn"
                 onClick={() => setIsReciterPickerOpen(true)}
-                className="w-full flex items-center justify-between p-3.5 rounded-xl bg-black/45 hover:bg-black/65 border border-white/15 text-left cursor-pointer transition"
+                className="w-full min-h-[52px] flex items-center justify-between p-3.5 rounded-xl bg-black/35 hover:bg-black/55 border border-white/15 text-left cursor-pointer transition-colors"
               >
                 <div>
                   <div className="text-sm font-bold text-white">{selectedReciter.name}</div>
-                  <div className="text-[11px] text-neutral-400">{selectedReciter.style}</div>
+                  <div className="text-xs text-neutral-400">{selectedReciter.style}</div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-neutral-400 shrink-0" />
               </button>
 
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-bold text-neutral-300">Accès rapide aux récitateurs</div>
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-neutral-300">Accès rapide aux récitateurs</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
                   {RECITERS.map((r) => (
                     <button
@@ -2237,15 +2705,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         setReciterId(r.id);
                         onSyncReciter?.(r);
                       }}
-                      className={`p-2.5 rounded-xl border text-left flex items-center justify-between gap-2 cursor-pointer transition ${
+                      className={`p-3 rounded-xl border text-left flex items-center justify-between gap-2 cursor-pointer transition-colors ${
                         r.id === reciterId
-                          ? 'bg-amber-400/15 border-amber-400 text-amber-200'
-                          : 'bg-white/[0.03] border-white/10 text-neutral-300 hover:bg-white/[0.07]'
+                          ? 'bg-amber-400/12 border-amber-400/70 text-amber-200'
+                          : 'bg-white/[0.03] border-white/[0.08] text-neutral-300 hover:bg-white/[0.07]'
                       }`}
                     >
                       <div className="min-w-0">
                         <div className="text-xs font-bold truncate">{r.name}</div>
-                        <div className="text-[10px] opacity-75 truncate">{r.style}</div>
+                        <div className="text-xs opacity-75 truncate">{r.style}</div>
                       </div>
                       {r.id === reciterId && <Check className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
                     </button>
@@ -2256,16 +2724,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               <button
                 type="button"
                 onClick={() => setMonitorAudioDuringExport((v) => !v)}
-                className="w-full p-3 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 text-left cursor-pointer"
+                className="w-full p-3.5 rounded-xl bg-black/35 border border-white/[0.08] flex items-center justify-between gap-3 text-left cursor-pointer"
               >
                 <div>
-                  <div className="text-xs font-bold text-white">Écoute audio pendant l’export</div>
-                  <div className="text-[11px] text-neutral-400">
+                  <div className="text-xs font-bold text-white">Écoute audio pendant l&apos;export</div>
+                  <div className="text-xs text-neutral-400">
                     La piste audio continue est toujours incluse dans le fichier MP4.
                   </div>
                 </div>
                 <span
-                  className={`text-xs font-extrabold px-2.5 py-1 rounded-lg shrink-0 ${
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg shrink-0 ${
                     monitorAudioDuringExport
                       ? 'bg-emerald-500/20 text-emerald-300'
                       : 'bg-white/10 text-neutral-400'
@@ -2278,15 +2746,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           )}
         </div>
 
-        {/* Right Column (Desktop Only): Real WYSIWYG Canvas Monitor */}
+        {/* Right Column (Desktop Only): Live WYSIWYG Canvas Monitor */}
         <StudioLiveMonitor
           format={activeFormat}
           ayahs={videoSequence}
           timeline={timeline}
-          surahName={surahMeta.name}
-          surahNumber={surahMeta.number}
-          startAyah={normalizedRange.startAyah}
-          endAyah={normalizedRange.endAyah}
+          surahName={primarySurahMeta.name}
+          surahNumber={primarySurahMeta.number}
+          startAyah={primaryNormalizedRange.startAyah}
+          endAyah={primaryNormalizedRange.endAyah}
+          selectedSurahsCount={selectedSurahs.length}
           reciterName={selectedReciter.name}
           activeMediaKind={activeMediaKind}
           activeMediaUrl={activeMediaUrl}
@@ -2305,14 +2774,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       </div>
 
       {/* Bottom Sticky Dual Action Bar */}
-      <footer className="shrink-0 p-3.5 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] border-t border-white/10 bg-[#0D1411]/95 backdrop-blur-xl">
+      <footer className="shrink-0 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-white/[0.08] bg-[#0B120F]/95 backdrop-blur-xl">
         <div className="max-w-4xl mx-auto grid grid-cols-2 gap-3">
           <button
             type="button"
             data-testid="studio-play-continuous-btn"
             disabled={isLoadingVerses || videoSequence.length === 0}
             onClick={startContinuousPlayer}
-            className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-xs md:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
+            className="h-11 px-4 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-white font-semibold text-xs md:text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap transition-colors"
           >
             <Play className="w-4 h-4 fill-current text-amber-300 shrink-0" />
             <span>Lire le contenu</span>
@@ -2323,79 +2792,125 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-create-video-btn"
             disabled={isLoadingVerses || videoSequence.length === 0}
             onClick={startVideoExport}
-            className="py-3 px-4 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-neutral-950 font-black text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 whitespace-nowrap transition"
+            className="h-11 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-40 whitespace-nowrap transition-colors"
           >
             <Film className="w-4 h-4 shrink-0" />
             <span>
               {isPcMode
                 ? `Créer Vidéo MP4 (${activeFormat.aspectLabel})`
-                : 'Créer la Vidéo MP4 (9:16)'}
+                : 'Créer Vidéo MP4 (9:16)'}
             </span>
           </button>
         </div>
       </footer>
 
-      {/* Searchable Surah Picker Overlay */}
+      {/* Multi-Surah Picker Modal */}
       {isSurahPickerOpen && (
         <div
           className="fixed inset-0 z-[10060] bg-black/80 backdrop-blur-md flex items-center justify-center p-3"
           onClick={() => setIsSurahPickerOpen(false)}
         >
           <div
-            className="w-full max-w-md max-h-[82vh] bg-[#0F1714] border border-white/20 rounded-2xl p-4 flex flex-col gap-3"
+            data-testid="studio-multi-surah-picker-modal"
+            className="w-full max-w-lg max-h-[85vh] bg-[#0B120F] border border-white/15 rounded-2xl p-4 flex flex-col gap-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black">Choisir la Sourate</h3>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-white">Choisir une ou plusieurs sourates</h3>
+                <p className="text-xs text-neutral-400 tabular-nums">
+                  {draftPickerSurahNums.length} sélectionnée{draftPickerSurahNums.length > 1 ? 's' : ''} (sourate complète par défaut)
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsSurahPickerOpen(false)}
-                className="p-1.5 rounded-xl bg-white/10 cursor-pointer"
+                aria-label="Fermer la sélection des sourates"
+                className="w-9 h-9 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
+
             <div className="relative">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={surahQuery}
                 onChange={(e) => setSurahQuery(e.target.value)}
-                placeholder="Rechercher une sourate (nom ou numéro)..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl bg-black/50 border border-white/15 text-xs text-white"
+                placeholder="Rechercher par nom, traduction ou numéro..."
+                className="w-full h-10 pl-9 pr-3 rounded-xl bg-black/50 border border-white/15 text-xs text-white placeholder:text-neutral-500"
               />
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
-              {filteredSurahs.map((s) => (
-                <button
-                  key={s.number}
-                  type="button"
-                  onClick={() => {
-                    setSurahNum(s.number);
-                    setStartAyah(1);
-                    setEndAyah(Math.min(isPcMode ? 10 : 5, s.numberOfAyahs));
-                    setIsSurahPickerOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left border cursor-pointer ${
-                    s.number === surahNum
-                      ? 'bg-amber-400 text-neutral-950 border-amber-300 font-bold'
-                      : 'bg-white/5 text-white border-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  <div>
-                    <div className="text-xs font-bold">
-                      {s.number}. {s.name}
-                    </div>
-                    <div className="text-[10px] opacity-75">
-                      {s.frenchTranslation} • {s.numberOfAyahs} versets
-                    </div>
-                  </div>
-                  <span className="font-arabic text-base" dir="rtl">
-                    {s.arabicName}
-                  </span>
-                </button>
-              ))}
+
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setDraftPickerSurahNums([112, 113, 114])}
+                className="h-8 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-medium cursor-pointer whitespace-nowrap"
+              >
+                3 Qul (112–114)
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraftPickerSurahNums([105, 106, 107, 108, 109, 110, 111, 112, 113, 114])}
+                className="h-8 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-neutral-200 font-medium cursor-pointer whitespace-nowrap"
+              >
+                10 dernières sourates
+              </button>
             </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/[0.06] rounded-xl border border-white/[0.08] bg-black/30">
+              {filteredSurahs.map((s) => {
+                const checked = draftPickerSurahNums.includes(s.number);
+                return (
+                  <button
+                    key={s.number}
+                    type="button"
+                    data-testid={`surah-picker-option-${s.number}`}
+                    aria-pressed={checked}
+                    onClick={() => toggleDraftSurah(s.number)}
+                    className={`w-full flex items-center justify-between p-3 text-left cursor-pointer transition-colors ${
+                      checked
+                        ? 'bg-amber-400/12 text-white'
+                        : 'hover:bg-white/[0.05] text-neutral-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                          checked
+                            ? 'bg-amber-400 border-amber-300 text-neutral-950'
+                            : 'border-white/25 bg-black/40'
+                        }`}
+                      >
+                        {checked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold truncate">
+                          {s.number}. {s.name}
+                        </div>
+                        <div className="text-xs text-neutral-400 truncate tabular-nums">
+                          {s.frenchTranslation} · {s.numberOfAyahs} versets
+                        </div>
+                      </div>
+                    </div>
+                    <span className="font-arabic text-base text-amber-200 shrink-0 pl-2" dir="rtl">
+                      {s.arabicName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              data-testid="surah-picker-confirm-btn"
+              onClick={confirmSurahPicker}
+              className="w-full h-11 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-bold text-xs cursor-pointer transition-colors"
+            >
+              Valider la sélection ({draftPickerSurahNums.length} sourate{draftPickerSurahNums.length > 1 ? 's' : ''})
+            </button>
           </div>
         </div>
       )}
@@ -2407,15 +2922,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           onClick={() => setIsReciterPickerOpen(false)}
         >
           <div
-            className="w-full max-w-md max-h-[82vh] bg-[#0F1714] border border-white/20 rounded-2xl p-4 flex flex-col gap-3"
+            className="w-full max-w-md max-h-[82vh] bg-[#0B120F] border border-white/15 rounded-2xl p-4 flex flex-col gap-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black">Choisir le Récitateur</h3>
+              <h3 className="text-sm font-bold text-white">Choisir le Récitateur</h3>
               <button
                 type="button"
                 onClick={() => setIsReciterPickerOpen(false)}
-                className="p-1.5 rounded-xl bg-white/10 cursor-pointer"
+                aria-label="Fermer le choix du récitateur"
+                className="w-9 h-9 rounded-xl bg-white/[0.07] hover:bg-white/[0.14] flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2430,15 +2946,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     onSyncReciter?.(r);
                     setIsReciterPickerOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-left border cursor-pointer ${
+                  className={`w-full flex items-center justify-between p-3 rounded-xl text-left border cursor-pointer transition-colors ${
                     r.id === reciterId
                       ? 'bg-amber-400 text-neutral-950 border-amber-300 font-bold'
-                      : 'bg-white/5 text-white border-white/5 hover:bg-white/10'
+                      : 'bg-white/[0.04] text-white border-white/[0.07] hover:bg-white/[0.08]'
                   }`}
                 >
                   <div>
                     <div className="text-xs font-bold">{r.name}</div>
-                    <div className="text-[10px] opacity-75">{r.style}</div>
+                    <div className="text-xs opacity-75">{r.style}</div>
                   </div>
                   {r.id === reciterId && <Check className="w-4 h-4 stroke-[3]" />}
                 </button>

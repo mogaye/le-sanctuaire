@@ -274,3 +274,52 @@ test('renderVideoCanvasFrame renders Bismillah intro cleanly without verse 0 lab
   }
 });
 
+test('renderVideoCanvasFrame dynamically updates top header Surah name when multi-surah timeline advances', () => {
+  const seq = [
+    {
+      num: 1,
+      surahNumber: 112,
+      surahName: 'Al-Ikhlas',
+      ar: 'قُلْ هُوَ ٱللَّهُ أَحَدٌ',
+      tr: 'Qul huwallahu ahad',
+      fr: 'Dis: Il est Allah, Unique.',
+    },
+    {
+      num: 1,
+      surahNumber: 113,
+      surahName: 'Al-Falaq',
+      ar: 'قُلْ أَعُوذُ بِرَبِّ ٱلْفَلَقِ',
+      tr: 'Qul aoodhu bi rabbil falaq',
+      fr: 'Dis: Je cherche protection auprès du Seigneur de l aube naissante.',
+    },
+  ];
+  const timeline = buildContinuousTimeline(seq, [5.0, 5.0], 1);
+  const opts: VideoCanvasRenderOptions = {
+    width: 1080,
+    height: 1920,
+    surahName: 'Al-Ikhlas',
+    surahNumber: 112,
+    startAyah: 1,
+    endAyah: 1,
+    selectedSurahsCount: 2,
+    isLightSurface: false,
+    bgImage: null,
+    showArabic: true,
+    useTajweed: true,
+    showPhonetics: true,
+    showFrench: true,
+    showSurahHeader: true,
+    textScale: 'standard',
+    flowMode: 'teleprompter',
+    reciterName: 'Alafasy',
+  };
+
+  const first = createMockCanvasContext();
+  const layout = precomputeVideoCanvasLayout(first.ctx, seq, opts);
+  renderVideoCanvasFrame(first.ctx, layout, timeline, 2.0, opts);
+  assert.ok(first.fillTexts.some((c) => c.text.includes('Al-Ikhlas (112)')));
+
+  const second = createMockCanvasContext();
+  renderVideoCanvasFrame(second.ctx, layout, timeline, 7.0, opts);
+  assert.ok(second.fillTexts.some((c) => c.text.includes('Al-Falaq (113)')));
+});

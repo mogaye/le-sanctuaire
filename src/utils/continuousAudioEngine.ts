@@ -1,6 +1,6 @@
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { cleanAyahArabic } from './tajweedColorizer';
-import { StudioAyahItem } from './mobileVideoStudioUtils';
+import { StudioAyahItem, buildSurahPlaceholderAyahs } from './mobileVideoStudioUtils';
 import { getAyahAudioUrl } from './quranAudioUtils';
 
 export interface LoadedStudioSurah {
@@ -18,71 +18,84 @@ export interface DecodedVerseBuffer {
   effectiveDurationSec: number;
 }
 
+const surahMemoryCache = new Map<number, LoadedStudioSurah>();
+const surahInflightFetches = new Map<number, Promise<LoadedStudioSurah>>();
+
+async function fetchJsonWithTimeout(url: string, timeoutMs = 10000): Promise<any | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) return null;
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('json') && !ct.includes('text/plain')) {
+      return null;
+    }
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchSurahVersesForStudio(
   surahMeta: CompleteSurahItem
 ): Promise<LoadedStudioSurah> {
   const num = surahMeta.number;
-  const cacheKey = `quran_surah_full_v4_${num}`;
 
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && Array.isArray(parsed.ayahs) && parsed.ayahs.length > 0) {
-        return {
-          num,
-          name: surahMeta.name,
-          arName: parsed.arName || `سُورَةُ ${surahMeta.arabicName}`,
-          frName: surahMeta.frenchTranslation,
-          ayahs: parsed.ayahs.map((a: any) => ({
-            num: a.num,
-            globalNum: a.globalNum,
-            ar: cleanAyahArabic(a.ar || ''),
-            tr: a.tr || '',
-            fr: a.fr || '',
-          })),
-        };
-      }
-    }
-  } catch {
-    // ignore cache errors
+  const memCached = surahMemoryCache.get(num);
+  if (memCached && memCached.ayahs.length >= (surahMeta.numberOfAyahs || 1)) {
+    return memCached;
   }
 
-  try {
-    const localRes = await fetch(`/data/surahs/${num}.json`);
-    if (localRes.ok) {
-      const localData = await localRes.json();
-      if (localData && Array.isArray(localData.ayahs) && localData.ayahs.length > 0) {
-        const ayahs: StudioAyahItem[] = localData.ayahs.map((a: any) => ({
-          num: a.num,
-          globalNum: a.globalNum,
-          ar: cleanAyahArabic(a.ar || ''),
-          tr: a.tr || '',
-          fr: a.fr || '',
-        }));
-        try {
-          sessionStorage.setItem(cacheKey, JSON.stringify({ ...localData, ayahs }));
-        } catch {}
-        return {
-          num,
-          name: surahMeta.name,
-          arName: localData.arName || `سُورَةُ ${surahMeta.arabicName}`,
-          frName: surahMeta.frenchTranslation,
-          ayahs,
-        };
-      }
-    }
-  } catch {
-    // fallback to API
+  const inflight = surahInflightFetches.get(num);
+  if (inflight) {
+    return inflight;
   }
 
-  try {
-    const apiRes = await fetch(
-      `https://api.alquran.cloud/v1/surah/${num}/editions/quran-uthmani,fr.hamidullah,en.transliteration,en.sahih`
-    );
-    if (apiRes.ok) {
-      const apiJson = await apiRes.json();
-      if (apiJson.code === 200 && Array.isArray(apiJson.data)) {
+  const run = (async (): Promise<LoadedStudioSurah> => {
+    const cacheKey = `quran_surah_full_v4_${num}`;
+
+    try {
+      const cached = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(cacheKey) : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (
+          parsed &&
+          Array.isArray(parsed.ayahs) &&
+          parsed.ayahs.length >= Math.min(1, surahMeta.numberOfAyahs || 1)
+        ) {
+          const loaded: LoadedStudioSurah = {
+            num,
+            name: surahMeta.name,
+            arName: parsed.arName || `سُورَةُ ${surahMeta.arabicName}`,
+            frName: surahMeta.frenchTranslation,
+            ayahs: parsed.ayahs.map((a: any) => ({
+              num: a.num,
+              globalNum: a.globalNum,
+              ar: cleanAyahArabic(a.ar || ''),
+              tr: a.tr || '',
+              fr: a.fr || '',
+            })),
+          };
+          surahMemoryCache.set(num, loaded);
+          return loaded;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    // Primary combined edition fetch (with 1 retry on transient rate-limit / timeout)
+    const editionUrls = [
+      `https://api.alquran.cloud/v1/surah/${num}/editions/quran-uthmani,fr.hamidullah,en.transliteration`,
+      `https://api.alquran.cloud/v1/surah/${num}/editions/quran-uthmani,fr.hamidullah`,
+    ];
+
+    for (const url of editionUrls) {
+      const apiJson = await fetchJsonWithTimeout(url, 12000);
+      if (apiJson?.code === 200 && Array.isArray(apiJson.data) && apiJson.data[0]?.ayahs?.length) {
         const arSurah = apiJson.data[0];
         const frSurah = apiJson.data[1];
         const trSurah = apiJson.data[2];
@@ -108,43 +121,40 @@ export async function fetchSurahVersesForStudio(
           ayahs,
         };
         try {
-          sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+          }
         } catch {}
-        return {
+
+        const loaded: LoadedStudioSurah = {
           num,
           name: surahMeta.name,
           arName: payload.arName,
           frName: surahMeta.frenchTranslation,
           ayahs,
         };
+        surahMemoryCache.set(num, loaded);
+        return loaded;
       }
     }
-  } catch {
-    // fallback
+
+    // Offline fallback: preserve FULL verse count of the Surah (never truncate to 10!)
+    // and do NOT persist synthetic placeholders in sessionStorage so network recovery works later.
+    return {
+      num,
+      name: surahMeta.name,
+      arName: `سُورَةُ ${surahMeta.arabicName}`,
+      frName: surahMeta.frenchTranslation,
+      ayahs: buildSurahPlaceholderAyahs(surahMeta),
+    };
+  })();
+
+  surahInflightFetches.set(num, run);
+  try {
+    return await run;
+  } finally {
+    surahInflightFetches.delete(num);
   }
-
-  // Fallback synthetic sample so studio never breaks offline
-  const count = Math.min(surahMeta.numberOfAyahs || 7, 10);
-  const ayahs: StudioAyahItem[] = Array.from({ length: count }, (_, idx) => ({
-    num: idx + 1,
-    ar:
-      idx === 0 && surahMeta.openingAyahArabic
-        ? cleanAyahArabic(surahMeta.openingAyahArabic)
-        : 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ',
-    tr: idx === 0 ? 'Bismillaahir Rahmaanir Raheem' : `Ayah ${idx + 1}`,
-    fr:
-      idx === 0 && surahMeta.openingAyahFrench
-        ? surahMeta.openingAyahFrench
-        : `${surahMeta.frenchTranslation} — Verset ${idx + 1}`,
-  }));
-
-  return {
-    num,
-    name: surahMeta.name,
-    arName: `سُورَةُ ${surahMeta.arabicName}`,
-    frName: surahMeta.frenchTranslation,
-    ayahs,
-  };
 }
 
 /**

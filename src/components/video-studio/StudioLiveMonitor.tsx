@@ -23,6 +23,7 @@ interface StudioLiveMonitorProps {
   surahNumber: number;
   startAyah: number;
   endAyah: number;
+  selectedSurahsCount?: number;
   reciterName: string;
   activeMediaKind: 'video' | 'image' | 'solid';
   activeMediaUrl: string | null;
@@ -47,6 +48,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   surahNumber,
   startAyah,
   endAyah,
+  selectedSurahsCount = 1,
   reciterName,
   activeMediaKind,
   activeMediaUrl,
@@ -71,7 +73,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   const [isAnimatingPreview, setIsAnimatingPreview] = useState(false);
   const [previewSec, setPreviewSec] = useState(0);
 
-  // Snap preview to the opening frame (Bismillah when starting at verse 1) when surah or start verse changes
+  // Snap preview to opening frame when sequence structure resets to a different primary surah/start
   useEffect(() => {
     setSelectedVerseIdx(0);
     setIsAnimatingPreview(false);
@@ -79,7 +81,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     setPreviewSec(firstSeg ? firstSeg.startSec + Math.min(1.0, firstSeg.durationSec * 0.35) : 0);
   }, [surahNumber, startAyah]);
 
-  // Clamp selected verse index when ayah range shrinks
+  // Clamp selected verse index when total sequence shrinks
   useEffect(() => {
     setSelectedVerseIdx((prev) => {
       const next = Math.min(Math.max(0, prev), Math.max(0, ayahs.length - 1));
@@ -89,7 +91,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       }
       return next;
     });
-  }, [ayahs.length, endAyah]);
+  }, [ayahs.length, endAyah, selectedSurahsCount]);
 
   // Load background image or video for true WYSIWYG canvas preview
   useEffect(() => {
@@ -150,6 +152,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       surahNumber,
       startAyah,
       endAyah,
+      selectedSurahsCount,
       isLightSurface,
       bgSurfaceColor,
       bgVeilOpacity,
@@ -171,6 +174,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       surahNumber,
       startAyah,
       endAyah,
+      selectedSurahsCount,
       isLightSurface,
       bgSurfaceColor,
       bgVeilOpacity,
@@ -259,22 +263,34 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       ? 'aspect-square h-full max-h-[430px]'
       : 'aspect-[9/16] h-full max-h-[460px]';
 
+  const activeItem = ayahs[selectedVerseIdx];
+  const verseStepLabel = activeItem
+    ? `${selectedSurahsCount > 1 && activeItem.surahName ? `${activeItem.surahName} · ` : ''}${
+        activeItem.isBismillah ? 'Bismillah' : `Verset ${activeItem.num}`
+      }`
+    : `Verset ${startAyah}`;
+
   return (
     <aside
       data-testid="studio-desktop-916-preview"
-      className="hidden md:flex flex-col justify-between min-h-0 p-4 rounded-2xl bg-[#0C1210] border border-white/10 shadow-2xl"
+      className="hidden md:flex flex-col justify-between min-h-0 p-5 rounded-2xl bg-[#0A110E] border border-white/[0.08]"
     >
       {/* Monitor Top Spec Bar */}
-      <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/10 shrink-0">
-        <div className="min-w-0">
-          <div className="text-xs font-extrabold text-white tracking-wide flex items-center gap-2">
-            <span>Moniteur Studio WYSIWYG</span>
-            <span className="text-amber-300 font-mono tabular-nums">
-              {format.aspectLabel} • {format.width}×{format.height}
+      <div className="flex items-center justify-between gap-3 pb-3.5 border-b border-white/[0.08] shrink-0">
+        <div className="min-w-0 space-y-0.5">
+          <div className="text-[13px] font-bold text-white tracking-tight flex items-center gap-2">
+            <span>Aperçu en direct</span>
+            <span className="text-neutral-500" aria-hidden="true">·</span>
+            <span className="text-xs font-mono text-amber-300 tabular-nums">
+              {format.aspectLabel} ({format.width}×{format.height})
             </span>
           </div>
-          <div className="text-[11px] text-neutral-400 truncate mt-0.5">
-            {activeMediaName} • Durée estimée {formatTimeMMSS(timeline.totalDurationSec)}
+          <div className="text-xs text-neutral-400 truncate flex items-center gap-1.5 tabular-nums">
+            <span className="truncate">{activeMediaName}</span>
+            <span aria-hidden="true">·</span>
+            <span>{selectedSurahsCount} sourate{selectedSurahsCount > 1 ? 's' : ''}</span>
+            <span aria-hidden="true">·</span>
+            <span>Durée {formatTimeMMSS(timeline.totalDurationSec)}</span>
           </div>
         </div>
 
@@ -282,30 +298,30 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
           type="button"
           data-testid="studio-monitor-animate-btn"
           onClick={() => setIsAnimatingPreview((v) => !v)}
-          className={`h-8 px-3 rounded-lg border text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition ${
+          className={`h-9 px-3.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition duration-150 ${
             isAnimatingPreview
               ? 'bg-amber-400 text-neutral-950 border-amber-300'
-              : 'bg-white/5 hover:bg-white/10 text-neutral-200 border-white/15'
+              : 'bg-white/[0.05] hover:bg-white/[0.1] text-neutral-100 border-white/10'
           }`}
         >
           {isAnimatingPreview ? (
             <>
               <Pause className="w-3.5 h-3.5 fill-current" />
-              <span>Pause aperçu</span>
+              <span>Pause</span>
             </>
           ) : (
             <>
               <Play className="w-3.5 h-3.5 fill-current text-amber-300" />
-              <span>Animer l’aperçu</span>
+              <span>Animer</span>
             </>
           )}
         </button>
       </div>
 
       {/* Centered Live Canvas Stage */}
-      <div className="flex-1 min-h-0 flex items-center justify-center py-3">
+      <div className="flex-1 min-h-0 flex items-center justify-center py-4">
         <div
-          className={`relative ${aspectClass} rounded-xl overflow-hidden border border-white/20 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.75)] flex items-center justify-center`}
+          className={`relative ${aspectClass} rounded-xl overflow-hidden border border-white/15 bg-black shadow-[0_24px_60px_rgba(0,0,0,0.7)] flex items-center justify-center`}
         >
           <canvas
             ref={canvasRef}
@@ -318,58 +334,56 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       </div>
 
       {/* Interactive Verse Scrubber + Mandatory Watermark Info */}
-      <div className="space-y-2.5 pt-3 border-t border-white/10 shrink-0">
+      <div className="space-y-3 pt-3.5 border-t border-white/[0.08] shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             <button
               type="button"
               onClick={() => jumpToVerse(selectedVerseIdx - 1)}
               disabled={selectedVerseIdx <= 0}
-              aria-label="Verset précédent dans l'aperçu"
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer"
+              aria-label="Séquence précédente dans l'aperçu"
+              className="w-9 h-9 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer shrink-0 transition duration-150"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span
               data-testid="studio-monitor-verse-label"
-              className="text-xs font-bold text-neutral-200 px-2 tabular-nums whitespace-nowrap"
+              className="text-xs font-semibold text-neutral-200 px-2 tabular-nums truncate"
             >
-              {ayahs[selectedVerseIdx]?.isBismillah
-                ? 'Aperçu Bismillah'
-                : `Aperçu Verset ${ayahs[selectedVerseIdx]?.num ?? startAyah}`}{' '}
-              ({selectedVerseIdx + 1}/{Math.max(1, ayahs.length)})
+              {verseStepLabel} ({selectedVerseIdx + 1}/{Math.max(1, ayahs.length)})
             </span>
             <button
               type="button"
               onClick={() => jumpToVerse(selectedVerseIdx + 1)}
               disabled={selectedVerseIdx >= ayahs.length - 1}
-              aria-label="Verset suivant dans l'aperçu"
-              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer"
+              aria-label="Séquence suivante dans l'aperçu"
+              className="w-9 h-9 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 flex items-center justify-center text-neutral-200 disabled:opacity-35 cursor-pointer shrink-0 transition duration-150"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <span className="text-xs font-mono text-amber-300 tabular-nums whitespace-nowrap">
+          <span className="text-xs font-mono text-amber-300 tabular-nums whitespace-nowrap shrink-0">
             {formatTimeMMSS(previewSec)} / {formatTimeMMSS(timeline.totalDurationSec)}
           </span>
         </div>
 
         <div
           data-testid="studio-mandatory-watermark-notice"
-          className="flex items-center justify-between gap-2 text-[11px] text-emerald-200/90 bg-emerald-500/10 border border-emerald-400/25 rounded-lg px-3 py-1.5"
+          className="flex items-center justify-between gap-2 text-xs text-emerald-200/90 pt-1"
         >
           <span className="inline-flex items-center gap-1.5 truncate">
             <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="truncate">
-              Signature « {MANDATORY_WATERMARK_BRAND} » incluse en bas du rendu MP4
+              Signature « {MANDATORY_WATERMARK_BRAND} » incluse en pied de vidéo
             </span>
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300 shrink-0">
-            Inclus
+          <span className="text-[11px] font-medium text-emerald-300 shrink-0">
+            Actif
           </span>
         </div>
       </div>
     </aside>
   );
 };
+

@@ -1508,6 +1508,77 @@ async function startServer() {
     }
   );
 
+  const stagedVideoDownloads = new Map<
+    string,
+    { buffer: Buffer; filename: string; mimeType: string; expiresAt: number }
+  >();
+
+  const pruneStagedDownloads = () => {
+    const now = Date.now();
+    for (const [key, entry] of stagedVideoDownloads.entries()) {
+      if (entry.expiresAt <= now) {
+        stagedVideoDownloads.delete(key);
+      }
+    }
+    while (stagedVideoDownloads.size > 8) {
+      const oldestKey = stagedVideoDownloads.keys().next().value;
+      if (!oldestKey) break;
+      stagedVideoDownloads.delete(oldestKey);
+    }
+  };
+
+  app.post(
+    '/api/video/stage-download',
+    express.raw({ type: '*/*', limit: '200mb' }),
+    (req, res) => {
+      try {
+        pruneStagedDownloads();
+        const bodyBuf = Buffer.isBuffer(req.body) ? req.body : Buffer.from([]);
+        if (bodyBuf.length < 128) {
+          return res.status(400).json({ error: 'Empty video buffer' });
+        }
+        const rawFilename = String(req.headers['x-download-filename'] || 'coran-sanctuaire.mp4');
+        let decodedName = rawFilename;
+        try {
+          decodedName = decodeURIComponent(rawFilename);
+        } catch {}
+        const safeFilename =
+          decodedName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 120) || 'coran-sanctuaire.mp4';
+        const mimeType = String(req.headers['x-download-mime'] || 'video/mp4').slice(0, 64);
+
+        const token = crypto.randomBytes(12).toString('hex');
+        stagedVideoDownloads.set(token, {
+          buffer: bodyBuf,
+          filename: safeFilename,
+          mimeType,
+          expiresAt: Date.now() + 10 * 60 * 1000,
+        });
+
+        return res.json({
+          token,
+          downloadUrl: `/api/video/download/${token}`,
+          filename: safeFilename,
+        });
+      } catch (err: any) {
+        return res.status(500).json({ error: err?.message || 'Stage download failed' });
+      }
+    }
+  );
+
+  app.get('/api/video/download/:token', (req, res) => {
+    pruneStagedDownloads();
+    const token = String(req.params.token || '').replace(/[^a-f0-9]/gi, '');
+    const entry = stagedVideoDownloads.get(token);
+    if (!entry) {
+      return res.status(404).json({ error: 'Download expired or not found' });
+    }
+    res.setHeader('Content-Type', entry.mimeType || 'video/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="${entry.filename}"`);
+    res.setHeader('Content-Length', String(entry.buffer.length));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(entry.buffer);
+  });
+
   // ============================================================================
   // 4. PAYDUNYA INVOICE CREATION ROUTE
   // ============================================================================
