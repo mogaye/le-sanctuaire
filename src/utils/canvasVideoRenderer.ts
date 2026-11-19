@@ -52,8 +52,10 @@ export function computeGentleBackgroundMotionScale(
   if (!enabled || !Number.isFinite(timeSec) || timeSec <= 0) {
     return 1;
   }
-  const cycleDurationSec = 18;
-  const maxExtraZoom = 0.055;
+  // 14s meditative cycle (7s slow zoom-in, 7s slow zoom-out) with zero-jerk cosine easing
+  // so edges noticeably breathe without abrupt starts, stops, or reading distraction.
+  const cycleDurationSec = 14;
+  const maxExtraZoom = 0.13;
   const t = Math.max(0, timeSec);
   const phase = (2 * Math.PI * t) / cycleDurationSec;
   return Number((1 + maxExtraZoom * 0.5 * (1 - Math.cos(phase))).toFixed(6));

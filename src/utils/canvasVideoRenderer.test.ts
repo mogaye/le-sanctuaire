@@ -721,23 +721,29 @@ test('custom Arabic, Phonetics, and French text colors and black counter-backdro
   }
 });
 
-test('computeGentleBackgroundMotionScale creates slow subtle zoom-dezoom cycles until video end when enabled', () => {
-  assert.equal(computeGentleBackgroundMotionScale(9, false), 1);
+test('computeGentleBackgroundMotionScale creates calm, clearly perceptible zoom-dezoom cycles without abrupt jumps when enabled', () => {
+  assert.equal(computeGentleBackgroundMotionScale(7, false), 1);
   assert.equal(computeGentleBackgroundMotionScale(0, true), 1);
 
-  const midZoomIn = computeGentleBackgroundMotionScale(4.5, true);
-  const peakZoom = computeGentleBackgroundMotionScale(9, true);
-  const midZoomOut = computeGentleBackgroundMotionScale(13.5, true);
-  const cycleEnd = computeGentleBackgroundMotionScale(18, true);
-  const secondCyclePeak = computeGentleBackgroundMotionScale(27, true);
-  const secondCycleEnd = computeGentleBackgroundMotionScale(36, true);
+  const quarterTurn = computeGentleBackgroundMotionScale(3.5, true);
+  const peakZoom = computeGentleBackgroundMotionScale(7, true);
+  const threeQuarterTurn = computeGentleBackgroundMotionScale(10.5, true);
+  const cycleEnd = computeGentleBackgroundMotionScale(14, true);
+  const secondCyclePeak = computeGentleBackgroundMotionScale(21, true);
+  const secondCycleEnd = computeGentleBackgroundMotionScale(28, true);
 
-  assert.ok(midZoomIn > 1 && midZoomIn < peakZoom, 'Zoom-in should ease upward gently');
-  assert.ok(peakZoom > 1.04 && peakZoom <= 1.06, `Peak zoom must stay subtle (got ${peakZoom})`);
-  assert.ok(midZoomOut > 1 && midZoomOut < peakZoom, 'Zoom-out should return gently');
-  assert.ok(Math.abs(cycleEnd - 1) < 1e-5, `Cycle end at 18s must return cleanly to 1.0 (got ${cycleEnd})`);
+  assert.ok(quarterTurn > 1.05 && quarterTurn < peakZoom, 'Zoom-in should progress clearly and smoothly');
+  assert.ok(peakZoom >= 1.12 && peakZoom <= 1.14, `Peak zoom should be clearly perceptible yet measured (got ${peakZoom})`);
+  assert.ok(Math.abs(threeQuarterTurn - quarterTurn) < 1e-5, 'Zoom-out should mirror zoom-in symmetrically');
+  assert.ok(Math.abs(cycleEnd - 1) < 1e-5, `Cycle end at 14s must return cleanly to 1.0 (got ${cycleEnd})`);
   assert.ok(Math.abs(secondCyclePeak - peakZoom) < 1e-5, 'Second cycle peak should repeat smoothly');
   assert.ok(Math.abs(secondCycleEnd - 1) < 1e-5, 'Second cycle end should return cleanly to 1.0');
+
+  // Verify turnaround is gradual (no abrupt jump near t=0 or peak) and mid-breath rate stays gentle
+  const startSlope = computeGentleBackgroundMotionScale(0.25, true) - computeGentleBackgroundMotionScale(0, true);
+  const midSlope = computeGentleBackgroundMotionScale(3.75, true) - computeGentleBackgroundMotionScale(3.5, true);
+  assert.ok(startSlope < midSlope * 0.25, 'Turnaround acceleration must remain smooth and non-abrupt');
+  assert.ok(midSlope <= 0.009, `Mid-breath zoom speed per 0.25s must stay calm (got ${midSlope})`);
 
   const ayahs = [
     {
@@ -779,15 +785,15 @@ test('computeGentleBackgroundMotionScale creates slow subtle zoom-dezoom cycles 
   };
 
   const steady0 = captureDraw(false, 0);
-  const steady9 = captureDraw(false, 9);
-  assert.equal(steady9.w, steady0.w, 'Disabled motion must keep image width steady');
+  const steady7 = captureDraw(false, 7);
+  assert.equal(steady7.w, steady0.w, 'Disabled motion must keep image width steady');
 
   const motion0 = captureDraw(true, 0);
-  const motion9 = captureDraw(true, 9);
-  const motion18 = captureDraw(true, 18);
-  assert.ok(motion9.w > motion0.w && motion9.w <= motion0.w * 1.06, 'Peak draw rect must gently zoom in');
-  assert.ok(motion9.x < 0 && motion9.y < 0, 'Zoomed draw rect must stay centered with zero bare edges');
-  assert.ok(Math.abs(motion18.w - motion0.w) < 0.01, 'Draw rect must gently zoom back out at cycle end');
+  const motion7 = captureDraw(true, 7);
+  const motion14 = captureDraw(true, 14);
+  assert.ok(motion7.w >= motion0.w * 1.12 && motion7.w <= motion0.w * 1.14, 'Peak draw rect must visibly zoom in calmly');
+  assert.ok(motion7.x < 0 && motion7.y < 0, 'Zoomed draw rect must stay centered with zero bare edges');
+  assert.ok(Math.abs(motion14.w - motion0.w) < 0.01, 'Draw rect must gently zoom back out at cycle end');
 });
 
 test('mandatory watermark and custom logo center cleanly both horizontally and vertically as a readable pair across 16:9, 9:16, and 1:1', () => {

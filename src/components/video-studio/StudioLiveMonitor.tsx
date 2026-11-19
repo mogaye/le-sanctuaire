@@ -428,7 +428,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       if (isVideoLive && bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
         bgVideoRef.current.play().catch(() => {});
       }
-      if (!isImageMotionLive || nowMs - lastDrawMs >= 32) {
+      if (!isImageMotionLive || nowMs - lastDrawMs >= 28) {
         lastDrawMs = nowMs;
         if (canvasRef.current && layout) {
           const ctx = canvasRef.current.getContext('2d');
