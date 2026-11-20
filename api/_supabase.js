@@ -393,7 +393,7 @@ export async function runSupabaseDiagnostics() {
       hasAnonKey,
       hasServiceRoleKey,
       hasSmtp,
-      serverlessFunctionsCount: 8,
+      serverlessFunctionsCount: 11,
       vercelHobbyLimit: 12,
     },
     tables: tableStatuses,

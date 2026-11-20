@@ -440,8 +440,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
       // 1. Try local JSON first if available
       try {
         const localRes = await fetch(`/data/surahs/${selectedSurahNumber}.json`);
-        if (localRes.ok) {
-          const localData: FullSurahData = await localRes.json();
+        if (localRes.ok && (localRes.headers.get('content-type') || '').includes('json')) {
+          const rawLocal = await localRes.text();
+          const localData: FullSurahData = JSON.parse(rawLocal);
           if (isMounted && localData && localData.ayahs && localData.ayahs.length > 0) {
             const sanitized: FullSurahData = {
               ...localData,
@@ -467,8 +468,9 @@ export const QuranPage: React.FC<QuranPageProps> = ({
           `https://api.alquran.cloud/v1/surah/${selectedSurahNumber}/editions/quran-uthmani,fr.hamidullah,en.transliteration,en.sahih`
         );
         if (apiRes.ok) {
-          const apiJson = await apiRes.json();
-          if (apiJson.code === 200 && Array.isArray(apiJson.data)) {
+          const rawApi = await apiRes.text();
+          const apiJson = rawApi && !rawApi.trim().startsWith('<') ? JSON.parse(rawApi) : null;
+          if (apiJson?.code === 200 && Array.isArray(apiJson.data)) {
             const arSurah = apiJson.data[0];
             const frSurah = apiJson.data[1];
             const trSurah = apiJson.data[2];

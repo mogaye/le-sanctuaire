@@ -1,4 +1,5 @@
 import { getAccessToken, googleSignIn } from './firebase';
+import { safeReadJsonResponse } from '../utils/safeFetchJson';
 
 export interface SendGmailPayload {
   to: string;
@@ -78,13 +79,17 @@ export async function sendEmailWithGmailAccount(
       body: JSON.stringify({ raw }),
     });
 
-    const data = await response.json();
-    if (!response.ok) {
+    const parsed = await safeReadJsonResponse<any>(
+      response,
+      "Erreur lors de l'envoi via l'API Gmail."
+    );
+    if (!parsed.ok || !parsed.data) {
       return {
         success: false,
-        error: data?.error?.message || "Erreur lors de l'envoi via l'API Gmail.",
+        error: parsed.data?.error?.message || parsed.error || "Erreur lors de l'envoi via l'API Gmail.",
       };
     }
+    const data = parsed.data;
 
     // Log the sent email in our PostgreSQL database
     try {

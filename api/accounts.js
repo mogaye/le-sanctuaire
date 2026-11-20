@@ -24,6 +24,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    if (req.query?.action === 'me' || urlStr.includes('/users/me')) {
+      return res.status(200).json({ ok: true });
+    }
     try {
       const body = await parseRequestBody(req);
       const {

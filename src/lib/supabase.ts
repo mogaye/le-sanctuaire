@@ -1,6 +1,14 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile } from '../types';
 import { googleSignIn, getIdToken } from './firebase';
+import { safeReadJsonResponse } from '../utils/safeFetchJson';
+import {
+  getPlanRules,
+  getRemainingVideos,
+  isSuperAdminEmail,
+  SubscriptionPlanId,
+  StudioQualityTier,
+} from '../utils/subscriptionPlans';
 
 // Retrieve Supabase environment variables from Vite or Vercel Supabase integration
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
@@ -348,8 +356,9 @@ export async function fetchAllConnectedAccounts(): Promise<LocalRegisteredAccoun
 
   try {
     const res = await fetch('/api/accounts');
-    if (res.ok) {
-      const data = await res.json();
+    const parsed = await safeReadJsonResponse<{ accounts?: any[] }>(res);
+    if (parsed.ok && parsed.data) {
+      const data = parsed.data;
       if (Array.isArray(data?.accounts)) {
         for (const row of data.accounts) {
           if (row.email) {
@@ -745,8 +754,9 @@ export async function resendVerificationEmail(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cleanEmail, fullName }),
     });
-    if (res.ok) {
-      const json = await res.json();
+    const parsed = await safeReadJsonResponse<any>(res);
+    if (parsed.ok && parsed.data) {
+      const json = parsed.data;
       if (json?.signature) {
         signature = String(json.signature);
       }
@@ -847,11 +857,9 @@ export async function verifyEmailOtpCode(email: string, token: string, signature
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, code: cleanToken, signature }),
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.verified) {
-          return { verified: true, user: null, isFallback: false, error: null };
-        }
+      const parsed = await safeReadJsonResponse<any>(res);
+      if (parsed.ok && parsed.data?.verified) {
+        return { verified: true, user: null, isFallback: false, error: null };
       }
     } catch {
       // fall through to Supabase check
@@ -1077,8 +1085,9 @@ export async function fetchDailyPrayerLog(userId: string, date: string): Promise
   // Check Cloud SQL PostgreSQL backend first
   try {
     const res = await fetch(`/api/prayers/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`);
-    if (res.ok) {
-      const json = await res.json();
+    const parsed = await safeReadJsonResponse<{ log?: any }>(res);
+    if (parsed.ok && parsed.data?.log) {
+      const json = parsed.data;
       if (json?.log) {
         const logData: DailyPrayerLog = {
           fajr: Boolean(json.log.fajr),
@@ -1278,11 +1287,9 @@ export async function fetchDonorReviews(): Promise<DonorReviewItem[]> {
 
   try {
     const res = await fetch('/api/reviews');
-    if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data?.reviews)) {
-        remote = data.reviews;
-      }
+    const parsed = await safeReadJsonResponse<{ reviews?: DonorReviewItem[] }>(res);
+    if (parsed.ok && Array.isArray(parsed.data?.reviews)) {
+      remote = parsed.data.reviews;
     }
   } catch {
     // ignore network errors
@@ -1342,17 +1349,16 @@ export async function submitDonorReview(input: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newReview),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.review) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('sanctuaire-reviews-updated'));
-        }
-        return {
-          ...data.review,
-          isDonor: Boolean(data.review.isDonor ?? donorFlag),
-        };
+    const parsed = await safeReadJsonResponse<{ review?: DonorReviewItem }>(res);
+    if (parsed.ok && parsed.data?.review) {
+      const data = parsed.data;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('sanctuaire-reviews-updated'));
       }
+      return {
+        ...data.review,
+        isDonor: Boolean(data.review.isDonor ?? donorFlag),
+      };
     }
   } catch {
     // ignore network error
@@ -1417,16 +1423,14 @@ export async function checkUserHasDonated(
   if (emailKey) {
     try {
       const res = await fetch(`/api/donations/check?email=${encodeURIComponent(emailKey)}`);
-      if (res.ok) {
-        const json = await res.json();
-        if (json?.hasDonated) {
-          try {
-            localStorage.setItem(`sanctuaire_user_donated_${emailKey}`, 'true');
-          } catch {
-            // ignore
-          }
-          return true;
+      const parsed = await safeReadJsonResponse<{ hasDonated?: boolean }>(res);
+      if (parsed.ok && parsed.data?.hasDonated) {
+        try {
+          localStorage.setItem(`sanctuaire_user_donated_${emailKey}`, 'true');
+        } catch {
+          // ignore
         }
+        return true;
       }
     } catch {
       // ignore network error
@@ -1573,10 +1577,10 @@ export async function recordDonationInSupabase(donation: DonationRecord) {
         transactionReference: safeRef,
       }),
     });
-    if (res.ok) {
-      const json = await res.json();
-      emailSent = Boolean(json?.emailSent);
-      savedViaApi = Boolean(json?.supabaseSaved);
+    const parsed = await safeReadJsonResponse<{ emailSent?: boolean; supabaseSaved?: boolean }>(res);
+    if (parsed.ok && parsed.data) {
+      emailSent = Boolean(parsed.data.emailSent);
+      savedViaApi = Boolean(parsed.data.supabaseSaved);
     }
   } catch {
     // ignore offline/network error
@@ -1701,11 +1705,9 @@ export async function syncLocalDonationsToSupabase(
           transactionReference: ref,
         }),
       });
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.supabaseSaved) {
-          syncedRefs.add(ref);
-        }
+      const parsed = await safeReadJsonResponse<{ supabaseSaved?: boolean }>(res);
+      if (parsed.ok && parsed.data?.supabaseSaved) {
+        syncedRefs.add(ref);
       }
     }
 
@@ -2090,14 +2092,72 @@ export interface SubscriptionStatusDTO {
   timeSpentSeconds: number;
 }
 
+function buildFallbackSubscriptionStatus(email?: string | null): SubscriptionStatusDTO {
+  const cleanEmail = String(email || '').trim().toLowerCase() || null;
+  const isAdmin = isSuperAdminEmail(cleanEmail);
+  const rules = getPlanRules(isAdmin ? 'admin' : 'test', cleanEmail);
+  const remaining = getRemainingVideos(rules.id, 0, cleanEmail);
+
+  return {
+    authenticated: Boolean(cleanEmail),
+    email: cleanEmail,
+    role: isAdmin ? 'admin' : 'user',
+    plan: rules.id as SubscriptionPlanId,
+    planName: rules.name,
+    priceFcfa: rules.priceFcfa,
+    monthlyLimit: Number.isFinite(rules.monthlyLimit) ? rules.monthlyLimit : null,
+    videosUsedThisMonth: 0,
+    totalVideosCreated: 0,
+    remainingVideos: Number.isFinite(remaining) ? remaining : null,
+    hasWatermark: rules.hasWatermark,
+    maxVerses: Number.isFinite(rules.maxVerses) ? rules.maxVerses : null,
+    allowCustomLogo: rules.allowCustomLogo,
+    maxQuality: rules.maxQuality as StudioQualityTier,
+    totalAmountPaidFcfa: 0,
+    timeSpentSeconds: 0,
+  };
+}
+
 export async function fetchMySubscription(email?: string | null): Promise<SubscriptionStatusDTO> {
-  const query = email ? `?email=${encodeURIComponent(email.trim().toLowerCase())}` : '';
-  const res = await fetch(`/api/subscription/status${query}`);
-  if (!res.ok) {
-    throw new Error('Impossible de charger le statut d’abonnement.');
+  const cleanEmail = email ? email.trim().toLowerCase() : '';
+  const cacheKey = cleanEmail ? `sanctuaire_sub_status_${cleanEmail}` : '';
+  const query = cleanEmail ? `?email=${encodeURIComponent(cleanEmail)}` : '';
+
+  try {
+    const res = await fetch(`/api/subscription/status${query}`);
+    const parsed = await safeReadJsonResponse<{ ok?: boolean; status?: SubscriptionStatusDTO }>(
+      res,
+      'Impossible de charger le statut d’abonnement.'
+    );
+    if (parsed.ok && parsed.data?.status) {
+      if (cacheKey && typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(parsed.data.status));
+        } catch {
+          // ignore storage quota errors
+        }
+      }
+      return parsed.data.status;
+    }
+  } catch {
+    // fall through to cached/local fallback
   }
-  const data = await res.json();
-  return data.status as SubscriptionStatusDTO;
+
+  if (cacheKey && typeof localStorage !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsedCached = JSON.parse(cached) as SubscriptionStatusDTO;
+        if (parsedCached && parsedCached.plan) {
+          return parsedCached;
+        }
+      }
+    } catch {
+      // ignore corrupted cache
+    }
+  }
+
+  return buildFallbackSubscriptionStatus(cleanEmail);
 }
 
 export async function recordCreatedVideo(payload: {
@@ -2110,16 +2170,35 @@ export async function recordCreatedVideo(payload: {
   hasCustomLogo?: boolean;
   durationSec?: number;
 }): Promise<{ ok: boolean; error?: string; reasonCode?: string; status?: SubscriptionStatusDTO }> {
-  const res = await fetch('/api/subscription/record-video', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({ ok: false }));
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: data.status }));
+  try {
+    const res = await fetch('/api/subscription/record-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const parsed = await safeReadJsonResponse<{
+      ok?: boolean;
+      error?: string;
+      reasonCode?: string;
+      status?: SubscriptionStatusDTO;
+    }>(res, 'Impossible d’enregistrer la vidéo sur le serveur.');
+
+    const result = parsed.data
+      ? {
+          ok: Boolean(parsed.data.ok && parsed.ok),
+          error: parsed.data.error || parsed.error || undefined,
+          reasonCode: parsed.data.reasonCode,
+          status: parsed.data.status,
+        }
+      : { ok: false, error: parsed.error || 'Impossible d’enregistrer la vidéo.' };
+
+    if (typeof window !== 'undefined' && result.status) {
+      window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: result.status }));
+    }
+    return result;
+  } catch {
+    return { ok: false, error: 'Erreur réseau lors de l’enregistrement de la vidéo.' };
   }
-  return data;
 }
 
 export async function upgradeMyVideoPlan(params: {
@@ -2128,16 +2207,41 @@ export async function upgradeMyVideoPlan(params: {
   provider?: string;
   transactionReference?: string;
 }): Promise<{ ok: boolean; error?: string; status?: SubscriptionStatusDTO; transactionReference?: string }> {
-  const res = await fetch('/api/subscription/upgrade', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  const data = await res.json().catch(() => ({ ok: false }));
-  if (typeof window !== 'undefined' && data?.ok) {
-    window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: data.status }));
+  try {
+    const res = await fetch('/api/subscription/upgrade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const parsed = await safeReadJsonResponse<{
+      ok?: boolean;
+      error?: string;
+      status?: SubscriptionStatusDTO;
+      transactionReference?: string;
+    }>(res, 'Impossible d’activer ce forfait pour le moment.');
+
+    const result = parsed.data
+      ? {
+          ok: Boolean(parsed.data.ok && parsed.ok),
+          error: parsed.data.error || parsed.error || undefined,
+          status: parsed.data.status,
+          transactionReference: parsed.data.transactionReference,
+        }
+      : { ok: false, error: parsed.error || 'Impossible d’activer ce forfait pour le moment.' };
+
+    if (typeof window !== 'undefined' && result.ok && result.status) {
+      try {
+        const cleanEmail = params.email.trim().toLowerCase();
+        localStorage.setItem(`sanctuaire_sub_status_${cleanEmail}`, JSON.stringify(result.status));
+      } catch {
+        // ignore
+      }
+      window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: result.status }));
+    }
+    return result;
+  } catch {
+    return { ok: false, error: 'Erreur réseau lors de l’activation du forfait.' };
   }
-  return data;
 }
 
 export async function sendAnalyticsHeartbeat(params: {
@@ -2154,8 +2258,8 @@ export async function sendAnalyticsHeartbeat(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    if (!res.ok) return {};
-    return await res.json();
+    const parsed = await safeReadJsonResponse<{ activeVisitors?: number }>(res);
+    return parsed.ok && parsed.data ? parsed.data : {};
   } catch {
     return {};
   }
@@ -2168,31 +2272,52 @@ export async function submitUserReport(params: {
   subject: string;
   description: string;
   pageContext?: string;
-}) {
-  const res = await fetch('/api/reports', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-  return res.json();
+}): Promise<{ ok: boolean; error?: string; report?: any }> {
+  try {
+    const res = await fetch('/api/reports', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const parsed = await safeReadJsonResponse<{ ok?: boolean; error?: string; report?: any }>(
+      res,
+      'Impossible d’envoyer le signalement pour le moment.'
+    );
+    if (!parsed.ok || !parsed.data) {
+      return { ok: false, error: parsed.error || 'Impossible d’envoyer le signalement.' };
+    }
+    return {
+      ok: Boolean(parsed.data.ok ?? true),
+      error: parsed.data.error,
+      report: parsed.data.report,
+    };
+  } catch {
+    return { ok: false, error: 'Erreur réseau lors de l’envoi du signalement.' };
+  }
 }
 
 export async function fetchAdminOverview(adminEmail: string) {
   const res = await fetch(`/api/admin/overview?adminEmail=${encodeURIComponent(adminEmail)}`);
-  const data = await res.json();
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.error || 'Accès refusé.');
+  const parsed = await safeReadJsonResponse<any>(
+    res,
+    'Service d’administration temporairement indisponible.'
+  );
+  if (!parsed.ok || !parsed.data?.ok) {
+    throw new Error(parsed.error || parsed.data?.error || 'Accès refusé.');
   }
-  return data;
+  return parsed.data;
 }
 
 export async function fetchAdminUsers(adminEmail: string) {
   const res = await fetch(`/api/admin/users?adminEmail=${encodeURIComponent(adminEmail)}`);
-  const data = await res.json();
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.error || 'Impossible de charger les utilisateurs.');
+  const parsed = await safeReadJsonResponse<any>(
+    res,
+    'Impossible de charger les utilisateurs pour le moment.'
+  );
+  if (!parsed.ok || !parsed.data?.ok) {
+    throw new Error(parsed.error || parsed.data?.error || 'Impossible de charger les utilisateurs.');
   }
-  return data.users || [];
+  return parsed.data.users || [];
 }
 
 export async function adminSetUserPlan(params: {
@@ -2210,11 +2335,14 @@ export async function adminSetUserPlan(params: {
       recordPayment: Boolean(params.recordPayment),
     }),
   });
-  const data = await res.json();
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.error || 'Erreur lors de l’autorisation du forfait.');
+  const parsed = await safeReadJsonResponse<any>(
+    res,
+    'Erreur lors de l’autorisation du forfait.'
+  );
+  if (!parsed.ok || !parsed.data?.ok) {
+    throw new Error(parsed.error || parsed.data?.error || 'Erreur lors de l’autorisation du forfait.');
   }
-  return data.user;
+  return parsed.data.user;
 }
 
 export async function adminUpdateReportStatus(params: {
@@ -2232,7 +2360,14 @@ export async function adminUpdateReportStatus(params: {
       adminNote: params.adminNote,
     }),
   });
-  return res.json();
+  const parsed = await safeReadJsonResponse<any>(
+    res,
+    'Impossible de mettre à jour le signalement.'
+  );
+  if (!parsed.ok || !parsed.data?.ok) {
+    throw new Error(parsed.error || parsed.data?.error || 'Impossible de mettre à jour le signalement.');
+  }
+  return parsed.data;
 }
 
 

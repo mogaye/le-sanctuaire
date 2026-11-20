@@ -37,6 +37,46 @@
       "destination": "/api/prayers?userId=:userId&date=:date"
     },
     {
+      "source": "/api/users/me",
+      "destination": "/api/accounts?action=me"
+    },
+    {
+      "source": "/api/subscription/status",
+      "destination": "/api/subscription?action=status"
+    },
+    {
+      "source": "/api/subscription/record-video",
+      "destination": "/api/subscription?action=record-video"
+    },
+    {
+      "source": "/api/subscription/upgrade",
+      "destination": "/api/subscription?action=upgrade"
+    },
+    {
+      "source": "/api/analytics/heartbeat",
+      "destination": "/api/admin?action=heartbeat"
+    },
+    {
+      "source": "/api/reports",
+      "destination": "/api/admin?action=reports"
+    },
+    {
+      "source": "/api/reports/:id",
+      "destination": "/api/admin?action=update-report&id=:id"
+    },
+    {
+      "source": "/api/admin/overview",
+      "destination": "/api/admin?action=overview"
+    },
+    {
+      "source": "/api/admin/users",
+      "destination": "/api/admin?action=users"
+    },
+    {
+      "source": "/api/admin/users/:email/plan",
+      "destination": "/api/admin?action=set-plan&targetEmail=:email"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },

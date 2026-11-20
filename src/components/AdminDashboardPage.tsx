@@ -394,6 +394,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           ? 'Signalement marqué comme résolu.'
           : 'Signalement mis en cours de traitement.'
       );
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Erreur lors de la mise à jour du signalement.');
     } finally {
       setUpdatingReportId(null);
     }

@@ -14,11 +14,11 @@
       "remainingVideos": null,
       "monthlyLimit": null,
       "totalAmountPaidFcfa": 0,
-      "timeSpentSeconds": 45,
+      "timeSpentSeconds": 90,
       "planPeriodStart": "2026-11-20T12:57:13.339Z",
       "planUpdatedAt": "2026-11-20T12:57:13.339Z",
-      "lastConnectedAt": "2026-11-20T13:00:26.034Z",
-      "createdAt": "2026-11-20T12:59:25.752Z"
+      "lastConnectedAt": "2026-11-20T13:16:57.200Z",
+      "createdAt": "2026-11-20T13:15:42.603Z"
     },
     "moussa.diop@test.sn": {
       "id": "acct_moussa.diop@test.sn",
@@ -78,6 +78,18 @@
   ],
   "reports": [
     {
+      "id": "rep_1795180612534_hc5e",
+      "reporterEmail": "mgaye60000@gmail.com",
+      "reporterName": "Mamadou Gaye",
+      "category": "bug",
+      "subject": "Test vérification JSON",
+      "description": "Test de confirmation API JSON sur signalement.",
+      "pageContext": "home",
+      "status": "open",
+      "createdAt": "2026-11-20T13:16:52.534Z",
+      "updatedAt": "2026-11-20T13:16:52.534Z"
+    },
+    {
       "id": "rep_1795179561801_i25r",
       "reporterEmail": "visiteur@sanctuaire.app",
       "reporterName": "Visiteur",
@@ -85,14 +97,14 @@
       "subject": "Vérification audio Sourate Al-Kahf",
       "description": "Test automatisé de signalement utilisateur.",
       "pageContext": "home",
-      "status": "open",
+      "status": "in_progress",
       "createdAt": "2026-11-20T12:59:21.801Z",
-      "updatedAt": "2026-11-20T12:59:21.801Z"
+      "updatedAt": "2026-11-20T13:16:24.650Z"
     }
   ],
   "daily": {
     "2026-11-20": {
-      "visits": 4,
+      "visits": 6,
       "signups": 2,
       "paidUpgrades": 1,
       "videosCreated": 1
@@ -102,6 +114,8 @@
     "2026-11-20_sess-mwozhfud-f7yqpl",
     "2026-11-20_sess-mwozhfud-f7yqpl",
     "2026-11-20_sess-mwozmz4o-rwki03",
-    "2026-11-20_sess-mwozmz4o-rwki03"
+    "2026-11-20_sess-mwozmz4o-rwki03",
+    "2026-11-20_sess-mwozogcr-3u0y08",
+    "2026-11-20_sess-mwp04ouz-606m1i"
   ]
 }

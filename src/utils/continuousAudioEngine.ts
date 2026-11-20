@@ -31,7 +31,9 @@ async function fetchJsonWithTimeout(url: string, timeoutMs = 10000): Promise<any
     if (!ct.includes('json') && !ct.includes('text/plain')) {
       return null;
     }
-    return await res.json();
+    const raw = await res.text();
+    if (!raw || raw.trim().startsWith('<')) return null;
+    return JSON.parse(raw);
   } catch {
     return null;
   } finally {

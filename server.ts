@@ -1012,7 +1012,7 @@ async function startServer() {
           supabaseKeyConfigured: Boolean(creds),
           hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
           hasSmtp: Boolean(process.env.SMTP_USER && process.env.SMTP_PASS),
-          serverlessFunctionsCount: 8,
+          serverlessFunctionsCount: 11,
           vercelHobbyLimit: 12,
         },
         tables: tableStatuses,
