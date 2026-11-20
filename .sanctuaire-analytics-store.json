@@ -59,6 +59,46 @@
       "planUpdatedAt": "2026-11-20T13:01:43.954Z",
       "lastConnectedAt": "2026-11-20T13:01:58.579Z",
       "createdAt": "2026-11-20T13:01:43.954Z"
+    },
+    "momodream2003@gmail.com": {
+      "id": "acct_momodream2003@gmail.com",
+      "email": "momodream2003@gmail.com",
+      "fullName": "momodream2003",
+      "firstName": "momodream2003",
+      "lastName": "",
+      "cityName": "Dakar",
+      "role": "user",
+      "plan": "basique",
+      "videosUsedThisMonth": 0,
+      "totalVideosCreated": 0,
+      "remainingVideos": 30,
+      "monthlyLimit": 30,
+      "totalAmountPaidFcfa": 3000,
+      "timeSpentSeconds": 0,
+      "planPeriodStart": "2026-11-20T13:18:48.221Z",
+      "planUpdatedAt": "2026-11-20T13:18:48.221Z",
+      "lastConnectedAt": "2026-11-20T13:18:48.205Z",
+      "createdAt": "2026-11-20T13:18:48.205Z"
+    },
+    "test.plans.check@sanctuaire.app": {
+      "id": "acct_test.plans.check@sanctuaire.app",
+      "email": "test.plans.check@sanctuaire.app",
+      "fullName": "Test Plans",
+      "firstName": "Test",
+      "lastName": "Plans",
+      "cityName": "Dakar",
+      "role": "user",
+      "plan": "basique",
+      "videosUsedThisMonth": 0,
+      "totalVideosCreated": 0,
+      "remainingVideos": 30,
+      "monthlyLimit": 30,
+      "totalAmountPaidFcfa": 3000,
+      "timeSpentSeconds": 30,
+      "planPeriodStart": "2026-11-20T13:22:17.443Z",
+      "planUpdatedAt": "2026-11-20T13:22:17.443Z",
+      "lastConnectedAt": "2026-11-20T13:22:28.529Z",
+      "createdAt": "2026-11-20T13:21:49.242Z"
     }
   },
   "videos": [
@@ -104,9 +144,9 @@
   ],
   "daily": {
     "2026-11-20": {
-      "visits": 6,
-      "signups": 2,
-      "paidUpgrades": 1,
+      "visits": 8,
+      "signups": 4,
+      "paidUpgrades": 3,
       "videosCreated": 1
     }
   },
@@ -116,6 +156,8 @@
     "2026-11-20_sess-mwozmz4o-rwki03",
     "2026-11-20_sess-mwozmz4o-rwki03",
     "2026-11-20_sess-mwozogcr-3u0y08",
-    "2026-11-20_sess-mwp04ouz-606m1i"
+    "2026-11-20_sess-mwp04ouz-606m1i",
+    "2026-11-20_sess-mwp0ctwk-w3nw0y",
+    "2026-11-20_sess-mwp0ctwk-w3nw0y"
   ]
 }

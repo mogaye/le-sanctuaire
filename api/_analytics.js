@@ -333,11 +333,21 @@ export async function persistSubStateToProfileAndFallback(cleanEmail, state) {
   });
 
   if (existingSubLogs.length > 0 && existingSubLogs[0]?.id) {
-    await supabasePatch('email_logs', `id=eq.${existingSubLogs[0].id}`, {
+    const patchLogRes = await supabasePatch('email_logs', `id=eq.${existingSubLogs[0].id}`, {
       subject: metaJson,
       body_preview: `plan=${state.plan} videos=${state.totalVideosCreated}`,
       status: patchedProfile ? 'synced' : 'fallback',
     });
+    if (!patchLogRes.ok) {
+      await supabaseUpsert('email_logs', {
+        sender_email: cleanEmail,
+        recipient_email: 'subscription_state',
+        subject: metaJson,
+        body_preview: `plan=${state.plan} videos=${state.totalVideosCreated}`,
+        email_type: 'sub_state',
+        status: patchedProfile ? 'synced' : 'fallback',
+      });
+    }
   } else {
     await supabaseUpsert('email_logs', {
       sender_email: cleanEmail,
@@ -379,9 +389,15 @@ export async function resolveUserState(cleanEmail) {
     chosenPlan = 'admin';
   } else if (prof.plan_updated_at && subMeta.planUpdatedAt) {
     chosenPlan =
-      new Date(subMeta.planUpdatedAt).getTime() > new Date(prof.plan_updated_at).getTime()
-        ? metaPlan || 'test'
-        : profPlan || 'test';
+      new Date(subMeta.planUpdatedAt).getTime() >= new Date(prof.plan_updated_at).getTime()
+        ? metaPlan || profPlan || 'test'
+        : profPlan || metaPlan || 'test';
+  } else if (
+    (metaPlan === 'basique' || metaPlan === 'pro' || metaPlan === 'max') &&
+    (!profPlan || profPlan === 'test') &&
+    !prof.plan_updated_at
+  ) {
+    chosenPlan = metaPlan;
   } else {
     chosenPlan = profPlan || metaPlan || 'test';
   }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Check,
   Crown,
@@ -11,7 +11,11 @@ import {
   Loader2,
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { SubscriptionStatusDTO, upgradeMyVideoPlan } from '../lib/supabase';
+import {
+  SubscriptionStatusDTO,
+  fetchMySubscription,
+  upgradeMyVideoPlan,
+} from '../lib/supabase';
 import {
   PUBLIC_VIDEO_PLAN_ORDER,
   SubscriptionPlanId,
@@ -46,13 +50,35 @@ export const VideoPlansModal: React.FC<VideoPlansModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null
   );
+  const [localStatus, setLocalStatus] = useState<SubscriptionStatusDTO | null>(subscriptionStatus);
+
+  useEffect(() => {
+    setLocalStatus(subscriptionStatus);
+  }, [subscriptionStatus]);
+
+  useEffect(() => {
+    if (!isOpen || !currentUser?.email) return;
+    let mounted = true;
+    fetchMySubscription(currentUser.email)
+      .then((fresh) => {
+        if (mounted && fresh) {
+          setLocalStatus(fresh);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, currentUser?.email]);
 
   if (!isOpen) return null;
 
+  const effectiveStatus = localStatus || subscriptionStatus;
   const isAdmin = isSuperAdminEmail(currentUser?.email);
   const currentPlanId: SubscriptionPlanId = isAdmin
     ? 'admin'
-    : subscriptionStatus?.plan || currentUser?.plan || 'test';
+    : effectiveStatus?.plan || currentUser?.plan || 'test';
+  const currentPlanSpec = VIDEO_PLANS[currentPlanId] || VIDEO_PLANS.test;
 
   const handleActivatePlan = async (planId: 'basique' | 'pro' | 'max') => {
     setStatusMessage(null);
@@ -82,6 +108,7 @@ export const VideoPlansModal: React.FC<VideoPlansModalProps> = ({
         return;
       }
       onPlanActivated?.(result.status);
+      setLocalStatus(result.status);
       setStatusMessage({
         type: 'success',
         text: `Forfait ${VIDEO_PLANS[planId].name} activé (${providerLabel}). Votre nouveau quota est disponible immédiatement.`,
@@ -173,12 +200,19 @@ export const VideoPlansModal: React.FC<VideoPlansModalProps> = ({
                   <span>
                     Compte connecté : <strong>{currentUser.email}</strong> • Forfait actuel :{' '}
                     <strong className="text-[#1B573E] dark:text-[#6EE7B7]">
-                      {VIDEO_PLANS[currentPlanId].name}
+                      {currentPlanSpec.name}
                     </strong>{' '}
-                    {subscriptionStatus?.remainingVideos !== null &&
-                    subscriptionStatus?.remainingVideos !== undefined
-                      ? `(${subscriptionStatus.remainingVideos}/${subscriptionStatus.monthlyLimit} vidéos restantes)`
-                      : '(Illimité)'}
+                    {!Number.isFinite(currentPlanSpec.monthlyLimit)
+                      ? '(Illimité)'
+                      : `(${
+                          typeof effectiveStatus?.remainingVideos === 'number'
+                            ? effectiveStatus.remainingVideos
+                            : currentPlanSpec.monthlyLimit
+                        }/${
+                          typeof effectiveStatus?.monthlyLimit === 'number'
+                            ? effectiveStatus.monthlyLimit
+                            : currentPlanSpec.monthlyLimit
+                        } vidéos restantes)`}
                   </span>
                 ) : (
                   <span>

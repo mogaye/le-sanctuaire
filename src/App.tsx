@@ -530,7 +530,12 @@ export default function App() {
 
   useEffect(() => {
     refreshSubscription();
-    const handleSubUpdate = () => {
+    const handleSubUpdate = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      if (detail && typeof detail === 'object' && detail.plan) {
+        setSubscriptionStatus(detail);
+        return;
+      }
       refreshSubscription();
     };
     window.addEventListener('sanctuaire-subscription-updated', handleSubUpdate);
