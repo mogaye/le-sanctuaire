@@ -17,10 +17,20 @@ import {
   Trash2,
   Plus,
   Layers,
+  Lock,
+  Crown,
 } from 'lucide-react';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
 import { RECITERS } from '../data/islamicData';
-import { Reciter } from '../types';
+import { Reciter, UserProfile } from '../types';
+import { SubscriptionStatusDTO, fetchMySubscription } from '../lib/supabase';
+import {
+  clampQualityForPlan,
+  enforceVerseRangeForPlan,
+  evaluateVideoCreationAccess,
+  getPlanRules,
+  getRemainingVideos,
+} from '../utils/subscriptionPlans';
 import {
   MOBILE_VERTICAL_BACKGROUNDS,
   STUDIO_4K_BACKGROUNDS,
@@ -93,6 +103,11 @@ interface MobileVerseVideoStudioProps {
   initialReciter: Reciter;
   initialBgId?: string;
   onSyncReciter?: (reciter: Reciter) => void;
+  currentUser?: UserProfile | null;
+  subscriptionStatus?: SubscriptionStatusDTO | null;
+  onOpenAuth?: () => void;
+  onOpenPlansModal?: () => void;
+  onRefreshSubscription?: () => void;
 }
 
 interface CustomBackgroundMedia {
@@ -124,9 +139,64 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   initialReciter,
   initialBgId = 'mobile_noir_minimal',
   onSyncReciter,
+  currentUser = null,
+  subscriptionStatus = null,
+  onOpenAuth,
+  onOpenPlansModal,
+  onRefreshSubscription,
 }) => {
   const { isMobile, width: viewportWidth } = useMobileDevice();
   const isPcMode = !isMobile && viewportWidth >= 768;
+
+  const [localSubStatus, setLocalSubStatus] = useState<SubscriptionStatusDTO | null>(subscriptionStatus);
+  const [planRestrictionNotice, setPlanRestrictionNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalSubStatus(subscriptionStatus);
+  }, [subscriptionStatus]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    fetchMySubscription(currentUser?.email)
+      .then((st) => {
+        if (active) setLocalSubStatus(st);
+      })
+      .catch(() => {});
+
+    const onUpdated = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      if (detail && active) {
+        setLocalSubStatus(detail);
+      } else if (active) {
+        fetchMySubscription(currentUser?.email)
+          .then((st) => {
+            if (active) setLocalSubStatus(st);
+          })
+          .catch(() => {});
+      }
+      onRefreshSubscription?.();
+    };
+    window.addEventListener('sanctuaire-subscription-updated', onUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener('sanctuaire-subscription-updated', onUpdated);
+    };
+  }, [isOpen, currentUser?.email, onRefreshSubscription]);
+
+  const userEmail = currentUser?.email || null;
+  const requiresAuth = !userEmail;
+  const planRules = useMemo(
+    () => getPlanRules(localSubStatus?.plan || currentUser?.plan, userEmail),
+    [localSubStatus?.plan, currentUser?.plan, userEmail]
+  );
+  const effectiveVideosUsed = localSubStatus?.videosUsedThisMonth ?? 0;
+  const effectiveRemaining = useMemo(
+    () => getRemainingVideos(planRules.id, effectiveVideosUsed, userEmail),
+    [planRules.id, effectiveVideosUsed, userEmail]
+  );
+  const remainingCountOrNull = Number.isFinite(effectiveRemaining) ? effectiveRemaining : null;
+  const monthlyLimitOrNull = Number.isFinite(planRules.monthlyLimit) ? planRules.monthlyLimit : null;
 
   // Format (PC-only aspect selectable; Mobile locked to 9:16) & Quality (4K..480p)
   const [videoFormatId, setVideoFormatId] = useState<VideoFormatId>(() => {
@@ -144,17 +214,18 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   const [videoQualityId, setVideoQualityId] = useState<VideoQualityId>(() => {
     const prefs = loadStudioBgPreferences();
-    if (
-      prefs.videoQualityId &&
-      VIDEO_QUALITY_PRESETS.some((q) => q.id === prefs.videoQualityId)
-    ) {
-      return prefs.videoQualityId as VideoQualityId;
-    }
-    if (prefs.videoFormatId === 'youtube_720p') {
-      return '720p';
-    }
-    return '1080p';
+    const initialQ: VideoQualityId =
+      prefs.videoQualityId && VIDEO_QUALITY_PRESETS.some((q) => q.id === prefs.videoQualityId)
+        ? (prefs.videoQualityId as VideoQualityId)
+        : prefs.videoFormatId === 'youtube_720p'
+        ? '720p'
+        : '1080p';
+    return clampQualityForPlan(initialQ, planRules.id, userEmail);
   });
+
+  useEffect(() => {
+    setVideoQualityId((prev) => clampQualityForPlan(prev, planRules.id, userEmail));
+  }, [planRules.id, userEmail]);
 
   const baseAspectFormat = useMemo(
     () => getVideoFormatPreset(videoFormatId, !isPcMode),
@@ -173,11 +244,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const num = initialSurahNum || 1;
     const meta = getSurahMeta(num);
     const start = Math.max(1, Math.min(meta.numberOfAyahs, initialStartAyah || 1));
-    const end =
+    const rawEnd =
       start === 1 && meta.numberOfAyahs <= 15
         ? meta.numberOfAyahs
         : Math.min(meta.numberOfAyahs, start + 4);
-    return [{ id: makeSelectionId(num), surahNumber: num, startAyah: start, endAyah: end }];
+    const enforced = enforceVerseRangeForPlan(start, rawEnd, meta.numberOfAyahs, planRules.id, userEmail);
+    return [{ id: makeSelectionId(num), surahNumber: num, startAyah: enforced.startAyah, endAyah: enforced.endAyah }];
   });
   const [loadedSurahs, setLoadedSurahs] = useState<Record<number, LoadedStudioSurah>>({});
   const [loadingSurahNums, setLoadingSurahNums] = useState<number[]>([]);
@@ -430,17 +502,51 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       const num = initialSurahNum || 1;
       const meta = getSurahMeta(num);
       const start = Math.max(1, Math.min(meta.numberOfAyahs, initialStartAyah || 1));
-      const end =
+      const rawEnd =
         start === 1 && meta.numberOfAyahs <= 15
           ? meta.numberOfAyahs
           : Math.min(meta.numberOfAyahs, start + 4);
+      const enforced = enforceVerseRangeForPlan(start, rawEnd, meta.numberOfAyahs, planRules.id, userEmail);
       setSelectedSurahs([
-        { id: makeSelectionId(num), surahNumber: num, startAyah: start, endAyah: end },
+        { id: makeSelectionId(num), surahNumber: num, startAyah: enforced.startAyah, endAyah: enforced.endAyah },
       ]);
       setReciterId(initialReciter?.id || 'mishary');
+      setPlanRestrictionNotice(null);
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id]);
+  }, [isOpen, initialSurahNum, initialStartAyah, initialReciter?.id, planRules.id, userEmail]);
+
+  // Re-clamp existing verse selections if user drops to a tier with a stricter verse limit (e.g. Test = 3 verses max)
+  useEffect(() => {
+    if (!Number.isFinite(planRules.maxVerses)) return;
+    setSelectedSurahs((prev) => {
+      let budget = planRules.maxVerses;
+      let changed = false;
+      const next: StudioSurahSelection[] = [];
+      for (const item of prev) {
+        if (budget <= 0) {
+          changed = true;
+          continue;
+        }
+        const meta = getSurahMeta(item.surahNumber);
+        const norm = normalizeVerseRange(item.startAyah, item.endAyah, meta.numberOfAyahs);
+        const count = norm.endAyah - norm.startAyah + 1;
+        if (count > budget) {
+          changed = true;
+          next.push({
+            ...item,
+            startAyah: norm.startAyah,
+            endAyah: norm.startAyah + budget - 1,
+          });
+          budget = 0;
+        } else {
+          next.push(item);
+          budget -= count;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [planRules.maxVerses]);
 
   // Non-destructive Surah verse loader
   const selectedSurahNumbersKey = useMemo(
@@ -563,16 +669,40 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // Playlist mutation helpers
   const updateSurahRange = useCallback(
     (selectionId: string, startAyah: number, endAyah: number) => {
-      setSelectedSurahs((prev) =>
-        prev.map((item) => {
+      let hitLimit = false;
+      setSelectedSurahs((prev) => {
+        const otherVersesCount = prev.reduce((sum, item) => {
+          if (item.id === selectionId) return sum;
+          const m = getSurahMeta(item.surahNumber);
+          const n = normalizeVerseRange(item.startAyah, item.endAyah, m.numberOfAyahs);
+          return sum + (n.endAyah - n.startAyah + 1);
+        }, 0);
+
+        return prev.map((item) => {
           if (item.id !== selectionId) return item;
           const meta = getSurahMeta(item.surahNumber);
-          const norm = normalizeVerseRange(startAyah, endAyah, meta.numberOfAyahs);
-          return { ...item, startAyah: norm.startAyah, endAyah: norm.endAyah };
-        })
-      );
+          const enforced = enforceVerseRangeForPlan(
+            startAyah,
+            endAyah,
+            meta.numberOfAyahs,
+            planRules.id,
+            userEmail,
+            otherVersesCount
+          );
+          if (enforced.wasCapped) hitLimit = true;
+          return { ...item, startAyah: enforced.startAyah, endAyah: enforced.endAyah };
+        });
+      });
+
+      if (hitLimit) {
+        setPlanRestrictionNotice(
+          `Le forfait ${planRules.name} est limité à ${planRules.maxVerses} versets de suite maximum. Passez à Basique, Pro ou MAX pour des versets illimités.`
+        );
+      } else {
+        setPlanRestrictionNotice(null);
+      }
     },
-    []
+    [planRules.id, planRules.name, planRules.maxVerses, userEmail]
   );
 
   const moveSurahItem = useCallback((index: number, delta: -1 | 1) => {
@@ -593,23 +723,49 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     });
   }, []);
 
-  const applySurahCompilation = useCallback((surahNumbers: number[]) => {
-    const uniqueNums = Array.from(new Set(surahNumbers)).filter((n) => n >= 1 && n <= 114);
-    if (uniqueNums.length === 0) return;
-    setSelectedSurahs((prev) =>
-      uniqueNums.map((num) => {
-        const existing = prev.find((p) => p.surahNumber === num);
-        if (existing) return existing;
-        const meta = getSurahMeta(num);
-        return {
-          id: makeSelectionId(num),
-          surahNumber: num,
-          startAyah: 1,
-          endAyah: meta.numberOfAyahs,
-        };
-      })
-    );
-  }, []);
+  const applySurahCompilation = useCallback(
+    (surahNumbers: number[]) => {
+      const uniqueNums = Array.from(new Set(surahNumbers)).filter((n) => n >= 1 && n <= 114);
+      if (uniqueNums.length === 0) return;
+
+      if (Number.isFinite(planRules.maxVerses)) {
+        const cappedNums = uniqueNums.slice(0, planRules.maxVerses);
+        setSelectedSurahs(
+          cappedNums.map((num, idx) => ({
+            id: makeSelectionId(num),
+            surahNumber: num,
+            startAyah: 1,
+            endAyah:
+              cappedNums.length === 1
+                ? Math.min(getSurahMeta(num).numberOfAyahs, planRules.maxVerses)
+                : idx === 0 && cappedNums.length === 2
+                ? Math.min(getSurahMeta(num).numberOfAyahs, 2)
+                : 1,
+          }))
+        );
+        setPlanRestrictionNotice(
+          `Forfait ${planRules.name} : maximum ${planRules.maxVerses} versets de suite autorisés. Passez à un forfait supérieur pour des sourates complètes.`
+        );
+        return;
+      }
+
+      setPlanRestrictionNotice(null);
+      setSelectedSurahs((prev) =>
+        uniqueNums.map((num) => {
+          const existing = prev.find((p) => p.surahNumber === num);
+          if (existing) return existing;
+          const meta = getSurahMeta(num);
+          return {
+            id: makeSelectionId(num),
+            surahNumber: num,
+            startAyah: 1,
+            endAyah: meta.numberOfAyahs,
+          };
+        })
+      );
+    },
+    [planRules.maxVerses, planRules.name]
+  );
 
   const openSurahPicker = () => {
     setDraftPickerSurahNums(selectedSurahs.map((s) => s.surahNumber));
@@ -1237,6 +1393,26 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const startDirectDownload = async () => {
     if (baseVideoSequence.length === 0 || downloadStatus === 'preparing') return;
 
+    const effectiveCustomLogo = planRules.allowCustomLogo ? customLogoUrl : null;
+    const access = evaluateVideoCreationAccess({
+      email: userEmail,
+      planId: planRules.id,
+      videosUsedThisMonth: effectiveVideosUsed,
+      verseCount: totalSelectedVerses,
+      qualityId: videoQualityId as any,
+      hasCustomLogo: Boolean(effectiveCustomLogo),
+    });
+
+    if (!access.allowed) {
+      setPlanRestrictionNotice(access.message || 'Accès limité par votre forfait.');
+      if (access.reasonCode === 'AUTH_REQUIRED') {
+        onOpenAuth?.();
+      } else {
+        onOpenPlansModal?.();
+      }
+      return;
+    }
+
     stopSimulationPlayback();
     if (simStatus === 'playing' || simStatus === 'loading') {
       setSimStatus('paused');
@@ -1261,7 +1437,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       exportHeight: activeFormat.height,
       activeMediaKind,
       activeMediaUrl,
-      customLogoUrl,
+      customLogoUrl: effectiveCustomLogo,
       isLightSurface,
       bgSurfaceColor,
       bgVeilOpacity,
@@ -1281,6 +1457,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       showSurahHeader,
       textScale,
       flowMode,
+      showWatermark: planRules.hasWatermark,
+      userEmail: userEmail || undefined,
+      userName: currentUser?.name,
+      qualityId: videoQualityId as any,
     });
   };
 
@@ -1377,7 +1557,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             reciterName={selectedReciter.name}
             activeMediaKind={activeMediaKind}
             activeMediaUrl={activeMediaUrl}
-            logoImageUrl={customLogoUrl}
+            logoImageUrl={planRules.allowCustomLogo ? customLogoUrl : null}
             isLightSurface={isLightSurface}
             bgSurfaceColor={bgSurfaceColor}
             bgVeilOpacity={bgVeilOpacity}
@@ -1429,6 +1609,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               markBackgroundVideoDownloaded();
             }}
             onShareVideo={handleSharePreparedVideo}
+            showWatermark={planRules.hasWatermark}
+            planId={planRules.id}
+            userEmail={userEmail}
+            planName={planRules.name}
+            remainingVideos={remainingCountOrNull}
+            monthlyLimit={monthlyLimitOrNull}
+            requiresAuth={requiresAuth}
+            onRequestAuth={onOpenAuth}
+            onRequestUpgrade={onOpenPlansModal}
           />
         </div>
 
@@ -1482,6 +1671,97 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             data-testid="studio-settings-scroll"
             className="flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain touch-pan-y px-4 pb-5 pt-2 space-y-5"
           >
+            {/* Account & Subscription Quota Strip */}
+            <div
+              data-testid="studio-subscription-strip"
+              className={`rounded-2xl px-3.5 py-2.5 border flex items-center justify-between gap-2.5 ${
+                requiresAuth
+                  ? 'bg-[#FFF8EB] border-[#D4A373]/45 text-[#784A14]'
+                  : planRules.id === 'admin'
+                  ? 'bg-[#E3F3EC] border-[#1B573E]/25 text-[#13251D]'
+                  : 'bg-[#F4F2EC] border-[#CECBC2] text-[#1F2421]'
+              }`}
+            >
+              <div className="min-w-0">
+                <div className="text-[11.5px] font-bold flex items-center gap-1.5 truncate">
+                  {requiresAuth ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Compte requis pour exporter des vidéos</span>
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      <span>
+                        Forfait {planRules.name}
+                        {remainingCountOrNull === null
+                          ? ' • Illimité'
+                          : ` • ${remainingCountOrNull}/${monthlyLimitOrNull} restantes`}
+                      </span>
+                    </>
+                  )}
+                </div>
+                <div className="text-[10.5px] opacity-80 truncate mt-0.5 tabular-nums">
+                  {requiresAuth
+                    ? 'Connectez-vous pour bénéficier de 3 vidéos d’essai gratuites'
+                    : `${
+                        Number.isFinite(planRules.maxVerses)
+                          ? `Max ${planRules.maxVerses} versets`
+                          : 'Versets illimités'
+                      } • Max ${planRules.maxQuality.toUpperCase()} • ${
+                        planRules.hasWatermark ? 'Avec filigrane' : 'Sans filigrane'
+                      }`}
+                </div>
+              </div>
+              {requiresAuth ? (
+                <button
+                  type="button"
+                  data-testid="studio-strip-login-btn"
+                  onClick={() => onOpenAuth?.()}
+                  className="h-7 px-3 rounded-full bg-[#1B573E] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Se connecter
+                </button>
+              ) : planRules.id !== 'admin' ? (
+                <button
+                  type="button"
+                  data-testid="studio-strip-plans-btn"
+                  onClick={() => onOpenPlansModal?.()}
+                  className="h-7 px-3 rounded-full studio-pill-mint text-[11px] font-bold cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Forfaits
+                </button>
+              ) : null}
+            </div>
+
+            {planRestrictionNotice && (
+              <div
+                data-testid="studio-plan-notice-banner"
+                className="rounded-2xl px-3.5 py-2.5 bg-[#FFF4E5] border border-[#D97706]/35 text-[#7C2D12] text-xs flex items-center justify-between gap-2"
+              >
+                <span className="font-medium leading-snug">{planRestrictionNotice}</span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {planRules.id !== 'admin' && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenPlansModal?.()}
+                      className="h-7 px-2.5 rounded-full bg-[#1B573E] text-white text-[11px] font-bold cursor-pointer whitespace-nowrap"
+                    >
+                      Voir les forfaits
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPlanRestrictionNotice(null)}
+                    aria-label="Fermer l’avertissement"
+                    className="w-6 h-6 rounded-full hover:bg-black/10 flex items-center justify-center cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* TAB 1: SOURATES, VERSETS & RÉCITATEUR */}
             {activeTab === 'verses_audio' && (
               <div className="space-y-5">
@@ -1529,16 +1809,35 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   <button
                     type="button"
                     data-testid="studio-range-full-surah-btn"
-                    onClick={() =>
+                    onClick={() => {
+                      if (Number.isFinite(planRules.maxVerses)) {
+                        setPlanRestrictionNotice(
+                          `Le forfait ${planRules.name} est limité à ${planRules.maxVerses} versets de suite maximum. Passez à Basique, Pro ou MAX pour des sourates complètes.`
+                        );
+                        setSelectedSurahs((prev) => {
+                          const first = prev[0];
+                          if (!first) return prev;
+                          const maxN = getSurahMeta(first.surahNumber).numberOfAyahs;
+                          return [
+                            {
+                              ...first,
+                              startAyah: 1,
+                              endAyah: Math.min(maxN, planRules.maxVerses),
+                            },
+                          ];
+                        });
+                        return;
+                      }
+                      setPlanRestrictionNotice(null);
                       setSelectedSurahs((prev) =>
                         prev.map((item) => ({
                           ...item,
                           startAyah: 1,
                           endAyah: getSurahMeta(item.surahNumber).numberOfAyahs,
                         }))
-                      )
-                    }
-                    className={`h-8 px-3 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
+                      );
+                    }}
+                    className={`h-8 px-3 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap inline-flex items-center gap-1 ${
                       selectedSurahs.every(
                         (s) =>
                           s.startAyah === 1 &&
@@ -1548,7 +1847,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         : 'studio-pill-raised'
                     }`}
                   >
-                    Toute
+                    <span>Toute</span>
+                    {Number.isFinite(planRules.maxVerses) && (
+                      <Lock className="w-3 h-3 opacity-70" />
+                    )}
                   </button>
                 </div>
 
@@ -2173,7 +2475,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     className="pb-3 border-b border-[#D4D1C8] flex items-center justify-between gap-2.5"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {customLogoUrl ? (
+                      {customLogoUrl && planRules.allowCustomLogo ? (
                         <div
                           data-testid="studio-logo-preview"
                           className="w-9 h-9 rounded-xl studio-input-inset p-1 flex items-center justify-center shrink-0 overflow-hidden"
@@ -2186,15 +2488,25 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         </div>
                       ) : (
                         <div className="w-9 h-9 rounded-xl studio-pill-raised flex items-center justify-center shrink-0 text-[#1B573E]">
-                          <ImageIcon className="w-4 h-4" />
+                          {planRules.allowCustomLogo ? (
+                            <ImageIcon className="w-4 h-4" />
+                          ) : (
+                            <Lock className="w-4 h-4 text-[#8A5A19]" />
+                          )}
                         </div>
                       )}
                       <div className="min-w-0">
                         <div className="text-[11.5px] font-bold text-[#1F2421] leading-tight truncate">
-                          {customLogoUrl ? customLogoName || 'Logo personnalisé' : 'Votre logo (image)'}
+                          {customLogoUrl && planRules.allowCustomLogo
+                            ? customLogoName || 'Logo personnalisé'
+                            : 'Votre logo (image)'}
                         </div>
                         <div className="text-[10px] text-[#565C58] leading-tight mt-0.5 truncate">
-                          Petit en bas à droite • opposé au filigrane
+                          {planRules.allowCustomLogo
+                            ? planRules.hasWatermark
+                              ? 'Petit en bas à droite • opposé au filigrane'
+                              : 'Centré en bas • sans filigrane Le Sanctuaire'
+                            : 'Disponible dès le forfait Basique (3 000 FCFA/mois)'}
                         </div>
                       </div>
                     </div>
@@ -2204,18 +2516,39 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                         type="button"
                         data-testid="studio-logo-upload-btn"
                         disabled={isSavingLogo}
-                        onClick={() => logoFileInputRef.current?.click()}
-                        className="h-8 px-3 rounded-full studio-pill-mint text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-60"
+                        onClick={() => {
+                          if (!planRules.allowCustomLogo) {
+                            setPlanRestrictionNotice(
+                              'L’ajout de votre propre logo est disponible à partir du forfait Basique (3 000 FCFA/mois).'
+                            );
+                            onOpenPlansModal?.();
+                            return;
+                          }
+                          logoFileInputRef.current?.click();
+                        }}
+                        className={`h-8 px-3 rounded-full text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-60 ${
+                          planRules.allowCustomLogo
+                            ? 'studio-pill-mint'
+                            : 'studio-pill-raised text-[#8A5A19]'
+                        }`}
                       >
                         {isSavingLogo ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : !planRules.allowCustomLogo ? (
+                          <Lock className="w-3.5 h-3.5" />
                         ) : (
                           <Upload className="w-3.5 h-3.5" />
                         )}
-                        <span>{customLogoUrl ? 'Changer' : 'Ajouter'}</span>
+                        <span>
+                          {!planRules.allowCustomLogo
+                            ? 'Basique+'
+                            : customLogoUrl
+                            ? 'Changer'
+                            : 'Ajouter'}
+                        </span>
                       </button>
 
-                      {customLogoUrl && (
+                      {customLogoUrl && planRules.allowCustomLogo && (
                         <button
                           type="button"
                           data-testid="studio-logo-remove-btn"

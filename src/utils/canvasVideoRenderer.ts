@@ -43,6 +43,7 @@ export interface VideoCanvasRenderOptions {
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
   reciterName: string;
+  showWatermark?: boolean;
 }
 
 export function computeGentleBackgroundMotionScale(
@@ -721,8 +722,17 @@ function drawMandatoryBottomWatermark(
   height: number,
   resScale: number,
   isLightSurface: boolean,
-  logoImage?: HTMLImageElement | null
+  logoImage?: HTMLImageElement | null,
+  showWatermark: boolean = true
 ) {
+  const rawLogoW = logoImage ? (logoImage as any).naturalWidth || logoImage.width || 0 : 0;
+  const rawLogoH = logoImage ? (logoImage as any).naturalHeight || logoImage.height || 0 : 0;
+  const hasLogo = Boolean(logoImage && rawLogoW > 0 && rawLogoH > 0);
+
+  if (!showWatermark && !hasLogo) {
+    return;
+  }
+
   ctx.save();
   const m = computeBottomFooterMetrics(width, height, resScale);
 
@@ -737,12 +747,25 @@ function drawMandatoryBottomWatermark(
   const brandRowWidth = m.iconR * 2 + m.gap + brandTextWidth;
   const watermarkWidth = Math.ceil(Math.max(m.dividerW, brandRowWidth, subTextWidth));
 
-  const rawLogoW = logoImage ? (logoImage as any).naturalWidth || logoImage.width || 0 : 0;
-  const rawLogoH = logoImage ? (logoImage as any).naturalHeight || logoImage.height || 0 : 0;
-  const logoRect =
-    logoImage && rawLogoW > 0 && rawLogoH > 0
-      ? computeBottomRightLogoRect(width, height, resScale, rawLogoW, rawLogoH, watermarkWidth)
-      : null;
+  const logoRect = hasLogo
+    ? computeBottomRightLogoRect(width, height, resScale, rawLogoW, rawLogoH, watermarkWidth)
+    : null;
+
+  if (!showWatermark && logoImage && logoRect) {
+    // Pro / MAX / Admin without Le Sanctuaire watermark: center user's custom logo cleanly at bottom
+    const centeredLogoX = Math.round((width - logoRect.w) / 2);
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.shadowColor = isLightSurface ? 'rgba(255, 255, 255, 0.72)' : 'rgba(0, 0, 0, 0.72)';
+    ctx.shadowBlur = Math.round(6 * resScale);
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = Math.round(1 * resScale);
+    ctx.drawImage(logoImage, centeredLogoX, logoRect.y, logoRect.w, logoRect.h);
+    ctx.restore();
+    ctx.restore();
+    return;
+  }
 
   const footerCenterY = logoRect
     ? logoRect.footerCenterY
@@ -1886,9 +1909,22 @@ export function renderVideoCanvasFrame(
       ((opts.logoImage as any).naturalWidth || opts.logoImage.width) > 0 &&
       ((opts.logoImage as any).naturalHeight || opts.logoImage.height) > 0
   );
+  const showWatermark = opts.showWatermark !== false;
   const bottomSafeY =
     height -
-    Math.round((hasCustomLogo ? (isPortrait ? 134 : 124) : isPortrait ? 92 : 82) * resScale);
+    Math.round(
+      (hasCustomLogo
+        ? isPortrait
+          ? 134
+          : 124
+        : showWatermark
+          ? isPortrait
+            ? 92
+            : 82
+          : isPortrait
+            ? 44
+            : 36) * resScale
+    );
   const hasMediaBg = Boolean(videoEl || opts.bgImage);
 
   ctx.save();
@@ -2145,13 +2181,14 @@ export function renderVideoCanvasFrame(
     ctx.restore();
   }
 
-  // 6. Mandatory non-removable bottom-left watermark + optional opposite bottom-right logo
+  // 6. Tier-based bottom watermark (Test/Basique) + optional custom logo
   drawMandatoryBottomWatermark(
     ctx,
     width,
     height,
     resScale,
     isLightSurface && !opts.bgBlackBackdrop,
-    opts.logoImage
+    opts.logoImage,
+    opts.showWatermark !== false
   );
 }

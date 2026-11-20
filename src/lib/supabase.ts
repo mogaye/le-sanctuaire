@@ -487,13 +487,13 @@ export async function getCurrentUser() {
 export async function signInWithEmail(email: string, password: string) {
   const cleanEmail = email.trim().toLowerCase();
 
-  // Direct verified credentials for Mamadou Gaye (mgaye60000@gmail.com / momo1234)
+  // Direct verified credentials for Super Admin Mamadou Gaye (mgaye60000@gmail.com / momo@lesanctuaire2026)
   if (cleanEmail === 'mgaye60000@gmail.com') {
-    if (password === 'momo1234') {
+    if (password === 'momo@lesanctuaire2026') {
       saveLocalAccount({
         id: 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4',
         email: 'mgaye60000@gmail.com',
-        password: 'momo1234',
+        password: 'momo@lesanctuaire2026',
         fullName: 'Mamadou Gaye',
         firstName: 'Mamadou',
         lastName: 'Gaye',
@@ -509,6 +509,8 @@ export async function signInWithEmail(email: string, password: string) {
               full_name: 'Mamadou Gaye',
               first_name: 'Mamadou',
               last_name: 'Gaye',
+              role: 'admin',
+              plan: 'admin',
             },
           },
         },
@@ -516,13 +518,18 @@ export async function signInWithEmail(email: string, password: string) {
         isFallback: false,
       };
     }
+    return {
+      data: { user: null },
+      error: { message: 'Mot de passe administrateur incorrect.' },
+      isFallback: true,
+    };
   }
 
   const runLocalSignIn = () => {
     const accounts = getLocalAccounts();
     const existing = accounts.find((a) => a.email.toLowerCase() === cleanEmail);
 
-    if (cleanEmail === 'mgaye60000@gmail.com' && password !== 'momo1234') {
+    if (cleanEmail === 'mgaye60000@gmail.com' && password !== 'momo@lesanctuaire2026') {
       return {
         data: { user: null },
         error: { message: 'Invalid login credentials' },
@@ -2059,5 +2066,174 @@ export async function syncAllLocalTablesToSupabase(
     // ignore
   }
 }
+
+// ============================================================================
+// VIDEO SUBSCRIPTION TIERS, ANALYTICS & SUPER ADMIN CLIENT HELPERS
+// ============================================================================
+
+export interface SubscriptionStatusDTO {
+  authenticated: boolean;
+  email: string | null;
+  role: 'admin' | 'user';
+  plan: 'test' | 'basique' | 'pro' | 'max' | 'admin';
+  planName: string;
+  priceFcfa: number;
+  monthlyLimit: number | null;
+  videosUsedThisMonth: number;
+  totalVideosCreated: number;
+  remainingVideos: number | null;
+  hasWatermark: boolean;
+  maxVerses: number | null;
+  allowCustomLogo: boolean;
+  maxQuality: '480p' | '720p' | '1080p' | '4k';
+  totalAmountPaidFcfa: number;
+  timeSpentSeconds: number;
+}
+
+export async function fetchMySubscription(email?: string | null): Promise<SubscriptionStatusDTO> {
+  const query = email ? `?email=${encodeURIComponent(email.trim().toLowerCase())}` : '';
+  const res = await fetch(`/api/subscription/status${query}`);
+  if (!res.ok) {
+    throw new Error('Impossible de charger le statut d’abonnement.');
+  }
+  const data = await res.json();
+  return data.status as SubscriptionStatusDTO;
+}
+
+export async function recordCreatedVideo(payload: {
+  email: string;
+  userName?: string;
+  surahSummary: string;
+  verseCount: number;
+  quality: '480p' | '720p' | '1080p' | '4k';
+  aspectRatio: string;
+  hasCustomLogo?: boolean;
+  durationSec?: number;
+}): Promise<{ ok: boolean; error?: string; reasonCode?: string; status?: SubscriptionStatusDTO }> {
+  const res = await fetch('/api/subscription/record-video', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({ ok: false }));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: data.status }));
+  }
+  return data;
+}
+
+export async function upgradeMyVideoPlan(params: {
+  email: string;
+  plan: 'basique' | 'pro' | 'max';
+  provider?: string;
+  transactionReference?: string;
+}): Promise<{ ok: boolean; error?: string; status?: SubscriptionStatusDTO; transactionReference?: string }> {
+  const res = await fetch('/api/subscription/upgrade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({ ok: false }));
+  if (typeof window !== 'undefined' && data?.ok) {
+    window.dispatchEvent(new CustomEvent('sanctuaire-subscription-updated', { detail: data.status }));
+  }
+  return data;
+}
+
+export async function sendAnalyticsHeartbeat(params: {
+  sessionId: string;
+  email?: string;
+  view?: string;
+  deltaSec?: number;
+  isNewVisit?: boolean;
+}): Promise<{ activeVisitors?: number }> {
+  try {
+    const res = await fetch('/api/analytics/heartbeat', {
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function submitUserReport(params: {
+  reporterEmail?: string;
+  reporterName?: string;
+  category: 'bug' | 'audio' | 'horaires' | 'paiement' | 'autre';
+  subject: string;
+  description: string;
+  pageContext?: string;
+}) {
+  const res = await fetch('/api/reports', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  return res.json();
+}
+
+export async function fetchAdminOverview(adminEmail: string) {
+  const res = await fetch(`/api/admin/overview?adminEmail=${encodeURIComponent(adminEmail)}`);
+  const data = await res.json();
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || 'Accès refusé.');
+  }
+  return data;
+}
+
+export async function fetchAdminUsers(adminEmail: string) {
+  const res = await fetch(`/api/admin/users?adminEmail=${encodeURIComponent(adminEmail)}`);
+  const data = await res.json();
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || 'Impossible de charger les utilisateurs.');
+  }
+  return data.users || [];
+}
+
+export async function adminSetUserPlan(params: {
+  adminEmail: string;
+  targetEmail: string;
+  plan: 'test' | 'basique' | 'pro' | 'max';
+  recordPayment?: boolean;
+}) {
+  const res = await fetch(`/api/admin/users/${encodeURIComponent(params.targetEmail)}/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminEmail: params.adminEmail,
+      plan: params.plan,
+      recordPayment: Boolean(params.recordPayment),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || 'Erreur lors de l’autorisation du forfait.');
+  }
+  return data.user;
+}
+
+export async function adminUpdateReportStatus(params: {
+  adminEmail: string;
+  reportId: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  adminNote?: string;
+}) {
+  const res = await fetch(`/api/reports/${encodeURIComponent(params.reportId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      adminEmail: params.adminEmail,
+      status: params.status,
+      adminNote: params.adminNote,
+    }),
+  });
+  return res.json();
+}
+
 
 

@@ -35,11 +35,17 @@ import {
   Check,
   Award,
   Maximize2,
+  Film,
+  Crown,
+  ShieldCheck,
+  AlertCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CityData } from '../types';
 import { CitySelectorModal } from './CitySelectorModal';
 import { getPrayerLog, formatDateKey, pushSettingToCloud } from '../utils/prayerTrackerUtils';
+import { SubscriptionStatusDTO } from '../lib/supabase';
+import { getPlanRules, isSuperAdminEmail } from '../utils/subscriptionPlans';
 import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface MobileHomeScreenProps {
@@ -88,6 +94,11 @@ export interface MobileHomeScreenProps {
   onGoToLanding: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+  subscriptionStatus?: SubscriptionStatusDTO | null;
+  onOpenVideoStudio?: () => void;
+  onOpenVideoPlans?: () => void;
+  onOpenAdminDashboard?: () => void;
+  onOpenReportModal?: () => void;
 }
 
 const HADITHS = [
@@ -190,7 +201,24 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
   onGoToLanding,
   isDarkMode = true,
   onToggleDarkMode,
+  subscriptionStatus,
+  onOpenVideoStudio,
+  onOpenVideoPlans,
+  onOpenAdminDashboard,
+  onOpenReportModal,
 }) => {
+  const isSuperAdmin = isSuperAdminEmail(currentUser?.email);
+  const effectivePlanId = isSuperAdmin
+    ? 'admin'
+    : subscriptionStatus?.plan || 'test';
+  const planRules = getPlanRules(effectivePlanId);
+  const quotaBadgeLabel = isSuperAdmin
+    ? 'Illimité — Admin'
+    : !currentUser?.email
+    ? 'Compte requis'
+    : !Number.isFinite(planRules.monthlyLimit)
+    ? 'Illimité (MAX)'
+    : `${subscriptionStatus?.remainingVideos ?? planRules.monthlyLimit}/${planRules.monthlyLimit} restantes`;
   const [searchQuery, setSearchQuery] = useState('');
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
   const [isSideDrawerOpen, setIsSideDrawerOpen] = useState(false);
@@ -618,8 +646,56 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
         </div>
 
         {/* ========================================================
-            5B. BANNIÈRE PROMINENTE : LECTURE PLEIN ÉCRAN CINÉMATIQUE
+            5B. BANNIÈRES ACCUEIL : STUDIO VIDÉO & LECTURE PLEIN ÉCRAN
            ======================================================== */}
+        {onOpenVideoStudio && (
+          <div className="rounded-2xl p-3.5 bg-white dark:bg-[#193226] border border-emerald-500/30 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0">
+                  <Film className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h4 className="text-sm font-black text-neutral-900 dark:text-white tracking-tight">
+                      Studio Vidéo Coran
+                    </h4>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300/60 dark:border-emerald-700/60">
+                      {planRules.name}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-neutral-600 dark:text-emerald-200/80 tabular-nums truncate">
+                    {quotaBadgeLabel} • Max {planRules.maxQuality.toUpperCase()}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="mobile-home-create-video-btn"
+                onClick={onOpenVideoStudio}
+                className="flex-1 py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition"
+              >
+                <Film className="w-4 h-4" />
+                <span>Créer une vidéo</span>
+              </button>
+              {onOpenVideoPlans && (
+                <button
+                  type="button"
+                  data-testid="mobile-home-video-plans-btn"
+                  onClick={onOpenVideoPlans}
+                  className="py-2 px-3 rounded-xl bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-600/40 text-xs font-bold flex items-center gap-1 cursor-pointer whitespace-nowrap"
+                >
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Forfaits</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div
           onClick={() => (onOpenCinematicQuran ? onOpenCinematicQuran() : onOpenQuran())}
           className="relative overflow-hidden rounded-2xl p-4 bg-gradient-to-br from-emerald-900 via-[#103824] to-emerald-950 border border-amber-400/40 shadow-md cursor-pointer active:scale-98 transition-all group"
@@ -638,7 +714,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   <span className="text-[0.6875rem] text-emerald-200/80 font-medium">Sans distraction</span>
                 </div>
                 <h4 className="text-sm font-black text-white tracking-tight mt-1">
-                  Lecture Plein Écran Cinématique
+                  Lecture plein écran
                 </h4>
                 <p className="text-[0.75rem] text-emerald-200/90 leading-tight line-clamp-1 mt-0.5">
                   Grand texte arabe, Tajweed coloré, récitation & fonds animés
@@ -650,6 +726,24 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
             </div>
           </div>
         </div>
+
+        {isSuperAdmin && onOpenAdminDashboard && (
+          <button
+            type="button"
+            data-testid="mobile-home-admin-dashboard-btn"
+            onClick={onOpenAdminDashboard}
+            className="w-full rounded-2xl p-3.5 bg-emerald-900 text-white border border-emerald-500/40 flex items-center justify-between cursor-pointer active:scale-98 transition"
+          >
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-amber-300" />
+              <div className="text-left">
+                <div className="text-xs font-extrabold">Dashboard Super Admin</div>
+                <div className="text-[11px] text-emerald-200/80">Statistiques, utilisateurs & signalements</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-emerald-200" />
+          </button>
+        )}
 
         {/* ========================================================
             6. "HORAIRES DES 5 PRIÈRES DU JOUR"
@@ -842,10 +936,10 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   type="button"
                   onClick={() => (onOpenCinematicQuran ? onOpenCinematicQuran(1) : onOpenQuran())}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-xs transition active:scale-95 cursor-pointer"
-                  title="Ouvrir en plein écran cinématique"
+                  title="Ouvrir en lecture plein écran"
                 >
                   <Maximize2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>Plein Écran Cinématique</span>
+                  <span>Lecture plein écran</span>
                 </button>
                 <button
                   type="button"
@@ -1359,8 +1453,50 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-amber-900 dark:text-amber-300 bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 transition-colors cursor-pointer"
                 >
                   <Maximize2 className="w-4 h-4 text-amber-500" />
-                  <span>Lecture Plein Écran Cinématique (4K)</span>
+                  <span>Lecture plein écran (4K)</span>
                 </button>
+
+                {onOpenVideoStudio && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSideDrawerOpen(false);
+                      onOpenVideoStudio();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-900 dark:text-emerald-200 bg-emerald-50 dark:bg-[#193226] hover:bg-emerald-100 border border-emerald-300/60 dark:border-emerald-700/40 transition-colors cursor-pointer"
+                  >
+                    <Film className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Créer une vidéo (Studio)</span>
+                  </button>
+                )}
+
+                {onOpenVideoPlans && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSideDrawerOpen(false);
+                      onOpenVideoPlans();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:bg-amber-50 dark:hover:bg-[#193226] transition-colors cursor-pointer"
+                  >
+                    <Crown className="w-4 h-4 text-amber-500" />
+                    <span>Forfaits Vidéo</span>
+                  </button>
+                )}
+
+                {isSuperAdmin && onOpenAdminDashboard && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSideDrawerOpen(false);
+                      onOpenAdminDashboard();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-800 hover:bg-emerald-700 transition-colors cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-300" />
+                    <span>Dashboard Super Admin</span>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1465,6 +1601,20 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                   <SlidersHorizontal className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
                   <span>Réglages des Horaires</span>
                 </button>
+
+                {onOpenReportModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSideDrawerOpen(false);
+                      onOpenReportModal();
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                    <span>Signaler un problème</span>
+                  </button>
+                )}
               </div>
             </div>
 

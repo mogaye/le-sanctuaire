@@ -33,6 +33,7 @@ import {
   formatExportNotificationPayload,
   shouldAbortOnPageHide,
 } from './backgroundExportUtils';
+import { recordCreatedVideo } from '../lib/supabase';
 
 const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
@@ -99,6 +100,10 @@ export interface StartBackgroundVideoExportParams {
   showSurahHeader: boolean;
   textScale: 'compact' | 'standard' | 'grand';
   flowMode: VideoTemplateId;
+  showWatermark?: boolean;
+  userEmail?: string;
+  userName?: string;
+  qualityId?: '480p' | '720p' | '1080p' | '4k';
 }
 
 function isRunningInIframe(): boolean {
@@ -945,6 +950,7 @@ export async function startBackgroundVideoExport(
       textScale: params.textScale,
       flowMode: params.flowMode,
       reciterName: params.reciterName,
+      showWatermark: params.showWatermark !== false,
     };
 
     const layout = precomputeVideoCanvasLayout(canvasCtx, exportSeq, renderOpts);
@@ -1057,6 +1063,22 @@ export async function startBackgroundVideoExport(
 
     updateMediaSessionProgress(100, params.summaryLabel, 'ready');
     void pushPhoneTopBarNotification(true);
+
+    // Record completed video export in subscription ledger (decrements quota countdown)
+    if (params.userEmail) {
+      const verseCount = params.baseVideoSequence.filter((v) => !v.isBismillah).length || params.baseVideoSequence.length;
+      const totalDur = Math.round(exactTimeline.totalDurationSec || 0);
+      void recordCreatedVideo({
+        email: params.userEmail,
+        userName: params.userName,
+        surahSummary: params.summaryLabel,
+        verseCount,
+        quality: params.qualityId || actualQualityId,
+        aspectRatio: params.aspectLabel,
+        hasCustomLogo: Boolean(params.customLogoUrl),
+        durationSec: totalDur,
+      }).catch(() => {});
+    }
 
     if (linkState.href) {
       if (isVisibleNow) {

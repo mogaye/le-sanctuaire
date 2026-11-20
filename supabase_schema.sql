@@ -102,12 +102,21 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS city_name TEXT DEFAULT 'Dak
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'Sénégal';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS calculation_method TEXT DEFAULT 'MuslimWorldLeague';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS theme_preference TEXT DEFAULT 'dark';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'test';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS videos_used_this_month INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_videos_created INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_amount_paid_fcfa NUMERIC(12, 2) DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS time_spent_seconds INT DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS plan_period_start TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS plan_updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_connected_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW());
 
 -- Normaliser et dédoublonner public.profiles sur email avant de créer l'index unique
 UPDATE public.profiles SET email = LOWER(TRIM(email)) WHERE email IS NOT NULL;
+UPDATE public.profiles SET role = 'admin', plan = 'admin' WHERE LOWER(TRIM(email)) = 'mgaye60000@gmail.com';
 DELETE FROM public.profiles a USING public.profiles b
 WHERE a.ctid < b.ctid AND a.email = b.email;
 
@@ -518,3 +527,68 @@ DROP TRIGGER IF EXISTS on_email_log_before_write ON public.email_logs;
 CREATE TRIGGER on_email_log_before_write
   BEFORE INSERT ON public.email_logs
   FOR EACH ROW EXECUTE FUNCTION public.handle_email_log_before_write();
+
+-- ==============================================================================
+-- 8. TABLE : public.video_creations (Vidéos créées & enregistrées)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.video_creations (
+  id SERIAL PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  user_name TEXT,
+  plan_at_creation TEXT DEFAULT 'test' NOT NULL,
+  surah_summary TEXT NOT NULL,
+  verse_count INT DEFAULT 1 NOT NULL,
+  quality TEXT DEFAULT '720p' NOT NULL,
+  aspect_ratio TEXT DEFAULT '9:16' NOT NULL,
+  had_watermark BOOLEAN DEFAULT TRUE NOT NULL,
+  duration_sec INT DEFAULT 0 NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+ALTER TABLE public.video_creations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Gestion video_creations"
+  ON public.video_creations FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ==============================================================================
+-- 9. TABLE : public.user_reports (Signalements utilisateurs)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.user_reports (
+  id SERIAL PRIMARY KEY,
+  reporter_email TEXT,
+  reporter_name TEXT,
+  category TEXT DEFAULT 'bug' NOT NULL,
+  subject TEXT NOT NULL,
+  description TEXT NOT NULL,
+  page_context TEXT DEFAULT 'accueil' NOT NULL,
+  status TEXT DEFAULT 'open' NOT NULL,
+  admin_note TEXT,
+  created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+ALTER TABLE public.user_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Gestion user_reports"
+  ON public.user_reports FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ==============================================================================
+-- 10. TABLE : public.site_analytics_daily (Courbes journalières admin)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.site_analytics_daily (
+  date TEXT PRIMARY KEY,
+  visits INT DEFAULT 0 NOT NULL,
+  signups INT DEFAULT 0 NOT NULL,
+  paid_upgrades INT DEFAULT 0 NOT NULL,
+  videos_created INT DEFAULT 0 NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
+ALTER TABLE public.site_analytics_daily ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Gestion site_analytics_daily"
+  ON public.site_analytics_daily FOR ALL
+  USING (true)
+  WITH CHECK (true);
+

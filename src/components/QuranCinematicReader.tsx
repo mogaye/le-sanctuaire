@@ -24,7 +24,6 @@ import {
   Layers,
   Search,
   Sun,
-  Film,
 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 import { Reciter } from '../types';
@@ -39,7 +38,6 @@ import {
   isMobileViewport,
 } from '../utils/cinematicLayoutUtils';
 import { MOBILE_VERTICAL_BACKGROUNDS } from '../data/mobileCinematicBackgrounds';
-import { MobileVerseVideoStudio } from './MobileVerseVideoStudio';
 import { useMobileDevice } from '../hooks/useMobileDevice';
 
 interface AyahData {
@@ -455,7 +453,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
   const [isSurahPickerOpen, setIsSurahPickerOpen] = useState<boolean>(false);
   const [surahSearchQuery, setSurahSearchQuery] = useState<string>('');
   const [isReciterPickerOpen, setIsReciterPickerOpen] = useState<boolean>(false);
-  const [isVideoStudioOpen, setIsVideoStudioOpen] = useState<boolean>(false);
 
   // Fullscreen State (Tracks browser native fullscreen + pure immersive fullscreen on iOS/mobile)
   const [isNativeFullscreen, setIsNativeFullscreen] = useState<boolean>(() => {
@@ -637,7 +634,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     setIsReciterPickerOpen(false);
     setIsAppearanceModalOpen(false);
     setIsTajweedGuideOpen(false);
-    setIsVideoStudioOpen(false);
   };
 
   const handleChooseSurah = (num: number) => {
@@ -903,8 +899,7 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
     isSurahPickerOpen ||
     isReciterPickerOpen ||
     isAppearanceModalOpen ||
-    isTajweedGuideOpen ||
-    isVideoStudioOpen;
+    isTajweedGuideOpen;
 
   // Auto-hide HUD icons after 3.5 seconds of inactivity (and immediately on fullscreen)
   const resetHudTimer = (forceShow: boolean = true) => {
@@ -1385,26 +1380,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             )}
           </button>
 
-          {/* 9:16 Continuous Verse Video Creator (PC & Mobile) */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (audioRef.current) {
-                audioRef.current.pause();
-              }
-              setIsPlayingAudio(false);
-              closeAllPopovers();
-              setIsVideoStudioOpen(true);
-            }}
-            data-testid="cinematic-open-video-studio-btn"
-            aria-label="Créer une vidéo continue 9:16 de versets"
-            className="h-9 sm:h-10 px-2.5 sm:px-3 rounded-full bg-amber-400 hover:bg-amber-300 text-neutral-950 border border-amber-300 flex items-center gap-1.5 transition active:scale-95 shadow-xl cursor-pointer font-extrabold text-xs shrink-0"
-            title="Créer une vidéo verticale 9:16 à partir de versets"
-          >
-            <Film className="w-3.5 h-3.5 shrink-0" />
-            <span>Vidéo 9:16</span>
-          </button>
-
           {/* Unified Apparence & Réglages (Unites Theme, Backgrounds 4K, Tajweed, and Text Size) */}
           <button
             onClick={(e) => {
@@ -1426,9 +1401,9 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
               e.stopPropagation();
               handleExit();
             }}
-            aria-label="Quitter le mode cinématique"
+            aria-label="Quitter la lecture plein écran"
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-600/85 hover:bg-rose-600 text-white border border-rose-400/40 backdrop-blur-xl flex items-center justify-center transition active:scale-95 shadow-xl cursor-pointer"
-            title="Quitter le mode cinématique (Échap)"
+            title="Quitter la lecture plein écran (Échap)"
           >
             <X className="w-4 h-4 stroke-[2.5]" />
           </button>
@@ -2623,19 +2598,6 @@ export const QuranCinematicReader: React.FC<QuranCinematicReaderProps> = ({
             </div>
           </div>
         </div>
-      )}
-
-      {/* Continuous Verse Video Creator Studio (9:16 on both PC & Mobile) */}
-      {isVideoStudioOpen && (
-        <MobileVerseVideoStudio
-          isOpen={isVideoStudioOpen}
-          onClose={() => setIsVideoStudioOpen(false)}
-          initialSurahNum={currentSurahMeta.number}
-          initialStartAyah={currentAyah?.num || 1}
-          initialReciter={selectedReciter}
-          initialBgId={isMobile ? selectedMobileBgId : selectedBgId}
-          onSyncReciter={onSelectReciter}
-        />
       )}
     </div>
   );

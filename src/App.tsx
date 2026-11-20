@@ -30,13 +30,21 @@ import { PrayerTimeSettingsModal, PrayerOffsets } from './components/PrayerTimeS
 import { DonationModal } from './components/DonationModal';
 import { GuestAccountReminderToast } from './components/GuestAccountReminderToast';
 import { AdhanAlertModal } from './components/AdhanAlertModal';
+import { AdminDashboardPage } from './components/AdminDashboardPage';
+import { MobileVerseVideoStudio } from './components/MobileVerseVideoStudio';
+import { VideoPlansModal } from './components/VideoPlansModal';
+import { ReportIssueModal } from './components/ReportIssueModal';
 import {
   supabase,
   hasUserDonatedLocally,
   checkUserHasDonated,
   syncConnectedAccountToBackend,
   syncAllLocalTablesToSupabase,
+  SubscriptionStatusDTO,
+  fetchMySubscription,
+  sendAnalyticsHeartbeat,
 } from './lib/supabase';
+import { isSuperAdminEmail } from './utils/subscriptionPlans';
 import { CITIES, METHODS, RECITERS, getLiveCityWithRealPrayers } from './data/islamicData';
 import { CityData, Method, Reciter, UserProfile } from './types';
 import {
@@ -175,8 +183,8 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isDarkMode]);
 
-  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar'
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar'>('landing');
+  // Page Routing State: 'landing', 'login', 'home', 'prayer', 'quran', 'fasting', 'faith', 'library', 'calendar', 'admin'
+  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'home' | 'prayer' | 'quran' | 'fasting' | 'faith' | 'library' | 'calendar' | 'admin'>('landing');
   const [selectedSurahForPage, setSelectedSurahForPage] = useState<number | undefined>(undefined);
   const [startInCinematicForQuran, setStartInCinematicForQuran] = useState<boolean>(false);
   const [selectedBookIdForReader, setSelectedBookIdForReader] = useState<string | undefined>(undefined);
@@ -206,6 +214,10 @@ export default function App() {
   const [isPrayerSettingsOpen, setIsPrayerSettingsOpen] = useState<boolean>(false);
   const [isDonationOpen, setIsDonationOpen] = useState<boolean>(false);
   const [isAdhanModalOpen, setIsAdhanModalOpen] = useState<boolean>(false);
+  const [isVideoStudioOpen, setIsVideoStudioOpen] = useState<boolean>(false);
+  const [isVideoPlansOpen, setIsVideoPlansOpen] = useState<boolean>(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusDTO | null>(null);
 
   // =========================================================================
   // MOBILE HARDWARE BACK BUTTON (popstate) & EDGE SWIPE BACK GESTURE SUPPORT
@@ -224,6 +236,9 @@ export default function App() {
     isPrayerSettingsOpen,
     isDonationOpen,
     isAdhanModalOpen,
+    isVideoStudioOpen,
+    isVideoPlansOpen,
+    isReportModalOpen,
     showWelcomeWalkthrough,
   });
 
@@ -238,6 +253,9 @@ export default function App() {
       isPrayerSettingsOpen,
       isDonationOpen,
       isAdhanModalOpen,
+      isVideoStudioOpen,
+      isVideoPlansOpen,
+      isReportModalOpen,
       showWelcomeWalkthrough,
     };
   }, [
@@ -250,6 +268,9 @@ export default function App() {
     isPrayerSettingsOpen,
     isDonationOpen,
     isAdhanModalOpen,
+    isVideoStudioOpen,
+    isVideoPlansOpen,
+    isReportModalOpen,
     showWelcomeWalkthrough,
   ]);
 
@@ -273,6 +294,9 @@ export default function App() {
             isPrayerSettingsOpen ||
             isDonationOpen ||
             isAdhanModalOpen ||
+            isVideoStudioOpen ||
+            isVideoPlansOpen ||
+            isReportModalOpen ||
             showWelcomeWalkthrough,
         },
         ''
@@ -290,6 +314,9 @@ export default function App() {
     isPrayerSettingsOpen,
     isDonationOpen,
     isAdhanModalOpen,
+    isVideoStudioOpen,
+    isVideoPlansOpen,
+    isReportModalOpen,
     showWelcomeWalkthrough,
   ]);
 
@@ -316,6 +343,18 @@ export default function App() {
       }
 
       // 2. Close active global modals
+      if (s.isReportModalOpen) {
+        setIsReportModalOpen(false);
+        return true;
+      }
+      if (s.isVideoPlansOpen) {
+        setIsVideoPlansOpen(false);
+        return true;
+      }
+      if (s.isVideoStudioOpen) {
+        setIsVideoStudioOpen(false);
+        return true;
+      }
       if (s.isAdhanModalOpen) {
         setIsAdhanModalOpen(false);
         return true;
@@ -363,7 +402,8 @@ export default function App() {
         s.currentView === 'fasting' ||
         s.currentView === 'faith' ||
         s.currentView === 'library' ||
-        s.currentView === 'calendar'
+        s.currentView === 'calendar' ||
+        s.currentView === 'admin'
       ) {
         setCurrentView('home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -476,6 +516,74 @@ export default function App() {
   }, [currentUser, isDonationOpen]);
 
   const canAccessLibrary = Boolean(currentUser && hasMadeDonation);
+
+  const refreshSubscription = React.useCallback(async () => {
+    if (!currentUser?.email) {
+      setSubscriptionStatus(null);
+      return;
+    }
+    const status = await fetchMySubscription(currentUser.email);
+    if (status) {
+      setSubscriptionStatus(status);
+    }
+  }, [currentUser?.email]);
+
+  useEffect(() => {
+    refreshSubscription();
+    const handleSubUpdate = () => {
+      refreshSubscription();
+    };
+    window.addEventListener('sanctuaire-subscription-updated', handleSubUpdate);
+    window.addEventListener('sanctuaire-sync-updated', handleSubUpdate);
+    return () => {
+      window.removeEventListener('sanctuaire-subscription-updated', handleSubUpdate);
+      window.removeEventListener('sanctuaire-sync-updated', handleSubUpdate);
+    };
+  }, [refreshSubscription]);
+
+  // Persistent session analytics heartbeat (real-time visitors & time spent tracking)
+  const analyticsSessionIdRef = React.useRef<string>('');
+  const initialVisitSentRef = React.useRef<boolean>(false);
+  useEffect(() => {
+    if (!analyticsSessionIdRef.current) {
+      try {
+        const existing = sessionStorage.getItem('sanctuaire_analytics_session_id');
+        if (existing) {
+          analyticsSessionIdRef.current = existing;
+        } else {
+          const generated = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+          sessionStorage.setItem('sanctuaire_analytics_session_id', generated);
+          analyticsSessionIdRef.current = generated;
+        }
+      } catch {
+        analyticsSessionIdRef.current = `sess-${Date.now().toString(36)}`;
+      }
+    }
+
+    const isFirst = !initialVisitSentRef.current;
+    initialVisitSentRef.current = true;
+    sendAnalyticsHeartbeat({
+      sessionId: analyticsSessionIdRef.current,
+      email: currentUser?.email,
+      view: currentView,
+      deltaSec: 0,
+      isNewVisit: isFirst,
+    });
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        sendAnalyticsHeartbeat({
+          sessionId: analyticsSessionIdRef.current,
+          email: currentUser?.email,
+          view: currentView,
+          deltaSec: 15,
+          isNewVisit: false,
+        });
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [currentUser?.email, currentView]);
 
   // Prayer time adjustments
   const [prayerOffsets, setPrayerOffsets] = useState<PrayerOffsets>(() => {
@@ -812,12 +920,32 @@ export default function App() {
 
   // Triggered when user registers or logs in from LoginPage
   const handleLoginSuccess = (user: UserProfile, isNewRegistration: boolean = false) => {
-    setCurrentUser(user);
+    const normalizedUser: UserProfile = {
+      ...user,
+      role: isSuperAdminEmail(user.email) ? 'admin' : user.role || 'user',
+      plan: isSuperAdminEmail(user.email) ? 'admin' : user.plan || 'test',
+    };
+    setCurrentUser(normalizedUser);
     try {
-      localStorage.setItem('sanctuaire_user', JSON.stringify(user));
+      localStorage.setItem('sanctuaire_user', JSON.stringify(normalizedUser));
     } catch (e) {
       // ignore
     }
+    syncConnectedAccountToBackend({
+      email: normalizedUser.email,
+      fullName: normalizedUser.name,
+      firstName: normalizedUser.firstName,
+      lastName: normalizedUser.lastName,
+      avatarUrl: normalizedUser.avatarUrl,
+      cityId: selectedCity.id,
+      cityName: selectedCity.name,
+      country: selectedCity.country,
+      calculationMethod: selectedMethod.id,
+      themePreference: isDarkMode ? 'dark' : 'light',
+    });
+    fetchMySubscription(normalizedUser.email).then((st) => {
+      if (st) setSubscriptionStatus(st);
+    });
 
     const userKey = user.email || user.name || 'user';
     const hasBeenWelcomedBefore = localStorage.getItem('sanctuaire_welcomed_' + userKey) === 'true';
@@ -976,6 +1104,42 @@ export default function App() {
           </div>
         );
 
+      case 'admin':
+        if (!isSuperAdminEmail(currentUser?.email)) {
+          return (
+            <div className="min-h-screen flex items-center justify-center p-6 bg-[#F4F7F5] dark:bg-[#14261C] text-neutral-900 dark:text-white">
+              <div className="max-w-md w-full rounded-3xl bg-white dark:bg-[#183022] border border-emerald-500/30 p-7 text-center space-y-4 shadow-xl">
+                <h2 className="text-xl font-extrabold">Accès réservé Super Admin</h2>
+                <p className="text-xs sm:text-sm text-neutral-600 dark:text-emerald-100/80">
+                  Connectez-vous avec le compte Super Administrateur pour accéder au tableau de bord d’administration.
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <button
+                    onClick={() => setCurrentView('login')}
+                    className="py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold cursor-pointer"
+                  >
+                    Connexion
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('home')}
+                    className="py-2.5 px-4 rounded-xl bg-neutral-100 dark:bg-emerald-950/60 text-neutral-700 dark:text-emerald-200 text-xs font-semibold cursor-pointer"
+                  >
+                    Accueil
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <AdminDashboardPage
+            currentUser={currentUser}
+            isDarkMode={isDarkMode}
+            onNavigateHome={() => setCurrentView('home')}
+            onOpenVideoStudio={() => setIsVideoStudioOpen(true)}
+          />
+        );
+
       case 'home':
         return (
           <div className="min-h-screen relative font-sans bg-[#F4F7F5] dark:bg-[#14261C] pb-20 md:pb-0">
@@ -1017,6 +1181,11 @@ export default function App() {
               onOpenAdhanModal={() => setIsAdhanModalOpen(true)}
               isDarkMode={isDarkMode}
               onToggleDarkMode={handleToggleDarkMode}
+              subscriptionStatus={subscriptionStatus}
+              onOpenVideoStudio={() => setIsVideoStudioOpen(true)}
+              onOpenVideoPlans={() => setIsVideoPlansOpen(true)}
+              onOpenAdminDashboard={() => setCurrentView('admin')}
+              onOpenReportModal={() => setIsReportModalOpen(true)}
             />
           </div>
         );
@@ -1081,6 +1250,10 @@ export default function App() {
                   onLogout={handleLogout}
                   onGoToHome={handleAccederAuSite}
                   onOpenPrayerSettings={() => setIsPrayerSettingsOpen(true)}
+                  onOpenAdminDashboard={() => setCurrentView('admin')}
+                  onOpenVideoStudio={() => setIsVideoStudioOpen(true)}
+                  onOpenVideoPlans={() => setIsVideoPlansOpen(true)}
+                  onOpenReportModal={() => setIsReportModalOpen(true)}
                   isLanding={true}
                   isDarkMode={isDarkMode}
                   onToggleDarkMode={() => {
@@ -1133,6 +1306,7 @@ export default function App() {
                 onOpenQuran={() => handleOpenQuranPage()}
                 onOpenQibla={() => setIsQiblaOpen(true)}
                 onOpenDhikr={() => setIsDhikrOpen(true)}
+                onOpenReportModal={() => setIsReportModalOpen(true)}
               />
             </main>
           </div>
@@ -1214,9 +1388,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Theme Button (Bouton circulaire du même type avec badge) sur toutes les pages sauf le Coran et les pages de lecture */}
+      {/* Floating Theme Button (Bouton circulaire du même type avec badge) sur toutes les pages sauf le Coran, Admin et les pages de lecture */}
       <AnimatePresence>
-        {currentView !== 'quran' && !isReadingBook && (
+        {currentView !== 'quran' && currentView !== 'admin' && !isReadingBook && (
           <FloatingThemeButton
             isDarkMode={isDarkMode}
             onToggle={handleToggleDarkMode}
@@ -1287,6 +1461,49 @@ export default function App() {
           onOpenSignUp={() => setCurrentView('login')}
         />
       )}
+
+      {/* Global Video Creation Studio (accessible from Accueil & Header) */}
+      <MobileVerseVideoStudio
+        isOpen={isVideoStudioOpen}
+        onClose={() => setIsVideoStudioOpen(false)}
+        initialSurahNum={selectedSurahForPage || 1}
+        initialReciter={selectedReciter}
+        onSyncReciter={handleSelectReciter}
+        currentUser={currentUser}
+        subscriptionStatus={subscriptionStatus}
+        onOpenAuth={() => {
+          setIsVideoStudioOpen(false);
+          setCurrentView('login');
+        }}
+        onOpenPlansModal={() => setIsVideoPlansOpen(true)}
+        onRefreshSubscription={refreshSubscription}
+      />
+
+      {/* Video Subscription Plans Modal */}
+      <VideoPlansModal
+        isOpen={isVideoPlansOpen}
+        onClose={() => setIsVideoPlansOpen(false)}
+        isDarkMode={isDarkMode}
+        currentUser={currentUser}
+        subscriptionStatus={subscriptionStatus}
+        onRequestAuth={() => {
+          setIsVideoPlansOpen(false);
+          setCurrentView('login');
+        }}
+        onPlanActivated={(nextStatus) => {
+          setSubscriptionStatus(nextStatus);
+          window.dispatchEvent(new Event('sanctuaire-subscription-updated'));
+        }}
+      />
+
+      {/* User Report Issue Modal (Signalements) */}
+      <ReportIssueModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        isDarkMode={isDarkMode}
+        currentUser={currentUser}
+        pageContext={currentView}
+      />
 
       {/* Persistent Global Video Export Progress Bar (continues across Home, Books/Library, and mobile recent tasks) */}
       <BackgroundVideoExportBar />

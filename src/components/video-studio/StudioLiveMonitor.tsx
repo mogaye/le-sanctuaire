@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Lock,
   Maximize2,
   Minimize2,
   Monitor,
@@ -35,6 +36,10 @@ import {
   renderVideoCanvasFrame,
 } from '../../utils/canvasVideoRenderer';
 import { formatStudioBytes } from '../../utils/studioMediaLibrary';
+import {
+  SubscriptionPlanId,
+  isQualityAllowedForPlan,
+} from '../../utils/subscriptionPlans';
 
 export interface StudioDirectDownloadState {
   status: 'idle' | 'preparing' | 'ready' | 'error';
@@ -105,6 +110,15 @@ interface StudioLiveMonitorProps {
   onCancelDownload: () => void;
   onDirectLinkClicked: () => void;
   onShareVideo: () => void;
+  showWatermark?: boolean;
+  planId?: SubscriptionPlanId;
+  userEmail?: string | null;
+  planName?: string;
+  remainingVideos?: number | null;
+  monthlyLimit?: number | null;
+  requiresAuth?: boolean;
+  onRequestAuth?: () => void;
+  onRequestUpgrade?: () => void;
 }
 
 export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
@@ -158,6 +172,15 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   onCancelDownload,
   onDirectLinkClicked,
   onShareVideo,
+  showWatermark = true,
+  planId = 'test' as SubscriptionPlanId,
+  userEmail = null,
+  planName = 'Test',
+  remainingVideos = 3,
+  monthlyLimit = 3,
+  requiresAuth = false,
+  onRequestAuth,
+  onRequestUpgrade,
 }) => {
   const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
@@ -339,6 +362,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       textScale,
       flowMode,
       reciterName,
+      showWatermark: showWatermark !== false,
     }),
     [
       format.previewWidth,
@@ -370,6 +394,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       textScale,
       flowMode,
       reciterName,
+      showWatermark,
     ]
   );
 
@@ -696,20 +721,41 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         >
           {VIDEO_QUALITY_PRESETS.map((q) => {
             const active = qualityId === q.id;
+            const allowed = isQualityAllowedForPlan(q.id, planId, userEmail);
             return (
               <button
                 key={q.id}
                 type="button"
                 data-testid={`studio-quality-${q.id}`}
                 aria-pressed={active}
-                aria-label={`Qualité ${q.label}`}
+                aria-label={
+                  allowed
+                    ? `Qualité ${q.label}`
+                    : `Qualité ${q.label} — forfait supérieur requis`
+                }
+                title={
+                  allowed
+                    ? q.label
+                    : `${q.label} réservé aux forfaits supérieurs`
+                }
                 disabled={isPreparingDownload}
-                onClick={() => onSelectQuality(q.id)}
-                className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer transition-all whitespace-nowrap disabled:opacity-45 ${
-                  active ? 'studio-pill-mint' : 'text-[#4F5551] hover:text-[#1F2421]'
+                onClick={() => {
+                  if (!allowed) {
+                    onRequestUpgrade?.();
+                    return;
+                  }
+                  onSelectQuality(q.id);
+                }}
+                className={`h-7 px-2.5 rounded-full text-[11px] font-bold cursor-pointer transition-all whitespace-nowrap inline-flex items-center gap-1 disabled:opacity-45 ${
+                  active && allowed
+                    ? 'studio-pill-mint'
+                    : !allowed
+                    ? 'text-[#8C928E] opacity-75 hover:opacity-100'
+                    : 'text-[#4F5551] hover:text-[#1F2421]'
                 }`}
               >
-                {q.shortLabel}
+                <span>{q.shortLabel}</span>
+                {!allowed && <Lock className="w-2.5 h-2.5 shrink-0" />}
               </button>
             );
           })}
@@ -723,6 +769,42 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
         >
           {format.width}×{format.height}
         </span>
+
+        {!compactFullscreen && (
+          requiresAuth ? (
+            <button
+              type="button"
+              data-testid="studio-auth-required-btn"
+              onClick={() => onRequestAuth?.()}
+              className="h-7 px-2.5 rounded-full bg-[#F5EFE6] border border-[#D4A373]/40 text-[#8A5A19] text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap hover:bg-[#EFE4D4] transition-colors"
+            >
+              <Lock className="w-3 h-3 shrink-0" />
+              <span>Compte requis</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="studio-plan-quota-badge"
+              onClick={() => {
+                if (planId !== 'admin') onRequestUpgrade?.();
+              }}
+              className={`h-7 px-2.5 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 whitespace-nowrap tabular-nums transition-colors ${
+                remainingVideos === 0
+                  ? 'bg-[#FCE8E6] border border-[#DC2626]/30 text-[#B91C1C] cursor-pointer'
+                  : 'studio-pill-raised text-[#1B573E] cursor-pointer'
+              }`}
+              title={planId === 'admin' ? 'Accès Super Admin illimité' : 'Gérer mon forfait vidéo'}
+            >
+              <span>{planName}</span>
+              <span>•</span>
+              <span>
+                {remainingVideos === null || remainingVideos === undefined
+                  ? 'Illimité'
+                  : `${remainingVideos}/${monthlyLimit ?? remainingVideos}`}
+              </span>
+            </button>
+          )
+        )}
       </div>
 
       <div className="flex items-center gap-1.5 shrink-0 ml-auto md:ml-0">
@@ -764,16 +846,34 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             data-testid="studio-create-video-btn"
             aria-label={`Télécharger la vidéo MP4 (${qualityId.toUpperCase()})`}
             disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
-            onClick={onStartDownload}
+            onClick={() => {
+              if (requiresAuth) {
+                onRequestAuth?.();
+                return;
+              }
+              if (remainingVideos === 0) {
+                onRequestUpgrade?.();
+                return;
+              }
+              onStartDownload();
+            }}
             className="h-9 px-4 rounded-full studio-pill-mint font-bold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-45 whitespace-nowrap"
           >
             {isPreparingDownload ? (
               <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            ) : requiresAuth || remainingVideos === 0 ? (
+              <Lock className="w-4 h-4 shrink-0" />
             ) : (
               <Download className="w-4 h-4 shrink-0" />
             )}
             <span className="hidden sm:inline">
-              {isPreparingDownload ? `${downloadState.progressPct}%` : 'Télécharger'}
+              {isPreparingDownload
+                ? `${downloadState.progressPct}%`
+                : requiresAuth
+                ? 'Se connecter'
+                : remainingVideos === 0
+                ? 'Forfaits'
+                : 'Télécharger'}
             </span>
           </button>
         )}

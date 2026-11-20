@@ -36,7 +36,6 @@ import {
   Eye,
   Moon,
   Sun,
-  Film,
 } from 'lucide-react';
 import { CompleteSurahItem, ALL_114_SURAHS } from '../data/quranSurahs';
 import { SURAH_ENGLISH_TITLES } from '../data/surahEnglishTitles';
@@ -49,7 +48,6 @@ import { getTafsirForAyah, TafsirEntry } from '../data/quranTafsir';
 import { pushSettingToCloud, getActiveUserEmail } from '../utils/prayerTrackerUtils';
 import { toggleQuranFavorite } from '../lib/supabase';
 import { QuranCinematicReader } from './QuranCinematicReader';
-import { MobileVerseVideoStudio } from './MobileVerseVideoStudio';
 import { cleanAyahArabic } from '../utils/tajweedColorizer';
 import { getAyahAudioUrl, getSurahAudioUrl } from '../utils/quranAudioUtils';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -270,12 +268,11 @@ export const QuranPage: React.FC<QuranPageProps> = ({
     return null;
   });
 
-  // Immersive Cinematic Fullscreen Reader State & Mobile Video Studio
+  // Immersive Fullscreen Reader State
   const [isCinematicReaderOpen, setIsCinematicReaderOpen] = useState<boolean>(() => Boolean(startInCinematic));
-  const [isMobileVideoStudioOpen, setIsMobileVideoStudioOpen] = useState<boolean>(false);
 
   // Screen Wake Lock : Empêche la mise en veille de l'écran pendant la lecture et la récitation
-  useWakeLock(isPlayingAudio || isCinematicReaderOpen || isMobileVideoStudioOpen);
+  useWakeLock(isPlayingAudio || isCinematicReaderOpen);
 
   const handleOpenCinematic = () => {
     setIsCinematicReaderOpen(true);
@@ -1143,32 +1140,16 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               </button>
             </div>
 
-            {/* Cinematic Fullscreen Trigger (Desktop/Tablet header; mobile uses prominent Cinéma 4K in Surah banner right below) */}
+            {/* Fullscreen Reader Trigger */}
             <button
               onClick={handleOpenCinematic}
-              aria-label="Mode Cinéma 9:16"
+              aria-label="Lecture plein écran"
               className="hidden sm:flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-[11px] sm:text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0"
-              title="Activer le mode de lecture plein écran immersif et cinématique (sans onglets ni barres)"
+              title="Activer le mode de lecture plein écran immersif (sans onglets ni barres)"
             >
               <Maximize2 className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Plein Écran Cinématique</span>
-              <span className="md:hidden">Cinéma</span>
-            </button>
-
-            {/* Desktop & YouTube Continuous Verse Video Studio Trigger */}
-            <button
-              type="button"
-              data-testid="header-desktop-video-studio-btn"
-              onClick={() => {
-                stopAudio();
-                setIsMobileVideoStudioOpen(true);
-              }}
-              aria-label="Ouvrir le Studio Vidéo Coran"
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md transition-all cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
-              title="Créer des vidéos YouTube (16:9), Shorts (9:16) ou Carré avec plusieurs versets ou toute une sourate"
-            >
-              <Film className="w-3.5 h-3.5 stroke-[2.3]" />
-              <span>Studio Vidéo</span>
+              <span className="hidden md:inline">Lecture plein écran</span>
+              <span className="md:hidden">Plein écran</span>
             </button>
 
           </div>
@@ -1313,20 +1294,7 @@ export const QuranPage: React.FC<QuranPageProps> = ({
                   className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
                 >
                   <Maximize2 className="w-4 h-4 stroke-[2.4]" />
-                  <span>Ouvrir en Plein Écran Cinématique (9:16)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMobileSidebarOpen(false);
-                    stopAudio();
-                    setIsMobileVideoStudioOpen(true);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-black text-xs shadow-md active:scale-98 transition-all cursor-pointer"
-                >
-                  <Film className="w-4 h-4 stroke-[2.4]" />
-                  <span>Créer Vidéo Continue de Versets (9:16)</span>
+                  <span>Ouvrir en Lecture plein écran (9:16)</span>
                 </button>
               </div>
             )}
@@ -1611,10 +1579,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
               isDark={isDark}
               onOpenSurahSelector={() => setIsMobileSidebarOpen(true)}
               onOpenCinematic={handleOpenCinematic}
-              onOpenMobileVideoStudio={() => {
-                stopAudio();
-                setIsMobileVideoStudioOpen(true);
-              }}
             />
 
             {/* Centered Classic Bismillah Calligraphy (Shown for all except At-Tawbah 9) */}
@@ -2596,18 +2560,6 @@ export const QuranPage: React.FC<QuranPageProps> = ({
         onSelectSurah={(num) => handleSelectSurah(num)}
         getAyahAudioUrl={getAyahAudioUrl}
       />
-
-      {/* Continuous Verse Video Creator Studio (9:16 on both PC & Mobile) */}
-      {isMobileVideoStudioOpen && (
-        <MobileVerseVideoStudio
-          isOpen={isMobileVideoStudioOpen}
-          onClose={() => setIsMobileVideoStudioOpen(false)}
-          initialSurahNum={selectedSurahNumber}
-          initialStartAyah={activeAyahNum}
-          initialReciter={selectedReciter}
-          onSyncReciter={onSelectReciter}
-        />
-      )}
     </div>
   );
 };

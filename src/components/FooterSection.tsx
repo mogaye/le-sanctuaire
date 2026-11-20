@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles, QrCode } from 'lucide-react';
+import { ArrowUpRight, Heart, ArrowUp, Compass, BookOpen, Clock, Sparkles, QrCode, AlertCircle } from 'lucide-react';
 import portraitSereinVertBg from '../assets/images/hero/portrait_serein_vert.webp';
 
 export interface FooterSectionProps {
@@ -8,6 +8,7 @@ export interface FooterSectionProps {
   onOpenQibla: () => void;
   onOpenDhikr: () => void;
   onOpenQrCode?: () => void;
+  onOpenReportModal?: () => void;
   showCta?: boolean;
 }
 
@@ -17,6 +18,7 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
   onOpenQibla,
   onOpenDhikr,
   onOpenQrCode,
+  onOpenReportModal,
   showCta = true,
 }) => {
   const scrollToTop = () => {
@@ -191,6 +193,19 @@ export const FooterSection: React.FC<FooterSectionProps> = ({
                     >
                       <QrCode className="w-3.5 h-3.5 text-amber-400" />
                       QR Code d'Accès au Site
+                    </button>
+                  </li>
+                )}
+                {onOpenReportModal && (
+                  <li>
+                    <button
+                      type="button"
+                      data-testid="footer-report-issue-btn"
+                      onClick={onOpenReportModal}
+                      className="hover:text-amber-200 transition-colors cursor-pointer flex items-center gap-1.5 text-left text-amber-200/90 font-semibold"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                      Signaler un problème
                     </button>
                   </li>
                 )}

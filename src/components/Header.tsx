@@ -14,10 +14,15 @@ import {
   Library,
   Heart,
   QrCode,
+  ShieldCheck,
+  Film,
+  Crown,
+  AlertCircle,
 } from 'lucide-react';
 import { CITIES, METHODS, RECITERS } from '../data/islamicData';
 import { CityData, Method, Reciter } from '../types';
 import { CitySelectorModal } from './CitySelectorModal';
+import { isSuperAdminEmail } from '../utils/subscriptionPlans';
 
 interface HeaderProps {
   selectedCity: CityData;
@@ -38,6 +43,10 @@ interface HeaderProps {
   onOpenLibrary?: () => void;
   onOpenDonations?: () => void;
   onOpenQrCode?: () => void;
+  onOpenAdminDashboard?: () => void;
+  onOpenVideoStudio?: () => void;
+  onOpenVideoPlans?: () => void;
+  onOpenReportModal?: () => void;
   isLanding?: boolean;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
@@ -62,10 +71,15 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLibrary,
   onOpenDonations,
   onOpenQrCode,
+  onOpenAdminDashboard,
+  onOpenVideoStudio,
+  onOpenVideoPlans,
+  onOpenReportModal,
   isLanding = false,
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
+  const isSuperAdmin = isSuperAdminEmail(currentUser?.email);
   const [openDropdown, setOpenDropdown] = useState<'city' | 'method' | 'reciter' | 'user' | null>(null);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -291,6 +305,19 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
         )}
+        {isSuperAdmin && onOpenAdminDashboard && (
+          <button
+            type="button"
+            data-testid="header-admin-dashboard-btn"
+            onClick={onOpenAdminDashboard}
+            title="Ouvrir le Dashboard Super Admin"
+            className="inline-flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-full border border-emerald-500/40 shadow-[0_4px_16px_rgba(0,0,0,0.14)] transition-all cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+            <span className="hidden sm:inline">Dashboard Admin</span>
+            <span className="sm:hidden">Admin</span>
+          </button>
+        )}
         {currentUser ? (
           <div className="relative shrink-0">
             <button
@@ -384,6 +411,42 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>Bibliothèque (Livre du Vendredi)</span>
                     </button>
                   )}
+                  {isSuperAdmin && onOpenAdminDashboard && (
+                    <button
+                      onClick={() => {
+                        onOpenAdminDashboard();
+                        setOpenDropdown(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white bg-emerald-800 hover:bg-emerald-700 text-left font-bold cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Dashboard Super Admin</span>
+                    </button>
+                  )}
+                  {onOpenVideoStudio && (
+                    <button
+                      onClick={() => {
+                        onOpenVideoStudio();
+                        setOpenDropdown(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-950 dark:text-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-left font-bold cursor-pointer"
+                    >
+                      <Film className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+                      <span>Créer une vidéo (Studio)</span>
+                    </button>
+                  )}
+                  {onOpenVideoPlans && (
+                    <button
+                      onClick={() => {
+                        onOpenVideoPlans();
+                        setOpenDropdown(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-amber-950 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-left font-semibold cursor-pointer"
+                    >
+                      <Crown className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>Forfaits Vidéo</span>
+                    </button>
+                  )}
                   {onOpenDonations && (
                     <button
                       onClick={() => {
@@ -406,6 +469,18 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-800 dark:text-emerald-400" />
                       <span>Ajuster les Heures de Prière</span>
+                    </button>
+                  )}
+                  {onOpenReportModal && (
+                    <button
+                      onClick={() => {
+                        onOpenReportModal();
+                        setOpenDropdown(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-left font-semibold cursor-pointer"
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+                      <span>Signaler un problème</span>
                     </button>
                   )}
                 </div>

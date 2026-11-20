@@ -1,0 +1,107 @@
+{
+  "users": {
+    "mgaye60000@gmail.com": {
+      "id": "adf9b87e-cf15-4fcc-a76b-2673c0ee74e4",
+      "email": "mgaye60000@gmail.com",
+      "fullName": "Mamadou Gaye",
+      "firstName": "Mamadou",
+      "lastName": "Gaye",
+      "cityName": "Dakar",
+      "role": "admin",
+      "plan": "admin",
+      "videosUsedThisMonth": 0,
+      "totalVideosCreated": 0,
+      "remainingVideos": null,
+      "monthlyLimit": null,
+      "totalAmountPaidFcfa": 0,
+      "timeSpentSeconds": 45,
+      "planPeriodStart": "2026-11-20T12:57:13.339Z",
+      "planUpdatedAt": "2026-11-20T12:57:13.339Z",
+      "lastConnectedAt": "2026-11-20T13:00:26.034Z",
+      "createdAt": "2026-11-20T12:59:25.752Z"
+    },
+    "moussa.diop@test.sn": {
+      "id": "acct_moussa.diop@test.sn",
+      "email": "moussa.diop@test.sn",
+      "fullName": "Moussa Diop",
+      "firstName": "Moussa",
+      "lastName": "Diop",
+      "cityName": "Dakar",
+      "role": "user",
+      "plan": "pro",
+      "videosUsedThisMonth": 0,
+      "totalVideosCreated": 0,
+      "remainingVideos": 60,
+      "monthlyLimit": 60,
+      "totalAmountPaidFcfa": 5000,
+      "timeSpentSeconds": 0,
+      "planPeriodStart": "2026-11-20T12:59:39.412Z",
+      "planUpdatedAt": "2026-11-20T12:59:39.412Z",
+      "lastConnectedAt": "2026-11-20T12:59:22.001Z",
+      "createdAt": "2026-11-20T12:59:22.001Z"
+    },
+    "amina.fall@test.sn": {
+      "id": "acct_amina.fall@test.sn",
+      "email": "amina.fall@test.sn",
+      "fullName": "Amina Fall",
+      "firstName": "Amina",
+      "lastName": "Fall",
+      "cityName": "Dakar",
+      "role": "user",
+      "plan": "test",
+      "videosUsedThisMonth": 1,
+      "totalVideosCreated": 1,
+      "remainingVideos": 2,
+      "monthlyLimit": 3,
+      "totalAmountPaidFcfa": 0,
+      "timeSpentSeconds": 0,
+      "planPeriodStart": "2026-11-20T13:01:43.954Z",
+      "planUpdatedAt": "2026-11-20T13:01:43.954Z",
+      "lastConnectedAt": "2026-11-20T13:01:58.579Z",
+      "createdAt": "2026-11-20T13:01:43.954Z"
+    }
+  },
+  "videos": [
+    {
+      "id": "vid_1795179718579_xx94j",
+      "userEmail": "amina.fall@test.sn",
+      "userName": "Amina Fall",
+      "planAtCreation": "test",
+      "surahSummary": "Saint Coran",
+      "verseCount": 3,
+      "quality": "720p",
+      "aspectRatio": "9:16",
+      "hadWatermark": true,
+      "durationSec": 0,
+      "createdAt": "2026-11-20T13:01:58.579Z"
+    }
+  ],
+  "reports": [
+    {
+      "id": "rep_1795179561801_i25r",
+      "reporterEmail": "visiteur@sanctuaire.app",
+      "reporterName": "Visiteur",
+      "category": "bug",
+      "subject": "Vérification audio Sourate Al-Kahf",
+      "description": "Test automatisé de signalement utilisateur.",
+      "pageContext": "home",
+      "status": "open",
+      "createdAt": "2026-11-20T12:59:21.801Z",
+      "updatedAt": "2026-11-20T12:59:21.801Z"
+    }
+  ],
+  "daily": {
+    "2026-11-20": {
+      "visits": 4,
+      "signups": 2,
+      "paidUpgrades": 1,
+      "videosCreated": 1
+    }
+  },
+  "knownVisitSessions": [
+    "2026-11-20_sess-mwozhfud-f7yqpl",
+    "2026-11-20_sess-mwozhfud-f7yqpl",
+    "2026-11-20_sess-mwozmz4o-rwki03",
+    "2026-11-20_sess-mwozmz4o-rwki03"
+  ]
+}

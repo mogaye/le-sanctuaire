@@ -36,6 +36,14 @@ export const profiles = pgTable('profiles', {
   country: text('country').default('Sénégal'),
   calculationMethod: text('calculation_method').default('MuslimWorldLeague'),
   themePreference: text('theme_preference').default('dark'),
+  role: text('role').default('user'),
+  plan: text('plan').default('test'),
+  videosUsedThisMonth: integer('videos_used_this_month').default(0).notNull(),
+  totalVideosCreated: integer('total_videos_created').default(0).notNull(),
+  totalAmountPaidFcfa: numeric('total_amount_paid_fcfa', { precision: 12, scale: 2 }).default('0').notNull(),
+  timeSpentSeconds: integer('time_spent_seconds').default(0).notNull(),
+  planPeriodStart: timestamp('plan_period_start').defaultNow().notNull(),
+  planUpdatedAt: timestamp('plan_updated_at').defaultNow().notNull(),
   lastConnectedAt: timestamp('last_connected_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -106,6 +114,46 @@ export const emailLogs = pgTable('email_logs', {
   emailType: text('email_type').default('general').notNull(), // 'verification', 'welcome', 'notification'
   status: text('status').default('sent').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// 8. Table: video_creations (Created & saved Quran videos ledger)
+export const videoCreations = pgTable('video_creations', {
+  id: serial('id').primaryKey(),
+  userEmail: text('user_email').notNull(),
+  userName: text('user_name'),
+  planAtCreation: text('plan_at_creation').default('test').notNull(),
+  surahSummary: text('surah_summary').notNull(),
+  verseCount: integer('verse_count').default(1).notNull(),
+  quality: text('quality').default('720p').notNull(),
+  aspectRatio: text('aspect_ratio').default('9:16').notNull(),
+  hadWatermark: boolean('had_watermark').default(true).notNull(),
+  durationSec: integer('duration_sec').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// 9. Table: user_reports (Signalements & retours utilisateurs)
+export const userReports = pgTable('user_reports', {
+  id: serial('id').primaryKey(),
+  reporterEmail: text('reporter_email'),
+  reporterName: text('reporter_name'),
+  category: text('category').default('bug').notNull(),
+  subject: text('subject').notNull(),
+  description: text('description').notNull(),
+  pageContext: text('page_context').default('accueil').notNull(),
+  status: text('status').default('open').notNull(), // 'open', 'in_progress', 'resolved'
+  adminNote: text('admin_note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// 10. Table: site_analytics_daily (Courbes journalières : visites, comptes, comptes payants, vidéos)
+export const siteAnalyticsDaily = pgTable('site_analytics_daily', {
+  date: text('date').primaryKey(), // YYYY-MM-DD
+  visits: integer('visits').default(0).notNull(),
+  signups: integer('signups').default(0).notNull(),
+  paidUpgrades: integer('paid_upgrades').default(0).notNull(),
+  videosCreated: integer('videos_created').default(0).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const usersRelations = relations(users, ({ many }) => ({

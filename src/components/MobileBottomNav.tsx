@@ -382,7 +382,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             {/* Grille des Espaces */}
             <div className="grid grid-cols-2 gap-2.5 pt-1">
-              {/* Plein Écran Cinématique Coran */}
+              {/* Lecture plein écran — Coran */}
               {onOpenCinematicQuran && (
                 <button
                   type="button"
@@ -398,7 +398,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <span className="block text-xs font-black text-amber-950 dark:text-amber-300 truncate">
-                        Plein Écran Cinématique Coran
+                        Lecture plein écran — Coran
                       </span>
                       <span className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 bg-amber-400/20 px-1.5 py-0.5 rounded-full border border-amber-400/30">
                         4K

@@ -28,6 +28,11 @@ import {
   Library,
   Share2,
   Bell,
+  Film,
+  Crown,
+  ShieldCheck,
+  AlertCircle,
+  Maximize2,
 } from 'lucide-react';
 import { Header } from './Header';
 import { MobileHomeScreen } from './MobileHomeScreen';
@@ -36,6 +41,8 @@ import { PrayerShareCardModal } from './PrayerShareCardModal';
 import { CITIES, PRAYERS, computeDynamicCityPrayers } from '../data/islamicData';
 import { SPIRITUAL_VERSES } from '../data/spiritualVerses';
 import { CityData, Method, Reciter, UserProfile } from '../types';
+import { SubscriptionStatusDTO } from '../lib/supabase';
+import { getPlanRules, isSuperAdminEmail } from '../utils/subscriptionPlans';
 import {
   getCityCurrentDate,
   formatDateFrench,
@@ -80,6 +87,11 @@ interface HomePageProps {
   onOpenAdhanModal?: () => void;
   isDarkMode?: boolean;
   onToggleDarkMode?: () => void;
+  subscriptionStatus?: SubscriptionStatusDTO | null;
+  onOpenVideoStudio?: () => void;
+  onOpenVideoPlans?: () => void;
+  onOpenAdminDashboard?: () => void;
+  onOpenReportModal?: () => void;
 }
 
 const dhikrOptions = [
@@ -139,8 +151,23 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenAdhanModal,
   isDarkMode = true,
   onToggleDarkMode,
+  subscriptionStatus,
+  onOpenVideoStudio,
+  onOpenVideoPlans,
+  onOpenAdminDashboard,
+  onOpenReportModal,
 }) => {
   const { isMobile: isMobileDevice } = useMobileDevice();
+  const isSuperAdmin = isSuperAdminEmail(currentUser?.email);
+  const activePlanId = isSuperAdmin ? 'admin' : subscriptionStatus?.plan || 'test';
+  const activePlanRules = getPlanRules(activePlanId);
+  const studioQuotaSummary = isSuperAdmin
+    ? 'Illimité — Admin (4K, sans filigrane)'
+    : !currentUser?.email
+    ? 'Connexion requise — Essai 3 vidéos offert'
+    : !Number.isFinite(activePlanRules.monthlyLimit)
+    ? 'Illimité — Forfait MAX (4K, sans filigrane)'
+    : `${subscriptionStatus?.remainingVideos ?? activePlanRules.monthlyLimit} / ${activePlanRules.monthlyLimit} vidéos restantes (${activePlanRules.name})`;
   const [cityNow, setCityNow] = useState<Date>(() => getCityCurrentDate(selectedCity.timezone));
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSharePosterOpen, setIsSharePosterOpen] = useState(false);
@@ -471,6 +498,11 @@ export const HomePage: React.FC<HomePageProps> = ({
           onGoToLanding={onGoToLanding}
           isDarkMode={isDarkMode}
           onToggleDarkMode={onToggleDarkMode}
+          subscriptionStatus={subscriptionStatus}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onOpenVideoPlans={onOpenVideoPlans}
+          onOpenAdminDashboard={onOpenAdminDashboard}
+          onOpenReportModal={onOpenReportModal}
         />
       ) : (
         <div>
@@ -492,6 +524,10 @@ export const HomePage: React.FC<HomePageProps> = ({
           onLogout={onLogout}
           onGoToHome={onGoToLanding}
           onOpenPrayerSettings={() => setIsSettingsOpen(true)}
+          onOpenAdminDashboard={onOpenAdminDashboard}
+          onOpenVideoStudio={onOpenVideoStudio}
+          onOpenVideoPlans={onOpenVideoPlans}
+          onOpenReportModal={onOpenReportModal}
           isLanding={false}
           isDarkMode={isDarkMode}
           onToggleDarkMode={onToggleDarkMode}
@@ -658,6 +694,111 @@ export const HomePage: React.FC<HomePageProps> = ({
                   <span>Ouvrir le Coran</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
+              </div>
+            </section>
+          </div>
+
+          {/* ================= ACCUEIL STUDIO VIDÉO & LECTURE PLEIN ÉCRAN ================= */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Primary Card: Créer une vidéo (Video Studio moved to Accueil) */}
+            <section className="lg:col-span-7 bg-white/95 dark:bg-[#193226]/95 rounded-[28px] p-6 border border-emerald-500/25 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4 min-w-0">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shrink-0">
+                  <Film className="w-6 h-6" />
+                </div>
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base font-extrabold text-neutral-900 dark:text-white tracking-tight">
+                      Studio Vidéo Coran
+                    </h2>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300/60 dark:border-emerald-700/60">
+                      Forfait {activePlanRules.name}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-600 dark:text-emerald-100/80">
+                    Créez vos vidéos de versets (9:16, 1:1, 16:9) directement depuis l’Accueil.
+                  </p>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-amber-300 tabular-nums">
+                    {studioQuotaSummary}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                {onOpenVideoStudio && (
+                  <button
+                    type="button"
+                    data-testid="home-create-video-btn"
+                    onClick={onOpenVideoStudio}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Créer une vidéo</span>
+                  </button>
+                )}
+                {onOpenVideoPlans && (
+                  <button
+                    type="button"
+                    data-testid="home-video-plans-btn"
+                    onClick={onOpenVideoPlans}
+                    className="px-3.5 py-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 text-amber-900 dark:text-amber-200 border border-amber-300/60 dark:border-amber-600/40 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                    <span>Forfaits Vidéo</span>
+                  </button>
+                )}
+              </div>
+            </section>
+
+            {/* Secondary Card: Lecture plein écran + Admin / Signalement */}
+            <section className="lg:col-span-5 bg-white/95 dark:bg-[#193226]/95 rounded-[28px] p-6 border border-neutral-200/90 dark:border-emerald-500/25 shadow-sm flex flex-col justify-between gap-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/40 flex items-center justify-center shrink-0">
+                    <Maximize2 className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-extrabold text-neutral-900 dark:text-white">
+                      Lecture plein écran
+                    </h3>
+                    <p className="text-xs text-neutral-600 dark:text-emerald-100/75 truncate">
+                      Coran immersif avec Tajweed, traduction et récitation.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  data-testid="home-fullscreen-quran-btn"
+                  onClick={() => (onOpenCinematicQuran ? onOpenCinematicQuran() : onOpenQuran())}
+                  className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 text-xs font-extrabold transition cursor-pointer shrink-0 whitespace-nowrap"
+                >
+                  Ouvrir
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-neutral-200/70 dark:border-emerald-500/20">
+                {onOpenReportModal && (
+                  <button
+                    type="button"
+                    data-testid="home-report-issue-btn"
+                    onClick={onOpenReportModal}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 dark:text-emerald-200/80 hover:text-rose-600 dark:hover:text-rose-300 cursor-pointer"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>Signaler un problème</span>
+                  </button>
+                )}
+                {isSuperAdmin && onOpenAdminDashboard && (
+                  <button
+                    type="button"
+                    data-testid="home-admin-dashboard-btn"
+                    onClick={onOpenAdminDashboard}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer whitespace-nowrap ml-auto"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Dashboard Admin</span>
+                  </button>
+                )}
               </div>
             </section>
           </div>

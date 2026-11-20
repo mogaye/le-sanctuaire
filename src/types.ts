@@ -55,6 +55,8 @@ export interface DhikrItem {
   category: 'matin' | 'soir' | 'tasbih' | 'apres_priere';
 }
 
+import type { SubscriptionPlanId } from './utils/subscriptionPlans';
+
 export interface UserProfile {
   id?: string;
   name: string;
@@ -63,4 +65,6 @@ export interface UserProfile {
   lastName?: string;
   avatarUrl?: string;
   city?: string;
+  role?: 'admin' | 'user';
+  plan?: SubscriptionPlanId;
 }

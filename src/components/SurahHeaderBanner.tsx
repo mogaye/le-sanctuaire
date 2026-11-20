@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Volume2, ChevronDown, Maximize2, Film } from 'lucide-react';
+import { Play, Pause, Volume2, ChevronDown, Maximize2 } from 'lucide-react';
 import { CompleteSurahItem } from '../data/quranSurahs';
 
 interface SurahHeaderBannerProps {
@@ -10,7 +10,6 @@ interface SurahHeaderBannerProps {
   isDark?: boolean;
   onOpenSurahSelector?: () => void;
   onOpenCinematic?: () => void;
-  onOpenMobileVideoStudio?: () => void;
 }
 
 export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
@@ -21,7 +20,6 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
   isDark = false,
   onOpenSurahSelector,
   onOpenCinematic,
-  onOpenMobileVideoStudio,
 }) => {
   return (
     <div
@@ -73,27 +71,11 @@ export const SurahHeaderBanner: React.FC<SurahHeaderBannerProps> = ({
                   onOpenCinematic();
                 }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-neutral-950 active:scale-95 shrink-0"
-                title="Lire en mode plein écran immersif et cinématique"
+                title="Lire en mode lecture plein écran immersif"
               >
                 <Maximize2 className="w-3.5 h-3.5 stroke-[2.3]" />
-                <span className="hidden md:inline">Plein Écran Cinématique</span>
-                <span className="md:hidden">Cinéma 4K</span>
-              </button>
-            )}
-            {onOpenMobileVideoStudio && (
-              <button
-                type="button"
-                data-testid="surah-banner-mobile-video-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenMobileVideoStudio();
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black transition cursor-pointer shadow-xs bg-emerald-500 hover:bg-emerald-400 text-neutral-950 active:scale-95 shrink-0"
-                title="Créer une vidéo continue 9:16 à partir de versets"
-              >
-                <Film className="w-3.5 h-3.5 stroke-[2.3]" />
-                <span className="hidden md:inline">Créer Vidéo 9:16</span>
-                <span className="md:hidden">Créer Vidéo</span>
+                <span className="hidden md:inline">Lecture plein écran</span>
+                <span className="md:hidden">Plein écran</span>
               </button>
             )}
             {onOpenSurahSelector && (

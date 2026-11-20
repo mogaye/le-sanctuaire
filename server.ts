@@ -24,6 +24,24 @@ import {
   getDonorReviewsFromDb,
   type DonorReviewRecord,
 } from './src/db/users.ts';
+import {
+  syncAnalyticsProfileOnConnect,
+  recordVisitorHeartbeat,
+  getUserSubscriptionStatus,
+  recordCreatedVideoForUser,
+  setUserPlanForAccount,
+  createUserReport,
+  listUserReports,
+  updateUserReportStatus,
+  mergeExternalProfilesIntoAnalytics,
+  buildAdminOverviewPayload,
+} from './src/db/adminAnalytics.ts';
+import {
+  VIDEO_PLANS,
+  isSuperAdminEmail,
+  normalizePlanId,
+  type StudioQualityTier,
+} from './src/utils/subscriptionPlans.ts';
 
 dotenv.config();
 
@@ -408,6 +426,24 @@ async function startServer() {
     }
   };
 
+  const querySupabaseRest = async (table: string, query = 'select=*&limit=500'): Promise<any[]> => {
+    const creds = getServerSupabaseCreds();
+    if (!creds) return [];
+    try {
+      const res = await fetch(`${creds.url}/rest/v1/${table}?${query}`, {
+        headers: {
+          apikey: creds.key,
+          Authorization: `Bearer ${creds.key}`,
+        },
+      });
+      if (!res.ok) return [];
+      const rows = await res.json().catch(() => []);
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return [];
+    }
+  };
+
   // Synchronize or register a connected profile in the PostgreSQL database (both users and profiles)
   app.post('/api/accounts/sync', async (req, res) => {
     try {
@@ -429,6 +465,15 @@ async function startServer() {
         lastName: resolvedLast,
         avatarUrl,
         cityName,
+      });
+
+      const analyticsProfile = await syncAnalyticsProfileOnConnect({
+        id: resolvedId,
+        email: cleanEmail,
+        fullName: resolvedFull,
+        firstName: resolvedFirst,
+        lastName: resolvedLast,
+        cityName: cityName || 'Dakar',
       });
 
       // Mirror to Supabase REST API if key is present in env
@@ -457,6 +502,12 @@ async function startServer() {
             last_name: resolvedLast,
             avatar_url: avatarUrl || null,
             city_name: cityName || 'Dakar',
+            role: analyticsProfile.role,
+            plan: analyticsProfile.plan,
+            videos_used_this_month: analyticsProfile.videosUsedThisMonth,
+            total_videos_created: analyticsProfile.totalVideosCreated,
+            total_amount_paid_fcfa: analyticsProfile.totalAmountPaidFcfa,
+            time_spent_seconds: analyticsProfile.timeSpentSeconds,
             last_connected_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           },
@@ -464,7 +515,7 @@ async function startServer() {
         ),
       ]);
 
-      res.json({ profile });
+      res.json({ profile: { ...profile, ...analyticsProfile } });
     } catch (error: any) {
       console.error('Failed to sync account:', error);
       res.status(500).json({ error: error.message || 'Failed to sync account' });
@@ -1686,6 +1737,309 @@ async function startServer() {
         response_code: '01',
         response_text: error?.message || 'Erreur serveur PayDunya',
       });
+    }
+  });
+
+  // ============================================================================
+  // 4B. VIDEO SUBSCRIPTION TIERS, ANALYTICS HEARTBEAT, REPORTS & SUPER ADMIN
+  // ============================================================================
+
+  app.post('/api/analytics/heartbeat', async (req, res) => {
+    try {
+      const { sessionId, email, view, deltaSec, isNewVisit } = req.body || {};
+      const result = await recordVisitorHeartbeat({
+        sessionId: String(sessionId || ''),
+        email: email ? String(email) : undefined,
+        view: view ? String(view) : undefined,
+        deltaSec: Number(deltaSec) || 0,
+        isNewVisit: Boolean(isNewVisit),
+      });
+      res.json({ ok: true, activeVisitors: result.activeVisitors });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Heartbeat error' });
+    }
+  });
+
+  app.get('/api/subscription/status', async (req, res) => {
+    try {
+      const email = typeof req.query.email === 'string' ? req.query.email : undefined;
+      if (email && email.includes('@')) {
+        const cleanEmail = email.trim().toLowerCase();
+        const remoteRows = await querySupabaseRest(
+          'profiles',
+          `email=ilike.${encodeURIComponent(cleanEmail)}&limit=1`
+        );
+        if (remoteRows.length > 0) {
+          await mergeExternalProfilesIntoAnalytics(remoteRows);
+        }
+      }
+      const status = await getUserSubscriptionStatus(email);
+      res.json({ ok: true, status });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Failed to load subscription status' });
+    }
+  });
+
+  app.post('/api/subscription/record-video', async (req, res) => {
+    try {
+      const {
+        email,
+        userName,
+        surahSummary,
+        verseCount,
+        quality,
+        aspectRatio,
+        hasCustomLogo,
+        durationSec,
+      } = req.body || {};
+
+      if (!email || !String(email).includes('@')) {
+        return res.status(401).json({
+          ok: false,
+          reasonCode: 'AUTH_REQUIRED',
+          error: 'Créez ou connectez votre compte pour créer une vidéo.',
+        });
+      }
+
+      const result = await recordCreatedVideoForUser({
+        email: String(email),
+        userName: userName ? String(userName) : undefined,
+        surahSummary: String(surahSummary || 'Saint Coran'),
+        verseCount: Number(verseCount) || 1,
+        quality: (String(quality || '720p') as StudioQualityTier),
+        aspectRatio: String(aspectRatio || '9:16'),
+        hasCustomLogo: Boolean(hasCustomLogo),
+        durationSec: Number(durationSec) || 0,
+      });
+
+      if (!result.ok) {
+        return res.status(403).json(result);
+      }
+
+      const cleanEmail = String(email).trim().toLowerCase();
+      await Promise.all([
+        mirrorToSupabaseRest(
+          'profiles',
+          {
+            id: `acct_${cleanEmail}`,
+            email: cleanEmail,
+            plan: result.status.plan,
+            role: result.status.role,
+            videos_used_this_month: result.status.videosUsedThisMonth,
+            total_videos_created: result.status.totalVideosCreated,
+            updated_at: new Date().toISOString(),
+          },
+          'email'
+        ),
+        mirrorToSupabaseRest('video_creations', {
+          user_email: cleanEmail,
+          user_name: result.record?.userName || cleanEmail.split('@')[0],
+          plan_at_creation: result.status.plan,
+          surah_summary: result.record?.surahSummary || 'Saint Coran',
+          verse_count: result.record?.verseCount || 1,
+          quality: result.record?.quality || '720p',
+          aspect_ratio: result.record?.aspectRatio || '9:16',
+          had_watermark: Boolean(result.record?.hadWatermark),
+          duration_sec: result.record?.durationSec || 0,
+        }),
+      ]);
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur lors de l’enregistrement vidéo.' });
+    }
+  });
+
+  app.post('/api/subscription/upgrade', async (req, res) => {
+    try {
+      const { email, plan, provider, transactionReference } = req.body || {};
+      const cleanEmail = String(email || '').trim().toLowerCase();
+      if (!cleanEmail || !cleanEmail.includes('@')) {
+        return res.status(401).json({ ok: false, error: 'Connexion au compte requise avant activation.' });
+      }
+      const targetPlan = normalizePlanId(plan);
+      if (targetPlan !== 'basique' && targetPlan !== 'pro' && targetPlan !== 'max') {
+        return res.status(400).json({ ok: false, error: 'Forfait payant invalide (basique, pro ou max).' });
+      }
+      const planSpec = VIDEO_PLANS[targetPlan];
+      const updatedUser = await setUserPlanForAccount({
+        targetEmail: cleanEmail,
+        newPlan: targetPlan,
+        addPaymentFcfa: planSpec.priceFcfa,
+        resetMonthlyQuota: true,
+      });
+
+      const txRef = transactionReference || `SUB-${targetPlan.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+      await Promise.all([
+        mirrorToSupabaseRest(
+          'profiles',
+          {
+            id: updatedUser.id,
+            email: cleanEmail,
+            plan: updatedUser.plan,
+            role: updatedUser.role,
+            videos_used_this_month: updatedUser.videosUsedThisMonth,
+            total_amount_paid_fcfa: updatedUser.totalAmountPaidFcfa,
+            plan_period_start: updatedUser.planPeriodStart,
+            plan_updated_at: updatedUser.planUpdatedAt,
+            updated_at: new Date().toISOString(),
+          },
+          'email'
+        ),
+        mirrorToSupabaseRest('donations', {
+          user_id: updatedUser.id,
+          amount: planSpec.priceFcfa,
+          currency: 'XOF',
+          provider: provider || 'wave',
+          status: 'succeeded',
+          cause: `Abonnement Vidéo ${planSpec.name} - Le Sanctuaire`,
+          donor_name: updatedUser.fullName,
+          donor_email: cleanEmail,
+          transaction_reference: txRef,
+        }),
+      ]);
+
+      const status = await getUserSubscriptionStatus(cleanEmail);
+      res.json({ ok: true, user: updatedUser, status, transactionReference: txRef });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur activation forfait.' });
+    }
+  });
+
+  app.get('/api/reports', async (req, res) => {
+    try {
+      const reports = await listUserReports();
+      res.json({ ok: true, reports });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Failed to fetch reports', reports: [] });
+    }
+  });
+
+  app.post('/api/reports', async (req, res) => {
+    try {
+      const { reporterEmail, reporterName, category, subject, description, pageContext } = req.body || {};
+      if (!subject || !String(subject).trim() || !description || !String(description).trim()) {
+        return res.status(400).json({ ok: false, error: 'Veuillez renseigner un objet et une description.' });
+      }
+      const report = await createUserReport({
+        reporterEmail,
+        reporterName,
+        category,
+        subject: String(subject),
+        description: String(description),
+        pageContext: pageContext ? String(pageContext) : 'accueil',
+      });
+      await mirrorToSupabaseRest('user_reports', {
+        reporter_email: report.reporterEmail,
+        reporter_name: report.reporterName,
+        category: report.category,
+        subject: report.subject,
+        description: report.description,
+        page_context: report.pageContext,
+        status: report.status,
+      });
+      res.json({ ok: true, report });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur lors de l’envoi du signalement.' });
+    }
+  });
+
+  app.patch('/api/reports/:id', async (req, res) => {
+    try {
+      const { adminEmail, status, adminNote } = req.body || {};
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au Super Admin.' });
+      }
+      const updated = await updateUserReportStatus(
+        String(req.params.id),
+        (status as any) || 'resolved',
+        adminNote
+      );
+      res.json({ ok: true, report: updated });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur mise à jour signalement.' });
+    }
+  });
+
+  app.get('/api/admin/overview', async (req, res) => {
+    try {
+      const adminEmail = String(req.query.adminEmail || req.headers['x-admin-email'] || '');
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au compte Super Admin.' });
+      }
+      const [externalProfiles, externalVideos, externalReports, externalDaily] = await Promise.all([
+        querySupabaseRest('profiles', 'select=*&order=last_connected_at.desc&limit=500'),
+        querySupabaseRest('video_creations', 'select=*&order=created_at.desc&limit=500'),
+        querySupabaseRest('user_reports', 'select=*&order=created_at.desc&limit=200'),
+        querySupabaseRest('site_analytics_daily', 'select=*&order=date.desc&limit=30'),
+      ]);
+      const overview = await buildAdminOverviewPayload({
+        externalProfiles,
+        externalVideos,
+        externalReports,
+        externalDaily,
+      });
+      res.json({ ok: true, supabaseConnected: Boolean(getServerSupabaseCreds()), ...overview });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur chargement tableau admin.' });
+    }
+  });
+
+  app.get('/api/admin/users', async (req, res) => {
+    try {
+      const adminEmail = String(req.query.adminEmail || req.headers['x-admin-email'] || '');
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au compte Super Admin.' });
+      }
+      const externalProfiles = await querySupabaseRest('profiles', 'select=*&order=last_connected_at.desc&limit=500');
+      const users = await mergeExternalProfilesIntoAnalytics(externalProfiles);
+      res.json({ ok: true, users });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur chargement utilisateurs.', users: [] });
+    }
+  });
+
+  app.post('/api/admin/users/:email/plan', async (req, res) => {
+    try {
+      const targetEmail = decodeURIComponent(req.params.email || '').trim().toLowerCase();
+      const { adminEmail, plan, recordPayment } = req.body || {};
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au compte Super Admin.' });
+      }
+      const normalized = normalizePlanId(plan);
+      const addPaymentFcfa = recordPayment ? VIDEO_PLANS[normalized]?.priceFcfa || 0 : 0;
+      const updatedUser = await setUserPlanForAccount({
+        targetEmail,
+        newPlan: normalized,
+        addPaymentFcfa,
+        resetMonthlyQuota: true,
+      });
+
+      await mirrorToSupabaseRest(
+        'profiles',
+        {
+          id: updatedUser.id,
+          email: targetEmail,
+          full_name: updatedUser.fullName,
+          first_name: updatedUser.firstName,
+          last_name: updatedUser.lastName,
+          city_name: updatedUser.cityName,
+          role: updatedUser.role,
+          plan: updatedUser.plan,
+          videos_used_this_month: updatedUser.videosUsedThisMonth,
+          total_videos_created: updatedUser.totalVideosCreated,
+          total_amount_paid_fcfa: updatedUser.totalAmountPaidFcfa,
+          time_spent_seconds: updatedUser.timeSpentSeconds,
+          plan_period_start: updatedUser.planPeriodStart,
+          plan_updated_at: updatedUser.planUpdatedAt,
+          updated_at: new Date().toISOString(),
+        },
+        'email'
+      );
+
+      res.json({ ok: true, user: updatedUser });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur autorisation forfait.' });
     }
   });
 
