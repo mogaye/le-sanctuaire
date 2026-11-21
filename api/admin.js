@@ -1,4 +1,5 @@
 import {
+  fetchSupabaseAuthUsers,
   getSupabaseCreds,
   parseRequestBody,
   supabasePatch,
@@ -43,9 +44,10 @@ function pruneActiveSessions(now = Date.now()) {
 }
 
 async function fetchMergedUsers() {
-  const [profiles, users, subStateMap, videos, videoLogs, donations] = await Promise.all([
+  const [profiles, users, authUsers, subStateMap, videos, videoLogs, donations] = await Promise.all([
     supabaseSelect('profiles', 'select=*&order=last_connected_at.desc&limit=500'),
     supabaseSelect('users', 'select=*&order=updated_at.desc&limit=500'),
+    fetchSupabaseAuthUsers(),
     loadSubStateMapFromEmailLogs(),
     supabaseSelect('video_creations', 'select=*&order=created_at.desc&limit=500'),
     supabaseSelect('email_logs', 'email_type=eq.video_creation&order=created_at.desc&limit=500'),
@@ -74,6 +76,33 @@ async function fetchMergedUsers() {
     lastConnectedAt: new Date().toISOString(),
     createdAt: '2026-09-17T23:01:43.333Z',
   });
+
+  // Merge Supabase Auth (auth.users) when SUPABASE_SERVICE_ROLE_KEY is configured
+  for (const au of authUsers) {
+    const cleanEmail = String(au?.email || '').trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) continue;
+    const prev = userMap.get(cleanEmail) || {};
+    const meta = au.user_metadata || au.raw_user_meta_data || {};
+    const fullName = meta.full_name || meta.name || prev.fullName || cleanEmail.split('@')[0];
+    userMap.set(cleanEmail, {
+      id: au.id || prev.id || `acct_${cleanEmail}`,
+      email: cleanEmail,
+      fullName,
+      firstName: meta.first_name || prev.firstName || fullName.split(' ')[0] || 'Fidèle',
+      lastName: meta.last_name || prev.lastName || fullName.split(' ').slice(1).join(' ') || '',
+      cityName: prev.cityName || 'Dakar',
+      role: isSuperAdminEmail(cleanEmail) ? 'admin' : 'user',
+      plan: getEffectivePlanId(cleanEmail, prev.plan || 'test'),
+      videosUsedThisMonth: prev.videosUsedThisMonth || 0,
+      totalVideosCreated: prev.totalVideosCreated || 0,
+      totalAmountPaidFcfa: prev.totalAmountPaidFcfa || 0,
+      timeSpentSeconds: prev.timeSpentSeconds || 0,
+      planPeriodStart: prev.planPeriodStart || au.created_at || new Date().toISOString(),
+      planUpdatedAt: prev.planUpdatedAt || au.last_sign_in_at || au.created_at || new Date().toISOString(),
+      lastConnectedAt: au.last_sign_in_at || au.updated_at || prev.lastConnectedAt || au.created_at || new Date().toISOString(),
+      createdAt: au.created_at || prev.createdAt || new Date().toISOString(),
+    });
+  }
 
   for (const u of users) {
     const cleanEmail = String(u.email || '').trim().toLowerCase();
@@ -652,6 +681,68 @@ export default async function handler(req, res) {
           remainingVideos: dto.remainingVideos,
           monthlyLimit: dto.monthlyLimit,
         },
+      });
+    }
+
+    // 7. POST /api/admin?action=resync
+    if (action === 'resync' || urlStr.includes('/resync')) {
+      if (req.method !== 'POST') {
+        return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+      }
+      const body = await parseRequestBody(req);
+      const adminEmail = String(body.adminEmail || req.headers['x-admin-email'] || '');
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au Super Admin.' });
+      }
+
+      const creds = getSupabaseCreds();
+      const extraAccounts = Array.isArray(body.accounts) ? body.accounts : [];
+      const authUsers = await fetchSupabaseAuthUsers();
+      const mergedMap = new Map();
+
+      for (const au of authUsers) {
+        const em = String(au?.email || '').trim().toLowerCase();
+        if (!em || !em.includes('@')) continue;
+        const meta = au.user_metadata || au.raw_user_meta_data || {};
+        mergedMap.set(em, {
+          id: au.id,
+          email: em,
+          fullName: meta.full_name || meta.name || em.split('@')[0],
+          firstName: meta.first_name,
+          lastName: meta.last_name,
+          cityName: 'Dakar',
+        });
+      }
+
+      for (const acc of extraAccounts) {
+        const em = String(acc?.email || '').trim().toLowerCase();
+        if (!em || !em.includes('@')) continue;
+        const prev = mergedMap.get(em) || {};
+        mergedMap.set(em, {
+          id: acc.id || prev.id,
+          email: em,
+          fullName: acc.fullName || acc.full_name || prev.fullName || em.split('@')[0],
+          firstName: acc.firstName || acc.first_name || prev.firstName,
+          lastName: acc.lastName || acc.last_name || prev.lastName,
+          cityName: acc.cityName || acc.city_name || prev.cityName || 'Dakar',
+          plan: acc.plan || prev.plan,
+          role: acc.role || prev.role,
+        });
+      }
+
+      let syncedToSupabase = 0;
+      for (const item of mergedMap.values()) {
+        const resUpsert = await upsertUserAndProfileInSupabase(item);
+        if (resUpsert?.supabaseUsersSaved || resUpsert?.supabaseProfilesSaved) {
+          syncedToSupabase += 1;
+        }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        supabaseConnected: Boolean(creds),
+        totalProcessed: mergedMap.size,
+        syncedToSupabase,
       });
     }
 

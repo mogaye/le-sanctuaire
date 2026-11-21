@@ -47,6 +47,22 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Email is required' });
       }
 
+      const creds = Boolean(
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+          process.env.VITE_SUPABASE_ANON_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          process.env.SUPABASE_ANON_KEY
+      );
+
+      let isNewAccount = false;
+      if (creds) {
+        const existingProf = await supabaseSelect(
+          'profiles',
+          `email=ilike.${encodeURIComponent(String(email).trim().toLowerCase())}&limit=1`
+        );
+        isNewAccount = existingProf.length === 0;
+      }
+
       const profile = await upsertUserAndProfileInSupabase({
         id,
         email,
@@ -59,9 +75,20 @@ export default async function handler(req, res) {
         country: country || 'Sénégal',
         calculationMethod: calculationMethod || 'MuslimWorldLeague',
         themePreference: themePreference || 'dark',
+        role: body?.role,
+        plan: body?.plan,
       });
 
-      return res.status(200).json({ profile });
+      if (isNewAccount) {
+        const { incrementDailyAnalytics } = await import('./_analytics.js');
+        await incrementDailyAnalytics('signups', 1).catch(() => {});
+      }
+
+      return res.status(200).json({
+        profile,
+        supabaseUsersSaved: Boolean(profile?.supabaseUsersSaved),
+        supabaseProfilesSaved: Boolean(profile?.supabaseProfilesSaved),
+      });
     } catch (err) {
       return res.status(500).json({ error: err?.message || 'Failed to sync account' });
     }

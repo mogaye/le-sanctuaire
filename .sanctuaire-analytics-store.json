@@ -14,11 +14,11 @@
       "remainingVideos": null,
       "monthlyLimit": null,
       "totalAmountPaidFcfa": 0,
-      "timeSpentSeconds": 90,
+      "timeSpentSeconds": 120,
       "planPeriodStart": "2026-11-20T12:57:13.339Z",
       "planUpdatedAt": "2026-11-20T12:57:13.339Z",
-      "lastConnectedAt": "2026-11-20T13:16:57.200Z",
-      "createdAt": "2026-11-20T13:15:42.603Z"
+      "lastConnectedAt": "2026-11-21T19:22:31.137Z",
+      "createdAt": "2026-11-21T19:22:30.536Z"
     },
     "moussa.diop@test.sn": {
       "id": "acct_moussa.diop@test.sn",
@@ -37,7 +37,7 @@
       "timeSpentSeconds": 0,
       "planPeriodStart": "2026-11-20T12:59:39.412Z",
       "planUpdatedAt": "2026-11-20T12:59:39.412Z",
-      "lastConnectedAt": "2026-11-20T12:59:22.001Z",
+      "lastConnectedAt": "2026-11-21T19:23:29.671Z",
       "createdAt": "2026-11-20T12:59:22.001Z"
     },
     "amina.fall@test.sn": {
@@ -57,7 +57,7 @@
       "timeSpentSeconds": 0,
       "planPeriodStart": "2026-11-20T13:01:43.954Z",
       "planUpdatedAt": "2026-11-20T13:01:43.954Z",
-      "lastConnectedAt": "2026-11-20T13:01:58.579Z",
+      "lastConnectedAt": "2026-11-21T19:23:29.671Z",
       "createdAt": "2026-11-20T13:01:43.954Z"
     },
     "momodream2003@gmail.com": {
@@ -77,7 +77,7 @@
       "timeSpentSeconds": 0,
       "planPeriodStart": "2026-11-20T13:18:48.221Z",
       "planUpdatedAt": "2026-11-20T13:18:48.221Z",
-      "lastConnectedAt": "2026-11-20T13:18:48.205Z",
+      "lastConnectedAt": "2026-11-21T19:23:29.670Z",
       "createdAt": "2026-11-20T13:18:48.205Z"
     },
     "test.plans.check@sanctuaire.app": {
@@ -97,7 +97,7 @@
       "timeSpentSeconds": 30,
       "planPeriodStart": "2026-11-20T13:22:17.443Z",
       "planUpdatedAt": "2026-11-20T13:22:17.443Z",
-      "lastConnectedAt": "2026-11-20T13:22:28.529Z",
+      "lastConnectedAt": "2026-11-21T19:23:29.670Z",
       "createdAt": "2026-11-20T13:21:49.242Z"
     }
   },
@@ -148,6 +148,12 @@
       "signups": 4,
       "paidUpgrades": 3,
       "videosCreated": 1
+    },
+    "2026-11-21": {
+      "visits": 2,
+      "signups": 1,
+      "paidUpgrades": 0,
+      "videosCreated": 0
     }
   },
   "knownVisitSessions": [
@@ -158,6 +164,8 @@
     "2026-11-20_sess-mwozogcr-3u0y08",
     "2026-11-20_sess-mwp04ouz-606m1i",
     "2026-11-20_sess-mwp0ctwk-w3nw0y",
-    "2026-11-20_sess-mwp0ctwk-w3nw0y"
+    "2026-11-20_sess-mwp0ctwk-w3nw0y",
+    "2026-11-21_sess-mwqse73h-igjhch",
+    "2026-11-21_sess-mwqsnk5o-95pxqo"
   ]
 }

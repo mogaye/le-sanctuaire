@@ -4,18 +4,25 @@ import {
   AlertTriangle,
   ArrowLeft,
   BarChart3,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
+  Copy,
   Crown,
   CreditCard,
+  Database,
   Film,
   LayoutDashboard,
   RefreshCw,
   Search,
   ShieldCheck,
   TrendingUp,
+  UploadCloud,
   Users,
   Video,
+  XCircle,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import {
@@ -23,6 +30,9 @@ import {
   adminUpdateReportStatus,
   fetchAdminOverview,
   fetchAdminUsers,
+  fetchSupabaseDiagnostics,
+  resyncAccountsToSupabase,
+  SupabaseDiagnosticReport,
 } from '../lib/supabase';
 import {
   SubscriptionPlanId,
@@ -31,6 +41,10 @@ import {
   formatFcfa,
   isSuperAdminEmail,
 } from '../utils/subscriptionPlans';
+import {
+  SUPABASE_SETUP_SQL,
+  SUPABASE_TABLE_NAMES,
+} from '../utils/supabaseAdminHelpers';
 
 interface AdminDashboardPageProps {
   currentUser: UserProfile | null;
@@ -39,7 +53,7 @@ interface AdminDashboardPageProps {
   onOpenVideoStudio?: () => void;
 }
 
-type AdminTab = 'overview' | 'users' | 'statistics' | 'reports';
+type AdminTab = 'overview' | 'users' | 'statistics' | 'reports' | 'supabase';
 
 interface ManagedUserRow {
   id: string;
@@ -312,6 +326,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [updatingReportId, setUpdatingReportId] = useState<string | null>(null);
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved'>('all');
   const [actionToast, setActionToast] = useState<string | null>(null);
+  const [diagReport, setDiagReport] = useState<SupabaseDiagnosticReport | null>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [copiedSql, setCopiedSql] = useState(false);
+  const [showSqlPanel, setShowSqlPanel] = useState(false);
 
   const isAdmin = isSuperAdminEmail(currentUser?.email);
 
@@ -326,12 +345,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       setErrorMsg(null);
 
       try {
-        const [ov, usrList] = await Promise.all([
+        const [ov, usrList, diag] = await Promise.all([
           fetchAdminOverview(currentUser.email),
           fetchAdminUsers(currentUser.email),
+          fetchSupabaseDiagnostics().catch(() => null),
         ]);
         setOverview(ov);
         setUsers(usrList);
+        if (diag) setDiagReport(diag);
       } catch (err: any) {
         setErrorMsg(err?.message || 'Impossible de charger les données administrateur.');
       } finally {
@@ -349,6 +370,54 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }, 15000);
     return () => clearInterval(interval);
   }, [loadDashboardData]);
+
+  const handleRunDiagnostics = async () => {
+    setDiagLoading(true);
+    try {
+      const diag = await fetchSupabaseDiagnostics();
+      setDiagReport(diag);
+      const okCount = SUPABASE_TABLE_NAMES.filter((t) => diag.tables?.[t]?.ok).length;
+      setActionToast(
+        diag.ok
+          ? `Connexion Supabase opérationnelle : ${okCount}/10 tables prêtes.`
+          : `Diagnostic terminé : ${okCount}/10 tables accessibles.`
+      );
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Erreur lors du test Supabase.');
+    } finally {
+      setDiagLoading(false);
+    }
+  };
+
+  const handleResyncAccounts = async () => {
+    if (!currentUser?.email) return;
+    setResyncing(true);
+    setErrorMsg(null);
+    try {
+      const res = await resyncAccountsToSupabase({
+        adminEmail: currentUser.email,
+        accounts: users,
+      });
+      setActionToast(res.message);
+      await loadDashboardData(true);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Erreur lors de la resynchronisation.');
+    } finally {
+      setResyncing(false);
+    }
+  };
+
+  const handleCopySql = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPABASE_SETUP_SQL);
+      setCopiedSql(true);
+      setActionToast('Script SQL complet (10 tables) copié dans le presse-papiers.');
+      setTimeout(() => setCopiedSql(false), 3000);
+    } catch {
+      setShowSqlPanel(true);
+      setActionToast('Copiez le script SQL directement depuis la zone ci-dessous.');
+    }
+  };
 
   const handleAuthorizePlan = async (
     targetEmail: string,
@@ -510,7 +579,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
             </div>
 
-            <nav aria-label="Navigation administrateur" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-1.5">
+            <nav aria-label="Navigation administrateur" className="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-1 gap-1.5">
               {[
                 { id: 'overview' as const, label: "Vue d'ensemble", icon: LayoutDashboard },
                 { id: 'users' as const, label: `Utilisateurs (${users.length})`, icon: Users },
@@ -519,6 +588,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   id: 'reports' as const,
                   label: `Signalements (${kpis.openReports})`,
                   icon: AlertTriangle,
+                },
+                {
+                  id: 'supabase' as const,
+                  label: 'Connexion Supabase',
+                  icon: Database,
                 },
               ].map((item) => {
                 const active = activeTab === item.id;
@@ -588,11 +662,45 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   ? 'Gestion des comptes & autorisations manuelles'
                   : activeTab === 'statistics'
                   ? 'Statistiques détaillées & vidéos créées'
+                  : activeTab === 'supabase'
+                  ? 'Connexion Supabase & Configuration des 10 tables'
                   : 'Signalements utilisateurs'}
               </h1>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {(() => {
+                const okTablesCount = SUPABASE_TABLE_NAMES.filter(
+                  (t) => diagReport?.tables?.[t]?.ok
+                ).length;
+                const isConnected = Boolean(
+                  diagReport?.environment?.supabaseKeyConfigured || overview?.supabaseConnected
+                );
+                const allTablesReady = Boolean(diagReport?.ok && okTablesCount === 10);
+                return (
+                  <button
+                    type="button"
+                    data-testid="admin-supabase-status-badge"
+                    onClick={() => setActiveTab('supabase')}
+                    className={`h-9 px-3 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                      allTablesReady
+                        ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-700 dark:text-emerald-300'
+                        : isConnected
+                        ? 'bg-amber-500/15 border-amber-500/35 text-amber-800 dark:text-amber-300'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+                    }`}
+                  >
+                    <Database className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {allTablesReady
+                        ? 'Supabase connecté (10/10 tables)'
+                        : isConnected
+                        ? `Supabase (${okTablesCount}/10 tables)`
+                        : 'Supabase non configuré'}
+                    </span>
+                  </button>
+                );
+              })()}
               <button
                 type="button"
                 data-testid="admin-refresh-btn"
@@ -1228,6 +1336,241 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* TAB 5: CONNEXION SUPABASE & 10 TABLES */}
+              {activeTab === 'supabase' && (
+                <div data-testid="admin-supabase-panel" className="space-y-5">
+                  {/* Connection Summary & Actions */}
+                  <div className={`rounded-2xl border p-4 sm:p-5 space-y-4 ${cardSurface}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm sm:text-base font-bold flex items-center gap-2">
+                          <Database className="w-4 h-4 text-[#1B573E] dark:text-[#6EE7B7]" />
+                          <span>État de la connexion Supabase</span>
+                        </h3>
+                        <p className="text-xs opacity-70 mt-0.5">
+                          Projet cible :{' '}
+                          <span className="font-mono font-semibold">
+                            {diagReport?.environment?.supabaseUrl || 'https://bkfklfnnturdwtfjoxci.supabase.co'}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          data-testid="admin-test-supabase-btn"
+                          disabled={diagLoading}
+                          onClick={handleRunDiagnostics}
+                          className={`h-9 px-3.5 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                            isDarkMode
+                              ? 'border-white/15 hover:bg-white/10'
+                              : 'border-[#D4D1C8] hover:bg-[#F3F1EB]'
+                          }`}
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${diagLoading ? 'animate-spin' : ''}`} />
+                          <span>Tester la connexion</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          data-testid="admin-resync-supabase-btn"
+                          disabled={resyncing}
+                          onClick={handleResyncAccounts}
+                          className="h-9 px-3.5 rounded-xl bg-[#1B573E] hover:bg-[#154531] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>
+                            {resyncing
+                              ? 'Synchronisation…'
+                              : `Resynchroniser les comptes (${users.length})`}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          data-testid="admin-copy-sql-btn"
+                          onClick={handleCopySql}
+                          className="h-9 px-3.5 rounded-xl bg-[#D4A373]/25 hover:bg-[#D4A373]/35 text-[#9A6B2F] dark:text-[#F6D399] text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        >
+                          {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedSql ? 'Script SQL copié !' : 'Copier le script SQL (10 tables)'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Environment Indicators */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      {[
+                        {
+                          label: 'Clé Anon (VITE_SUPABASE_ANON_KEY)',
+                          ok: Boolean(diagReport?.environment?.hasAnonKey),
+                          value: diagReport?.environment?.hasAnonKey ? 'Configurée' : 'Absente',
+                        },
+                        {
+                          label: 'Clé Service Role (auth.users)',
+                          ok: Boolean(diagReport?.environment?.hasServiceRoleKey),
+                          value: diagReport?.environment?.hasServiceRoleKey
+                            ? `Active (${diagReport?.environment?.authUsersCount ?? 0} auth.users)`
+                            : 'Optionnelle / absente',
+                        },
+                        {
+                          label: 'Colonnes Dashboard (profiles)',
+                          ok: Boolean(diagReport?.environment?.profilesColumnsOk),
+                          value: diagReport?.environment?.profilesColumnsOk
+                            ? 'Migrées (plan, role, quotas)'
+                            : 'À vérifier via SQL',
+                        },
+                        {
+                          label: 'Client navigateur Supabase',
+                          ok: Boolean(diagReport?.environment?.clientSupabaseConfigured),
+                          value: diagReport?.environment?.clientSupabaseConfigured
+                            ? 'Connecté'
+                            : 'Mode local / API',
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className={`rounded-xl border p-3 flex flex-col gap-1 ${
+                            isDarkMode ? 'bg-white/[0.03] border-white/10' : 'bg-[#F8F6F1] border-[#E2DFD7]'
+                          }`}
+                        >
+                          <div className="text-[11px] opacity-65">{item.label}</div>
+                          <div className="flex items-center gap-1.5 font-bold">
+                            {item.ok ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            ) : (
+                              <XCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            )}
+                            <span>{item.value}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {diagReport?.advice && diagReport.advice.length > 0 && (
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs space-y-1">
+                        <div className="font-bold text-amber-800 dark:text-amber-300">
+                          Recommandations pour Vercel & Supabase :
+                        </div>
+                        <ul className="list-disc pl-4 space-y-0.5 opacity-90">
+                          {diagReport.advice.map((tip, i) => (
+                            <li key={i}>{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* All 10 Tables Diagnostic Grid */}
+                  <div className={`rounded-2xl border p-4 sm:p-5 space-y-3 ${cardSurface}`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold">Statut des 10 tables Supabase (public.*)</h3>
+                      <span className="text-xs opacity-70 tabular-nums">
+                        {SUPABASE_TABLE_NAMES.filter((t) => diagReport?.tables?.[t]?.ok).length} / 10 prêtes
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+                      {(
+                        [
+                          { name: 'users', desc: 'Tous les comptes utilisateurs inscrits' },
+                          { name: 'profiles', desc: 'Profils, rôles, forfaits vidéo et temps passé' },
+                          { name: 'donations', desc: 'Dons Sadaqah & paiements Wave / Orange / PayDunya' },
+                          { name: 'prayer_logs', desc: 'Suivi quotidien des 5 prières' },
+                          { name: 'quran_favorites', desc: 'Favoris et marque-pages du Noble Coran' },
+                          { name: 'dhikr_logs', desc: 'Compteurs Tasbih et invocations Adhkar' },
+                          { name: 'email_logs', desc: 'Historique e-mails, avis donateurs & sauvegarde' },
+                          { name: 'video_creations', desc: 'Historique des vidéos coraniques générées' },
+                          { name: 'user_reports', desc: 'Signalements et bugs envoyés au Super Admin' },
+                          { name: 'site_analytics_daily', desc: 'Courbes journalières visites / inscriptions / vidéos' },
+                        ] as const
+                      ).map((tbl) => {
+                        const statusObj = diagReport?.tables?.[tbl.name];
+                        const isOk = Boolean(statusObj?.ok);
+                        return (
+                          <div
+                            key={tbl.name}
+                            data-testid={`supabase-table-row-${tbl.name}`}
+                            className={`rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-3 ${
+                              isDarkMode
+                                ? 'bg-white/[0.02] border-white/10'
+                                : 'bg-[#F8F6F1] border-[#E2DFD7]'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <div className="font-mono font-bold text-xs truncate">
+                                public.{tbl.name}
+                              </div>
+                              <div className="text-[11px] opacity-65 truncate">{tbl.desc}</div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                  isOk
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                    : 'bg-amber-500/15 text-amber-800 dark:text-amber-300'
+                                }`}
+                              >
+                                {isOk ? (
+                                  <>
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span>
+                                      OK
+                                      {typeof statusObj?.rowCount === 'number'
+                                        ? ` (${statusObj.rowCount})`
+                                        : ''}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span>{statusObj?.status ? `HTTP ${statusObj.status}` : 'À configurer'}</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Collapsible Idempotent SQL Script Viewer */}
+                  <div className={`rounded-2xl border p-4 sm:p-5 space-y-3 ${cardSurface}`}>
+                    <button
+                      type="button"
+                      data-testid="admin-toggle-sql-btn"
+                      onClick={() => setShowSqlPanel((prev) => !prev)}
+                      className="w-full flex items-center justify-between gap-2 text-left cursor-pointer"
+                    >
+                      <div>
+                        <div className="text-sm font-bold">
+                          Script SQL complet & idempotent (10 tables + déclencheurs + permissions)
+                        </div>
+                        <div className="text-xs opacity-65">
+                          À exécuter dans Supabase → SQL Editor → New query si une table ou colonne manque
+                        </div>
+                      </div>
+                      {showSqlPanel ? (
+                        <ChevronUp className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 shrink-0" />
+                      )}
+                    </button>
+
+                    {showSqlPanel && (
+                      <pre
+                        data-testid="admin-sql-preview"
+                        className={`p-3.5 rounded-xl border text-[11px] font-mono overflow-x-auto max-h-80 leading-relaxed ${
+                          isDarkMode
+                            ? 'bg-black/40 border-white/10 text-emerald-100'
+                            : 'bg-[#F8F6F1] border-[#D4D1C8] text-[#18221D]'
+                        }`}
+                      >
+                        {SUPABASE_SETUP_SQL}
+                      </pre>
+                    )}
+                  </div>
                 </div>
               )}
             </>

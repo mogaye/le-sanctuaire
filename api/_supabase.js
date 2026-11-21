@@ -1,7 +1,7 @@
 const DEFAULT_SUPABASE_URL = 'https://bkfklfnnturdwtfjoxci.supabase.co';
 
-export function getSupabaseCreds() {
-  const url = (
+export function getSupabaseUrl() {
+  return (
     process.env.VITE_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
@@ -9,6 +9,10 @@ export function getSupabaseCreds() {
   )
     .trim()
     .replace(/\/$/, '');
+}
+
+export function getSupabaseCreds() {
+  const url = getSupabaseUrl();
 
   const key = (
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -26,6 +30,38 @@ export function getSupabaseCreds() {
     !key.includes('VOTRE_CLE');
 
   return isValidKey ? { url, key } : null;
+}
+
+export function getSupabaseAdminAuthCreds() {
+  const url = getSupabaseUrl();
+  const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  const isValidKey =
+    serviceKey.length > 15 &&
+    !serviceKey.includes('your-service-role-key') &&
+    !serviceKey.includes('VOTRE_CLE');
+  return isValidKey ? { url, key: serviceKey } : null;
+}
+
+export async function fetchSupabaseAuthUsers() {
+  const adminCreds = getSupabaseAdminAuthCreds();
+  if (!adminCreds) return [];
+  try {
+    const res = await fetch(`${adminCreds.url}/auth/v1/admin/users?per_page=500`, {
+      method: 'GET',
+      headers: {
+        apikey: adminCreds.key,
+        Authorization: `Bearer ${adminCreds.key}`,
+        Accept: 'application/json',
+      },
+    });
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => null);
+    if (Array.isArray(json?.users)) return json.users;
+    if (Array.isArray(json)) return json;
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 export async function parseRequestBody(req) {
@@ -60,12 +96,19 @@ export async function parseRequestBody(req) {
   }
 }
 
+function stripOrderParam(queryString) {
+  return String(queryString || '')
+    .split('&')
+    .filter((part) => part && !part.startsWith('order='))
+    .join('&');
+}
+
 export async function supabaseSelect(table, queryString = '') {
   const creds = getSupabaseCreds();
   if (!creds) return [];
-  try {
-    const q = queryString ? `?${queryString.replace(/^\?/, '')}` : '';
-    const res = await fetch(`${creds.url}/rest/v1/${table}${q}`, {
+  const runFetch = async (qs) => {
+    const q = qs ? `?${qs.replace(/^\?/, '')}` : '';
+    return fetch(`${creds.url}/rest/v1/${table}${q}`, {
       method: 'GET',
       headers: {
         apikey: creds.key,
@@ -73,6 +116,13 @@ export async function supabaseSelect(table, queryString = '') {
         Accept: 'application/json',
       },
     });
+  };
+  try {
+    let res = await runFetch(queryString);
+    if (!res.ok && res.status === 400 && String(queryString).includes('order=')) {
+      const stripped = stripOrderParam(queryString);
+      res = await runFetch(stripped);
+    }
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];
@@ -171,15 +221,23 @@ export async function upsertUserAndProfileInSupabase({
   country = 'Sénégal',
   calculationMethod = 'MuslimWorldLeague',
   themePreference = 'dark',
+  role,
+  plan,
 }) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (!cleanEmail) return null;
 
-  const resolvedId = id || `acct_${cleanEmail}`;
+  const isAdmin = cleanEmail === 'mgaye60000@gmail.com';
+  const resolvedId = id || (isAdmin ? 'adf9b87e-cf15-4fcc-a76b-2673c0ee74e4' : `acct_${cleanEmail}`);
   const resolvedFull = fullName || cleanEmail.split('@')[0] || 'Fidèle';
   const resolvedFirst = firstName || resolvedFull.split(' ')[0] || 'Fidèle';
   const resolvedLast = lastName || resolvedFull.split(' ').slice(1).join(' ') || '';
+  const resolvedRole = isAdmin ? 'admin' : role === 'admin' ? 'user' : role || 'user';
+  const resolvedPlan = isAdmin ? 'admin' : plan || 'test';
   const nowIso = new Date().toISOString();
+
+  let supabaseUsersSaved = false;
+  let supabaseProfilesSaved = false;
 
   // 1. Upsert into public.users
   const existingUsers = await supabaseSelect(
@@ -187,7 +245,7 @@ export async function upsertUserAndProfileInSupabase({
     `email=ilike.${encodeURIComponent(cleanEmail)}&limit=1`
   );
   if (existingUsers.length > 0) {
-    await supabasePatch('users', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
+    let uPatch = await supabasePatch('users', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
       email: cleanEmail,
       full_name: resolvedFull,
       first_name: resolvedFirst,
@@ -196,8 +254,15 @@ export async function upsertUserAndProfileInSupabase({
       city_name: cityName || existingUsers[0].city_name || 'Dakar',
       updated_at: nowIso,
     });
+    if (!uPatch.ok) {
+      uPatch = await supabasePatch('users', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
+        email: cleanEmail,
+        full_name: resolvedFull,
+      });
+    }
+    supabaseUsersSaved = Boolean(uPatch.ok);
   } else {
-    const userRes = await supabaseUpsert(
+    let userRes = await supabaseUpsert(
       'users',
       {
         uid: resolvedId,
@@ -212,17 +277,23 @@ export async function upsertUserAndProfileInSupabase({
       'uid'
     );
     if (!userRes.ok) {
-      await supabaseUpsert('users', {
+      userRes = await supabaseUpsert('users', {
         uid: resolvedId,
         email: cleanEmail,
         full_name: resolvedFull,
         first_name: resolvedFirst,
         last_name: resolvedLast,
-        avatar_url: avatarUrl || null,
         city_name: cityName || 'Dakar',
-        updated_at: nowIso,
       });
     }
+    if (!userRes.ok) {
+      userRes = await supabaseUpsert('users', {
+        uid: resolvedId,
+        email: cleanEmail,
+        full_name: resolvedFull,
+      });
+    }
+    supabaseUsersSaved = Boolean(userRes.ok);
   }
 
   // 2. Upsert into public.profiles
@@ -231,7 +302,7 @@ export async function upsertUserAndProfileInSupabase({
     `email=ilike.${encodeURIComponent(cleanEmail)}&limit=1`
   );
   if (existingProfiles.length > 0) {
-    await supabasePatch('profiles', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
+    let pPatch = await supabasePatch('profiles', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
       email: cleanEmail,
       full_name: resolvedFull,
       first_name: resolvedFirst,
@@ -243,11 +314,30 @@ export async function upsertUserAndProfileInSupabase({
       calculation_method:
         calculationMethod || existingProfiles[0].calculation_method || 'MuslimWorldLeague',
       theme_preference: themePreference || existingProfiles[0].theme_preference || 'dark',
+      role: resolvedRole,
+      ...(existingProfiles[0].plan ? {} : { plan: resolvedPlan }),
       last_connected_at: nowIso,
       updated_at: nowIso,
     });
+    if (!pPatch.ok) {
+      pPatch = await supabasePatch('profiles', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
+        email: cleanEmail,
+        full_name: resolvedFull,
+        first_name: resolvedFirst,
+        last_name: resolvedLast,
+        city_name: cityName || 'Dakar',
+        updated_at: nowIso,
+      });
+    }
+    if (!pPatch.ok) {
+      pPatch = await supabasePatch('profiles', `email=ilike.${encodeURIComponent(cleanEmail)}`, {
+        email: cleanEmail,
+        full_name: resolvedFull,
+      });
+    }
+    supabaseProfilesSaved = Boolean(pPatch.ok);
   } else {
-    const profRes = await supabaseUpsert(
+    let profRes = await supabaseUpsert(
       'profiles',
       {
         id: resolvedId,
@@ -261,13 +351,15 @@ export async function upsertUserAndProfileInSupabase({
         country: country || 'Sénégal',
         calculation_method: calculationMethod || 'MuslimWorldLeague',
         theme_preference: themePreference || 'dark',
+        role: resolvedRole,
+        plan: resolvedPlan,
         last_connected_at: nowIso,
         updated_at: nowIso,
       },
       'email'
     );
     if (!profRes.ok) {
-      const fallbackRes = await supabaseUpsert(
+      profRes = await supabaseUpsert(
         'profiles',
         {
           id: resolvedId,
@@ -281,16 +373,17 @@ export async function upsertUserAndProfileInSupabase({
         },
         'id'
       );
-      if (!fallbackRes.ok) {
-        await supabaseUpsert('profiles', {
-          id: resolvedId,
-          email: cleanEmail,
-          full_name: resolvedFull,
-          first_name: resolvedFirst,
-          last_name: resolvedLast,
-        });
-      }
     }
+    if (!profRes.ok) {
+      profRes = await supabaseUpsert('profiles', {
+        id: resolvedId,
+        email: cleanEmail,
+        full_name: resolvedFull,
+        first_name: resolvedFirst,
+        last_name: resolvedLast,
+      });
+    }
+    supabaseProfilesSaved = Boolean(profRes.ok);
   }
 
   return {
@@ -301,7 +394,11 @@ export async function upsertUserAndProfileInSupabase({
     lastName: resolvedLast,
     avatarUrl: avatarUrl || null,
     cityName: cityName || 'Dakar',
+    role: resolvedRole,
+    plan: resolvedPlan,
     lastConnectedAt: nowIso,
+    supabaseUsersSaved,
+    supabaseProfilesSaved,
   };
 }
 
@@ -315,6 +412,8 @@ export async function runSupabaseDiagnostics() {
       process.env.VITE_SUPABASE_ANON_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
       process.env.SUPABASE_ANON_KEY ||
+      process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
       ''
     ).trim().length > 15
   );
@@ -328,18 +427,26 @@ export async function runSupabaseDiagnostics() {
     'quran_favorites',
     'dhikr_logs',
     'email_logs',
+    'video_creations',
+    'user_reports',
+    'site_analytics_daily',
   ];
 
   const tableStatuses = {};
   const errors = [];
   const advice = [];
+  let profilesColumnsOk = false;
+  let authUsersCount = null;
 
   if (!creds) {
+    for (const table of tables) {
+      tableStatuses[table] = { ok: false, status: 0, error: 'Clé API Supabase non configurée' };
+    }
     errors.push(
-      'Aucune clé API Supabase détectée dans les variables d’environnement Vercel (VITE_SUPABASE_ANON_KEY ou SUPABASE_SERVICE_ROLE_KEY).'
+      'Aucune clé API Supabase détectée dans les variables d’environnement (VITE_SUPABASE_ANON_KEY ou SUPABASE_SERVICE_ROLE_KEY).'
     );
     advice.push(
-      'Allez sur Vercel > Settings > Environment Variables et ajoutez VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY et SUPABASE_SERVICE_ROLE_KEY, puis cliquez sur Redeploy.'
+      'Ajoutez VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY et SUPABASE_SERVICE_ROLE_KEY dans vos variables d’environnement (Vercel > Settings > Environment Variables ou .env), puis redéployez.'
     );
   } else {
     await Promise.all(
@@ -351,6 +458,7 @@ export async function runSupabaseDiagnostics() {
               apikey: creds.key,
               Authorization: `Bearer ${creds.key}`,
               Accept: 'application/json',
+              Prefer: 'count=exact',
             },
           });
           if (!res.ok) {
@@ -359,10 +467,14 @@ export async function runSupabaseDiagnostics() {
             errors.push(`Table public.${table} (HTTP ${res.status}): ${errText}`);
           } else {
             const rows = await res.json().catch(() => []);
+            const contentRange = res.headers.get('content-range') || '';
+            const totalMatch = contentRange.match(/\/(\d+)$/);
+            const rowCount = totalMatch ? Number(totalMatch[1]) : Array.isArray(rows) ? rows.length : 0;
             tableStatuses[table] = {
               ok: true,
               status: 200,
               sampleCount: Array.isArray(rows) ? rows.length : 0,
+              rowCount,
             };
           }
         } catch (err) {
@@ -371,16 +483,47 @@ export async function runSupabaseDiagnostics() {
         }
       })
     );
+
+    // Check that extended dashboard columns exist on public.profiles
+    try {
+      const colRes = await fetch(
+        `${creds.url}/rest/v1/profiles?select=id,email,role,plan,videos_used_this_month,total_videos_created,total_amount_paid_fcfa,time_spent_seconds,last_connected_at&limit=1`,
+        {
+          method: 'GET',
+          headers: {
+            apikey: creds.key,
+            Authorization: `Bearer ${creds.key}`,
+            Accept: 'application/json',
+          },
+        }
+      );
+      if (colRes.ok) {
+        profilesColumnsOk = true;
+      } else {
+        const colErr = await colRes.text().catch(() => '');
+        errors.push(`Colonnes Dashboard manquantes sur public.profiles: ${colErr}`);
+        advice.push(
+          'Exécutez le script SQL complet (10 tables) dans Supabase -> SQL Editor pour ajouter les colonnes plan, role et compteurs vidéo sur public.profiles.'
+        );
+      }
+    } catch {
+      // ignore
+    }
+
+    if (hasServiceRoleKey) {
+      const authUsers = await fetchSupabaseAuthUsers();
+      authUsersCount = authUsers.length;
+    }
   }
 
   if (!hasServiceRoleKey && creds) {
     advice.push(
-      'Conseil : Ajoutez SUPABASE_SERVICE_ROLE_KEY dans Vercel > Environment Variables pour contourner tout blocage RLS côté serveur.'
+      'Conseil : Ajoutez SUPABASE_SERVICE_ROLE_KEY dans les variables d’environnement pour lire directement auth.users et contourner tout blocage RLS côté serveur.'
     );
   }
   if (!hasSmtp) {
     advice.push(
-      'Optionnel : Ajoutez SMTP_USER et SMTP_PASS dans Vercel > Environment Variables pour l’envoi direct des e-mails OTP et de remerciement.'
+      'Optionnel : Ajoutez SMTP_USER et SMTP_PASS pour l’envoi direct des e-mails OTP et de remerciement.'
     );
   }
 
@@ -388,11 +531,13 @@ export async function runSupabaseDiagnostics() {
     ok: Boolean(creds) && errors.length === 0,
     timestamp: new Date().toISOString(),
     environment: {
-      supabaseUrl: creds?.url || DEFAULT_SUPABASE_URL,
+      supabaseUrl: creds?.url || getSupabaseUrl(),
       supabaseKeyConfigured: Boolean(creds),
       hasAnonKey,
       hasServiceRoleKey,
       hasSmtp,
+      profilesColumnsOk,
+      authUsersCount,
       serverlessFunctionsCount: 11,
       vercelHobbyLimit: 12,
     },
@@ -401,4 +546,3 @@ export async function runSupabaseDiagnostics() {
     advice,
   };
 }
-

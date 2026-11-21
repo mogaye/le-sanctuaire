@@ -9,6 +9,10 @@ import {
   SubscriptionPlanId,
   StudioQualityTier,
 } from '../utils/subscriptionPlans';
+import {
+  mergeAccountSources,
+  SUPABASE_TABLE_NAMES,
+} from '../utils/supabaseAdminHelpers';
 
 // Retrieve Supabase environment variables from Vite or Vercel Supabase integration
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env || {};
@@ -691,7 +695,15 @@ export async function signUpWithEmail(email: string, password: string, fullName:
     );
 
     if (error) {
-      if (isNetworkOrFetchError(error) || String(error.message).toLowerCase().includes('rate limit')) {
+      const errLower = String(error.message || '').toLowerCase();
+      if (
+        isNetworkOrFetchError(error) ||
+        errLower.includes('rate limit') ||
+        errLower.includes('sending confirmation') ||
+        errLower.includes('confirmation email') ||
+        errLower.includes('smtp') ||
+        errLower.includes('signups not allowed')
+      ) {
         return runLocalSignUp();
       }
       return {
@@ -2469,8 +2481,214 @@ export async function submitUserReport(params: {
   }
 }
 
+async function fetchSupabaseClientAccounts(): Promise<{
+  supabaseProfiles: any[];
+  supabaseUsers: any[];
+}> {
+  if (!supabase) {
+    return { supabaseProfiles: [], supabaseUsers: [] };
+  }
+  const [profRes, userRes] = await Promise.all([
+    Promise.resolve(supabase.from('profiles').select('*').limit(500)).catch(() => ({ data: [] as any[] })),
+    Promise.resolve(supabase.from('users').select('*').limit(500)).catch(() => ({ data: [] as any[] })),
+  ]);
+  return {
+    supabaseProfiles: Array.isArray((profRes as any)?.data) ? (profRes as any).data : [],
+    supabaseUsers: Array.isArray((userRes as any)?.data) ? (userRes as any).data : [],
+  };
+}
+
+export interface SupabaseDiagnosticReport {
+  ok: boolean;
+  timestamp: string;
+  environment: {
+    supabaseUrl: string;
+    supabaseKeyConfigured: boolean;
+    hasAnonKey: boolean;
+    hasServiceRoleKey: boolean;
+    hasSmtp: boolean;
+    profilesColumnsOk?: boolean;
+    authUsersCount?: number | null;
+    clientSupabaseConfigured?: boolean;
+    serverlessFunctionsCount?: number;
+    vercelHobbyLimit?: number;
+  };
+  tables: Record<
+    string,
+    {
+      ok: boolean;
+      status?: number;
+      sampleCount?: number;
+      rowCount?: number;
+      error?: string;
+    }
+  >;
+  errors: string[];
+  advice: string[];
+}
+
+export async function fetchSupabaseDiagnostics(): Promise<SupabaseDiagnosticReport> {
+  let report: SupabaseDiagnosticReport = {
+    ok: false,
+    timestamp: new Date().toISOString(),
+    environment: {
+      supabaseUrl: supabaseUrl || 'https://bkfklfnnturdwtfjoxci.supabase.co',
+      supabaseKeyConfigured: isSupabaseConfigured(),
+      hasAnonKey: Boolean(supabaseAnonKey),
+      hasServiceRoleKey: false,
+      hasSmtp: false,
+      profilesColumnsOk: false,
+      authUsersCount: null,
+      clientSupabaseConfigured: Boolean(supabase),
+    },
+    tables: {},
+    errors: [],
+    advice: [],
+  };
+
+  try {
+    const res = await fetch('/api/diagnostics');
+    const parsed = await safeReadJsonResponse<SupabaseDiagnosticReport>(res);
+    if (parsed.ok && parsed.data) {
+      report = {
+        ...parsed.data,
+        environment: {
+          ...parsed.data.environment,
+          clientSupabaseConfigured: Boolean(supabase),
+        },
+        advice: Array.isArray(parsed.data.advice) ? parsed.data.advice : [],
+        errors: Array.isArray(parsed.data.errors) ? parsed.data.errors : [],
+        tables: parsed.data.tables || {},
+      };
+    }
+  } catch {
+    // keep default report and check via browser client below
+  }
+
+  // Ensure all 10 tables appear in the report and augment via browser Supabase client if server lacks env vars
+  if (supabase && !report.environment.supabaseKeyConfigured) {
+    const clientErrors: string[] = [];
+    const tablesStatus: SupabaseDiagnosticReport['tables'] = {};
+    await Promise.all(
+      SUPABASE_TABLE_NAMES.map(async (table) => {
+        try {
+          const { data, error, count } = await supabase
+            .from(table)
+            .select('*', { count: 'exact' })
+            .limit(1);
+          if (error) {
+            tablesStatus[table] = { ok: false, status: 400, error: error.message };
+            clientErrors.push(`Table public.${table}: ${error.message}`);
+          } else {
+            tablesStatus[table] = {
+              ok: true,
+              status: 200,
+              sampleCount: Array.isArray(data) ? (data as unknown[]).length : 0,
+              rowCount: typeof count === 'number' ? count : Array.isArray(data) ? (data as unknown[]).length : 0,
+            };
+          }
+        } catch (err: any) {
+          tablesStatus[table] = { ok: false, error: err?.message || String(err) };
+        }
+      })
+    );
+    try {
+      const { error: colErr } = await supabase
+        .from('profiles')
+        .select('id,email,role,plan,videos_used_this_month,total_videos_created,total_amount_paid_fcfa,time_spent_seconds,last_connected_at')
+        .limit(1);
+      report.environment.profilesColumnsOk = !colErr;
+    } catch {
+      // ignore
+    }
+    report.tables = tablesStatus;
+    report.errors = clientErrors;
+    report.environment.supabaseKeyConfigured = true;
+    report.environment.hasAnonKey = true;
+    report.ok = clientErrors.length === 0;
+  } else {
+    for (const table of SUPABASE_TABLE_NAMES) {
+      if (!report.tables[table]) {
+        report.tables[table] = {
+          ok: false,
+          status: 0,
+          error: report.environment.supabaseKeyConfigured
+            ? 'Non vérifiée'
+            : 'Clé API Supabase non configurée',
+        };
+      }
+    }
+  }
+
+  return report;
+}
+
+export async function resyncAccountsToSupabase(params: {
+  adminEmail: string;
+  accounts?: Array<Record<string, any>>;
+}): Promise<{ ok: boolean; syncedCount: number; totalProcessed: number; message: string }> {
+  const local = getLocalAccounts();
+  const combinedInput: Array<Record<string, any>> = [...(params.accounts || []), ...local];
+  const deduped = mergeAccountSources({
+    serverUsers: params.accounts || [],
+    localAccounts: local,
+  });
+
+  let serverSynced = 0;
+  let serverOk = false;
+
+  try {
+    const res = await fetch('/api/admin?action=resync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminEmail: params.adminEmail,
+        accounts: deduped,
+      }),
+    });
+    const parsed = await safeReadJsonResponse<any>(res);
+    if (parsed.ok && parsed.data?.ok) {
+      serverOk = true;
+      serverSynced = Number(parsed.data.syncedToSupabase) || 0;
+    }
+  } catch {
+    // ignore and try direct browser client fallback
+  }
+
+  // Also ensure local/dashboard accounts are pushed through syncConnectedAccountToBackend if browser Supabase is active
+  let clientSynced = 0;
+  if (supabase || !serverOk) {
+    for (const acc of combinedInput) {
+      if (!acc?.email || !String(acc.email).includes('@')) continue;
+      await syncConnectedAccountToBackend({
+        id: acc.id,
+        email: acc.email,
+        fullName: acc.fullName || acc.full_name,
+        firstName: acc.firstName || acc.first_name,
+        lastName: acc.lastName || acc.last_name,
+        cityName: acc.cityName || acc.city_name || 'Dakar',
+      });
+      clientSynced += 1;
+    }
+  }
+
+  const totalSynced = Math.max(serverSynced, supabase ? clientSynced : serverSynced);
+  return {
+    ok: serverOk || Boolean(supabase),
+    syncedCount: totalSynced,
+    totalProcessed: deduped.length,
+    message:
+      totalSynced > 0
+        ? `${totalSynced} compte(s) resynchronisé(s) avec Supabase.`
+        : 'Comptes synchronisés côté serveur local (ajoutez les clés Supabase dans votre environnement pour pousser vers Supabase).',
+  };
+}
+
 export async function fetchAdminOverview(adminEmail: string) {
-  const res = await fetch(`/api/admin/overview?adminEmail=${encodeURIComponent(adminEmail)}`);
+  const [res, clientSupa] = await Promise.all([
+    fetch(`/api/admin/overview?adminEmail=${encodeURIComponent(adminEmail)}`),
+    fetchSupabaseClientAccounts(),
+  ]);
   const parsed = await safeReadJsonResponse<any>(
     res,
     'Service d’administration temporairement indisponible.'
@@ -2478,11 +2696,54 @@ export async function fetchAdminOverview(adminEmail: string) {
   if (!parsed.ok || !parsed.data?.ok) {
     throw new Error(parsed.error || parsed.data?.error || 'Accès refusé.');
   }
-  return parsed.data;
+
+  const data = parsed.data;
+  const localAccounts = getLocalAccounts();
+  const extraUsers = mergeAccountSources({
+    supabaseProfiles: clientSupa.supabaseProfiles,
+    supabaseUsers: clientSupa.supabaseUsers,
+    localAccounts,
+  });
+
+  // Update registeredAccounts count if local/browser Supabase holds newly created accounts not yet mirrored server-side
+  const serverUsersList = await (async () => {
+    try {
+      const uRes = await fetch(`/api/admin/users?adminEmail=${encodeURIComponent(adminEmail)}`);
+      const uParsed = await safeReadJsonResponse<any>(uRes);
+      return Array.isArray(uParsed.data?.users) ? uParsed.data.users : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const mergedAll = mergeAccountSources({
+    serverUsers: serverUsersList,
+    supabaseProfiles: clientSupa.supabaseProfiles,
+    supabaseUsers: clientSupa.supabaseUsers,
+    localAccounts,
+  });
+
+  const resolvedCount = Math.max(
+    Number(data?.kpis?.registeredAccounts) || 0,
+    mergedAll.length,
+    extraUsers.length
+  );
+
+  return {
+    ...data,
+    supabaseConnected: Boolean(data.supabaseConnected || supabase),
+    kpis: {
+      ...(data.kpis || {}),
+      registeredAccounts: resolvedCount,
+    },
+  };
 }
 
 export async function fetchAdminUsers(adminEmail: string) {
-  const res = await fetch(`/api/admin/users?adminEmail=${encodeURIComponent(adminEmail)}`);
+  const [res, clientSupa] = await Promise.all([
+    fetch(`/api/admin/users?adminEmail=${encodeURIComponent(adminEmail)}`),
+    fetchSupabaseClientAccounts(),
+  ]);
   const parsed = await safeReadJsonResponse<any>(
     res,
     'Impossible de charger les utilisateurs pour le moment.'
@@ -2490,7 +2751,13 @@ export async function fetchAdminUsers(adminEmail: string) {
   if (!parsed.ok || !parsed.data?.ok) {
     throw new Error(parsed.error || parsed.data?.error || 'Impossible de charger les utilisateurs.');
   }
-  return parsed.data.users || [];
+
+  return mergeAccountSources({
+    serverUsers: Array.isArray(parsed.data.users) ? parsed.data.users : [],
+    supabaseProfiles: clientSupa.supabaseProfiles,
+    supabaseUsers: clientSupa.supabaseUsers,
+    localAccounts: getLocalAccounts(),
+  });
 }
 
 export async function adminSetUserPlan(params: {

@@ -52,7 +52,7 @@ function paydunyaApiPlugin(): Plugin {
 
 export default defineConfig(() => {
   return {
-    envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_'],
+    envPrefix: ['VITE_', 'NEXT_PUBLIC_', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'],
     plugins: [react(), tailwindcss(), paydunyaApiPlugin()],
     resolve: {
       alias: {

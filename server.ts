@@ -429,19 +429,129 @@ async function startServer() {
   const querySupabaseRest = async (table: string, query = 'select=*&limit=500'): Promise<any[]> => {
     const creds = getServerSupabaseCreds();
     if (!creds) return [];
-    try {
-      const res = await fetch(`${creds.url}/rest/v1/${table}?${query}`, {
+    const runQuery = async (qs: string) =>
+      fetch(`${creds.url}/rest/v1/${table}?${qs}`, {
         headers: {
           apikey: creds.key,
           Authorization: `Bearer ${creds.key}`,
         },
       });
+    try {
+      let res = await runQuery(query);
+      if (!res.ok && res.status === 400 && query.includes('order=')) {
+        const stripped = query
+          .split('&')
+          .filter((p) => p && !p.startsWith('order='))
+          .join('&');
+        res = await runQuery(stripped || 'select=*&limit=500');
+      }
       if (!res.ok) return [];
       const rows = await res.json().catch(() => []);
       return Array.isArray(rows) ? rows : [];
     } catch {
       return [];
     }
+  };
+
+  const fetchSupabaseAuthUsersServer = async (): Promise<any[]> => {
+    const creds = getServerSupabaseCreds();
+    const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+    if (!creds || serviceKey.length <= 15) return [];
+    try {
+      const res = await fetch(`${creds.url}/auth/v1/admin/users?per_page=500`, {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) return [];
+      const json = await res.json().catch(() => null);
+      if (Array.isArray(json?.users)) return json.users;
+      if (Array.isArray(json)) return json;
+      return [];
+    } catch {
+      return [];
+    }
+  };
+
+  const mirrorProfileAndUserToSupabase = async (params: {
+    id: string;
+    email: string;
+    fullName: string;
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string | null;
+    cityName: string;
+    analyticsProfile: any;
+  }) => {
+    const nowIso = new Date().toISOString();
+    let usersOk = await mirrorToSupabaseRest(
+      'users',
+      {
+        uid: params.id,
+        email: params.email,
+        full_name: params.fullName,
+        first_name: params.firstName,
+        last_name: params.lastName,
+        avatar_url: params.avatarUrl || null,
+        city_name: params.cityName || 'Dakar',
+        updated_at: nowIso,
+      },
+      'uid'
+    );
+    if (!usersOk) {
+      usersOk = await mirrorToSupabaseRest('users', {
+        uid: params.id,
+        email: params.email,
+        full_name: params.fullName,
+      });
+    }
+
+    let profilesOk = await mirrorToSupabaseRest(
+      'profiles',
+      {
+        id: params.id,
+        email: params.email,
+        full_name: params.fullName,
+        first_name: params.firstName,
+        last_name: params.lastName,
+        avatar_url: params.avatarUrl || null,
+        city_name: params.cityName || 'Dakar',
+        role: params.analyticsProfile.role,
+        plan: params.analyticsProfile.plan,
+        videos_used_this_month: params.analyticsProfile.videosUsedThisMonth,
+        total_videos_created: params.analyticsProfile.totalVideosCreated,
+        total_amount_paid_fcfa: params.analyticsProfile.totalAmountPaidFcfa,
+        time_spent_seconds: params.analyticsProfile.timeSpentSeconds,
+        last_connected_at: nowIso,
+        updated_at: nowIso,
+      },
+      'email'
+    );
+    if (!profilesOk) {
+      profilesOk = await mirrorToSupabaseRest(
+        'profiles',
+        {
+          id: params.id,
+          email: params.email,
+          full_name: params.fullName,
+          first_name: params.firstName,
+          last_name: params.lastName,
+          city_name: params.cityName || 'Dakar',
+          updated_at: nowIso,
+        },
+        'id'
+      );
+    }
+    if (!profilesOk) {
+      profilesOk = await mirrorToSupabaseRest('profiles', {
+        id: params.id,
+        email: params.email,
+        full_name: params.fullName,
+      });
+    }
+    return { usersOk, profilesOk };
   };
 
   // Synchronize or register a connected profile in the PostgreSQL database (both users and profiles)
@@ -476,46 +586,22 @@ async function startServer() {
         cityName: cityName || 'Dakar',
       });
 
-      // Mirror to Supabase REST API if key is present in env
-      await Promise.all([
-        mirrorToSupabaseRest(
-          'users',
-          {
-            uid: resolvedId,
-            email: cleanEmail,
-            full_name: resolvedFull,
-            first_name: resolvedFirst,
-            last_name: resolvedLast,
-            avatar_url: avatarUrl || null,
-            city_name: cityName || 'Dakar',
-            updated_at: new Date().toISOString(),
-          },
-          'uid'
-        ),
-        mirrorToSupabaseRest(
-          'profiles',
-          {
-            id: resolvedId,
-            email: cleanEmail,
-            full_name: resolvedFull,
-            first_name: resolvedFirst,
-            last_name: resolvedLast,
-            avatar_url: avatarUrl || null,
-            city_name: cityName || 'Dakar',
-            role: analyticsProfile.role,
-            plan: analyticsProfile.plan,
-            videos_used_this_month: analyticsProfile.videosUsedThisMonth,
-            total_videos_created: analyticsProfile.totalVideosCreated,
-            total_amount_paid_fcfa: analyticsProfile.totalAmountPaidFcfa,
-            time_spent_seconds: analyticsProfile.timeSpentSeconds,
-            last_connected_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          'email'
-        ),
-      ]);
+      const { usersOk, profilesOk } = await mirrorProfileAndUserToSupabase({
+        id: resolvedId,
+        email: cleanEmail,
+        fullName: resolvedFull,
+        firstName: resolvedFirst,
+        lastName: resolvedLast,
+        avatarUrl,
+        cityName: cityName || 'Dakar',
+        analyticsProfile,
+      });
 
-      res.json({ profile: { ...profile, ...analyticsProfile } });
+      res.json({
+        profile: { ...profile, ...analyticsProfile },
+        supabaseUsersSaved: usersOk,
+        supabaseProfilesSaved: profilesOk,
+      });
     } catch (error: any) {
       console.error('Failed to sync account:', error);
       res.status(500).json({ error: error.message || 'Failed to sync account' });
@@ -960,6 +1046,20 @@ async function startServer() {
   app.get('/api/diagnostics', async (_req, res) => {
     try {
       const creds = getSupabaseRestCredentials();
+      const hasServiceRoleKey = Boolean(
+        process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim().length > 15
+      );
+      const hasAnonKey = Boolean(
+        (
+          process.env.VITE_SUPABASE_ANON_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+          process.env.SUPABASE_ANON_KEY ||
+          process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+          ''
+        ).trim().length > 15
+      );
+      const hasSmtp = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
       const tables = [
         'users',
         'profiles',
@@ -968,12 +1068,26 @@ async function startServer() {
         'quran_favorites',
         'dhikr_logs',
         'email_logs',
+        'video_creations',
+        'user_reports',
+        'site_analytics_daily',
       ];
       const tableStatuses: Record<string, any> = {};
       const errors: string[] = [];
+      const advice: string[] = [];
+      let profilesColumnsOk = false;
+      let authUsersCount: number | null = null;
 
       if (!creds) {
-        errors.push('Clé API Supabase absente des variables d’environnement.');
+        for (const table of tables) {
+          tableStatuses[table] = { ok: false, status: 0, error: 'Clé API Supabase non configurée' };
+        }
+        errors.push(
+          'Aucune clé API Supabase détectée côté serveur (VITE_SUPABASE_ANON_KEY ou SUPABASE_SERVICE_ROLE_KEY).'
+        );
+        advice.push(
+          'Ajoutez VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY et SUPABASE_SERVICE_ROLE_KEY dans vos variables d’environnement (Vercel > Settings > Environment Variables ou .env).'
+        );
       } else {
         await Promise.all(
           tables.map(async (table) => {
@@ -982,6 +1096,7 @@ async function startServer() {
                 headers: {
                   apikey: creds.key,
                   Authorization: `Bearer ${creds.key}`,
+                  Prefer: 'count=exact',
                 },
               });
               if (!r.ok) {
@@ -990,10 +1105,14 @@ async function startServer() {
                 errors.push(`Table public.${table} (${r.status}): ${t}`);
               } else {
                 const rows = await r.json().catch(() => []);
+                const contentRange = r.headers.get('content-range') || '';
+                const totalMatch = contentRange.match(/\/(\d+)$/);
+                const rowCount = totalMatch ? Number(totalMatch[1]) : Array.isArray(rows) ? rows.length : 0;
                 tableStatuses[table] = {
                   ok: true,
                   status: 200,
                   sampleCount: Array.isArray(rows) ? rows.length : 0,
+                  rowCount,
                 };
               }
             } catch (e: any) {
@@ -1001,6 +1120,45 @@ async function startServer() {
               errors.push(`Table public.${table}: ${e?.message || String(e)}`);
             }
           })
+        );
+
+        try {
+          const colRes = await fetch(
+            `${creds.url}/rest/v1/profiles?select=id,email,role,plan,videos_used_this_month,total_videos_created,total_amount_paid_fcfa,time_spent_seconds,last_connected_at&limit=1`,
+            {
+              headers: {
+                apikey: creds.key,
+                Authorization: `Bearer ${creds.key}`,
+              },
+            }
+          );
+          if (colRes.ok) {
+            profilesColumnsOk = true;
+          } else {
+            const colErr = await colRes.text().catch(() => '');
+            errors.push(`Colonnes Dashboard manquantes sur public.profiles: ${colErr}`);
+            advice.push(
+              'Exécutez le script SQL complet (10 tables) dans Supabase -> SQL Editor pour mettre à jour les colonnes de public.profiles.'
+            );
+          }
+        } catch {
+          // ignore
+        }
+
+        if (hasServiceRoleKey) {
+          const authUsers = await fetchSupabaseAuthUsersServer();
+          authUsersCount = authUsers.length;
+        }
+      }
+
+      if (!hasServiceRoleKey && creds) {
+        advice.push(
+          'Conseil : Ajoutez SUPABASE_SERVICE_ROLE_KEY pour synchroniser aussi directement auth.users.'
+        );
+      }
+      if (!hasSmtp) {
+        advice.push(
+          'Optionnel : Ajoutez SMTP_USER et SMTP_PASS pour l’envoi direct des e-mails OTP et de remerciement.'
         );
       }
 
@@ -1010,13 +1168,17 @@ async function startServer() {
         environment: {
           supabaseUrl: creds?.url || 'https://bkfklfnnturdwtfjoxci.supabase.co',
           supabaseKeyConfigured: Boolean(creds),
-          hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-          hasSmtp: Boolean(process.env.SMTP_USER && process.env.SMTP_PASS),
+          hasAnonKey,
+          hasServiceRoleKey,
+          hasSmtp,
+          profilesColumnsOk,
+          authUsersCount,
           serverlessFunctionsCount: 11,
           vercelHobbyLimit: 12,
         },
         tables: tableStatuses,
         errors,
+        advice,
       });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error.message || 'Diagnostics error' });
@@ -1961,6 +2123,68 @@ async function startServer() {
     }
   });
 
+  const fetchAllExternalAccountRows = async () => {
+    const [externalProfiles, externalUsers, externalAuthUsers, externalSubLogs, externalDonations] =
+      await Promise.all([
+        querySupabaseRest('profiles', 'select=*&order=last_connected_at.desc&limit=500'),
+        querySupabaseRest('users', 'select=*&order=updated_at.desc&limit=500'),
+        fetchSupabaseAuthUsersServer(),
+        querySupabaseRest('email_logs', 'email_type=eq.sub_state&order=created_at.desc&limit=500'),
+        querySupabaseRest('donations', 'status=neq.failed&select=donor_email,amount&limit=500'),
+      ]);
+
+    const normalizedAuth = externalAuthUsers.map((au: any) => {
+      const meta = au.user_metadata || au.raw_user_meta_data || {};
+      return {
+        id: au.id,
+        email: au.email,
+        full_name: meta.full_name || meta.name,
+        first_name: meta.first_name,
+        last_name: meta.last_name,
+        last_connected_at: au.last_sign_in_at || au.updated_at || au.created_at,
+        created_at: au.created_at,
+      };
+    });
+
+    const normalizedSubLogs = externalSubLogs
+      .map((l: any) => {
+        try {
+          const parsed = JSON.parse(l.subject || '{}');
+          return {
+            email: l.sender_email,
+            plan: parsed.plan,
+            role: parsed.role,
+            videos_used_this_month: parsed.videosUsedThisMonth,
+            total_videos_created: parsed.totalVideosCreated,
+            total_amount_paid_fcfa: parsed.totalAmountPaidFcfa,
+            time_spent_seconds: parsed.timeSpentSeconds,
+            last_connected_at: parsed.lastConnectedAt || l.created_at,
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    const paidByEmail = new Map<string, number>();
+    for (const d of externalDonations) {
+      const em = String(d?.donor_email || '').trim().toLowerCase();
+      if (em) paidByEmail.set(em, (paidByEmail.get(em) || 0) + (Number(d.amount) || 0));
+    }
+    const donationPatches = Array.from(paidByEmail.entries()).map(([email, total]) => ({
+      email,
+      total_amount_paid_fcfa: total,
+    }));
+
+    return [
+      ...normalizedAuth,
+      ...externalUsers,
+      ...normalizedSubLogs,
+      ...donationPatches,
+      ...externalProfiles,
+    ];
+  };
+
   app.get('/api/admin/overview', async (req, res) => {
     try {
       const adminEmail = String(req.query.adminEmail || req.headers['x-admin-email'] || '');
@@ -1968,7 +2192,7 @@ async function startServer() {
         return res.status(403).json({ ok: false, error: 'Accès réservé au compte Super Admin.' });
       }
       const [externalProfiles, externalVideos, externalReports, externalDaily] = await Promise.all([
-        querySupabaseRest('profiles', 'select=*&order=last_connected_at.desc&limit=500'),
+        fetchAllExternalAccountRows(),
         querySupabaseRest('video_creations', 'select=*&order=created_at.desc&limit=500'),
         querySupabaseRest('user_reports', 'select=*&order=created_at.desc&limit=200'),
         querySupabaseRest('site_analytics_daily', 'select=*&order=date.desc&limit=30'),
@@ -1991,11 +2215,60 @@ async function startServer() {
       if (!isSuperAdminEmail(adminEmail)) {
         return res.status(403).json({ ok: false, error: 'Accès réservé au compte Super Admin.' });
       }
-      const externalProfiles = await querySupabaseRest('profiles', 'select=*&order=last_connected_at.desc&limit=500');
+      const externalProfiles = await fetchAllExternalAccountRows();
       const users = await mergeExternalProfilesIntoAnalytics(externalProfiles);
       res.json({ ok: true, users });
     } catch (error: any) {
       res.status(500).json({ ok: false, error: error?.message || 'Erreur chargement utilisateurs.', users: [] });
+    }
+  });
+
+  app.post('/api/admin', async (req, res) => {
+    try {
+      const action = String(req.query.action || '').trim().toLowerCase();
+      if (action !== 'resync') {
+        return res.status(404).json({ ok: false, error: 'Action admin introuvable.' });
+      }
+      const adminEmail = String(req.body?.adminEmail || req.headers['x-admin-email'] || '');
+      if (!isSuperAdminEmail(adminEmail)) {
+        return res.status(403).json({ ok: false, error: 'Accès réservé au Super Admin.' });
+      }
+      const extraAccounts = Array.isArray(req.body?.accounts) ? req.body.accounts : [];
+      for (const acc of extraAccounts) {
+        if (!acc?.email) continue;
+        await syncAnalyticsProfileOnConnect({
+          id: acc.id,
+          email: acc.email,
+          fullName: acc.fullName || acc.full_name,
+          firstName: acc.firstName || acc.first_name,
+          lastName: acc.lastName || acc.last_name,
+          cityName: acc.cityName || acc.city_name || 'Dakar',
+        });
+      }
+      const merged = await mergeExternalProfilesIntoAnalytics(await fetchAllExternalAccountRows());
+      let syncedToSupabase = 0;
+      for (const u of merged) {
+        const resMirror = await mirrorProfileAndUserToSupabase({
+          id: u.id,
+          email: u.email,
+          fullName: u.fullName,
+          firstName: u.firstName,
+          lastName: u.lastName,
+          cityName: u.cityName,
+          analyticsProfile: u,
+        });
+        if (resMirror.usersOk || resMirror.profilesOk) {
+          syncedToSupabase += 1;
+        }
+      }
+      res.json({
+        ok: true,
+        supabaseConnected: Boolean(getServerSupabaseCreds()),
+        totalProcessed: merged.length,
+        syncedToSupabase,
+      });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, error: error?.message || 'Erreur resynchronisation Supabase.' });
     }
   });
 
