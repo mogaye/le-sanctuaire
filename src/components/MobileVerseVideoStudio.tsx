@@ -1135,6 +1135,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const activeTimeline = isQuizMode ? quizTimeline : timeline;
   simTimelineRef.current = activeTimeline;
 
+  const useSignatureQuizBackdrop =
+    bgId === 'mobile_noir_minimal' || bgId === 'none_noir' || bgId === 'none_emerald';
+
   const quizRenderConfig: QuizCanvasRenderConfig = useMemo(
     () => ({
       questions: quizQuestions,
@@ -1143,6 +1146,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       revealSec: quizRevealSec,
       showExplanation: quizShowExplanation,
       design: activeQuizDesign,
+      useSignatureBackdrop: useSignatureQuizBackdrop,
     }),
     [
       quizQuestions,
@@ -1151,6 +1155,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       quizRevealSec,
       quizShowExplanation,
       activeQuizDesign,
+      useSignatureQuizBackdrop,
     ]
   );
 
@@ -1173,7 +1178,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         quizRevealSec,
         quizShowExplanation ? '1' : '0',
         quizSoundEnabled ? '1' : '0',
-        `${activeQuizDesign.id}:${activeQuizDesign.questionBoxStyle}:${activeQuizDesign.optionShape}:${activeQuizDesign.badgeShape}:${activeQuizDesign.timerStyle}:${activeQuizDesign.fontStyle}:${activeQuizDesign.accentColor}:${activeQuizDesign.cardBgColor}:${activeQuizDesign.questionTextColor}:${activeQuizDesign.cardOpacity}`,
+        useSignatureQuizBackdrop ? '1' : '0',
+        `${activeQuizDesign.id}:${activeQuizDesign.templateStyle}:${activeQuizDesign.questionBoxStyle}:${activeQuizDesign.optionShape}:${activeQuizDesign.badgeShape}:${activeQuizDesign.timerStyle}:${activeQuizDesign.fontStyle}:${activeQuizDesign.accentColor}:${activeQuizDesign.cardBgColor}:${activeQuizDesign.questionTextColor}:${activeQuizDesign.cardOpacity}`,
         ...quizQuestions.map(
           (q) =>
             `${q.id}:${q.category}:${q.question}:${q.options.join('/')}:${q.correctIndex}:${q.explanation || ''}`
@@ -1185,6 +1191,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       quizRevealSec,
       quizShowExplanation,
       quizSoundEnabled,
+      useSignatureQuizBackdrop,
       activeQuizDesign,
       quizQuestions,
     ]

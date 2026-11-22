@@ -1,3 +1,9 @@
+export type QuizTemplateStyle =
+  | 'classic'
+  | 'flash_list'
+  | 'carte_blanche'
+  | 'emeraude_cadre';
+
 export type QuizQuestionBoxStyle = 'framed' | 'banner' | 'minimal' | 'double_gold';
 export type QuizOptionShape = 'rounded' | 'pill' | 'sharp' | 'outline';
 export type QuizBadgeShape = 'circle' | 'rounded_square' | 'solid_pill';
@@ -8,6 +14,7 @@ export interface QuizVisualDesign {
   id: string;
   name: string;
   isCustom?: boolean;
+  templateStyle: QuizTemplateStyle;
   questionBoxStyle: QuizQuestionBoxStyle;
   optionShape: QuizOptionShape;
   badgeShape: QuizBadgeShape;
@@ -23,8 +30,57 @@ export interface QuizVisualDesign {
 
 export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
+    id: 'modele_liste_express',
+    name: 'Liste 1→N (Flash)',
+    templateStyle: 'flash_list',
+    questionBoxStyle: 'minimal',
+    optionShape: 'rounded',
+    badgeShape: 'circle',
+    timerStyle: 'pill_badge',
+    fontStyle: 'bold_display',
+    accentColor: '#EF4444',
+    goldColor: '#22C55E',
+    questionTextColor: '#FFFFFF',
+    cardBgColor: '#DC2626',
+    borderColor: '#FFFFFF',
+    cardOpacity: 0.92,
+  },
+  {
+    id: 'modele_carte_blanche',
+    name: 'Carte Blanche (?)',
+    templateStyle: 'carte_blanche',
+    questionBoxStyle: 'framed',
+    optionShape: 'pill',
+    badgeShape: 'circle',
+    timerStyle: 'bar_circle',
+    fontStyle: 'bold_display',
+    accentColor: '#22C55E',
+    goldColor: '#FFFFFF',
+    questionTextColor: '#111827',
+    cardBgColor: '#FFFFFF',
+    borderColor: '#1F2937',
+    cardOpacity: 0.96,
+  },
+  {
+    id: 'modele_emeraude_cadre',
+    name: 'Émeraude & Cadre',
+    templateStyle: 'emeraude_cadre',
+    questionBoxStyle: 'framed',
+    optionShape: 'pill',
+    badgeShape: 'circle',
+    timerStyle: 'pill_badge',
+    fontStyle: 'modern',
+    accentColor: '#14B8A6',
+    goldColor: '#6EE7B7',
+    questionTextColor: '#0F172A',
+    cardBgColor: '#FFFFFF',
+    borderColor: '#2DD4BF',
+    cardOpacity: 0.96,
+  },
+  {
     id: 'sanctuaire_emeraude',
     name: 'Sanctuaire Émeraude',
+    templateStyle: 'classic',
     questionBoxStyle: 'framed',
     optionShape: 'rounded',
     badgeShape: 'circle',
@@ -40,6 +96,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
     id: 'or_royal',
     name: 'Or Royal',
+    templateStyle: 'classic',
     questionBoxStyle: 'double_gold',
     optionShape: 'sharp',
     badgeShape: 'rounded_square',
@@ -55,6 +112,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
     id: 'nuit_turquoise',
     name: 'Nuit Turquoise',
+    templateStyle: 'classic',
     questionBoxStyle: 'banner',
     optionShape: 'pill',
     badgeShape: 'solid_pill',
@@ -70,6 +128,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
     id: 'lumiere_parchemin',
     name: 'Lumière & Parchemin',
+    templateStyle: 'classic',
     questionBoxStyle: 'framed',
     optionShape: 'rounded',
     badgeShape: 'circle',
@@ -85,6 +144,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
     id: 'minimal_epure',
     name: 'Épuré Moderne',
+    templateStyle: 'classic',
     questionBoxStyle: 'minimal',
     optionShape: 'outline',
     badgeShape: 'circle',
@@ -100,6 +160,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   {
     id: 'ambre_ramadan',
     name: 'Ambre & Rubis',
+    templateStyle: 'classic',
     questionBoxStyle: 'banner',
     optionShape: 'rounded',
     badgeShape: 'rounded_square',
@@ -114,7 +175,7 @@ export const BUILT_IN_QUIZ_DESIGNS: QuizVisualDesign[] = [
   },
 ];
 
-export const DEFAULT_QUIZ_DESIGN: QuizVisualDesign = BUILT_IN_QUIZ_DESIGNS[0];
+export const DEFAULT_QUIZ_DESIGN: QuizVisualDesign = BUILT_IN_QUIZ_DESIGNS[3];
 
 const CUSTOM_DESIGNS_STORAGE_KEY = 'sanctuaire_custom_quiz_designs_v1';
 
@@ -153,6 +214,12 @@ export function normalizeQuizDesign(
   input: Partial<QuizVisualDesign>,
   fallback: QuizVisualDesign = DEFAULT_QUIZ_DESIGN
 ): QuizVisualDesign {
+  const validTpl: QuizTemplateStyle[] = [
+    'classic',
+    'flash_list',
+    'carte_blanche',
+    'emeraude_cadre',
+  ];
   const validBox: QuizQuestionBoxStyle[] = ['framed', 'banner', 'minimal', 'double_gold'];
   const validOpt: QuizOptionShape[] = ['rounded', 'pill', 'sharp', 'outline'];
   const validBadge: QuizBadgeShape[] = ['circle', 'rounded_square', 'solid_pill'];
@@ -174,6 +241,9 @@ export function normalizeQuizDesign(
         ? input.name.trim().slice(0, 32)
         : 'Mon design',
     isCustom: Boolean(input.isCustom),
+    templateStyle: validTpl.includes(input.templateStyle as QuizTemplateStyle)
+      ? (input.templateStyle as QuizTemplateStyle)
+      : fallback.templateStyle || 'classic',
     questionBoxStyle: validBox.includes(input.questionBoxStyle as QuizQuestionBoxStyle)
       ? (input.questionBoxStyle as QuizQuestionBoxStyle)
       : fallback.questionBoxStyle,

@@ -12,7 +12,7 @@ import {
   hexToRgba,
   isHexColorDark,
 } from './quizDesignPresets';
-import { computeQuizFrameState } from './quizVideoUtils';
+import { QuizFrameState, computeQuizFrameState } from './quizVideoUtils';
 
 export interface QuizCanvasRenderConfig {
   questions: QuizQuestionItem[];
@@ -21,6 +21,7 @@ export interface QuizCanvasRenderConfig {
   revealSec: number;
   showExplanation: boolean;
   design?: QuizVisualDesign;
+  useSignatureBackdrop?: boolean;
 }
 
 export interface QuizCanvasGeometry {
@@ -116,7 +117,770 @@ function drawRoundedRectPath(
   ctx.closePath();
 }
 
+function drawOutlinedText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number | undefined,
+  strokeColor: string,
+  strokeWidth: number
+) {
+  if (typeof ctx.strokeText === 'function' && strokeWidth > 0) {
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    if (maxWidth !== undefined) ctx.strokeText(text, x, y, maxWidth);
+    else ctx.strokeText(text, x, y);
+  }
+  if (maxWidth !== undefined) ctx.fillText(text, x, y, maxWidth);
+  else ctx.fillText(text, x, y);
+}
+
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
+
+/**
+ * Model 1 (Download 14 - Flash List 1..N):
+ * Top red header pill, bold centered active prompt -> CHRONO -> ✅ Answer,
+ * and numbered list 1) .. N) accumulating revealed answers cleanly below.
+ */
+function renderFlashListTemplate(
+  ctx: CanvasRenderingContext2D,
+  quizConfig: QuizCanvasRenderConfig,
+  state: QuizFrameState,
+  opts: VideoCanvasRenderOptions,
+  design: QuizVisualDesign,
+  resScale: number,
+  hasCustomLogo: boolean,
+  showWatermark: boolean
+) {
+  const { width, height } = opts;
+  const isPortrait = height > width;
+  const isLandscape = width > height;
+  const padX = Math.round((isLandscape ? 120 : isPortrait ? 48 : 56) * resScale);
+  const contentW = Math.max(220, width - padX * 2);
+  const textScaleFactor =
+    opts.textScale === 'compact' ? 0.9 : opts.textScale === 'grand' ? 1.1 : 1.0;
+
+  const titlePrefix = (quizConfig.quizTitle?.trim() || 'QUIZ ISLAM').toUpperCase();
+
+  // 1. Top Red Pill Header
+  if (opts.showSurahHeader) {
+    ctx.save();
+    const headerFontPx = Math.round((isPortrait ? 24 : 21) * resScale);
+    ctx.font = `800 ${headerFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    const headerW = Math.min(
+      contentW,
+      Math.max(Math.round(230 * resScale), ctx.measureText(titlePrefix).width + Math.round(54 * resScale))
+    );
+    const headerH = Math.round((isPortrait ? 48 : 42) * resScale);
+    const headerX = Math.round((width - headerW) / 2);
+    const headerY = Math.round((isPortrait ? 52 : 28) * resScale);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    ctx.shadowBlur = Math.round(14 * resScale);
+    ctx.shadowOffsetY = Math.round(4 * resScale);
+    drawRoundedRectPath(ctx, headerX, headerY, headerW, headerH, Math.round(14 * resScale));
+    ctx.fillStyle = design.accentColor || '#DC2626';
+    ctx.fill();
+
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(titlePrefix, width / 2, headerY + headerH / 2 + 0.5, headerW - Math.round(20 * resScale));
+    ctx.restore();
+  }
+
+  // 2. Active Question / Chrono / Reveal Prompt
+  const promptTopY = Math.round(
+    (opts.showSurahHeader ? (isPortrait ? 132 : 92) : isPortrait ? 64 : 36) * resScale
+  );
+
+  ctx.save();
+  const promptFontPx = Math.round((isPortrait ? 30 : 25) * resScale * textScaleFactor);
+  const promptLineH = Math.round(promptFontPx * 1.24);
+  ctx.font = `800 ${promptFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const correctAnswerText =
+    state.question.options[state.question.correctIndex] || 'Réponse';
+
+  let promptBottomY = promptTopY;
+
+  if (state.phase === 'question') {
+    const qFormatted = state.question.question
+      .replace(/\s+([?!:;])/g, '\u00A0$1')
+      .toUpperCase()
+      .trim();
+    const lines = wrapTextLines(qFormatted, contentW * 0.94, (t) => ctx.measureText(t).width).slice(0, 3);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = Math.round(8 * resScale);
+    ctx.shadowOffsetY = Math.round(2 * resScale);
+    ctx.fillStyle = '#FFFFFF';
+    for (let i = 0; i < lines.length; i++) {
+      drawOutlinedText(
+        ctx,
+        lines[i],
+        width / 2,
+        promptTopY + i * promptLineH,
+        contentW * 0.96,
+        '#000000',
+        Math.round(5 * resScale)
+      );
+    }
+
+    // Countdown badge directly below active question
+    const pillY = promptTopY + lines.length * promptLineH + Math.round(12 * resScale);
+    const pillW = Math.round(150 * resScale);
+    const pillH = Math.round(32 * resScale);
+    const pillX = Math.round((width - pillW) / 2);
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+    drawRoundedRectPath(ctx, pillX, pillY, pillW, pillH, pillH / 2);
+    ctx.fillStyle = state.countdownRemainingSec <= 2 ? design.accentColor : 'rgba(15, 23, 42, 0.8)';
+    ctx.fill();
+    ctx.lineWidth = Math.max(1.2, Math.round(1.8 * resScale));
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
+
+    ctx.shadowColor = 'transparent';
+    ctx.font = `800 ${Math.round(15 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`CHRONO · ${state.countdownRemainingSec}s`, width / 2, pillY + pillH / 2 + 0.5);
+    promptBottomY = pillY + pillH;
+  } else {
+    // Reveal Phase: ✅ + Answer headline
+    const badgeSize = Math.round(36 * resScale);
+    const badgeX = Math.round((width - badgeSize) / 2);
+    drawRoundedRectPath(ctx, badgeX, promptTopY, badgeSize, badgeSize, Math.round(9 * resScale));
+    ctx.fillStyle = '#22C55E';
+    ctx.fill();
+    ctx.font = `900 ${Math.round(22 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✓', width / 2, promptTopY + badgeSize / 2 + 1);
+
+    const ansY = promptTopY + badgeSize + Math.round(10 * resScale);
+    ctx.font = `800 ${Math.round(promptFontPx * 1.05)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = Math.round(8 * resScale);
+    ctx.fillStyle = '#86EFAC';
+    const ansLines = wrapTextLines(
+      correctAnswerText.toUpperCase(),
+      contentW * 0.94,
+      (t) => ctx.measureText(t).width
+    ).slice(0, 2);
+    for (let i = 0; i < ansLines.length; i++) {
+      drawOutlinedText(
+        ctx,
+        ansLines[i],
+        width / 2,
+        ansY + i * promptLineH,
+        contentW * 0.96,
+        '#000000',
+        Math.round(5 * resScale)
+      );
+    }
+    promptBottomY = ansY + ansLines.length * promptLineH;
+  }
+  ctx.restore();
+
+  // 3. Numbered List 1) .. N) Accumulating Revealed Answers
+  const bottomSafeY =
+    height -
+    Math.round(
+      (hasCustomLogo ? (isPortrait ? 130 : 108) : showWatermark ? (isPortrait ? 92 : 76) : 34) *
+        resScale
+    );
+  const listTopY = promptBottomY + Math.round((isPortrait ? 28 : 18) * resScale);
+  const availListH = Math.max(120, bottomSafeY - listTopY);
+
+  const totalQ = quizConfig.questions.length;
+  const maxVisible = 10;
+  let startIdx = 0;
+  if (totalQ > maxVisible) {
+    startIdx = Math.max(0, Math.min(totalQ - maxVisible, state.activeIndex - 4));
+  }
+  const endIdx = Math.min(totalQ, startIdx + maxVisible);
+  const visibleCount = Math.max(1, endIdx - startIdx);
+
+  const twoCols = isLandscape && visibleCount > 5;
+  const rowsPerCol = twoCols ? Math.ceil(visibleCount / 2) : visibleCount;
+  const rowFontPx = Math.round(
+    (isPortrait ? 25 : isLandscape ? 21 : 21) * resScale * textScaleFactor
+  );
+  const rowStep = Math.min(
+    Math.round((isPortrait ? 48 : 42) * resScale),
+    Math.floor(availListH / Math.max(1, rowsPerCol))
+  );
+
+  ctx.save();
+  ctx.font = `800 ${rowFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = Math.round(6 * resScale);
+  ctx.shadowOffsetY = Math.round(2 * resScale);
+
+  const colW = twoCols
+    ? Math.floor((contentW - Math.round(32 * resScale)) / 2)
+    : isLandscape
+      ? Math.min(contentW, Math.round(620 * resScale))
+      : contentW;
+  const baseLeftX = twoCols
+    ? padX + Math.round(16 * resScale)
+    : isLandscape
+      ? Math.round((width - colW) / 2)
+      : padX + Math.round(16 * resScale);
+
+  for (let vi = 0; vi < visibleCount; vi++) {
+    const qIdx = startIdx + vi;
+    const item = quizConfig.questions[qIdx];
+    const col = twoCols ? Math.floor(vi / rowsPerCol) : 0;
+    const row = twoCols ? vi % rowsPerCol : vi;
+    const x = baseLeftX + col * (colW + Math.round(32 * resScale));
+    const y = listTopY + row * rowStep + rowStep / 2;
+
+    const isRevealedItem =
+      qIdx < state.activeIndex ||
+      (qIdx === state.activeIndex && state.phase === 'reveal');
+    const isCurrent = qIdx === state.activeIndex;
+    const answerStr =
+      isRevealedItem && item
+        ? item.options[item.correctIndex] || ''
+        : '';
+
+    const lineText = isRevealedItem ? `${qIdx + 1}) ${answerStr}` : `${qIdx + 1})`;
+    ctx.fillStyle =
+      isCurrent && state.phase === 'reveal'
+        ? '#86EFAC'
+        : isCurrent
+          ? '#FDE047'
+          : '#FFFFFF';
+
+    drawOutlinedText(
+      ctx,
+      lineText,
+      x,
+      y,
+      colW - Math.round(12 * resScale),
+      '#000000',
+      Math.round(4.5 * resScale)
+    );
+  }
+  ctx.restore();
+
+  drawMandatoryBottomWatermark(
+    ctx,
+    width,
+    height,
+    resScale,
+    opts.isLightSurface,
+    opts.logoImage,
+    showWatermark
+  );
+}
+
+/**
+ * Model 2 (Download 12 - Carte Blanche & Chrono Circulaire):
+ * Bold 3D header, crisp white Question box with circular '?' badge overlapping top edge,
+ * pure white pill choices (winner turns bright green on reveal), and bottom circular pie timer.
+ */
+function renderCarteBlancheTemplate(
+  ctx: CanvasRenderingContext2D,
+  quizConfig: QuizCanvasRenderConfig,
+  state: QuizFrameState,
+  opts: VideoCanvasRenderOptions,
+  design: QuizVisualDesign,
+  resScale: number,
+  hasCustomLogo: boolean,
+  showWatermark: boolean
+) {
+  const { width, height } = opts;
+  const isPortrait = height > width;
+  const isLandscape = width > height;
+  const padX = Math.round((isLandscape ? 190 : isPortrait ? 52 : 68) * resScale);
+  const contentW = Math.max(220, width - padX * 2);
+  const textScaleFactor =
+    opts.textScale === 'compact' ? 0.9 : opts.textScale === 'grand' ? 1.1 : 1.0;
+
+  const titlePrefix = (quizConfig.quizTitle?.trim() || 'QUIZ ISLAM').toUpperCase();
+  const bottomSafeY =
+    height -
+    Math.round(
+      (hasCustomLogo ? (isPortrait ? 130 : 108) : showWatermark ? (isPortrait ? 92 : 76) : 34) *
+        resScale
+    );
+
+  // 1. Chunky 3D Header
+  const topHeaderY = Math.round((isPortrait ? 56 : 30) * resScale);
+  if (opts.showSurahHeader) {
+    ctx.save();
+    const hPx = Math.round((isPortrait ? 38 : 30) * resScale);
+    ctx.font = `900 ${hPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+    ctx.shadowBlur = Math.round(10 * resScale);
+    ctx.shadowOffsetY = Math.round(4 * resScale);
+    ctx.fillStyle = '#FFFFFF';
+    drawOutlinedText(
+      ctx,
+      titlePrefix,
+      width / 2,
+      topHeaderY,
+      contentW,
+      '#111827',
+      Math.round(6 * resScale)
+    );
+    ctx.restore();
+  }
+
+  const stageTopY = Math.round(
+    (opts.showSurahHeader ? (isPortrait ? 138 : 88) : isPortrait ? 58 : 34) * resScale
+  );
+  const stageH = Math.max(180, bottomSafeY - stageTopY);
+
+  // Measure Question inside white card
+  const formattedQ = state.question.question.replace(/\s+([?!:;])/g, '\u00A0$1').trim();
+  const qFontPx = Math.round((isPortrait ? 27 : 23) * resScale * textScaleFactor);
+  const qLineH = Math.round(qFontPx * 1.28);
+  const qPadX = Math.round(28 * resScale);
+  const qPadTop = Math.round((isPortrait ? 32 : 24) * resScale);
+  const qPadBot = Math.round((isPortrait ? 22 : 16) * resScale);
+  const qMaxW = Math.max(150, contentW - qPadX * 2);
+
+  ctx.save();
+  ctx.font = `800 ${qFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  const qLines = wrapTextLines(formattedQ, qMaxW, (t) => ctx.measureText(t).width).slice(0, 4);
+  ctx.restore();
+
+  const qCardH = Math.max(
+    Math.round(78 * resScale),
+    qLines.length * qLineH + qPadTop + qPadBot
+  );
+  const qBadgeR = Math.round((isPortrait ? 21 : 17) * resScale);
+
+  // Choice Pills
+  const optFontPx = Math.round((isPortrait ? 22 : 18) * resScale * textScaleFactor);
+  const optLineH = Math.round(optFontPx * 1.2);
+  const optH = Math.round((isPortrait ? 60 : 46) * resScale);
+  const optGap = Math.round((isPortrait ? 14 : 9) * resScale);
+  const optGridH = 4 * optH + 3 * optGap;
+  const gapAfterQ = Math.round((isPortrait ? 24 : 14) * resScale);
+
+  // Bottom Countdown Pie
+  const pieR = Math.round((isPortrait ? 38 : 26) * resScale);
+  const gapBeforePie = Math.round((isPortrait ? 24 : 14) * resScale);
+  const pieAreaH = pieR * 2;
+
+  const totalH = qBadgeR + qCardH + gapAfterQ + optGridH + gapBeforePie + pieAreaH;
+  const startY = stageTopY + Math.max(0, Math.round((stageH - totalH) / 2)) + qBadgeR;
+
+  // 2. Draw White Question Card
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = Math.round(18 * resScale);
+  ctx.shadowOffsetY = Math.round(6 * resScale);
+  drawRoundedRectPath(ctx, padX, startY, contentW, qCardH, Math.round(20 * resScale));
+  ctx.fillStyle = design.cardBgColor || '#FFFFFF';
+  ctx.fill();
+
+  // Overlapping '?' circle on top edge
+  ctx.shadowBlur = Math.round(10 * resScale);
+  ctx.beginPath();
+  ctx.arc(width / 2, startY, qBadgeR, 0, Math.PI * 2);
+  ctx.fillStyle = '#3F3A36';
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, Math.round(2 * resScale));
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.stroke();
+
+  ctx.shadowColor = 'transparent';
+  ctx.font = `900 ${Math.round(qBadgeR * 1.05)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('?', width / 2, startY + 1);
+
+  // Question Text
+  ctx.font = `800 ${qFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = design.questionTextColor || '#111827';
+  ctx.textBaseline = 'top';
+  const qTextY = startY + qPadTop + Math.max(0, (qCardH - qPadTop - qPadBot - qLines.length * qLineH) / 2);
+  for (let i = 0; i < qLines.length; i++) {
+    ctx.fillText(qLines[i], width / 2, qTextY + i * qLineH, qMaxW);
+  }
+  ctx.restore();
+
+  // 3. Draw Pure White Pill Choice Cards
+  const optStartY = startY + qCardH + gapAfterQ;
+  const isReveal = state.phase === 'reveal';
+  const revealPulse = isReveal ? Math.min(1, state.revealProgress * 5) : 0;
+
+  for (let i = 0; i < 4; i++) {
+    const isCorrect = i === state.question.correctIndex;
+    const pillY = optStartY + i * (optH + optGap);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.28)';
+    ctx.shadowBlur = Math.round(12 * resScale);
+    ctx.shadowOffsetY = Math.round(4 * resScale);
+    drawRoundedRectPath(ctx, padX, pillY, contentW, optH, optH / 2);
+
+    if (isReveal && isCorrect) {
+      ctx.fillStyle = design.accentColor || '#22C55E';
+      ctx.fill();
+    } else if (isReveal) {
+      const fadeAmt = revealPulse;
+      ctx.fillStyle = hexToRgba(design.cardBgColor || '#FFFFFF', 1 - 0.34 * fadeAmt);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = design.cardBgColor || '#FFFFFF';
+      ctx.fill();
+    }
+
+    ctx.shadowColor = 'transparent';
+    ctx.font = `800 ${optFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (isReveal && isCorrect) {
+      ctx.fillStyle = isHexColorDark(design.accentColor || '#22C55E') ? '#FFFFFF' : '#0F172A';
+    } else if (isReveal) {
+      ctx.fillStyle = hexToRgba(design.questionTextColor || '#111827', 0.56);
+    } else {
+      ctx.fillStyle = design.questionTextColor || '#111827';
+    }
+    const rawOpt = state.question.options[i] || '';
+    const labelText = isReveal && isCorrect ? `✓  ${rawOpt}` : rawOpt;
+    ctx.fillText(labelText, width / 2, pillY + optH / 2 + 0.5, contentW - Math.round(36 * resScale));
+    ctx.restore();
+  }
+
+  // 4. Bottom Radial Pie Countdown OR Wrapped Reveal Note
+  const pieCy = optStartY + optGridH + gapBeforePie + pieR;
+  if (!isReveal) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(width / 2, pieCy, pieR, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.fill();
+
+    // Sweeping dark wedge
+    ctx.beginPath();
+    ctx.moveTo(width / 2, pieCy);
+    ctx.arc(
+      width / 2,
+      pieCy,
+      pieR - Math.round(3 * resScale),
+      -Math.PI / 2,
+      -Math.PI / 2 + Math.PI * 2 * state.countdownFraction
+    );
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.65)';
+    ctx.fill();
+
+    ctx.lineWidth = Math.max(2, Math.round(3 * resScale));
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.beginPath();
+    ctx.arc(width / 2, pieCy, pieR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.font = `900 ${Math.round(pieR * 0.95)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    drawOutlinedText(
+      ctx,
+      String(state.countdownRemainingSec),
+      width / 2,
+      pieCy + 1,
+      undefined,
+      '#111827',
+      Math.round(4 * resScale)
+    );
+    ctx.restore();
+  } else if (quizConfig.showExplanation && state.question.explanation) {
+    ctx.save();
+    const expW = Math.min(contentW, Math.round(640 * resScale));
+    const expFontPx = Math.round((isPortrait ? 15.5 : 14) * resScale);
+    const expLineH = Math.round(expFontPx * 1.32);
+    const expMaxTextW = Math.max(160, expW - Math.round(32 * resScale));
+    ctx.font = `600 ${expFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    const expLines = wrapTextLines(
+      state.question.explanation,
+      expMaxTextW,
+      (t) => ctx.measureText(t).width
+    ).slice(0, 2);
+    const expH = Math.max(
+      Math.round(38 * resScale),
+      expLines.length * expLineH + Math.round(18 * resScale)
+    );
+    const expX = Math.round((width - expW) / 2);
+    const expY = Math.min(
+      bottomSafeY - expH - Math.round(6 * resScale),
+      Math.round(pieCy - expH / 2)
+    );
+    drawRoundedRectPath(ctx, expX, expY, expW, expH, Math.round(14 * resScale));
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const firstExpY = expY + Math.round((expH - expLines.length * expLineH) / 2);
+    for (let li = 0; li < expLines.length; li++) {
+      ctx.fillText(expLines[li], width / 2, firstExpY + li * expLineH, expMaxTextW);
+    }
+    ctx.restore();
+  }
+
+  drawMandatoryBottomWatermark(
+    ctx,
+    width,
+    height,
+    resScale,
+    opts.isLightSurface,
+    opts.logoImage,
+    showWatermark
+  );
+}
+
+/**
+ * Model 3 (Download 11 - Émeraude & Cadre Illustration):
+ * Teal-bordered crisp white Question box, centered illustration/vignette window
+ * with stopwatch badge in top-right, and teal-outlined white pill choices below.
+ */
+function renderEmeraudeCadreTemplate(
+  ctx: CanvasRenderingContext2D,
+  quizConfig: QuizCanvasRenderConfig,
+  state: QuizFrameState,
+  opts: VideoCanvasRenderOptions,
+  design: QuizVisualDesign,
+  resScale: number,
+  hasCustomLogo: boolean,
+  showWatermark: boolean
+) {
+  const { width, height } = opts;
+  const isPortrait = height > width;
+  const isLandscape = width > height;
+
+  // If using default studio dark surface, render signature organic emerald/teal blob background
+  const hasCustomMedia = Boolean(opts.bgImage || opts.bgVideo);
+  const isFallbackDefaultDark =
+    !hasCustomMedia &&
+    (!opts.bgSurfaceColor ||
+      ['#050505', '#080c0a', '#06261b'].includes(opts.bgSurfaceColor.toLowerCase()));
+
+  if (quizConfig.useSignatureBackdrop || isFallbackDefaultDark) {
+    ctx.save();
+    ctx.fillStyle = '#117A70';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.fillStyle = '#0B4F4A';
+    ctx.beginPath();
+    ctx.arc(width * 0.14, height * 0.16, Math.min(width, height) * 0.34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(width * 0.86, height * 0.84, Math.min(width, height) * 0.38, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(45, 212, 191, 0.24)';
+    ctx.beginPath();
+    ctx.arc(width * 0.82, height * 0.28, Math.min(width, height) * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(width * 0.18, height * 0.72, Math.min(width, height) * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  const padX = Math.round((isLandscape ? 170 : isPortrait ? 52 : 64) * resScale);
+  const contentW = Math.max(220, width - padX * 2);
+  const textScaleFactor =
+    opts.textScale === 'compact' ? 0.9 : opts.textScale === 'grand' ? 1.1 : 1.0;
+
+  const topSafeY = Math.round((isPortrait ? 64 : 30) * resScale);
+  const bottomSafeY =
+    height -
+    Math.round(
+      (hasCustomLogo ? (isPortrait ? 130 : 108) : showWatermark ? (isPortrait ? 92 : 76) : 34) *
+        resScale
+    );
+  const stageH = Math.max(180, bottomSafeY - topSafeY);
+
+  // Measure Question Box
+  const formattedQ = state.question.question.replace(/\s+([?!:;])/g, '\u00A0$1').trim();
+  const qFontPx = Math.round((isPortrait ? 27 : 22.5) * resScale * textScaleFactor);
+  const qLineH = Math.round(qFontPx * 1.28);
+  const qPadX = Math.round(24 * resScale);
+  const qPadY = Math.round((isPortrait ? 20 : 13) * resScale);
+  const qMaxW = Math.max(150, contentW - qPadX * 2);
+
+  ctx.save();
+  ctx.font = `800 ${qFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  const qLines = wrapTextLines(formattedQ, qMaxW, (t) => ctx.measureText(t).width).slice(0, 4);
+  ctx.restore();
+
+  const qCardH = Math.max(
+    Math.round(74 * resScale),
+    qLines.length * qLineH + qPadY * 2
+  );
+
+  // Center illustration / stopwatch vignette rendered cleanly in ALL formats (9:16, 1:1, 16:9)
+  const vignetteH = Math.round((isPortrait ? 148 : isLandscape ? 78 : 96) * resScale);
+  const vignetteW = Math.round(contentW * (isPortrait ? 0.72 : isLandscape ? 0.56 : 0.68));
+  const gap1 = Math.round((isPortrait ? 22 : 12) * resScale);
+  const gap2 = Math.round((isPortrait ? 24 : 12) * resScale);
+
+  // Stacked pill options
+  const optFontPx = Math.round((isPortrait ? 22 : 18) * resScale * textScaleFactor);
+  const optH = Math.round((isPortrait ? 60 : 46) * resScale);
+  const optGap = Math.round((isPortrait ? 14 : 9) * resScale);
+  const optGridH = 4 * optH + 3 * optGap;
+
+  const totalH = qCardH + gap1 + vignetteH + gap2 + optGridH;
+  const startY = topSafeY + Math.max(0, Math.round((stageH - totalH) / 2));
+
+  const borderTeal = design.borderColor || '#5EEAD4';
+  const accentTeal = design.accentColor || '#14B8A6';
+
+  // 1. White Question Card with Teal Border
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+  ctx.shadowBlur = Math.round(14 * resScale);
+  ctx.shadowOffsetY = Math.round(4 * resScale);
+  drawRoundedRectPath(ctx, padX, startY, contentW, qCardH, Math.round(24 * resScale));
+  ctx.fillStyle = design.cardBgColor || '#FFFFFF';
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.lineWidth = Math.max(2.5, Math.round(4 * resScale));
+  ctx.strokeStyle = borderTeal;
+  ctx.stroke();
+
+  ctx.font = `800 ${qFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = design.questionTextColor || '#0F172A';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const qTextY = startY + (qCardH - qLines.length * qLineH) / 2;
+  for (let i = 0; i < qLines.length; i++) {
+    ctx.fillText(qLines[i], width / 2, qTextY + i * qLineH, qMaxW);
+  }
+  ctx.restore();
+
+  // 2. Vignette Window + Animated Stopwatch Overlay
+  const vigY = startY + qCardH + gap1;
+  const vigX = Math.round((width - vignetteW) / 2);
+
+  ctx.save();
+  drawRoundedRectPath(ctx, vigX, vigY, vignetteW, vignetteH, Math.round(18 * resScale));
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.48)';
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, Math.round(3 * resScale));
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.stroke();
+
+  // Category / Quiz Title badge inside vignette window
+  ctx.font = `700 ${Math.round((isPortrait ? 14 : 12.5) * resScale)}px 'Cinzel', 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = '#99F6E4';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const catName = getQuizCategoryLabel(state.question.category).toUpperCase();
+  ctx.fillText(
+    `${(quizConfig.quizTitle || 'QUIZ ISLAM').toUpperCase()} · ${state.activeIndex + 1}/${state.totalQuestions}`,
+    width / 2,
+    vigY + vignetteH * 0.36,
+    vignetteW - Math.round(32 * resScale)
+  );
+  ctx.font = `700 ${Math.round((isPortrait ? 17 : 15) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(
+    state.phase === 'reveal' ? '✓ Bonne réponse' : catName,
+    width / 2,
+    vigY + vignetteH * 0.66,
+    vignetteW - Math.round(32 * resScale)
+  );
+
+  // Stopwatch circle in top-right of vignette during countdown
+  const watchR = Math.round((isPortrait ? 24 : 19) * resScale);
+  const watchCx = vigX + vignetteW - watchR * 0.32;
+  const watchCy = vigY + watchR * 0.32;
+  ctx.beginPath();
+  ctx.arc(watchCx, watchCy, watchR, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, Math.round(3.5 * resScale));
+  ctx.strokeStyle = state.phase === 'reveal' ? '#10B981' : '#1E293B';
+  ctx.stroke();
+
+  ctx.font = `900 ${Math.round((isPortrait ? 16 : 14) * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+  ctx.fillStyle = state.phase === 'reveal' ? '#047857' : '#0F172A';
+  ctx.fillText(
+    state.phase === 'reveal' ? '✓' : `${state.countdownRemainingSec}`,
+    watchCx,
+    watchCy + 1
+  );
+  ctx.restore();
+
+  // 3. Stacked Pill Options with Teal Outline
+  const optStartY = vigY + vignetteH + gap2;
+  const isReveal = state.phase === 'reveal';
+  const revealPulse = isReveal ? Math.min(1, state.revealProgress * 5) : 0;
+
+  for (let i = 0; i < 4; i++) {
+    const isCorrect = i === state.question.correctIndex;
+    const pillY = optStartY + i * (optH + optGap);
+
+    ctx.save();
+    if (isReveal && !isCorrect) {
+      ctx.globalAlpha = 1 - 0.32 * revealPulse;
+    }
+
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.22)';
+    ctx.shadowBlur = Math.round(10 * resScale);
+    ctx.shadowOffsetY = Math.round(4 * resScale);
+    drawRoundedRectPath(ctx, padX, pillY, contentW, optH, optH / 2);
+
+    if (isReveal && isCorrect) {
+      ctx.fillStyle = accentTeal;
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = Math.max(2, Math.round(3.5 * resScale));
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = design.cardBgColor || '#FFFFFF';
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.lineWidth = Math.max(2, Math.round(3.5 * resScale));
+      ctx.strokeStyle = borderTeal;
+      ctx.stroke();
+    }
+
+    ctx.font = `800 ${optFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle =
+      isReveal && isCorrect ? '#FFFFFF' : design.questionTextColor || '#0F172A';
+    const rawOpt = state.question.options[i] || '';
+    const displayLabel = isReveal && isCorrect ? `✓  ${rawOpt}` : rawOpt;
+    ctx.fillText(displayLabel, width / 2, pillY + optH / 2 + 0.5, contentW - Math.round(36 * resScale));
+    ctx.restore();
+  }
+
+  drawMandatoryBottomWatermark(
+    ctx,
+    width,
+    height,
+    resScale,
+    opts.isLightSurface,
+    opts.logoImage,
+    showWatermark
+  );
+}
 
 export function renderQuizCanvasFrame(
   ctx: CanvasRenderingContext2D,
@@ -135,7 +899,6 @@ export function renderQuizCanvasFrame(
   );
   const showWatermark = opts.showWatermark !== false;
   const design = quizConfig.design || DEFAULT_QUIZ_DESIGN;
-  const cardIsDark = isHexColorDark(design.cardBgColor);
 
   const state = computeQuizFrameState(
     quizConfig.questions,
@@ -157,6 +920,50 @@ export function renderQuizCanvasFrame(
     );
     return;
   }
+
+  // Dispatch to the 3 viral TikTok / Shorts template models if selected
+  if (design.templateStyle === 'flash_list') {
+    renderFlashListTemplate(
+      ctx,
+      quizConfig,
+      state,
+      opts,
+      design,
+      resScale,
+      hasCustomLogo,
+      showWatermark
+    );
+    return;
+  }
+  if (design.templateStyle === 'carte_blanche') {
+    renderCarteBlancheTemplate(
+      ctx,
+      quizConfig,
+      state,
+      opts,
+      design,
+      resScale,
+      hasCustomLogo,
+      showWatermark
+    );
+    return;
+  }
+  if (design.templateStyle === 'emeraude_cadre') {
+    renderEmeraudeCadreTemplate(
+      ctx,
+      quizConfig,
+      state,
+      opts,
+      design,
+      resScale,
+      hasCustomLogo,
+      showWatermark
+    );
+    return;
+  }
+
+  // Default 'classic' Sanctuaire layout
+  const cardIsDark = isHexColorDark(design.cardBgColor);
 
   const geom = computeQuizCanvasGeometry(width, height, {
     showHeader: opts.showSurahHeader,
@@ -245,7 +1052,6 @@ export function renderQuizCanvasFrame(
   const stageTopY = geom.topSafeY;
   const stageH = Math.max(180, geom.bottomSafeY - stageTopY);
 
-  // Measure Question Text (bind trailing French punctuation with NBSP to avoid orphan '?' / '!')
   const formattedQuestion = state.question.question
     .replace(/\s+([?!:;])/g, '\u00A0$1')
     .trim();
@@ -270,12 +1076,10 @@ export function renderQuizCanvasFrame(
     questionLines.length * questionLineH + qCardPadY * 2
   );
 
-  // Timer / Reveal Status Row
   const statusBarH = Math.round((geom.isPortrait ? 40 : 34) * resScale);
   const gapAfterQuestion = Math.round((geom.isPortrait ? 18 : 13) * resScale);
   const gapAfterStatus = Math.round((geom.isPortrait ? 16 : 12) * resScale);
 
-  // Options Text Sizing & Row Heights (stacked beneath the Question Space)
   const optFontPx = Math.round(
     (geom.isPortrait ? 21 : 18.5) * resScale * textScaleFactor
   );
@@ -312,7 +1116,6 @@ export function renderQuizCanvasFrame(
   const optionsGridH =
     optionRowsCount * rowHeight + (optionRowsCount - 1) * geom.optionGapY;
 
-  // Explanation box during reveal phase
   let explanationLines: string[] = [];
   const expFontPx = Math.round((geom.isPortrait ? 16.5 : 15) * resScale);
   const expLineH = Math.round(expFontPx * 1.36);
@@ -348,11 +1151,10 @@ export function renderQuizCanvasFrame(
     explanationGap +
     explanationBoxH;
 
-  // Vertical centering inside safe stage
   const blockStartY =
     stageTopY + Math.max(Math.round(4 * resScale), Math.round((stageH - totalBlockH) / 2));
 
-  // 3. Draw Dedicated Espace Question Card according to design.questionBoxStyle
+  // 3. Draw Dedicated Espace Question Card
   ctx.save();
   const qCardRadius =
     design.optionShape === 'sharp'
@@ -362,7 +1164,6 @@ export function renderQuizCanvasFrame(
         : Math.round(18 * resScale);
 
   if (design.questionBoxStyle === 'minimal') {
-    // Clean minimal top & bottom rule framing the question without solid box fill
     ctx.fillStyle = hexToRgba(accentColor, 0.72);
     const barMiniW = Math.min(Math.round(160 * resScale), geom.contentW * 0.4);
     ctx.fillRect(
@@ -379,7 +1180,6 @@ export function renderQuizCanvasFrame(
     ctx.strokeStyle = hexToRgba(accentColor, 0.65);
     ctx.stroke();
 
-    // Accent top bar inside banner
     ctx.fillStyle = accentColor;
     ctx.fillRect(
       geom.padX + Math.round(28 * resScale),
@@ -408,7 +1208,6 @@ export function renderQuizCanvasFrame(
     ctx.strokeStyle = hexToRgba(design.goldColor, 0.42);
     ctx.stroke();
   } else {
-    // 'framed'
     drawRoundedRectPath(ctx, geom.padX, blockStartY, geom.contentW, questionCardH, qCardRadius);
     ctx.fillStyle = hexToRgba(design.cardBgColor, design.cardOpacity);
     ctx.fill();
@@ -429,7 +1228,7 @@ export function renderQuizCanvasFrame(
   }
   ctx.restore();
 
-  // 4. Draw Countdown Timer OR Reveal Indicator according to design.timerStyle
+  // 4. Countdown Timer OR Reveal Indicator
   const statusY = blockStartY + questionCardH + gapAfterQuestion;
   const barW = Math.min(Math.round(460 * resScale), geom.contentW * 0.92);
   const barX = Math.round((width - barW) / 2);
@@ -478,7 +1277,6 @@ export function renderQuizCanvasFrame(
       ctx.textBaseline = 'middle';
       ctx.fillText(`${state.countdownRemainingSec}s`, barX + barW, centerY + 0.5);
     } else {
-      // 'bar_circle'
       const circleR = Math.round(17 * resScale);
       const circleX = barX + circleR;
 
@@ -526,7 +1324,6 @@ export function renderQuizCanvasFrame(
 
     ctx.restore();
   } else {
-    // Reveal Phase Badge ("✓ Bonne réponse")
     const fadeIn = Math.min(1, state.revealProgress * 4.5);
     ctx.save();
     ctx.globalAlpha = 0.35 + 0.65 * fadeIn;
@@ -554,7 +1351,7 @@ export function renderQuizCanvasFrame(
     ctx.restore();
   }
 
-  // 5. Draw Options A / B / C / D stacked beneath the Question Space
+  // 5. Options A / B / C / D
   const optionsStartY = statusY + statusBarH + gapAfterStatus;
 
   const optionCornerRadius =
@@ -603,7 +1400,6 @@ export function renderQuizCanvasFrame(
       ctx.stroke();
     }
 
-    // Letter Badge (A / B / C / D)
     const letterCx = cardX + optPadX + optBadgeR;
     const letterCy = cardY + rowHeight / 2;
     const badgeSize = optBadgeR * 2;
@@ -650,7 +1446,6 @@ export function renderQuizCanvasFrame(
       letterCy + 0.5
     );
 
-    // Option Text
     const textX = letterCx + optBadgeR + Math.round(14 * resScale);
     const lines = optionLayouts[i].lines;
     const textTotalH = lines.length * optLineH;
@@ -672,7 +1467,7 @@ export function renderQuizCanvasFrame(
     ctx.restore();
   }
 
-  // 6. Optional Explanation Note during Reveal Phase
+  // 6. Optional Explanation Note
   if (explanationLines.length > 0) {
     const expY = optionsStartY + optionsGridH + explanationGap;
     const fadeIn = Math.min(1, state.revealProgress * 3.5);

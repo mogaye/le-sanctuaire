@@ -5,6 +5,7 @@ import {
   QuizFontStyle,
   QuizOptionShape,
   QuizQuestionBoxStyle,
+  QuizTemplateStyle,
   QuizTimerStyle,
   QuizVisualDesign,
   hexToRgba,
@@ -20,9 +21,175 @@ interface QuizDesignPanelProps {
   onDeleteCustomDesign: (id: string) => void;
 }
 
-const ACCENT_SWATCHES = ['#10B981', '#D4AF37', '#22D3EE', '#F59E0B', '#EC4899', '#6366F1'];
-const CARD_BG_SWATCHES = ['#0F172A', '#14110B', '#08202C', '#240B14', '#18181B', '#FFFDF7'];
+const ACCENT_SWATCHES = ['#10B981', '#D4AF37', '#22D3EE', '#F59E0B', '#EC4899', '#6366F1', '#EF4444'];
+const CARD_BG_SWATCHES = ['#0F172A', '#14110B', '#08202C', '#240B14', '#18181B', '#FFFFFF'];
 const TEXT_SWATCHES = ['#F8FAFC', '#FEF9E7', '#F0FDFA', '#111827', '#FBBF24'];
+
+function DesignCardPreview({ design }: { design: QuizVisualDesign }) {
+  const darkCard = isHexColorDark(design.cardBgColor);
+
+  if (design.templateStyle === 'flash_list') {
+    return (
+      <div className="rounded-xl p-2 space-y-1.5 border border-white/15 bg-[#111827]">
+        <div
+          className="h-3 w-4/5 mx-auto rounded-md flex items-center justify-center text-[7px] font-black text-white tracking-wider"
+          style={{ backgroundColor: design.accentColor || '#EF4444' }}
+        >
+          QUIZ
+        </div>
+        <div className="h-1.5 w-3/4 mx-auto rounded-full bg-white/90" />
+        <div className="space-y-0.5 pt-0.5 px-1 font-mono text-[8px] font-bold leading-tight text-white/90">
+          <div className="flex items-center gap-1">
+            <span>1)</span>
+            <span className="h-1 flex-1 rounded-full bg-[#86EFAC]" />
+          </div>
+          <div className="flex items-center gap-1">
+            <span>2)</span>
+            <span className="h-1 w-2/3 rounded-full bg-white/75" />
+          </div>
+          <div className="flex items-center gap-1 opacity-65">
+            <span>3)</span>
+            <span className="h-1 w-1/3 rounded-full bg-white/40" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (design.templateStyle === 'carte_blanche') {
+    return (
+      <div className="rounded-xl p-2 space-y-1.5 border border-[#CBD5E1] bg-[#334155]">
+        <div className="relative pt-1.5">
+          <div
+            className="w-3 h-3 rounded-full bg-[#3F3A36] border border-white text-white text-[7px] font-black flex items-center justify-center mx-auto -mb-1.5 relative z-10"
+          >
+            ?
+          </div>
+          <div
+            className="rounded-md py-1.5 px-2 border border-black/10"
+            style={{ backgroundColor: design.cardBgColor || '#FFFFFF' }}
+          >
+            <div
+              className="h-1.5 w-4/5 mx-auto rounded-full"
+              style={{ backgroundColor: design.questionTextColor || '#111827' }}
+            />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div
+            className="h-2 w-full rounded-full"
+            style={{ backgroundColor: design.accentColor || '#22C55E' }}
+          />
+          <div
+            className="h-2 w-full rounded-full opacity-90"
+            style={{ backgroundColor: design.cardBgColor || '#FFFFFF' }}
+          />
+        </div>
+        <div className="w-3 h-3 rounded-full border border-white/90 bg-white/25 mx-auto flex items-center justify-center text-[6px] font-black text-white">
+          3
+        </div>
+      </div>
+    );
+  }
+
+  if (design.templateStyle === 'emeraude_cadre') {
+    return (
+      <div className="rounded-xl p-2 space-y-1 border border-[#2DD4BF]/50 bg-[#0F766E]">
+        <div
+          className="rounded-md py-1 px-1.5 border-[1.5px]"
+          style={{
+            backgroundColor: design.cardBgColor || '#FFFFFF',
+            borderColor: design.borderColor || '#2DD4BF',
+          }}
+        >
+          <div
+            className="h-1.5 w-4/5 mx-auto rounded-full"
+            style={{ backgroundColor: design.questionTextColor || '#0F172A' }}
+          />
+        </div>
+        <div className="relative h-4 w-3/4 mx-auto rounded border border-white bg-[#0F172A]/45 flex items-center justify-center">
+          <span className="text-[6px] font-bold text-[#99F6E4]">1/3</span>
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-white border border-[#0F172A] text-[5.5px] font-black text-[#0F172A] flex items-center justify-center">
+            5
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          <div
+            className="h-2 w-full rounded-full border"
+            style={{
+              backgroundColor: design.accentColor || '#14B8A6',
+              borderColor: '#FFFFFF',
+            }}
+          />
+          <div
+            className="h-2 w-full rounded-full border"
+            style={{
+              backgroundColor: design.cardBgColor || '#FFFFFF',
+              borderColor: design.borderColor || '#2DD4BF',
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl p-2 space-y-1.5 border"
+      style={{
+        backgroundColor: hexToRgba(design.cardBgColor, 0.94),
+        borderColor: hexToRgba(design.borderColor, 0.5),
+      }}
+    >
+      <div
+        className="h-2 w-4/5 mx-auto rounded-full"
+        style={{ backgroundColor: design.questionTextColor, opacity: 0.9 }}
+      />
+      <div
+        className="h-1.5 w-3/5 mx-auto rounded-full"
+        style={{ backgroundColor: design.accentColor }}
+      />
+      <div className="space-y-1 pt-0.5">
+        <div
+          className={`h-2.5 w-full flex items-center gap-1 px-1 ${
+            design.optionShape === 'pill'
+              ? 'rounded-full'
+              : design.optionShape === 'sharp'
+                ? 'rounded-sm'
+                : 'rounded-md'
+          }`}
+          style={{
+            backgroundColor: design.accentColor,
+          }}
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full"
+            style={{
+              backgroundColor: isHexColorDark(design.accentColor)
+                ? '#FFFFFF'
+                : '#0F172A',
+            }}
+          />
+        </div>
+        <div
+          className={`h-2.5 w-full border ${
+            design.optionShape === 'pill'
+              ? 'rounded-full'
+              : design.optionShape === 'sharp'
+                ? 'rounded-sm'
+                : 'rounded-md'
+          }`}
+          style={{
+            borderColor: hexToRgba(design.borderColor, 0.4),
+            backgroundColor: darkCard
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(15,23,42,0.06)',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
   designs,
@@ -47,7 +214,7 @@ export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
           <Palette className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
-          <span>Design du Quiz ({designs.length})</span>
+          <span>Modèles & Design ({designs.length})</span>
         </div>
 
         <button
@@ -71,7 +238,6 @@ export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
       >
         {designs.map((design) => {
           const isSelected = activeDesign.id === design.id;
-          const darkCard = isHexColorDark(design.cardBgColor);
 
           return (
             <div
@@ -93,60 +259,7 @@ export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
               }`}
             >
               {/* Live Mini Visual Preview */}
-              <div
-                className="rounded-xl p-2 space-y-1.5 border"
-                style={{
-                  backgroundColor: hexToRgba(design.cardBgColor, 0.94),
-                  borderColor: hexToRgba(design.borderColor, 0.5),
-                }}
-              >
-                <div
-                  className="h-2 w-4/5 mx-auto rounded-full"
-                  style={{ backgroundColor: design.questionTextColor, opacity: 0.9 }}
-                />
-                <div
-                  className="h-1.5 w-3/5 mx-auto rounded-full"
-                  style={{ backgroundColor: design.accentColor }}
-                />
-                <div className="space-y-1 pt-0.5">
-                  <div
-                    className={`h-2.5 w-full flex items-center gap-1 px-1 ${
-                      design.optionShape === 'pill'
-                        ? 'rounded-full'
-                        : design.optionShape === 'sharp'
-                          ? 'rounded-sm'
-                          : 'rounded-md'
-                    }`}
-                    style={{
-                      backgroundColor: design.accentColor,
-                    }}
-                  >
-                    <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{
-                        backgroundColor: isHexColorDark(design.accentColor)
-                          ? '#FFFFFF'
-                          : '#0F172A',
-                      }}
-                    />
-                  </div>
-                  <div
-                    className={`h-2.5 w-full border ${
-                      design.optionShape === 'pill'
-                        ? 'rounded-full'
-                        : design.optionShape === 'sharp'
-                          ? 'rounded-sm'
-                          : 'rounded-md'
-                    }`}
-                    style={{
-                      borderColor: hexToRgba(design.borderColor, 0.4),
-                      backgroundColor: darkCard
-                        ? 'rgba(255,255,255,0.08)'
-                        : 'rgba(15,23,42,0.06)',
-                    }}
-                  />
-                </div>
-              </div>
+              <DesignCardPreview design={design} />
 
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[11px] font-bold text-[#1F2421] truncate">
@@ -183,27 +296,27 @@ export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
             Personnaliser et créer un design
           </div>
 
-          {/* 1. Style de l'espace question */}
+          {/* 0. Modèle de mise en page vidéo */}
           <div className="space-y-1">
             <div className="text-[11px] font-semibold text-[#565C58]">
-              Style espace question
+              Modèle de vidéo
             </div>
             <div className="grid grid-cols-4 gap-1 p-1 rounded-xl studio-well-inset text-[10.5px] font-bold">
               {(
                 [
-                  { id: 'framed', label: 'Encadré' },
-                  { id: 'banner', label: 'Bannière' },
-                  { id: 'double_gold', label: 'Double Or' },
-                  { id: 'minimal', label: 'Épuré' },
-                ] as { id: QuizQuestionBoxStyle; label: string }[]
+                  { id: 'classic', label: 'Classique' },
+                  { id: 'flash_list', label: 'Liste 1→N' },
+                  { id: 'carte_blanche', label: 'Carte ?' },
+                  { id: 'emeraude_cadre', label: 'Émeraude' },
+                ] as { id: QuizTemplateStyle; label: string }[]
               ).map((item) => (
                 <button
                   key={item.id}
                   type="button"
-                  data-testid={`studio-quiz-box-style-${item.id}`}
-                  onClick={() => onChangeActiveDesign({ questionBoxStyle: item.id })}
+                  data-testid={`studio-quiz-template-style-${item.id}`}
+                  onClick={() => onChangeActiveDesign({ templateStyle: item.id })}
                   className={`h-7 rounded-lg cursor-pointer transition-all whitespace-nowrap ${
-                    activeDesign.questionBoxStyle === item.id
+                    activeDesign.templateStyle === item.id
                       ? 'studio-pill-mint'
                       : 'text-[#4F5551] hover:text-[#1F2421]'
                   }`}
@@ -214,117 +327,152 @@ export const QuizDesignPanel: React.FC<QuizDesignPanelProps> = ({
             </div>
           </div>
 
-          {/* 2. Forme des réponses au choix */}
-          <div className="space-y-1">
-            <div className="text-[11px] font-semibold text-[#565C58]">
-              Forme des choix
-            </div>
-            <div className="grid grid-cols-4 gap-1 p-1 rounded-xl studio-well-inset text-[10.5px] font-bold">
-              {(
-                [
-                  { id: 'rounded', label: 'Arrondi' },
-                  { id: 'pill', label: 'Pilule' },
-                  { id: 'sharp', label: 'Carré' },
-                  { id: 'outline', label: 'Contour' },
-                ] as { id: QuizOptionShape; label: string }[]
-              ).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  data-testid={`studio-quiz-option-shape-${item.id}`}
-                  onClick={() => onChangeActiveDesign({ optionShape: item.id })}
-                  className={`h-7 rounded-lg cursor-pointer transition-all whitespace-nowrap ${
-                    activeDesign.optionShape === item.id
-                      ? 'studio-pill-mint'
-                      : 'text-[#4F5551] hover:text-[#1F2421]'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 3. Pastilles + Chronomètre + Typo */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold text-[#565C58]">Pastilles</div>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
-                {(
-                  [
-                    { id: 'circle', label: 'Rond' },
-                    { id: 'rounded_square', label: 'Carré' },
-                    { id: 'solid_pill', label: 'Plein' },
-                  ] as { id: QuizBadgeShape; label: string }[]
-                ).map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => onChangeActiveDesign({ badgeShape: b.id })}
-                    className={`h-6 rounded-lg cursor-pointer transition-all ${
-                      activeDesign.badgeShape === b.id
-                        ? 'studio-pill-mint'
-                        : 'text-[#4F5551]'
-                    }`}
-                  >
-                    {b.label}
-                  </button>
-                ))}
+          {activeDesign.templateStyle === 'classic' && (
+            <>
+              {/* 1. Style de l'espace question */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold text-[#565C58]">
+                  Style espace question
+                </div>
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-xl studio-well-inset text-[10.5px] font-bold">
+                  {(
+                    [
+                      { id: 'framed', label: 'Encadré' },
+                      { id: 'banner', label: 'Bannière' },
+                      { id: 'double_gold', label: 'Double Or' },
+                      { id: 'minimal', label: 'Épuré' },
+                    ] as { id: QuizQuestionBoxStyle; label: string }[]
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={`studio-quiz-box-style-${item.id}`}
+                      onClick={() => onChangeActiveDesign({ questionBoxStyle: item.id })}
+                      className={`h-7 rounded-lg cursor-pointer transition-all whitespace-nowrap ${
+                        activeDesign.questionBoxStyle === item.id
+                          ? 'studio-pill-mint'
+                          : 'text-[#4F5551] hover:text-[#1F2421]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold text-[#565C58]">Chrono</div>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
-                {(
-                  [
-                    { id: 'bar_circle', label: 'Anneau' },
-                    { id: 'bar_only', label: 'Barre' },
-                    { id: 'pill_badge', label: 'Badge' },
-                  ] as { id: QuizTimerStyle; label: string }[]
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onChangeActiveDesign({ timerStyle: t.id })}
-                    className={`h-6 rounded-lg cursor-pointer transition-all ${
-                      activeDesign.timerStyle === t.id
-                        ? 'studio-pill-mint'
-                        : 'text-[#4F5551]'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              {/* 2. Forme des réponses au choix */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-semibold text-[#565C58]">
+                  Forme des choix
+                </div>
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-xl studio-well-inset text-[10.5px] font-bold">
+                  {(
+                    [
+                      { id: 'rounded', label: 'Arrondi' },
+                      { id: 'pill', label: 'Pilule' },
+                      { id: 'sharp', label: 'Carré' },
+                      { id: 'outline', label: 'Contour' },
+                    ] as { id: QuizOptionShape; label: string }[]
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      data-testid={`studio-quiz-option-shape-${item.id}`}
+                      onClick={() => onChangeActiveDesign({ optionShape: item.id })}
+                      className={`h-7 rounded-lg cursor-pointer transition-all whitespace-nowrap ${
+                        activeDesign.optionShape === item.id
+                          ? 'studio-pill-mint'
+                          : 'text-[#4F5551] hover:text-[#1F2421]'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold text-[#565C58]">Police</div>
-              <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
-                {(
-                  [
-                    { id: 'modern', label: 'Sans' },
-                    { id: 'serif', label: 'Serif' },
-                    { id: 'bold_display', label: 'Gras' },
-                  ] as { id: QuizFontStyle; label: string }[]
-                ).map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => onChangeActiveDesign({ fontStyle: f.id })}
-                    className={`h-6 rounded-lg cursor-pointer transition-all ${
-                      activeDesign.fontStyle === f.id
-                        ? 'studio-pill-mint'
-                        : 'text-[#4F5551]'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
+              {/* 3. Pastilles + Chronomètre + Typo */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold text-[#565C58]">Pastilles</div>
+                  <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
+                    {(
+                      [
+                        { id: 'circle', label: 'Rond' },
+                        { id: 'rounded_square', label: 'Carré' },
+                        { id: 'solid_pill', label: 'Plein' },
+                      ] as { id: QuizBadgeShape; label: string }[]
+                    ).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => onChangeActiveDesign({ badgeShape: b.id })}
+                        className={`h-6 rounded-lg cursor-pointer transition-all ${
+                          activeDesign.badgeShape === b.id
+                            ? 'studio-pill-mint'
+                            : 'text-[#4F5551]'
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold text-[#565C58]">Chrono</div>
+                  <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
+                    {(
+                      [
+                        { id: 'bar_circle', label: 'Anneau' },
+                        { id: 'bar_only', label: 'Barre' },
+                        { id: 'pill_badge', label: 'Badge' },
+                      ] as { id: QuizTimerStyle; label: string }[]
+                    ).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => onChangeActiveDesign({ timerStyle: t.id })}
+                        className={`h-6 rounded-lg cursor-pointer transition-all ${
+                          activeDesign.timerStyle === t.id
+                            ? 'studio-pill-mint'
+                            : 'text-[#4F5551]'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[11px] font-semibold text-[#565C58]">Police</div>
+                  <div className="grid grid-cols-3 gap-1 p-1 rounded-xl studio-well-inset text-[10px] font-bold">
+                    {(
+                      [
+                        { id: 'modern', label: 'Sans' },
+                        { id: 'serif', label: 'Serif' },
+                        { id: 'bold_display', label: 'Gras' },
+                      ] as { id: QuizFontStyle; label: string }[]
+                    ).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => onChangeActiveDesign({ fontStyle: f.id })}
+                        className={`h-6 rounded-lg cursor-pointer transition-all ${
+                          activeDesign.fontStyle === f.id
+                            ? 'studio-pill-mint'
+                            : 'text-[#4F5551]'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
 
           {/* 4. Color Pickers (Accent, Card Fill, Text) */}
           <div className="space-y-2 pt-1">
