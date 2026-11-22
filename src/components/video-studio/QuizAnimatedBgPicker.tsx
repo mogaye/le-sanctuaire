@@ -228,14 +228,23 @@ export const QuizAnimatedBgPicker: React.FC<QuizAnimatedBgPickerProps> = ({
     return QUIZ_ANIMATED_BACKGROUNDS;
   }, [filter]);
 
+  const darkCount = useMemo(
+    () => QUIZ_ANIMATED_BACKGROUNDS.filter((b) => b.polarity === 'dark').length,
+    []
+  );
+  const lightCount = useMemo(
+    () => QUIZ_ANIMATED_BACKGROUNDS.filter((b) => b.polarity === 'light').length,
+    []
+  );
+
   return (
     <div data-testid="studio-quiz-animated-bg-picker" className="space-y-3">
       {/* Polarity Filter Tabs */}
       <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
         {[
-          { id: 'all' as const, label: 'Tous' },
-          { id: 'dark' as const, label: 'Sombres' },
-          { id: 'light' as const, label: 'Clairs' },
+          { id: 'all' as const, label: `Tous (${QUIZ_ANIMATED_BACKGROUNDS.length})` },
+          { id: 'dark' as const, label: `Sombres (${darkCount})` },
+          { id: 'light' as const, label: `Clairs (${lightCount})` },
         ].map((flt) => (
           <button
             key={flt.id}

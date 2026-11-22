@@ -11,6 +11,7 @@ import { VideoCanvasRenderOptions } from './canvasVideoRenderer';
 
 function createMockCanvasContext() {
   const filledTexts: string[] = [];
+  const textDraws: Array<{ text: string; x: number; y: number; align: string }> = [];
   const ctx: any = {
     font: '16px sans-serif',
     fillStyle: '#000',
@@ -42,15 +43,16 @@ function createMockCanvasContext() {
     measureText(text: string) {
       return { width: (text || '').length * 9 };
     },
-    fillText(text: string) {
+    fillText(text: string, x: number, y: number) {
       filledTexts.push(String(text));
+      textDraws.push({ text: String(text), x, y, align: ctx.textAlign });
     },
     strokeText() {},
     createRadialGradient() {
       return { addColorStop() {} };
     },
   };
-  return { ctx: ctx as CanvasRenderingContext2D, filledTexts };
+  return { ctx: ctx as CanvasRenderingContext2D, filledTexts, textDraws };
 }
 
 test('computeQuizCanvasGeometry stacks choices cleanly in 1 column beneath the question space across 9:16, 1:1, and 16:9', () => {
@@ -158,7 +160,7 @@ test('renderQuizCanvasFrame renders flash_list, carte_blanche, and emeraude_cadr
   const carteDesign = BUILT_IN_QUIZ_DESIGNS.find((d) => d.templateStyle === 'carte_blanche')!;
   const emeraudeDesign = BUILT_IN_QUIZ_DESIGNS.find((d) => d.templateStyle === 'emeraude_cadre')!;
 
-  // 1. Flash List: Q1 question (t=1.2s) shows CHRONO and unrevealed '1)'
+  // 1. Flash List: Q1 question (t=1.2s) shows CHRONO and unrevealed '1)' centered horizontally and vertically
   const mFlashQ1 = createMockCanvasContext();
   renderQuizCanvasFrame(
     mFlashQ1.ctx,
@@ -169,6 +171,13 @@ test('renderQuizCanvasFrame renders flash_list, carte_blanche, and emeraude_cadr
   );
   assert.ok(mFlashQ1.filledTexts.some((t) => t.includes('CHRONO · 4s')));
   assert.ok(mFlashQ1.filledTexts.includes('1)'));
+  const titleDraw = mFlashQ1.textDraws.find((d) => d.text === 'QUIZ ISLAM');
+  const row1Draw = mFlashQ1.textDraws.find((d) => d.text === '1)');
+  assert.ok(titleDraw && row1Draw);
+  assert.equal(row1Draw.x, baseOpts.width / 2);
+  assert.equal(row1Draw.align, 'center');
+  // Header is pushed down cleanly toward vertical center rather than pinned at top edge
+  assert.ok(titleDraw.y > 400, `Expected centered header y > 400 in 1920px frame, got ${titleDraw.y}`);
 
   // Flash List: Q2 reveal (t=13.8s -> inside Q2 reveal [13..16]) shows Q1 & Q2 answers in numbered list
   const mFlashQ2 = createMockCanvasContext();

@@ -44,7 +44,7 @@ function createTrackingCanvasContext() {
 }
 
 test('QUIZ_ANIMATED_BACKGROUNDS defines curated Islamic themes without any image URLs', () => {
-  assert.ok(QUIZ_ANIMATED_BACKGROUNDS.length >= 6);
+  assert.ok(QUIZ_ANIMATED_BACKGROUNDS.length >= 18);
   const ids = new Set<string>();
   for (const preset of QUIZ_ANIMATED_BACKGROUNDS) {
     assert.ok(preset.id.startsWith('quiz_'));
@@ -58,6 +58,8 @@ test('QUIZ_ANIMATED_BACKGROUNDS defines curated Islamic themes without any image
   assert.equal(resolveValidQuizBgId('unknown_id'), DEFAULT_QUIZ_ANIMATED_BG_ID);
   assert.equal(getQuizAnimatedBgPreset('quiz_saphir_fanous').polarity, 'dark');
   assert.equal(getQuizAnimatedBgPreset('quiz_parchemin_rosaces').polarity, 'light');
+  assert.equal(getQuizAnimatedBgPreset('quiz_lagon_andalou').polarity, 'dark');
+  assert.equal(getQuizAnimatedBgPreset('quiz_azur_matin').polarity, 'light');
 });
 
 test('computeQuizBgMotionSnapshot moves blobs, Islamic motifs, and lattice continuously over time', () => {

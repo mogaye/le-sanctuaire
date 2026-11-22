@@ -173,19 +173,100 @@ function renderFlashListTemplate(
     opts.textScale === 'compact' ? 0.9 : opts.textScale === 'grand' ? 1.1 : 1.0;
 
   const titlePrefix = (quizConfig.quizTitle?.trim() || 'QUIZ ISLAM').toUpperCase();
+  const topSafeY = Math.round((isPortrait ? 42 : 24) * resScale);
+  const bottomSafeY =
+    height -
+    Math.round(
+      (hasCustomLogo ? (isPortrait ? 130 : 108) : showWatermark ? (isPortrait ? 92 : 76) : 34) *
+        resScale
+    );
+  const stageH = Math.max(200, bottomSafeY - topSafeY);
 
-  // 1. Top Red Pill Header
+  // Measure Header
+  const headerFontPx = Math.round((isPortrait ? 24 : 21) * resScale);
+  const headerH = Math.round((isPortrait ? 48 : 42) * resScale);
+  const gapAfterHeader = opts.showSurahHeader ? Math.round((isPortrait ? 26 : 18) * resScale) : 0;
+
+  // Measure Prompt (Question + Chrono OR Reveal checkmark + Answer)
+  const promptFontPx = Math.round((isPortrait ? 30 : 25) * resScale * textScaleFactor);
+  const promptLineH = Math.round(promptFontPx * 1.26);
+  const correctAnswerText =
+    state.question.options[state.question.correctIndex] || 'Réponse';
+
+  let qLines: string[] = [];
+  let ansLines: string[] = [];
+  const pillH = Math.round(34 * resScale);
+  const gapPromptToPill = Math.round(14 * resScale);
+  const badgeSize = Math.round(36 * resScale);
+  const gapBadgeToAns = Math.round(10 * resScale);
+
+  ctx.save();
+  if (state.phase === 'question') {
+    ctx.font = `800 ${promptFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    const qFormatted = state.question.question
+      .replace(/\s+([?!:;])/g, '\u00A0$1')
+      .toUpperCase()
+      .trim();
+    qLines = wrapTextLines(qFormatted, contentW * 0.94, (t) => ctx.measureText(t).width).slice(0, 3);
+  } else {
+    ctx.font = `800 ${Math.round(promptFontPx * 1.05)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ansLines = wrapTextLines(
+      correctAnswerText.toUpperCase(),
+      contentW * 0.94,
+      (t) => ctx.measureText(t).width
+    ).slice(0, 2);
+  }
+  ctx.restore();
+
+  const promptBlockH =
+    state.phase === 'question'
+      ? qLines.length * promptLineH + gapPromptToPill + pillH
+      : badgeSize + gapBadgeToAns + ansLines.length * promptLineH;
+
+  // Measure Numbered List 1) .. N)
+  const totalQ = quizConfig.questions.length;
+  const maxVisible = 10;
+  let startIdx = 0;
+  if (totalQ > maxVisible) {
+    startIdx = Math.max(0, Math.min(totalQ - maxVisible, state.activeIndex - 4));
+  }
+  const endIdx = Math.min(totalQ, startIdx + maxVisible);
+  const visibleCount = Math.max(1, endIdx - startIdx);
+
+  const twoCols = isLandscape && visibleCount > 5;
+  const rowsPerCol = twoCols ? Math.ceil(visibleCount / 2) : visibleCount;
+  const gapAfterPrompt = Math.round((isPortrait ? 30 : 20) * resScale);
+  const maxAvailListH = Math.max(
+    110,
+    stageH - (opts.showSurahHeader ? headerH + gapAfterHeader : 0) - promptBlockH - gapAfterPrompt
+  );
+  const rowFontPx = Math.round(
+    (isPortrait ? 26 : isLandscape ? 21 : 22) * resScale * textScaleFactor
+  );
+  const rowStep = Math.min(
+    Math.round((isPortrait ? 50 : 42) * resScale),
+    Math.floor(maxAvailListH / Math.max(1, rowsPerCol))
+  );
+  const listBlockH = rowsPerCol * rowStep;
+
+  const totalStackH =
+    (opts.showSurahHeader ? headerH + gapAfterHeader : 0) +
+    promptBlockH +
+    gapAfterPrompt +
+    listBlockH;
+
+  let cursorY = topSafeY + Math.max(0, Math.round((stageH - totalStackH) / 2));
+
+  // 1. Centered Red Pill Header
   if (opts.showSurahHeader) {
     ctx.save();
-    const headerFontPx = Math.round((isPortrait ? 24 : 21) * resScale);
     ctx.font = `800 ${headerFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     const headerW = Math.min(
       contentW,
       Math.max(Math.round(230 * resScale), ctx.measureText(titlePrefix).width + Math.round(54 * resScale))
     );
-    const headerH = Math.round((isPortrait ? 48 : 42) * resScale);
     const headerX = Math.round((width - headerW) / 2);
-    const headerY = Math.round((isPortrait ? 52 : 28) * resScale);
+    const headerY = cursorY;
 
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     ctx.shadowBlur = Math.round(14 * resScale);
@@ -200,39 +281,26 @@ function renderFlashListTemplate(
     ctx.textBaseline = 'middle';
     ctx.fillText(titlePrefix, width / 2, headerY + headerH / 2 + 0.5, headerW - Math.round(20 * resScale));
     ctx.restore();
+
+    cursorY += headerH + gapAfterHeader;
   }
 
-  // 2. Active Question / Chrono / Reveal Prompt
-  const promptTopY = Math.round(
-    (opts.showSurahHeader ? (isPortrait ? 132 : 92) : isPortrait ? 64 : 36) * resScale
-  );
-
+  // 2. Centered Active Question / Chrono / Reveal Prompt
+  const promptTopY = cursorY;
   ctx.save();
-  const promptFontPx = Math.round((isPortrait ? 30 : 25) * resScale * textScaleFactor);
-  const promptLineH = Math.round(promptFontPx * 1.24);
-  ctx.font = `800 ${promptFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
 
-  const correctAnswerText =
-    state.question.options[state.question.correctIndex] || 'Réponse';
-
-  let promptBottomY = promptTopY;
-
   if (state.phase === 'question') {
-    const qFormatted = state.question.question
-      .replace(/\s+([?!:;])/g, '\u00A0$1')
-      .toUpperCase()
-      .trim();
-    const lines = wrapTextLines(qFormatted, contentW * 0.94, (t) => ctx.measureText(t).width).slice(0, 3);
+    ctx.font = `800 ${promptFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
     ctx.shadowBlur = Math.round(8 * resScale);
     ctx.shadowOffsetY = Math.round(2 * resScale);
     ctx.fillStyle = '#FFFFFF';
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < qLines.length; i++) {
       drawOutlinedText(
         ctx,
-        lines[i],
+        qLines[i],
         width / 2,
         promptTopY + i * promptLineH,
         contentW * 0.96,
@@ -241,29 +309,26 @@ function renderFlashListTemplate(
       );
     }
 
-    // Countdown badge directly below active question
-    const pillY = promptTopY + lines.length * promptLineH + Math.round(12 * resScale);
-    const pillW = Math.round(150 * resScale);
-    const pillH = Math.round(32 * resScale);
+    // Centered Countdown badge directly below active question
+    const pillY = promptTopY + qLines.length * promptLineH + gapPromptToPill;
+    const pillW = Math.round(160 * resScale);
     const pillX = Math.round((width - pillW) / 2);
 
     ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
     drawRoundedRectPath(ctx, pillX, pillY, pillW, pillH, pillH / 2);
-    ctx.fillStyle = state.countdownRemainingSec <= 2 ? design.accentColor : 'rgba(15, 23, 42, 0.8)';
+    ctx.fillStyle = state.countdownRemainingSec <= 2 ? design.accentColor : 'rgba(15, 23, 42, 0.82)';
     ctx.fill();
     ctx.lineWidth = Math.max(1.2, Math.round(1.8 * resScale));
     ctx.strokeStyle = '#FFFFFF';
     ctx.stroke();
 
     ctx.shadowColor = 'transparent';
-    ctx.font = `800 ${Math.round(15 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
+    ctx.font = `800 ${Math.round(15.5 * resScale)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.fillStyle = '#FFFFFF';
     ctx.textBaseline = 'middle';
     ctx.fillText(`CHRONO · ${state.countdownRemainingSec}s`, width / 2, pillY + pillH / 2 + 0.5);
-    promptBottomY = pillY + pillH;
   } else {
     // Reveal Phase: ✅ + Answer headline
-    const badgeSize = Math.round(36 * resScale);
     const badgeX = Math.round((width - badgeSize) / 2);
     drawRoundedRectPath(ctx, badgeX, promptTopY, badgeSize, badgeSize, Math.round(9 * resScale));
     ctx.fillStyle = '#22C55E';
@@ -273,17 +338,12 @@ function renderFlashListTemplate(
     ctx.textBaseline = 'middle';
     ctx.fillText('✓', width / 2, promptTopY + badgeSize / 2 + 1);
 
-    const ansY = promptTopY + badgeSize + Math.round(10 * resScale);
+    const ansY = promptTopY + badgeSize + gapBadgeToAns;
     ctx.font = `800 ${Math.round(promptFontPx * 1.05)}px 'Plus Jakarta Sans', system-ui, sans-serif`;
     ctx.textBaseline = 'top';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
     ctx.shadowBlur = Math.round(8 * resScale);
     ctx.fillStyle = '#86EFAC';
-    const ansLines = wrapTextLines(
-      correctAnswerText.toUpperCase(),
-      contentW * 0.94,
-      (t) => ctx.measureText(t).width
-    ).slice(0, 2);
     for (let i = 0; i < ansLines.length; i++) {
       drawOutlinedText(
         ctx,
@@ -295,64 +355,31 @@ function renderFlashListTemplate(
         Math.round(5 * resScale)
       );
     }
-    promptBottomY = ansY + ansLines.length * promptLineH;
   }
   ctx.restore();
 
-  // 3. Numbered List 1) .. N) Accumulating Revealed Answers
-  const bottomSafeY =
-    height -
-    Math.round(
-      (hasCustomLogo ? (isPortrait ? 130 : 108) : showWatermark ? (isPortrait ? 92 : 76) : 34) *
-        resScale
-    );
-  const listTopY = promptBottomY + Math.round((isPortrait ? 28 : 18) * resScale);
-  const availListH = Math.max(120, bottomSafeY - listTopY);
+  const listTopY = promptTopY + promptBlockH + gapAfterPrompt;
 
-  const totalQ = quizConfig.questions.length;
-  const maxVisible = 10;
-  let startIdx = 0;
-  if (totalQ > maxVisible) {
-    startIdx = Math.max(0, Math.min(totalQ - maxVisible, state.activeIndex - 4));
-  }
-  const endIdx = Math.min(totalQ, startIdx + maxVisible);
-  const visibleCount = Math.max(1, endIdx - startIdx);
-
-  const twoCols = isLandscape && visibleCount > 5;
-  const rowsPerCol = twoCols ? Math.ceil(visibleCount / 2) : visibleCount;
-  const rowFontPx = Math.round(
-    (isPortrait ? 25 : isLandscape ? 21 : 21) * resScale * textScaleFactor
-  );
-  const rowStep = Math.min(
-    Math.round((isPortrait ? 48 : 42) * resScale),
-    Math.floor(availListH / Math.max(1, rowsPerCol))
-  );
-
+  // 3. Centered Numbered List 1) .. N) Accumulating Revealed Answers
   ctx.save();
   ctx.font = `800 ${rowFontPx}px 'Plus Jakarta Sans', system-ui, sans-serif`;
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
   ctx.shadowBlur = Math.round(6 * resScale);
   ctx.shadowOffsetY = Math.round(2 * resScale);
 
-  const colW = twoCols
-    ? Math.floor((contentW - Math.round(32 * resScale)) / 2)
-    : isLandscape
-      ? Math.min(contentW, Math.round(620 * resScale))
-      : contentW;
-  const baseLeftX = twoCols
-    ? padX + Math.round(16 * resScale)
-    : isLandscape
-      ? Math.round((width - colW) / 2)
-      : padX + Math.round(16 * resScale);
+  const colGap = Math.round(32 * resScale);
+  const colW = twoCols ? Math.floor((contentW - colGap) / 2) : contentW;
 
   for (let vi = 0; vi < visibleCount; vi++) {
     const qIdx = startIdx + vi;
     const item = quizConfig.questions[qIdx];
     const col = twoCols ? Math.floor(vi / rowsPerCol) : 0;
     const row = twoCols ? vi % rowsPerCol : vi;
-    const x = baseLeftX + col * (colW + Math.round(32 * resScale));
+    const centerX = twoCols
+      ? padX + colW * 0.5 + col * (colW + colGap)
+      : width / 2;
     const y = listTopY + row * rowStep + rowStep / 2;
 
     const isRevealedItem =
@@ -375,9 +402,9 @@ function renderFlashListTemplate(
     drawOutlinedText(
       ctx,
       lineText,
-      x,
+      centerX,
       y,
-      colW - Math.round(12 * resScale),
+      colW - Math.round(16 * resScale),
       '#000000',
       Math.round(4.5 * resScale)
     );
