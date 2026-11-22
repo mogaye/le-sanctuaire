@@ -88,11 +88,11 @@ export default async function handler(req, res) {
   try {
     const body = req.method === 'POST' ? req.body || {} : req.query || {};
     const text = normalizeForTts(body.text);
-    const rawVoice = String(body.voiceId || 'fr_001').trim();
+    const rawVoice = String(body.voiceId || 'google_fr').trim();
     const voiceId =
       rawVoice === 'fr_001' || rawVoice === 'fr_002' || rawVoice === 'google_fr'
         ? rawVoice
-        : 'fr_001';
+        : 'google_fr';
 
     if (!text) {
       return res.status(400).json({ ok: false, error: 'Texte manquant.' });

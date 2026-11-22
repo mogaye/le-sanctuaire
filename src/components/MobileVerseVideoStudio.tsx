@@ -39,7 +39,7 @@ import {
   QuizNarratorSettings,
   QuizNarratorVoiceId,
   buildOrderedQuizSteps,
-  normalizeQuizNarratorSettings,
+  loadInitialQuizNarratorSettings,
   prepareNarratedQuizAudioAndTimeline,
   previewSingleNarrationAudio,
   stopNarrationPreviewAudio,
@@ -289,7 +289,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [quizShowExplanation, setQuizShowExplanation] = useState<boolean>(true);
   const [quizSoundEnabled, setQuizSoundEnabled] = useState<boolean>(true);
   const [quizNarrator, setQuizNarrator] = useState<QuizNarratorSettings>(() =>
-    normalizeQuizNarratorSettings(loadStudioBgPreferences().quizNarrator)
+    loadInitialQuizNarratorSettings(loadStudioBgPreferences())
   );
   const [quizMeasuredSpeechDurations, setQuizMeasuredSpeechDurations] = useState<
     Record<string, number>
@@ -533,6 +533,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       bgId,
       quizBgId,
       quizNarrator,
+      quizFemmeDefaultApplied: true,
       textColorOverride,
       bgVeilOpacity,
       bgBlackBackdrop,

@@ -452,7 +452,7 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
               <div className="flex items-center gap-2 min-w-0">
                 <Mic className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
                 <span className="text-xs font-extrabold text-[#1F2421]">
-                  Voix Narrateur Réaliste (Gratuit)
+                  Voix Narration Réaliste (Gratuit)
                 </span>
               </div>
 

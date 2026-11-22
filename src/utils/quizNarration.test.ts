@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_QUIZ_NARRATOR_SETTINGS,
+  QUIZ_NARRATOR_VOICES,
   QuizNarrationBlock,
   QuizNarratorSettings,
   buildOrderedQuizSteps,
   buildTimelineFromQuizSteps,
+  loadInitialQuizNarratorSettings,
   mixAudioOverlaysIntoBuffer,
   moveNarrationBlockToSlot,
   normalizeTextForFrenchNarration,
+  resolveValidNarratorVoiceId,
   splitTextForTtsChunks,
 } from './quizNarration';
 import { QuizQuestionItem } from '../data/islamicQuizBank';
@@ -185,4 +188,39 @@ test('mixAudioOverlaysIntoBuffer overlays narrator PCM and gently ducks backgrou
   assert.equal(Math.abs(out[800] - 0.4) < 0.001, true);
   // Inside speech window (sample 4800 = 0.6s): ducked bed (0.4 * 0.35 = 0.14) + speech (0.5) = 0.64
   assert.equal(Math.abs(out[4800] - 0.64) < 0.001, true);
+});
+
+test('default quiz narrator voice is Femme Posée (google_fr) and upgrades legacy fr_001 once', () => {
+  assert.equal(DEFAULT_QUIZ_NARRATOR_SETTINGS.voiceId, 'google_fr');
+  assert.equal(QUIZ_NARRATOR_VOICES[0].id, 'google_fr');
+  assert.equal(QUIZ_NARRATOR_VOICES[0].gender, 'femme');
+  assert.equal(QUIZ_NARRATOR_VOICES[0].shortLabel, 'Femme Posée');
+  assert.equal(resolveValidNarratorVoiceId(undefined), 'google_fr');
+  assert.equal(resolveValidNarratorVoiceId('invalid_voice'), 'google_fr');
+
+  // Fresh preferences default to google_fr
+  assert.equal(loadInitialQuizNarratorSettings(null).voiceId, 'google_fr');
+
+  // Legacy saved fr_001 without quizFemmeDefaultApplied migrates once to google_fr
+  assert.equal(
+    loadInitialQuizNarratorSettings({
+      quizNarrator: { enabled: true, voiceId: 'fr_001', readQuestions: true, readAnswers: false, blocks: [] },
+    }).voiceId,
+    'google_fr'
+  );
+
+  // Explicit choice after migration is respected
+  assert.equal(
+    loadInitialQuizNarratorSettings({
+      quizFemmeDefaultApplied: true,
+      quizNarrator: { enabled: true, voiceId: 'fr_001', readQuestions: true, readAnswers: false, blocks: [] },
+    }).voiceId,
+    'fr_001'
+  );
+  assert.equal(
+    loadInitialQuizNarratorSettings({
+      quizNarrator: { enabled: true, voiceId: 'fr_002', readQuestions: true, readAnswers: false, blocks: [] },
+    }).voiceId,
+    'fr_002'
+  );
 });

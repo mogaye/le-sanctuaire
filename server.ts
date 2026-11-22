@@ -1541,7 +1541,7 @@ async function startServer() {
       const source = req.method === 'POST' ? req.body || {} : req.query || {};
       const cleanText = normalizeTextForFrenchNarration(String(source.text || '')).slice(0, 1200);
       const voiceId = resolveValidNarratorVoiceId(
-        source.voiceId ? String(source.voiceId) : 'fr_001'
+        source.voiceId ? String(source.voiceId) : 'google_fr'
       );
 
       if (!cleanText) {

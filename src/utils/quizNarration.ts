@@ -46,6 +46,13 @@ export interface QuizNarratorVoiceMeta {
 
 export const QUIZ_NARRATOR_VOICES: QuizNarratorVoiceMeta[] = [
   {
+    id: 'google_fr',
+    label: 'Narratrice Posée (Femme)',
+    shortLabel: 'Femme Posée',
+    description: 'Voix féminine posée, douce et naturelle',
+    gender: 'femme',
+  },
+  {
     id: 'fr_001',
     label: 'Narrateur Posé (Homme)',
     shortLabel: 'Homme Posé',
@@ -59,18 +66,11 @@ export const QUIZ_NARRATOR_VOICES: QuizNarratorVoiceMeta[] = [
     description: 'Voix rythmée idéale TikTok & Reels',
     gender: 'homme',
   },
-  {
-    id: 'google_fr',
-    label: 'Narratrice Claire (Femme)',
-    shortLabel: 'Femme Claire',
-    description: 'Voix féminine posée et fluide',
-    gender: 'femme',
-  },
 ];
 
 export const DEFAULT_QUIZ_NARRATOR_SETTINGS: QuizNarratorSettings = {
   enabled: true,
-  voiceId: 'fr_001',
+  voiceId: 'google_fr',
   readQuestions: true,
   readAnswers: false,
   blocks: [],
@@ -112,7 +112,21 @@ export function resolveValidNarratorVoiceId(
   if (raw === 'fr_001' || raw === 'fr_002' || raw === 'google_fr') {
     return raw;
   }
-  return 'fr_001';
+  return 'google_fr';
+}
+
+export function loadInitialQuizNarratorSettings(prefs?: {
+  quizNarrator?: Partial<QuizNarratorSettings> | null;
+  quizFemmeDefaultApplied?: boolean;
+} | null): QuizNarratorSettings {
+  const normalized = normalizeQuizNarratorSettings(prefs?.quizNarrator);
+  if (!prefs?.quizFemmeDefaultApplied && normalized.voiceId === 'fr_001') {
+    return {
+      ...normalized,
+      voiceId: 'google_fr',
+    };
+  }
+  return normalized;
 }
 
 export function createQuizNarrationBlock(

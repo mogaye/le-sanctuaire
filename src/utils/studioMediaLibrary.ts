@@ -66,6 +66,7 @@ export interface StudioBgPreferences {
   bgId?: string;
   quizBgId?: string;
   quizNarrator?: QuizNarratorSettings;
+  quizFemmeDefaultApplied?: boolean;
   textColorOverride?: 'auto' | 'light' | 'dark';
   bgVeilOpacity?: number;
   bgBlackBackdrop?: boolean;
