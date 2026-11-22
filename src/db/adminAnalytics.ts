@@ -10,8 +10,8 @@ import {
 } from './schema.ts';
 import { eq, desc, ilike } from 'drizzle-orm';
 import {
-  SubscriptionPlanId,
-  StudioQualityTier,
+  type SubscriptionPlanId,
+  type StudioQualityTier,
   VIDEO_PLANS,
   evaluateVideoCreationAccess,
   getEffectivePlanId,

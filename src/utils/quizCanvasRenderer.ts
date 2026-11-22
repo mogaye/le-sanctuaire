@@ -2,9 +2,9 @@ import { QuizQuestionItem, getQuizCategoryLabel } from '../data/islamicQuizBank'
 import {
   drawMandatoryBottomWatermark,
   getEffectiveResScale,
-  renderVideoBackgroundLayer,
   VideoCanvasRenderOptions,
 } from './canvasVideoRenderer';
+import { renderQuizAnimatedIslamicBackground } from './quizAnimatedBackgrounds';
 import { ContinuousTimeline, wrapTextLines } from './mobileVideoStudioUtils';
 import {
   DEFAULT_QUIZ_DESIGN,
@@ -12,6 +12,13 @@ import {
   hexToRgba,
   isHexColorDark,
 } from './quizDesignPresets';
+import {
+  QuizNarrationStep,
+  QuizNarratorSettings,
+  QuizTimelineStep,
+  buildOrderedQuizSteps,
+  getNarrationSlotLabel,
+} from './quizNarration';
 import { QuizFrameState, computeQuizFrameState } from './quizVideoUtils';
 
 export interface QuizCanvasRenderConfig {
@@ -21,7 +28,10 @@ export interface QuizCanvasRenderConfig {
   revealSec: number;
   showExplanation: boolean;
   design?: QuizVisualDesign;
+  quizBgId?: string;
   useSignatureBackdrop?: boolean;
+  narrator?: QuizNarratorSettings;
+  steps?: QuizTimelineStep[];
 }
 
 export interface QuizCanvasGeometry {
@@ -668,36 +678,6 @@ function renderEmeraudeCadreTemplate(
   const isPortrait = height > width;
   const isLandscape = width > height;
 
-  // If using default studio dark surface, render signature organic emerald/teal blob background
-  const hasCustomMedia = Boolean(opts.bgImage || opts.bgVideo);
-  const isFallbackDefaultDark =
-    !hasCustomMedia &&
-    (!opts.bgSurfaceColor ||
-      ['#050505', '#080c0a', '#06261b'].includes(opts.bgSurfaceColor.toLowerCase()));
-
-  if (quizConfig.useSignatureBackdrop || isFallbackDefaultDark) {
-    ctx.save();
-    ctx.fillStyle = '#117A70';
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.fillStyle = '#0B4F4A';
-    ctx.beginPath();
-    ctx.arc(width * 0.14, height * 0.16, Math.min(width, height) * 0.34, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(width * 0.86, height * 0.84, Math.min(width, height) * 0.38, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(45, 212, 191, 0.24)';
-    ctx.beginPath();
-    ctx.arc(width * 0.82, height * 0.28, Math.min(width, height) * 0.22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(width * 0.18, height * 0.72, Math.min(width, height) * 0.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
   const padX = Math.round((isLandscape ? 170 : isPortrait ? 52 : 64) * resScale);
   const contentW = Math.max(220, width - padX * 2);
   const textScaleFactor =
@@ -882,6 +862,220 @@ function renderEmeraudeCadreTemplate(
   );
 }
 
+function renderQuizNarrationStepFrame(
+  ctx: CanvasRenderingContext2D,
+  quizConfig: QuizCanvasRenderConfig,
+  narrationStep: QuizNarrationStep,
+  progress: number,
+  opts: VideoCanvasRenderOptions,
+  design: QuizVisualDesign,
+  resScale: number,
+  hasCustomLogo: boolean,
+  showWatermark: boolean
+) {
+  const { width, height, isLightSurface } = opts;
+  const geom = computeQuizCanvasGeometry(width, height, {
+    showHeader: opts.showSurahHeader,
+    hasCustomLogo,
+    showWatermark,
+  });
+
+  const cardIsDark = isHexColorDark(design.cardBgColor);
+  const accentColor = design.accentColor;
+  const goldColor = design.goldColor;
+  const primaryTextColor = opts.frenchTextColor || design.questionTextColor;
+  const fontFamily =
+    design.fontStyle === 'serif'
+      ? "'Amiri', 'Cinzel', Georgia, serif"
+      : "'Plus Jakarta Sans', system-ui, sans-serif";
+  const textScaleFactor =
+    opts.textScale === 'compact' ? 0.9 : opts.textScale === 'grand' ? 1.1 : 1.0;
+
+  const slot = narrationStep.block.slot;
+  const slotLabel = getNarrationSlotLabel(
+    slot,
+    narrationStep.relatedQuestionIndex
+  ).toUpperCase();
+  const titlePrefix = quizConfig.quizTitle?.trim()
+    ? quizConfig.quizTitle.trim().toUpperCase()
+    : 'QUIZ ISLAM';
+
+  // Top Header Badge
+  if (opts.showSurahHeader) {
+    ctx.save();
+    const headerFontPx = Math.round(14 * resScale);
+    ctx.font = `700 ${headerFontPx}px ${fontFamily}`;
+    const headerText = `${titlePrefix}  •  ${slotLabel}`;
+    const headerY = Math.round((geom.isPortrait ? 86 : 46) * resScale);
+    const pillW = Math.min(
+      geom.contentW,
+      ctx.measureText(headerText).width + Math.round(52 * resScale)
+    );
+    const pillH = Math.round(32 * resScale);
+    drawRoundedRectPath(
+      ctx,
+      Math.round((width - pillW) / 2),
+      Math.round(headerY - pillH / 2),
+      pillW,
+      pillH,
+      design.optionShape === 'sharp' ? Math.round(6 * resScale) : pillH / 2
+    );
+    ctx.fillStyle = hexToRgba(design.cardBgColor, Math.max(0.92, design.cardOpacity));
+    ctx.fill();
+    ctx.lineWidth = Math.max(1, Math.round(1.2 * resScale));
+    ctx.strokeStyle = hexToRgba(design.borderColor, 0.5);
+    ctx.stroke();
+
+    ctx.fillStyle = goldColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(headerText, width / 2, headerY + 0.5, Math.max(120, pillW - 24 * resScale));
+    ctx.restore();
+  }
+
+  const stageTopY = geom.topSafeY;
+  const stageH = Math.max(180, geom.bottomSafeY - stageTopY);
+
+  const spokenDisplayText = narrationStep.block.showOnScreen
+    ? narrationStep.block.text
+        .replace(/\s+([?!:;])/g, '\u00A0$1')
+        .trim()
+    : titlePrefix;
+
+  const baseTextPx =
+    slot === 'video_opening' || slot === 'video_closing'
+      ? geom.isPortrait
+        ? 30
+        : 27
+      : geom.isPortrait
+      ? 26
+      : 24;
+  const fontPx = Math.round(baseTextPx * resScale * textScaleFactor);
+  const lineH = Math.round(fontPx * 1.38);
+  const cardPadX = Math.round((geom.isPortrait ? 30 : 40) * resScale);
+  const cardPadY = Math.round((geom.isPortrait ? 30 : 26) * resScale);
+  const cardW = Math.min(geom.contentW, Math.round((geom.isPortrait ? 640 : 840) * resScale));
+  const maxTextW = Math.max(180, cardW - cardPadX * 2);
+
+  ctx.save();
+  ctx.font = `700 ${fontPx}px ${fontFamily}`;
+  const lines = wrapTextLines(spokenDisplayText, maxTextW, (t) => ctx.measureText(t).width).slice(
+    0,
+    7
+  );
+  ctx.restore();
+
+  const subtitleText = !narrationStep.block.showOnScreen
+    ? slot === 'before_question' && narrationStep.relatedQuestionIndex !== null
+      ? `Question ${narrationStep.relatedQuestionIndex + 1} à suivre...`
+      : slot === 'after_question' && narrationStep.relatedQuestionIndex !== null
+      ? `Suite du quiz...`
+      : 'Préparez-vous...'
+    : null;
+
+  const badgeAreaH = Math.round(38 * resScale);
+  const subtitleH = subtitleText ? Math.round(28 * resScale) : 0;
+  const progressBarAreaH = Math.round(20 * resScale);
+  const cardH = Math.min(
+    stageH - Math.round(24 * resScale),
+    Math.max(
+      Math.round(170 * resScale),
+      cardPadY * 2 + badgeAreaH + lines.length * lineH + subtitleH + progressBarAreaH
+    )
+  );
+  const cardX = Math.round((width - cardW) / 2);
+  const cardY = Math.round(stageTopY + (stageH - cardH) / 2);
+  const cornerR =
+    design.optionShape === 'sharp' ? Math.round(8 * resScale) : Math.round(24 * resScale);
+
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
+  ctx.shadowBlur = Math.round(24 * resScale);
+  ctx.shadowOffsetY = Math.round(8 * resScale);
+  drawRoundedRectPath(ctx, cardX, cardY, cardW, cardH, cornerR);
+  ctx.fillStyle = hexToRgba(design.cardBgColor, Math.max(0.92, design.cardOpacity));
+  ctx.fill();
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.lineWidth = Math.max(1.5, Math.round(2 * resScale));
+  ctx.strokeStyle = hexToRgba(goldColor, 0.65);
+  ctx.stroke();
+
+  // Top ornamental Islamic 8-point star emblem inside the card
+  const starCx = width / 2;
+  const starCy = cardY + cardPadY + Math.round(11 * resScale);
+  const starR = Math.round(11 * resScale);
+  ctx.save();
+  ctx.strokeStyle = hexToRgba(goldColor, 0.92);
+  ctx.fillStyle = hexToRgba(accentColor, 0.35);
+  ctx.lineWidth = Math.max(1.2, 1.5 * resScale);
+  for (let rot = 0; rot < 2; rot++) {
+    const offset = rot * (Math.PI / 4);
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) {
+      const a = offset + Math.PI / 4 + (k * Math.PI) / 2;
+      const px = starCx + Math.cos(a) * starR;
+      const py = starCy + Math.sin(a) * starR;
+      if (k === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Spoken text
+  const textStartY =
+    cardY + cardPadY + badgeAreaH + Math.round(4 * resScale);
+  ctx.font = `700 ${fontPx}px ${fontFamily}`;
+  ctx.fillStyle = primaryTextColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  if (opts.textShadowBoost !== false) {
+    ctx.shadowColor = cardIsDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.5)';
+    ctx.shadowBlur = Math.round(8 * resScale);
+  }
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], width / 2, textStartY + i * lineH, maxTextW);
+  }
+  ctx.shadowBlur = 0;
+
+  if (subtitleText) {
+    const subY = textStartY + lines.length * lineH + Math.round(10 * resScale);
+    ctx.font = `600 ${Math.round(15 * resScale)}px ${fontFamily}`;
+    ctx.fillStyle = goldColor;
+    ctx.fillText(subtitleText, width / 2, subY, maxTextW);
+  }
+
+  // Subtle narration progress line inside bottom of card
+  const barW = Math.min(Math.round(240 * resScale), cardW - cardPadX * 2);
+  const barH = Math.round(4 * resScale);
+  const barX = Math.round((width - barW) / 2);
+  const barY = cardY + cardH - cardPadY + Math.round(4 * resScale);
+  drawRoundedRectPath(ctx, barX, barY, barW, barH, barH / 2);
+  ctx.fillStyle = cardIsDark ? 'rgba(255,255,255,0.16)' : 'rgba(15,23,42,0.12)';
+  ctx.fill();
+
+  const fillW = Math.max(barH, Math.round(barW * Math.max(0.04, Math.min(1, progress))));
+  drawRoundedRectPath(ctx, barX, barY, fillW, barH, barH / 2);
+  ctx.fillStyle = accentColor;
+  ctx.fill();
+  ctx.restore();
+
+  drawMandatoryBottomWatermark(
+    ctx,
+    width,
+    height,
+    resScale,
+    isLightSurface,
+    opts.logoImage,
+    showWatermark
+  );
+}
+
 export function renderQuizCanvasFrame(
   ctx: CanvasRenderingContext2D,
   quizConfig: QuizCanvasRenderConfig,
@@ -890,7 +1084,18 @@ export function renderQuizCanvasFrame(
   opts: VideoCanvasRenderOptions
 ) {
   const { width, height, isLightSurface } = opts;
-  const resScale = renderVideoBackgroundLayer(ctx, currentSec, opts);
+  const bgTimeSec =
+    typeof opts.bgMotionTimeSec === 'number' && Number.isFinite(opts.bgMotionTimeSec)
+      ? opts.bgMotionTimeSec
+      : currentSec;
+  const resScale = renderQuizAnimatedIslamicBackground(
+    ctx,
+    bgTimeSec,
+    width,
+    height,
+    quizConfig.quizBgId,
+    opts
+  );
 
   const hasCustomLogo = Boolean(
     opts.logoImage &&
@@ -900,12 +1105,24 @@ export function renderQuizCanvasFrame(
   const showWatermark = opts.showWatermark !== false;
   const design = quizConfig.design || DEFAULT_QUIZ_DESIGN;
 
+  const effectiveSteps =
+    quizConfig.steps ||
+    (quizConfig.narrator?.enabled
+      ? buildOrderedQuizSteps(
+          quizConfig.questions,
+          quizConfig.narrator,
+          quizConfig.thinkSec,
+          quizConfig.revealSec
+        )
+      : undefined);
+
   const state = computeQuizFrameState(
     quizConfig.questions,
     timeline,
     currentSec,
     quizConfig.thinkSec,
-    quizConfig.revealSec
+    quizConfig.revealSec,
+    effectiveSteps
   );
 
   if (!state) {
@@ -916,6 +1133,21 @@ export function renderQuizCanvasFrame(
       resScale,
       isLightSurface,
       opts.logoImage,
+      showWatermark
+    );
+    return;
+  }
+
+  if (state.stepKind === 'narration' && state.narrationStep) {
+    renderQuizNarrationStepFrame(
+      ctx,
+      quizConfig,
+      state.narrationStep,
+      state.narrationProgress ?? 0.5,
+      opts,
+      design,
+      resScale,
+      hasCustomLogo,
       showWatermark
     );
     return;

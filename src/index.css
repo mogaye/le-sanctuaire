@@ -268,4 +268,90 @@ body {
   cursor: pointer;
 }
 
+@keyframes quiz-bg-orbit-a {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(7px, 5px) scale(1.07);
+  }
+}
+
+@keyframes quiz-bg-orbit-b {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(-7px, -5px) scale(1.08);
+  }
+}
+
+@keyframes quiz-bg-spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes quiz-bg-sway {
+  0%, 100% {
+    transform: rotate(-7deg) translateY(0px);
+  }
+  50% {
+    transform: rotate(7deg) translateY(-3px);
+  }
+}
+
+@keyframes quiz-bg-float {
+  0%, 100% {
+    transform: translateY(3px) translateX(-2px);
+  }
+  50% {
+    transform: translateY(-4px) translateX(2px);
+  }
+}
+
+.quiz-thumb-orbit-a {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: quiz-bg-orbit-a 8s ease-in-out infinite;
+}
+
+.quiz-thumb-orbit-b {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: quiz-bg-orbit-b 9.5s ease-in-out infinite;
+}
+
+.quiz-thumb-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: quiz-bg-spin-slow 18s linear infinite;
+}
+
+.quiz-thumb-sway {
+  transform-box: fill-box;
+  transform-origin: top center;
+  animation: quiz-bg-sway 4.5s ease-in-out infinite;
+}
+
+.quiz-thumb-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: quiz-bg-float 5.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiz-thumb-orbit-a,
+  .quiz-thumb-orbit-b,
+  .quiz-thumb-spin,
+  .quiz-thumb-sway,
+  .quiz-thumb-float {
+    animation: none;
+  }
+}
+
+
 

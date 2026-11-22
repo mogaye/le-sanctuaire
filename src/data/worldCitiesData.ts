@@ -1,4 +1,4 @@
-import { CityData } from '../types';
+import type { CityData } from '../types.ts';
 import { Coordinates, CalculationMethod, PrayerTimes, Qibla } from 'adhan';
 
 export const WORLD_REGIONS = [

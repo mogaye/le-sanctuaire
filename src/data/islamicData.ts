@@ -1,5 +1,5 @@
-import { CityData, Method, Reciter, PrayerTime, Surah, DhikrItem } from '../types';
-import { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, getLiveCityWithRealPrayers, WorldRegion } from './worldCitiesData';
+import type { CityData, Method, Reciter, PrayerTime, Surah, DhikrItem } from '../types.ts';
+import { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, getLiveCityWithRealPrayers, type WorldRegion } from './worldCitiesData.ts';
 
 export const CITIES: CityData[] = WORLD_CITIES;
 export { WORLD_CITIES, WORLD_REGIONS, filterWorldCities, computeDynamicCityPrayers, getLiveCityWithRealPrayers };

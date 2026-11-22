@@ -1477,6 +1477,120 @@ async function startServer() {
   });
 
   // ============================================================================
+  // 3.6B. FREE REALISTIC QUIZ NARRATOR TTS PROXY (TikTok Neural FR + Google FR fallback)
+  // ============================================================================
+
+  const quizTtsCache = new Map<string, string[]>();
+
+  const synthesizeQuizTtsChunkTikTok = async (
+    text: string,
+    voice: string
+  ): Promise<string | null> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 9000);
+    try {
+      const upstream = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice }),
+        signal: ctrl.signal,
+      });
+      if (!upstream.ok) return null;
+      const json = (await upstream.json().catch(() => null)) as any;
+      if (json?.success && typeof json?.data === 'string' && json.data.length > 64) {
+        return json.data;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const synthesizeQuizTtsChunkGoogle = async (text: string): Promise<string | null> => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 9000);
+    try {
+      const url = `https://translate.googleapis.com/translate_tts?ie=UTF-8&client=gtx&tl=fr&q=${encodeURIComponent(text)}`;
+      const upstream = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+        signal: ctrl.signal,
+      });
+      if (!upstream.ok) return null;
+      const arr = await upstream.arrayBuffer();
+      if (arr.byteLength < 128) return null;
+      return Buffer.from(arr).toString('base64');
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  app.all('/api/quiz-tts', async (req, res) => {
+    try {
+      const {
+        normalizeTextForFrenchNarration,
+        resolveValidNarratorVoiceId,
+        splitTextForTtsChunks,
+      } = await import('./src/utils/quizNarration.ts');
+
+      const source = req.method === 'POST' ? req.body || {} : req.query || {};
+      const cleanText = normalizeTextForFrenchNarration(String(source.text || '')).slice(0, 1200);
+      const voiceId = resolveValidNarratorVoiceId(
+        source.voiceId ? String(source.voiceId) : 'fr_001'
+      );
+
+      if (!cleanText) {
+        return res.status(400).json({ ok: false, error: 'Texte requis pour la narration.' });
+      }
+
+      const cacheKey = `${voiceId}::${cleanText}`;
+      const cached = quizTtsCache.get(cacheKey);
+      if (cached) {
+        return res.json({ ok: true, voiceId, chunks: cached, cached: true });
+      }
+
+      const maxLen = voiceId === 'google_fr' ? 175 : 210;
+      const parts = splitTextForTtsChunks(cleanText, maxLen);
+      const chunks: string[] = [];
+
+      for (const part of parts) {
+        let b64: string | null = null;
+        if (voiceId === 'fr_001' || voiceId === 'fr_002') {
+          b64 = await synthesizeQuizTtsChunkTikTok(part, voiceId);
+        }
+        if (!b64) {
+          b64 = await synthesizeQuizTtsChunkGoogle(part);
+        }
+        if (!b64) {
+          return res.status(502).json({
+            ok: false,
+            error: 'Synthèse vocale temporairement indisponible.',
+          });
+        }
+        chunks.push(b64);
+      }
+
+      if (quizTtsCache.size > 160) {
+        const oldestKey = quizTtsCache.keys().next().value;
+        if (oldestKey) quizTtsCache.delete(oldestKey);
+      }
+      quizTtsCache.set(cacheKey, chunks);
+
+      return res.json({ ok: true, voiceId, chunks });
+    } catch (error: any) {
+      return res.status(500).json({
+        ok: false,
+        error: error?.message || 'Erreur synthèse vocale.',
+      });
+    }
+  });
+
+  // ============================================================================
   // 3.7. PERSISTENT STUDIO MEDIA LIBRARY VAULT (Images & Videos saved on site)
   // ============================================================================
 
@@ -1631,8 +1745,20 @@ async function startServer() {
   // 3.8. FULL HD H.264 + AAC MP4 VIDEO TRANSCODE & MUXING ROUTES (FFmpeg)
   // ============================================================================
 
-  app.get('/api/video/health', (_req, res) => {
-    res.json({ ffmpeg: true });
+  let cachedFfmpegAvailable: boolean | null = null;
+  app.get('/api/video/health', async (_req, res) => {
+    if (cachedFfmpegAvailable === null) {
+      try {
+        const { execFile } = await import('child_process');
+        const { promisify } = await import('util');
+        const execFileAsync = promisify(execFile);
+        await execFileAsync('ffmpeg', ['-version'], { timeout: 2000 });
+        cachedFfmpegAvailable = true;
+      } catch {
+        cachedFfmpegAvailable = false;
+      }
+    }
+    res.json({ ffmpeg: cachedFfmpegAvailable });
   });
 
   app.post(

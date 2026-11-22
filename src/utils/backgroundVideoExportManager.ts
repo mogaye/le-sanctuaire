@@ -41,11 +41,17 @@ import {
   buildQuizTimeline,
   clampQuizRevealSec,
   clampQuizThinkSec,
-  createQuizAudioSequence,
   normalizeQuizQuestion,
+  synthesizeQuizQuestionAudioBuffer,
 } from './quizVideoUtils';
 import { QuizCanvasRenderConfig, renderQuizCanvasFrame } from './quizCanvasRenderer';
 import { QuizVisualDesign } from './quizDesignPresets';
+import {
+  DEFAULT_QUIZ_NARRATOR_SETTINGS,
+  QuizNarratorSettings,
+  normalizeQuizNarratorSettings,
+  prepareNarratedQuizAudioAndTimeline,
+} from './quizNarration';
 
 const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
@@ -124,6 +130,8 @@ export interface StartBackgroundVideoExportParams {
   quizShowExplanation?: boolean;
   quizSoundEnabled?: boolean;
   quizDesign?: QuizVisualDesign;
+  quizBgId?: string;
+  quizNarrator?: QuizNarratorSettings;
 }
 
 function isRunningInIframe(): boolean {
@@ -846,11 +854,11 @@ export async function startBackgroundVideoExport(
     }
 
     const bgImgPromise =
-      params.activeMediaKind === 'image' && ownedMediaUrl
+      !isQuizMode && params.activeMediaKind === 'image' && ownedMediaUrl
         ? loadCanvasBackgroundImage(ownedMediaUrl)
         : Promise.resolve(null);
     const bgVideoPromise =
-      params.activeMediaKind === 'video' && ownedMediaUrl
+      !isQuizMode && params.activeMediaKind === 'video' && ownedMediaUrl
         ? loadExportBackgroundVideo(ownedMediaUrl)
         : Promise.resolve(null);
     const logoImgPromise = params.customLogoUrl
@@ -860,27 +868,36 @@ export async function startBackgroundVideoExport(
     const quizThinkSec = clampQuizThinkSec(params.quizThinkSec ?? 5);
     const quizRevealSec = clampQuizRevealSec(params.quizRevealSec ?? 3);
     const quizSoundEnabled = params.quizSoundEnabled !== false;
-    const quizRenderConfig: QuizCanvasRenderConfig | null = isQuizMode
-      ? {
+    const quizNarrator = params.quizNarrator
+      ? normalizeQuizNarratorSettings(params.quizNarrator)
+      : { ...DEFAULT_QUIZ_NARRATOR_SETTINGS, enabled: false, blocks: [] };
+
+    const quizPlanPromise = isQuizMode
+      ? prepareNarratedQuizAudioAndTimeline({
+          audioCtx: ctx,
           questions: normalizedQuizQuestions,
-          quizTitle: params.quizTitle,
+          narrator: quizNarrator,
           thinkSec: quizThinkSec,
           revealSec: quizRevealSec,
-          showExplanation: params.quizShowExplanation !== false,
-          design: params.quizDesign,
-        }
+          paceMultiplier: params.paceMultiplier,
+          soundEnabled: quizSoundEnabled,
+          synthesizeQuestionBed: synthesizeQuizQuestionAudioBuffer,
+          onProgress: (loaded, total) => {
+            if (abortCtrl.signal.aborted) return;
+            const pct = Math.max(2, Math.round((loaded / Math.max(1, total)) * 20));
+            updateSnapshot({
+              progressPct: pct,
+              statusLabel: `Préparation voix narrateur (${loaded}/${Math.max(1, total)})...`,
+            });
+            updateMediaSessionProgress(pct, params.summaryLabel, 'preparing');
+            void pushPhoneTopBarNotification(false);
+          },
+          signal: abortCtrl.signal,
+        })
       : null;
 
-    const audioPromise: Promise<DecodedVerseBuffer[]> = isQuizMode
-      ? Promise.resolve(
-          createQuizAudioSequence(
-            ctx,
-            normalizedQuizQuestions,
-            quizThinkSec,
-            quizRevealSec,
-            quizSoundEnabled
-          )
-        )
+    const audioPromise: Promise<DecodedVerseBuffer[]> = isQuizMode && quizPlanPromise
+      ? quizPlanPromise.then((plan) => plan.decodedBuffers)
       : decodeVerseAudioSequence(
           ctx,
           params.primarySurahMeta.number,
@@ -899,8 +916,9 @@ export async function startBackgroundVideoExport(
           abortCtrl.signal
         );
 
-    const [decodedBase, bgImg, bgVideo, logoImg] = await Promise.all([
+    const [decodedBase, quizPlan, bgImg, bgVideo, logoImg] = await Promise.all([
       audioPromise,
+      quizPlanPromise,
       bgImgPromise,
       bgVideoPromise,
       logoImgPromise,
@@ -957,18 +975,35 @@ export async function startBackgroundVideoExport(
 
     const exportSeq = expanded.sequence;
     const exportDecoded: DecodedVerseBuffer[] = expanded.decodedItems;
-    const exactTimeline = isQuizMode
-      ? buildQuizTimeline(
-          normalizedQuizQuestions,
-          quizThinkSec,
-          quizRevealSec,
-          params.paceMultiplier
-        )
-      : buildContinuousTimeline(
-          exportSeq,
-          expanded.measuredDurationsSec,
-          params.paceMultiplier
-        );
+    const exactTimeline =
+      isQuizMode && quizPlan
+        ? quizPlan.timeline
+        : isQuizMode
+        ? buildQuizTimeline(
+            normalizedQuizQuestions,
+            quizThinkSec,
+            quizRevealSec,
+            params.paceMultiplier
+          )
+        : buildContinuousTimeline(
+            exportSeq,
+            expanded.measuredDurationsSec,
+            params.paceMultiplier
+          );
+
+    const quizRenderConfig: QuizCanvasRenderConfig | null = isQuizMode
+      ? {
+          questions: normalizedQuizQuestions,
+          quizTitle: params.quizTitle,
+          thinkSec: quizThinkSec,
+          revealSec: quizRevealSec,
+          showExplanation: params.quizShowExplanation !== false,
+          design: params.quizDesign,
+          quizBgId: params.quizBgId,
+          narrator: quizNarrator,
+          steps: quizPlan?.steps,
+        }
+      : null;
 
     if (document.fonts?.ready) {
       await document.fonts.ready.catch(() => {});

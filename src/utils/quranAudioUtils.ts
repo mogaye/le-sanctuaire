@@ -1,4 +1,4 @@
-import { ALL_114_SURAHS } from '../data/quranSurahs';
+import { ALL_114_SURAHS } from '../data/quranSurahs.ts';
 
 // Calculate cumulative global ayah number across the 114 surahs (1 to 6236)
 export function getAyahGlobalNumber(surahNum: number, ayahNum: number): number {

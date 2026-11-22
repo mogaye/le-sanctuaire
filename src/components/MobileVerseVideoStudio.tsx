@@ -28,13 +28,22 @@ import {
 import {
   StudioContentMode,
   buildQuizTimeline,
-  createQuizAudioSequence,
   normalizeQuizQuestion,
+  synthesizeQuizQuestionAudioBuffer,
 } from '../utils/quizVideoUtils';
 import {
   QuizCanvasRenderConfig,
   renderQuizCanvasFrame,
 } from '../utils/quizCanvasRenderer';
+import {
+  QuizNarratorSettings,
+  QuizNarratorVoiceId,
+  buildOrderedQuizSteps,
+  normalizeQuizNarratorSettings,
+  prepareNarratedQuizAudioAndTimeline,
+  previewSingleNarrationAudio,
+  stopNarrationPreviewAudio,
+} from '../utils/quizNarration';
 import {
   BUILT_IN_QUIZ_DESIGNS,
   DEFAULT_QUIZ_DESIGN,
@@ -43,6 +52,11 @@ import {
   loadSavedCustomQuizDesigns,
   saveCustomQuizDesigns,
 } from '../utils/quizDesignPresets';
+import {
+  getQuizAnimatedBgPreset,
+  resolveValidQuizBgId,
+} from '../utils/quizAnimatedBackgrounds';
+import { QuizAnimatedBgPicker } from './video-studio/QuizAnimatedBgPicker';
 import { QuizBuilderPanel } from './video-studio/QuizBuilderPanel';
 import { QuizDesignPanel } from './video-studio/QuizDesignPanel';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
@@ -274,6 +288,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   const [quizRevealSec, setQuizRevealSec] = useState<number>(3);
   const [quizShowExplanation, setQuizShowExplanation] = useState<boolean>(true);
   const [quizSoundEnabled, setQuizSoundEnabled] = useState<boolean>(true);
+  const [quizNarrator, setQuizNarrator] = useState<QuizNarratorSettings>(() =>
+    normalizeQuizNarratorSettings(loadStudioBgPreferences().quizNarrator)
+  );
+  const [quizMeasuredSpeechDurations, setQuizMeasuredSpeechDurations] = useState<
+    Record<string, number>
+  >({});
+  const [previewingNarrationId, setPreviewingNarrationId] = useState<string | null>(
+    null
+  );
   const [customQuizDesigns, setCustomQuizDesigns] = useState<QuizVisualDesign[]>(() =>
     loadSavedCustomQuizDesigns()
   );
@@ -320,6 +343,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       return initialBgId;
     }
     return 'mobile_noir_minimal';
+  });
+  const [quizBgId, setQuizBgId] = useState<string>(() => {
+    const prefs = loadStudioBgPreferences();
+    return resolveValidQuizBgId(prefs.quizBgId);
   });
   const [bgFilter, setBgFilter] = useState<'all' | 'custom' | 'noir' | 'blanc' | '4k'>('all');
   const [textColorOverride, setTextColorOverride] = useState<'auto' | 'light' | 'dark'>(() => {
@@ -504,6 +531,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   useEffect(() => {
     saveStudioBgPreferences({
       bgId,
+      quizBgId,
+      quizNarrator,
       textColorOverride,
       bgVeilOpacity,
       bgBlackBackdrop,
@@ -524,6 +553,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     });
   }, [
     bgId,
+    quizBgId,
+    quizNarrator,
     textColorOverride,
     bgVeilOpacity,
     bgBlackBackdrop,
@@ -973,12 +1004,21 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [bgId]
   );
 
-  const activeMediaKind: 'video' | 'image' | 'solid' = activeCustomMedia
+  const activeQuizAnimatedBg = useMemo(
+    () => getQuizAnimatedBgPreset(quizBgId),
+    [quizBgId]
+  );
+
+  const activeMediaKind: 'video' | 'image' | 'solid' = isQuizMode
+    ? 'solid'
+    : activeCustomMedia
     ? activeCustomMedia.kind
     : activeVerticalBg || active4kBg
     ? 'image'
     : 'solid';
-  const activeMediaUrl: string | null = activeCustomMedia
+  const activeMediaUrl: string | null = isQuizMode
+    ? null
+    : activeCustomMedia
     ? activeCustomMedia.url
     : activeVerticalBg?.url || active4kBg?.url || null;
 
@@ -986,16 +1026,26 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     if (textColorOverride === 'dark') return true;
     if (textColorOverride === 'light') return false;
     if (bgBlackBackdrop) return false;
+    if (isQuizMode) return activeQuizAnimatedBg.polarity === 'light';
     if (activeSolidBg) return activeSolidBg.polarity === 'light';
     if (activeVerticalBg) return activeVerticalBg.polarity === 'light';
     if (active4kBg) return active4kBg.polarity === 'light';
     return false;
-  }, [textColorOverride, bgBlackBackdrop, activeSolidBg, activeVerticalBg, active4kBg]);
+  }, [
+    textColorOverride,
+    bgBlackBackdrop,
+    isQuizMode,
+    activeQuizAnimatedBg,
+    activeSolidBg,
+    activeVerticalBg,
+    active4kBg,
+  ]);
 
   const bgSurfaceColor = useMemo(() => {
+    if (isQuizMode) return activeQuizAnimatedBg.baseColor;
     if (activeSolidBg) return activeSolidBg.color;
     return isLightSurface ? '#FCFCFB' : '#050505';
-  }, [activeSolidBg, isLightSurface]);
+  }, [isQuizMode, activeQuizAnimatedBg, activeSolidBg, isLightSurface]);
 
   const visibleBackgroundCards = useMemo(() => {
     const customCards = customMedia.map((m) => ({
@@ -1121,22 +1171,38 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [extendedPlan.sequence, extendedPlan.measuredDurationsSec, paceMultiplier]
   );
 
+  const quizOrderedSteps = useMemo(
+    () =>
+      buildOrderedQuizSteps(
+        quizQuestions,
+        quizNarrator,
+        quizThinkSec,
+        quizRevealSec,
+        quizMeasuredSpeechDurations
+      ),
+    [
+      quizQuestions,
+      quizNarrator,
+      quizThinkSec,
+      quizRevealSec,
+      quizMeasuredSpeechDurations,
+    ]
+  );
+
   const quizTimeline = useMemo(
     () =>
       buildQuizTimeline(
         quizQuestions,
         quizThinkSec,
         quizRevealSec,
-        paceMultiplier
+        paceMultiplier,
+        quizOrderedSteps
       ),
-    [quizQuestions, quizThinkSec, quizRevealSec, paceMultiplier]
+    [quizQuestions, quizThinkSec, quizRevealSec, paceMultiplier, quizOrderedSteps]
   );
 
   const activeTimeline = isQuizMode ? quizTimeline : timeline;
   simTimelineRef.current = activeTimeline;
-
-  const useSignatureQuizBackdrop =
-    bgId === 'mobile_noir_minimal' || bgId === 'none_noir' || bgId === 'none_emerald';
 
   const quizRenderConfig: QuizCanvasRenderConfig = useMemo(
     () => ({
@@ -1146,7 +1212,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       revealSec: quizRevealSec,
       showExplanation: quizShowExplanation,
       design: activeQuizDesign,
-      useSignatureBackdrop: useSignatureQuizBackdrop,
+      quizBgId,
+      narrator: quizNarrator,
+      steps: quizOrderedSteps,
     }),
     [
       quizQuestions,
@@ -1155,7 +1223,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       quizRevealSec,
       quizShowExplanation,
       activeQuizDesign,
-      useSignatureQuizBackdrop,
+      quizBgId,
+      quizNarrator,
+      quizOrderedSteps,
     ]
   );
 
@@ -1178,7 +1248,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         quizRevealSec,
         quizShowExplanation ? '1' : '0',
         quizSoundEnabled ? '1' : '0',
-        useSignatureQuizBackdrop ? '1' : '0',
+        `narr:${quizNarrator.enabled ? '1' : '0'}:${quizNarrator.voiceId}:${quizNarrator.readQuestions ? '1' : '0'}:${quizNarrator.readAnswers ? '1' : '0'}`,
+        ...quizNarrator.blocks.map(
+          (b) =>
+            `${b.id}:${b.slot}:${b.targetQuestionId || ''}:${b.questionIndex ?? ''}:${b.showOnScreen ? '1' : '0'}:${b.text}`
+        ),
         `${activeQuizDesign.id}:${activeQuizDesign.templateStyle}:${activeQuizDesign.questionBoxStyle}:${activeQuizDesign.optionShape}:${activeQuizDesign.badgeShape}:${activeQuizDesign.timerStyle}:${activeQuizDesign.fontStyle}:${activeQuizDesign.accentColor}:${activeQuizDesign.cardBgColor}:${activeQuizDesign.questionTextColor}:${activeQuizDesign.cardOpacity}`,
         ...quizQuestions.map(
           (q) =>
@@ -1191,7 +1265,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       quizRevealSec,
       quizShowExplanation,
       quizSoundEnabled,
-      useSignatureQuizBackdrop,
+      quizNarrator,
       activeQuizDesign,
       quizQuestions,
     ]
@@ -1237,6 +1311,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // background downloads intentionally keep running across site navigation.
   const stopAllMedia = useCallback(() => {
     stopSimulationPlayback();
+    stopNarrationPreviewAudio();
+    setPreviewingNarrationId(null);
     if (audioCtxRef.current) {
       try {
         audioCtxRef.current.close();
@@ -1251,6 +1327,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     decodedBuffersRef.current = [];
     decodedSimKeyRef.current = '';
     setMeasuredDurations([]);
+    setQuizMeasuredSpeechDurations({});
     setSimStatus('idle');
     setSimTimeSec(0);
   }, [
@@ -1271,6 +1348,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         videoFormatId,
         videoQualityId,
         bgId,
+        quizBgId,
         textColorOverride,
         bgVeilOpacity,
         bgBlackBackdrop ? '1' : '0',
@@ -1297,6 +1375,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       videoFormatId,
       videoQualityId,
       bgId,
+      quizBgId,
       textColorOverride,
       bgVeilOpacity,
       bgBlackBackdrop,
@@ -1561,16 +1640,35 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
     try {
       if (isQuizMode) {
-        const quizDecoded = createQuizAudioSequence(
-          ctx,
-          quizQuestions,
-          quizThinkSec,
-          quizRevealSec,
-          quizSoundEnabled
-        );
-        decodedBuffersRef.current = quizDecoded;
+        stopNarrationPreviewAudio();
+        const plan = await prepareNarratedQuizAudioAndTimeline({
+          audioCtx: ctx,
+          questions: quizQuestions,
+          narrator: quizNarrator,
+          thinkSec: quizThinkSec,
+          revealSec: quizRevealSec,
+          paceMultiplier,
+          soundEnabled: quizSoundEnabled,
+          synthesizeQuestionBed: synthesizeQuizQuestionAudioBuffer,
+          signal: abortCtrl.signal,
+        });
+
+        if (abortCtrl.signal.aborted) return;
+
+        const measuredMap: Record<string, number> = {};
+        for (const step of plan.steps) {
+          if (step.kind === 'narration') {
+            measuredMap[`block:${step.block.id}`] = Math.max(0.2, step.durationSec - 0.55);
+          } else {
+            measuredMap[`q:${step.question.id}`] = Math.max(0, step.thinkSec - 0.65);
+            measuredMap[`a:${step.question.id}`] = Math.max(0, step.revealSec - 0.5);
+          }
+        }
+        setQuizMeasuredSpeechDurations(measuredMap);
+
+        decodedBuffersRef.current = plan.decodedBuffers;
         decodedSimKeyRef.current = currentSimKey;
-        simTimelineRef.current = quizTimeline;
+        simTimelineRef.current = plan.timeline;
 
         if (document.fonts?.ready) {
           await document.fonts.ready.catch(() => {});
@@ -1579,9 +1677,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
         beginInlineSimulationFromOffset(
           ctx,
-          quizDecoded,
-          quizTimeline,
-          Math.min(startOffset, Math.max(0, quizTimeline.totalDurationSec - 0.1))
+          plan.decodedBuffers,
+          plan.timeline,
+          Math.min(startOffset, Math.max(0, plan.timeline.totalDurationSec - 0.1))
         );
         return;
       }
@@ -1698,6 +1796,38 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   };
 
+  const handleJumpToQuizQuestion = (questionIndex: number) => {
+    const stepIdx = quizOrderedSteps.findIndex(
+      (s) => s.kind === 'question' && s.questionIndex === questionIndex
+    );
+    if (stepIdx >= 0) {
+      handleJumpToSegmentIndex(stepIdx);
+    }
+  };
+
+  const handleJumpToQuizStepId = (stepId: string) => {
+    const stepIdx = quizOrderedSteps.findIndex((s) => s.id === stepId);
+    if (stepIdx >= 0) {
+      handleJumpToSegmentIndex(stepIdx);
+    }
+  };
+
+  const handlePreviewQuizNarration = async (
+    text: string,
+    voiceId: QuizNarratorVoiceId,
+    blockId?: string
+  ) => {
+    const targetKey = blockId || '__voice_test__';
+    setPreviewingNarrationId(targetKey);
+    try {
+      await previewSingleNarrationAudio(text, voiceId);
+    } finally {
+      setTimeout(() => {
+        setPreviewingNarrationId((prev) => (prev === targetKey ? null : prev));
+      }, 1500);
+    }
+  };
+
   // =========================================================================
   // BACKGROUND-RESILIENT MP4 DOWNLOAD (CONTINUES ACROSS SITE & MOBILE TASKS)
   // =========================================================================
@@ -1791,6 +1921,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       quizShowExplanation: isQuizMode ? quizShowExplanation : undefined,
       quizSoundEnabled: isQuizMode ? quizSoundEnabled : undefined,
       quizDesign: isQuizMode ? activeQuizDesign : undefined,
+      quizBgId: isQuizMode ? quizBgId : undefined,
+      quizNarrator: isQuizMode ? quizNarrator : undefined,
     });
   };
 
@@ -1911,7 +2043,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             simTimeSec={simTimeSec}
             isLoadingVerses={isQuizMode ? false : isLoadingVerses}
             customRenderFrame={quizCustomRenderFrame}
-            segmentCount={isQuizMode ? quizQuestions.length : videoSequence.length}
+            animateBackgroundWhenIdle={isQuizMode}
+            segmentCount={isQuizMode ? quizOrderedSteps.length : videoSequence.length}
             onTogglePlay={handleToggleSimulationPlay}
             onSeek={handleSeekSimulation}
             onJumpToSegmentIndex={handleJumpToSegmentIndex}
@@ -2160,7 +2293,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 onToggleSoundEnabled={() => setQuizSoundEnabled((v) => !v)}
                 maxQuestions={Number.POSITIVE_INFINITY}
                 activePlanName={planRules.name}
-                onJumpToQuestion={(idx) => handleJumpToSegmentIndex(idx)}
+                onJumpToQuestion={handleJumpToQuizQuestion}
+                narrator={quizNarrator}
+                onChangeNarrator={setQuizNarrator}
+                onPreviewVoice={handlePreviewQuizNarration}
+                previewingBlockId={previewingNarrationId}
+                onJumpToStepId={handleJumpToQuizStepId}
               />
             )}
 
@@ -2584,319 +2722,340 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     </div>
                   </div>
                 </div>
-                {/* FOND & SURFACE (Unified in Modèle & Fond Tab) */}
+                {/* FOND & SURFACE (Quiz Mode: procedural animated Islamic backgrounds only; Coran Mode: photo/4K/video/solid library) */}
                 <section
                   data-testid="studio-bg-section"
                   className="pt-4 border-t border-[#D4D1C8] space-y-4"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
-                      <ImageIcon className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
-                      <span>Fond & Surface</span>
+                      {isQuizMode ? (
+                        <Sparkles className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      ) : (
+                        <ImageIcon className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                      )}
+                      <span>
+                        {isQuizMode ? 'Fonds islamiques animés' : 'Fond & Surface'}
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
-                    {[
-                      { id: 'all' as const, label: 'Tous' },
-                      { id: 'custom' as const, label: `Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
-                      { id: 'noir' as const, label: 'Noir' },
-                      { id: 'blanc' as const, label: 'Blanc' },
-                      { id: '4k' as const, label: '4K' },
-                    ].map((flt) => (
-                      <button
-                        key={flt.id}
-                        type="button"
-                        data-testid={flt.testId}
-                        onClick={() => setBgFilter(flt.id)}
-                        className={`h-8 px-3 rounded-full cursor-pointer transition-all whitespace-nowrap ${
-                          bgFilter === flt.id ? 'studio-pill-mint' : 'studio-pill-raised'
-                        }`}
-                      >
-                        {flt.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    data-testid="studio-upload-media-btn"
-                    aria-label="Importer une photo ou vidéo"
-                    title="Importer une photo ou vidéo"
-                    disabled={isSavingMedia}
-                    onClick={() => mediaFileInputRef.current?.click()}
-                    className="w-9 h-9 rounded-full studio-pill-mint flex items-center justify-center cursor-pointer transition-all disabled:opacity-60 shrink-0"
-                  >
-                    {isSavingMedia ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Upload className="w-4 h-4" />
+                    {isQuizMode && (
+                      <span className="text-[11px] font-semibold text-[#565C58] truncate max-w-[55%]">
+                        {activeQuizAnimatedBg.name}
+                      </span>
                     )}
-                  </button>
-                </div>
-
-                {/* Tactile Soft-3D Color Circles */}
-                <div className="flex items-center gap-3 py-1">
-                  {STUDIO_SOLID_BACKGROUNDS.map((swatch) => {
-                    const active = bgId === swatch.id;
-                    return (
-                      <button
-                        key={swatch.id}
-                        type="button"
-                        aria-label={swatch.name}
-                        title={swatch.name}
-                        onClick={() => setBgId(swatch.id)}
-                        className={`w-8 h-8 rounded-full cursor-pointer transition-transform shadow-[0_4px_10px_rgba(24,28,26,0.18),inset_0_1px_1px_rgba(255,255,255,0.5)] ${
-                          active
-                            ? 'ring-[3px] ring-[#82C4A9] ring-offset-2 ring-offset-[#EAE8E1] scale-110'
-                            : 'ring-1 ring-[#C2BFB6] hover:scale-105'
-                        }`}
-                        style={{ backgroundColor: swatch.color }}
-                      />
-                    );
-                  })}
-                  {isLoadingLibrary && (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#565C58] ml-auto" />
-                  )}
-                </div>
-
-                {activeCustomMedia?.kind === 'video' && (
-                  <div
-                    data-testid="studio-video-duration-mode-panel"
-                    className="grid grid-cols-2 gap-1.5 p-1 rounded-full studio-well-inset text-xs font-semibold"
-                  >
-                    <button
-                      type="button"
-                      data-testid="studio-duration-mode-match-video"
-                      onClick={() => setDurationMode('match_video')}
-                      className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
-                        durationMode === 'match_video'
-                          ? 'studio-pill-mint'
-                          : 'text-[#4F5551] hover:text-[#1F2421]'
-                      }`}
-                    >
-                      Vidéo complète
-                      {activeCustomMedia.durationSec
-                        ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
-                        : ''}
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="studio-duration-mode-verses"
-                      onClick={() => setDurationMode('verses')}
-                      className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
-                        durationMode === 'verses'
-                          ? 'studio-pill-mint'
-                          : 'text-[#4F5551] hover:text-[#1F2421]'
-                      }`}
-                    >
-                      Versets ({formatTimeMMSS(baseTimeline.totalDurationSec)})
-                    </button>
                   </div>
-                )}
 
-                {bgFilter === 'custom' && customMedia.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => mediaFileInputRef.current?.click()}
-                    className="w-full py-8 rounded-2xl studio-input-inset border-dashed border-2 border-[#CFCBC2] hover:border-[#9CE2C5] text-center space-y-1.5 cursor-pointer transition-colors"
-                  >
-                    <Upload className="w-5 h-5 text-[#1B573E] mx-auto" />
-                    <div className="text-xs font-semibold text-[#1F2421]">
-                      Importer photo ou vidéo
-                    </div>
-                  </button>
-                ) : (
-                  <div
-                    data-testid="studio-backgrounds-strip"
-                    className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[250px] overflow-y-auto no-scrollbar pr-0.5 py-0.5"
-                  >
-                    {visibleBackgroundCards.map((bg) => {
-                      const active = bgId === bg.id;
-                      return (
-                        <div
-                          key={bg.id}
-                          onClick={() => {
-                            setBgId(bg.id);
-                            if (bg.kind === 'video') {
-                              setDurationMode('match_video');
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={bg.name}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              setBgId(bg.id);
-                              if (bg.kind === 'video') {
-                                setDurationMode('match_video');
-                              }
-                            }
-                          }}
-                          data-testid={`studio-bg-card-${bg.id}`}
-                          className={`relative aspect-[4/5] rounded-2xl overflow-hidden cursor-pointer transition-all ${
-                            active
-                              ? 'ring-[3px] ring-[#82C4A9] shadow-[0_6px_14px_rgba(68,140,110,0.3)]'
-                              : 'ring-1 ring-[#C6C3BA] shadow-[0_3px_8px_rgba(24,28,26,0.09)] hover:ring-[#9E9B92]'
-                          }`}
+                  {isQuizMode ? (
+                    <QuizAnimatedBgPicker
+                      selectedBgId={quizBgId}
+                      onSelectBgId={setQuizBgId}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+                          {[
+                            { id: 'all' as const, label: 'Tous' },
+                            { id: 'custom' as const, label: `Médias (${customMedia.length})`, testId: 'studio-bg-filter-custom' },
+                            { id: 'noir' as const, label: 'Noir' },
+                            { id: 'blanc' as const, label: 'Blanc' },
+                            { id: '4k' as const, label: '4K' },
+                          ].map((flt) => (
+                            <button
+                              key={flt.id}
+                              type="button"
+                              data-testid={flt.testId}
+                              onClick={() => setBgFilter(flt.id)}
+                              className={`h-8 px-3 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                                bgFilter === flt.id ? 'studio-pill-mint' : 'studio-pill-raised'
+                              }`}
+                            >
+                              {flt.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          data-testid="studio-upload-media-btn"
+                          aria-label="Importer une photo ou vidéo"
+                          title="Importer une photo ou vidéo"
+                          disabled={isSavingMedia}
+                          onClick={() => mediaFileInputRef.current?.click()}
+                          className="w-9 h-9 rounded-full studio-pill-mint flex items-center justify-center cursor-pointer transition-all disabled:opacity-60 shrink-0"
                         >
-                          {bg.kind === 'video' ? (
-                            <video
-                              src={bg.url}
-                              muted
-                              loop
-                              playsInline
-                              autoPlay
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
+                          {isSavingMedia ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <img
-                              src={bg.thumbUrl || bg.url}
-                              alt={bg.name}
-                              loading="lazy"
-                              decoding="async"
-                              referrerPolicy="no-referrer"
-                              className="absolute inset-0 w-full h-full object-cover"
-                            />
+                            <Upload className="w-4 h-4" />
                           )}
+                        </button>
+                      </div>
 
-                          <div className="relative z-10 p-1.5 flex items-start justify-between">
-                            {bg.kind === 'video' ? (
-                              <span className="px-1.5 py-0.5 rounded-full bg-white/90 text-[#13251D] text-[10px] font-bold inline-flex items-center gap-0.5 tabular-nums shadow-sm">
-                                <Video className="w-2.5 h-2.5" />
-                                {'durationSec' in bg && bg.durationSec
-                                  ? formatTimeMMSS(bg.durationSec)
-                                  : ''}
-                              </span>
-                            ) : (
-                              <span />
-                            )}
-                            {bg.isCustom && (
+                      {/* Tactile Soft-3D Color Circles */}
+                      <div className="flex items-center gap-3 py-1">
+                        {STUDIO_SOLID_BACKGROUNDS.map((swatch) => {
+                          const active = bgId === swatch.id;
+                          return (
+                            <button
+                              key={swatch.id}
+                              type="button"
+                              aria-label={swatch.name}
+                              title={swatch.name}
+                              onClick={() => setBgId(swatch.id)}
+                              className={`w-8 h-8 rounded-full cursor-pointer transition-transform shadow-[0_4px_10px_rgba(24,28,26,0.18),inset_0_1px_1px_rgba(255,255,255,0.5)] ${
+                                active
+                                  ? 'ring-[3px] ring-[#82C4A9] ring-offset-2 ring-offset-[#EAE8E1] scale-110'
+                                  : 'ring-1 ring-[#C2BFB6] hover:scale-105'
+                              }`}
+                              style={{ backgroundColor: swatch.color }}
+                            />
+                          );
+                        })}
+                        {isLoadingLibrary && (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#565C58] ml-auto" />
+                        )}
+                      </div>
+
+                      {activeCustomMedia?.kind === 'video' && (
+                        <div
+                          data-testid="studio-video-duration-mode-panel"
+                          className="grid grid-cols-2 gap-1.5 p-1 rounded-full studio-well-inset text-xs font-semibold"
+                        >
+                          <button
+                            type="button"
+                            data-testid="studio-duration-mode-match-video"
+                            onClick={() => setDurationMode('match_video')}
+                            className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
+                              durationMode === 'match_video'
+                                ? 'studio-pill-mint'
+                                : 'text-[#4F5551] hover:text-[#1F2421]'
+                            }`}
+                          >
+                            Vidéo complète
+                            {activeCustomMedia.durationSec
+                              ? ` (${formatTimeMMSS(activeCustomMedia.durationSec)})`
+                              : ''}
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="studio-duration-mode-verses"
+                            onClick={() => setDurationMode('verses')}
+                            className={`h-8 px-2 rounded-full cursor-pointer transition-all tabular-nums truncate ${
+                              durationMode === 'verses'
+                                ? 'studio-pill-mint'
+                                : 'text-[#4F5551] hover:text-[#1F2421]'
+                            }`}
+                          >
+                            Versets ({formatTimeMMSS(baseTimeline.totalDurationSec)})
+                          </button>
+                        </div>
+                      )}
+
+                      {bgFilter === 'custom' && customMedia.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => mediaFileInputRef.current?.click()}
+                          className="w-full py-8 rounded-2xl studio-input-inset border-dashed border-2 border-[#CFCBC2] hover:border-[#9CE2C5] text-center space-y-1.5 cursor-pointer transition-colors"
+                        >
+                          <Upload className="w-5 h-5 text-[#1B573E] mx-auto" />
+                          <div className="text-xs font-semibold text-[#1F2421]">
+                            Importer photo ou vidéo
+                          </div>
+                        </button>
+                      ) : (
+                        <div
+                          data-testid="studio-backgrounds-strip"
+                          className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-[250px] overflow-y-auto no-scrollbar pr-0.5 py-0.5"
+                        >
+                          {visibleBackgroundCards.map((bg) => {
+                            const active = bgId === bg.id;
+                            return (
+                              <div
+                                key={bg.id}
+                                onClick={() => {
+                                  setBgId(bg.id);
+                                  if (bg.kind === 'video') {
+                                    setDurationMode('match_video');
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={bg.name}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setBgId(bg.id);
+                                    if (bg.kind === 'video') {
+                                      setDurationMode('match_video');
+                                    }
+                                  }
+                                }}
+                                data-testid={`studio-bg-card-${bg.id}`}
+                                className={`relative aspect-[4/5] rounded-2xl overflow-hidden cursor-pointer transition-all ${
+                                  active
+                                    ? 'ring-[3px] ring-[#82C4A9] shadow-[0_6px_14px_rgba(68,140,110,0.3)]'
+                                    : 'ring-1 ring-[#C6C3BA] shadow-[0_3px_8px_rgba(24,28,26,0.09)] hover:ring-[#9E9B92]'
+                                }`}
+                              >
+                                {bg.kind === 'video' ? (
+                                  <video
+                                    src={bg.url}
+                                    muted
+                                    loop
+                                    playsInline
+                                    autoPlay
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <img
+                                    src={bg.thumbUrl || bg.url}
+                                    alt={bg.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    referrerPolicy="no-referrer"
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                  />
+                                )}
+
+                                <div className="relative z-10 p-1.5 flex items-start justify-between">
+                                  {bg.kind === 'video' ? (
+                                    <span className="px-1.5 py-0.5 rounded-full bg-white/90 text-[#13251D] text-[10px] font-bold inline-flex items-center gap-0.5 tabular-nums shadow-sm">
+                                      <Video className="w-2.5 h-2.5" />
+                                      {'durationSec' in bg && bg.durationSec
+                                        ? formatTimeMMSS(bg.durationSec)
+                                        : ''}
+                                    </span>
+                                  ) : (
+                                    <span />
+                                  )}
+                                  {bg.isCustom && (
+                                    <button
+                                      type="button"
+                                      aria-label={`Supprimer ${bg.name}`}
+                                      onClick={(ev) => {
+                                        ev.stopPropagation();
+                                        handleRemoveCustomMedia(bg.id);
+                                      }}
+                                      className="w-6 h-6 rounded-full bg-white/90 text-[#9B3431] hover:bg-[#EE9B98] hover:text-[#591A18] flex items-center justify-center cursor-pointer shadow-sm"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Image / Video Background Adjustments (0 - 100) */}
+                      {activeMediaKind !== 'solid' && (
+                        <div
+                          data-testid="studio-bg-adjustments-panel"
+                          className="pt-3 border-t border-[#D4D1C8] space-y-2.5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-bold text-[#1F2421]">
+                              Réglages du fond (0–100)
+                            </span>
+                            {(bgBrightness !== 50 || bgSharpness !== 50 || bgContrast !== 50) && (
                               <button
                                 type="button"
-                                aria-label={`Supprimer ${bg.name}`}
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  handleRemoveCustomMedia(bg.id);
+                                data-testid="studio-bg-adjustments-reset-btn"
+                                onClick={() => {
+                                  setBgBrightness(50);
+                                  setBgSharpness(50);
+                                  setBgContrast(50);
                                 }}
-                                className="w-6 h-6 rounded-full bg-white/90 text-[#9B3431] hover:bg-[#EE9B98] hover:text-[#591A18] flex items-center justify-center cursor-pointer shadow-sm"
+                                className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-semibold text-[#1B573E] cursor-pointer"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                Réinitialiser
                               </button>
                             )}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
 
-                {/* Image / Video Background Adjustments (0 - 100) */}
-                {activeMediaKind !== 'solid' && (
-                  <div
-                    data-testid="studio-bg-adjustments-panel"
-                    className="pt-3 border-t border-[#D4D1C8] space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-[#1F2421]">
-                        Réglages du fond (0–100)
-                      </span>
-                      {(bgBrightness !== 50 || bgSharpness !== 50 || bgContrast !== 50) && (
-                        <button
-                          type="button"
-                          data-testid="studio-bg-adjustments-reset-btn"
-                          onClick={() => {
-                            setBgBrightness(50);
-                            setBgSharpness(50);
-                            setBgContrast(50);
-                          }}
-                          className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-semibold text-[#1B573E] cursor-pointer"
-                        >
-                          Réinitialiser
-                        </button>
+                          <div className="space-y-2">
+                            {[
+                              {
+                                id: 'brightness',
+                                label: 'Luminosité',
+                                val: bgBrightness,
+                                onChange: setBgBrightness,
+                              },
+                              {
+                                id: 'sharpness',
+                                label: 'Netteté',
+                                val: bgSharpness,
+                                onChange: setBgSharpness,
+                              },
+                              {
+                                id: 'contrast',
+                                label: 'Contraste',
+                                val: bgContrast,
+                                onChange: setBgContrast,
+                              },
+                            ].map((ctrl) => (
+                              <label
+                                key={ctrl.id}
+                                className="grid grid-cols-[76px_1fr_32px] items-center gap-2.5 cursor-pointer"
+                              >
+                                <span className="text-[11px] font-semibold text-[#4F5551]">
+                                  {ctrl.label}
+                                </span>
+                                <input
+                                  type="range"
+                                  data-testid={`studio-bg-slider-${ctrl.id}`}
+                                  aria-label={ctrl.label}
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  value={ctrl.val}
+                                  onChange={(e) => ctrl.onChange(Number(e.target.value))}
+                                  className="w-full studio-range-mint cursor-pointer"
+                                />
+                                <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums text-right">
+                                  {ctrl.val}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+
+                          {activeMediaKind === 'image' && (
+                            <button
+                              type="button"
+                              role="checkbox"
+                              aria-checked={bgImageMotion}
+                              data-testid="studio-bg-motion-checkbox"
+                              onClick={() => setBgImageMotion((prev) => !prev)}
+                              className={`w-full mt-1 px-3 py-2.5 rounded-2xl flex items-center gap-3 text-left cursor-pointer transition-all ${
+                                bgImageMotion ? 'studio-pill-mint' : 'studio-pill-raised'
+                              }`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-all ${
+                                  bgImageMotion
+                                    ? 'bg-[#1B573E] text-white shadow-sm'
+                                    : 'bg-white/85 border border-[#B8B5AC] text-transparent'
+                                }`}
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[2.75]" />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-[11.5px] font-bold text-[#1F2421] leading-tight">
+                                  Mouvement doux (zoom / dézoom)
+                                </div>
+                                <div className="text-[10px] text-[#565C58] leading-tight mt-0.5">
+                                  Légers va-et-vient lents sur l&apos;image jusqu&apos;à la fin de la vidéo
+                                </div>
+                              </div>
+                            </button>
+                          )}
+                        </div>
                       )}
-                    </div>
-
-                    <div className="space-y-2">
-                      {[
-                        {
-                          id: 'brightness',
-                          label: 'Luminosité',
-                          val: bgBrightness,
-                          onChange: setBgBrightness,
-                        },
-                        {
-                          id: 'sharpness',
-                          label: 'Netteté',
-                          val: bgSharpness,
-                          onChange: setBgSharpness,
-                        },
-                        {
-                          id: 'contrast',
-                          label: 'Contraste',
-                          val: bgContrast,
-                          onChange: setBgContrast,
-                        },
-                      ].map((ctrl) => (
-                        <label
-                          key={ctrl.id}
-                          className="grid grid-cols-[76px_1fr_32px] items-center gap-2.5 cursor-pointer"
-                        >
-                          <span className="text-[11px] font-semibold text-[#4F5551]">
-                            {ctrl.label}
-                          </span>
-                          <input
-                            type="range"
-                            data-testid={`studio-bg-slider-${ctrl.id}`}
-                            aria-label={ctrl.label}
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={ctrl.val}
-                            onChange={(e) => ctrl.onChange(Number(e.target.value))}
-                            className="w-full studio-range-mint cursor-pointer"
-                          />
-                          <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums text-right">
-                            {ctrl.val}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-
-                    {activeMediaKind === 'image' && (
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={bgImageMotion}
-                        data-testid="studio-bg-motion-checkbox"
-                        onClick={() => setBgImageMotion((prev) => !prev)}
-                        className={`w-full mt-1 px-3 py-2.5 rounded-2xl flex items-center gap-3 text-left cursor-pointer transition-all ${
-                          bgImageMotion ? 'studio-pill-mint' : 'studio-pill-raised'
-                        }`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-all ${
-                            bgImageMotion
-                              ? 'bg-[#1B573E] text-white shadow-sm'
-                              : 'bg-white/85 border border-[#B8B5AC] text-transparent'
-                          }`}
-                        >
-                          <Check className="w-3.5 h-3.5 stroke-[2.75]" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11.5px] font-bold text-[#1F2421] leading-tight">
-                            Mouvement doux (zoom / dézoom)
-                          </div>
-                          <div className="text-[10px] text-[#565C58] leading-tight mt-0.5">
-                            Légers va-et-vient lents sur l&apos;image jusqu&apos;à la fin de la vidéo
-                          </div>
-                        </div>
-                      </button>
-                    )}
-                  </div>
-                )}
+                    </>
+                  )}
 
                 {/* Bottom Readability & Color Controls */}
                 <div
@@ -3067,45 +3226,47 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   </div>
 
                   {/* Row 2: Assombrissement / Voile (0 -> 100%) */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold text-[#565C58]">
-                        {bgBlackBackdrop ? 'Contre-fond noir (opacité)' : 'Voile'}
-                      </span>
-                      <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums">
-                        {Math.round(bgVeilOpacity * 100)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="range"
-                        data-testid="studio-veil-slider"
-                        aria-label="Intensité du voile noir"
-                        min={0}
-                        max={90}
-                        step={1}
-                        value={Math.round(bgVeilOpacity * 100)}
-                        onChange={(e) => setBgVeilOpacity(Number(e.target.value) / 100)}
-                        className="flex-1 min-w-0 studio-range-mint cursor-pointer"
-                      />
-                      <div className="flex items-center gap-1 p-0.5 rounded-full studio-well-inset text-[10.5px] font-semibold tabular-nums shrink-0">
-                        {[0, 0.25, 0.45, 0.65].map((alpha) => (
-                          <button
-                            key={alpha}
-                            type="button"
-                            onClick={() => setBgVeilOpacity(alpha)}
-                            className={`h-6 px-2 rounded-full cursor-pointer transition-all ${
-                              Math.abs(bgVeilOpacity - alpha) < 0.02
-                                ? 'studio-pill-mint'
-                                : 'text-[#4F5551] hover:text-[#1F2421]'
-                            }`}
-                          >
-                            {Math.round(alpha * 100)}%
-                          </button>
-                        ))}
+                  {(!isQuizMode || bgBlackBackdrop) && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold text-[#565C58]">
+                          {bgBlackBackdrop ? 'Contre-fond noir (opacité)' : 'Voile'}
+                        </span>
+                        <span className="text-[11px] font-mono font-bold text-[#1F2421] tabular-nums">
+                          {Math.round(bgVeilOpacity * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="range"
+                          data-testid="studio-veil-slider"
+                          aria-label="Intensité du voile noir"
+                          min={0}
+                          max={90}
+                          step={1}
+                          value={Math.round(bgVeilOpacity * 100)}
+                          onChange={(e) => setBgVeilOpacity(Number(e.target.value) / 100)}
+                          className="flex-1 min-w-0 studio-range-mint cursor-pointer"
+                        />
+                        <div className="flex items-center gap-1 p-0.5 rounded-full studio-well-inset text-[10.5px] font-semibold tabular-nums shrink-0">
+                          {[0, 0.25, 0.45, 0.65].map((alpha) => (
+                            <button
+                              key={alpha}
+                              type="button"
+                              onClick={() => setBgVeilOpacity(alpha)}
+                              className={`h-6 px-2 rounded-full cursor-pointer transition-all ${
+                                Math.abs(bgVeilOpacity - alpha) < 0.02
+                                  ? 'studio-pill-mint'
+                                  : 'text-[#4F5551] hover:text-[#1F2421]'
+                              }`}
+                            >
+                              {Math.round(alpha * 100)}%
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Row 3: Custom Text Colors (Target + 10 Swatches BEFORE Color Wheel Circle) */}
                   <div className="space-y-2 pt-2 border-t border-[#D4D1C8]">

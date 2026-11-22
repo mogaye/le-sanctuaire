@@ -60,8 +60,12 @@ export const STUDIO_TEXT_COLOR_SWATCHES: Array<{ label: string; hex: string }> =
   { label: 'Noir Profond', hex: '#0F172A' },
 ];
 
+import type { QuizNarratorSettings } from './quizNarration';
+
 export interface StudioBgPreferences {
   bgId?: string;
+  quizBgId?: string;
+  quizNarrator?: QuizNarratorSettings;
   textColorOverride?: 'auto' | 'light' | 'dark';
   bgVeilOpacity?: number;
   bgBlackBackdrop?: boolean;

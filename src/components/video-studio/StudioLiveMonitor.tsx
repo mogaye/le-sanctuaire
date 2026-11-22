@@ -125,6 +125,7 @@ interface StudioLiveMonitorProps {
     opts: VideoCanvasRenderOptions
   ) => void;
   segmentCount?: number;
+  animateBackgroundWhenIdle?: boolean;
 }
 
 export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
@@ -189,6 +190,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   onRequestUpgrade,
   customRenderFrame,
   segmentCount,
+  animateBackgroundWhenIdle = false,
 }) => {
   const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
@@ -457,28 +459,31 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     isFullscreenSim,
   ]);
 
-  // Keep background video frames OR gentle image zoom-dezoom breathing updating smoothly when paused/idle
+  // Keep background video frames, image zoom-dezoom breathing, OR animated Quiz Islamic backgrounds moving smoothly when paused/idle
   useEffect(() => {
     if (simStatus === 'playing') return;
     const isVideoLive = activeMediaKind === 'video';
     const isImageMotionLive = activeMediaKind === 'image' && bgImageMotion;
-    if (!isVideoLive && !isImageMotionLive) return;
+    const isProceduralMotionLive = Boolean(animateBackgroundWhenIdle);
+    if (!isVideoLive && !isImageMotionLive && !isProceduralMotionLive) return;
 
     let rafId = 0;
     const startMs = performance.now();
     let lastDrawMs = 0;
+    const minIntervalMs = isProceduralMotionLive ? 33 : 28;
     const tick = (nowMs: number) => {
       if (isVideoLive && bgVideoRef.current && bgVideoRef.current.paused && bgVideoRef.current.readyState >= 2) {
         bgVideoRef.current.play().catch(() => {});
       }
-      if (!isImageMotionLive || nowMs - lastDrawMs >= 28) {
+      if ((!isImageMotionLive && !isProceduralMotionLive) || nowMs - lastDrawMs >= minIntervalMs) {
         lastDrawMs = nowMs;
         if (canvasRef.current && (customRenderFrame || layout)) {
           const ctx = canvasRef.current.getContext('2d');
           if (ctx) {
-            const ambientSec = isImageMotionLive
-              ? simTimeSec + (nowMs - startMs) / 1000
-              : undefined;
+            const ambientSec =
+              isImageMotionLive || isProceduralMotionLive
+                ? simTimeSec + (nowMs - startMs) / 1000
+                : undefined;
             const frameOpts: VideoCanvasRenderOptions = {
               ...renderOpts,
               bgMotionTimeSec: ambientSec,
@@ -500,6 +505,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     return () => cancelAnimationFrame(rafId);
   }, [
     customRenderFrame,
+    animateBackgroundWhenIdle,
     simStatus,
     activeMediaKind,
     bgImageMotion,

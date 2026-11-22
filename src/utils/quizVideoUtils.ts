@@ -5,10 +5,20 @@ import {
 } from './mobileVideoStudioUtils';
 import { DecodedVerseBuffer } from './continuousAudioEngine';
 import { SubscriptionPlanId, getPlanRules } from './subscriptionPlans';
+import {
+  QuizNarrationStep,
+  QuizNarratorSettings,
+  QuizTimelineStep,
+  buildOrderedQuizSteps,
+  buildTimelineFromQuizSteps,
+} from './quizNarration';
 
 export type StudioContentMode = 'quran' | 'quiz';
 
 export interface QuizFrameState {
+  stepKind: 'question' | 'narration';
+  narrationStep?: QuizNarrationStep;
+  narrationProgress?: number;
   activeIndex: number;
   question: QuizQuestionItem;
   phase: 'question' | 'reveal';
@@ -87,8 +97,21 @@ export function buildQuizTimeline(
   questions: QuizQuestionItem[],
   thinkSec: number,
   revealSec: number,
-  paceMultiplier: number = 1
+  paceMultiplier: number = 1,
+  narratorOrSteps?: QuizNarratorSettings | QuizTimelineStep[]
 ): ContinuousTimeline {
+  if (Array.isArray(narratorOrSteps)) {
+    return buildTimelineFromQuizSteps(narratorOrSteps, paceMultiplier);
+  }
+  if (narratorOrSteps && narratorOrSteps.enabled) {
+    const steps = buildOrderedQuizSteps(
+      questions,
+      narratorOrSteps,
+      thinkSec,
+      revealSec
+    );
+    return buildTimelineFromQuizSteps(steps, paceMultiplier);
+  }
   if (!Array.isArray(questions) || questions.length === 0) {
     return { segments: [], totalDurationSec: 0 };
   }
@@ -125,7 +148,8 @@ export function computeQuizFrameState(
   timeline: ContinuousTimeline,
   currentSec: number,
   thinkSec: number,
-  revealSec: number
+  revealSec: number,
+  steps?: QuizTimelineStep[]
 ): QuizFrameState | null {
   if (!Array.isArray(questions) || questions.length === 0) return null;
   if (!timeline.segments.length) return null;
@@ -133,22 +157,67 @@ export function computeQuizFrameState(
   const total = Math.max(0.01, timeline.totalDurationSec);
   const clampedSec = Math.max(0, Math.min(total - 0.001, Number(currentSec) || 0));
 
-  let activeIndex = timeline.segments.length - 1;
+  let segIdx = timeline.segments.length - 1;
   for (let i = 0; i < timeline.segments.length; i++) {
     const seg = timeline.segments[i];
     if (clampedSec < seg.endSec || i === timeline.segments.length - 1) {
-      activeIndex = i;
+      segIdx = i;
       break;
     }
   }
 
-  const seg = timeline.segments[activeIndex];
-  const question = normalizeQuizQuestion(questions[activeIndex] || questions[0], activeIndex);
+  const seg = timeline.segments[segIdx];
   const segDur = Math.max(0.5, seg.durationSec);
   const localTimeSec = Math.max(0, Math.min(segDur, clampedSec - seg.startSec));
 
-  const safeThink = clampQuizThinkSec(thinkSec);
-  const safeReveal = clampQuizRevealSec(revealSec);
+  const matchedStep =
+    Array.isArray(steps) && steps.length === timeline.segments.length
+      ? steps[segIdx]
+      : undefined;
+
+  if (matchedStep && matchedStep.kind === 'narration') {
+    const refIdx = Math.max(
+      0,
+      Math.min(questions.length - 1, matchedStep.relatedQuestionIndex ?? 0)
+    );
+    const refQuestion = normalizeQuizQuestion(questions[refIdx] || questions[0], refIdx);
+    return {
+      stepKind: 'narration',
+      narrationStep: matchedStep,
+      narrationProgress: Math.max(0, Math.min(1, localTimeSec / segDur)),
+      activeIndex: refIdx,
+      question: refQuestion,
+      phase: 'question',
+      localTimeSec,
+      segmentDurationSec: segDur,
+      thinkSec: clampQuizThinkSec(thinkSec),
+      revealSec: clampQuizRevealSec(revealSec),
+      countdownRemainingSec: 0,
+      countdownFraction: 1,
+      revealProgress: 0,
+      totalQuestions: questions.length,
+    };
+  }
+
+  const activeIndex =
+    matchedStep && matchedStep.kind === 'question'
+      ? matchedStep.questionIndex
+      : segIdx;
+  const question = normalizeQuizQuestion(
+    (matchedStep && matchedStep.kind === 'question'
+      ? matchedStep.question
+      : questions[activeIndex]) || questions[0],
+    activeIndex
+  );
+
+  const safeThink =
+    matchedStep && matchedStep.kind === 'question'
+      ? Math.max(2, matchedStep.thinkSec)
+      : clampQuizThinkSec(thinkSec);
+  const safeReveal =
+    matchedStep && matchedStep.kind === 'question'
+      ? Math.max(2, matchedStep.revealSec)
+      : clampQuizRevealSec(revealSec);
   const thinkFraction = safeThink / Math.max(1, safeThink + safeReveal);
   const effectiveThinkDur = segDur * thinkFraction;
   const effectiveRevealDur = Math.max(0.1, segDur - effectiveThinkDur);
@@ -158,12 +227,13 @@ export function computeQuizFrameState(
   const countdownFraction = Math.max(0, 1 - countdownProgress);
   const countdownRemainingSec = isReveal
     ? 0
-    : Math.max(1, Math.min(safeThink, Math.ceil((1 - countdownProgress) * safeThink)));
+    : Math.max(1, Math.min(Math.ceil(safeThink), Math.ceil((1 - countdownProgress) * safeThink)));
   const revealProgress = isReveal
     ? Math.max(0, Math.min(1, (localTimeSec - effectiveThinkDur) / effectiveRevealDur))
     : 0;
 
   return {
+    stepKind: 'question',
     activeIndex,
     question,
     phase: isReveal ? 'reveal' : 'question',
