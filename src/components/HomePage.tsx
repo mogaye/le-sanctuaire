@@ -709,14 +709,14 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-base font-extrabold text-neutral-900 dark:text-white tracking-tight">
-                      Studio Vidéo Coran
+                      Studio Vidéo · Coran &amp; Quiz Islam
                     </h2>
                     <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300/60 dark:border-emerald-700/60">
                       Forfait {activePlanRules.name}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-600 dark:text-emerald-100/80">
-                    Créez vos vidéos de versets (9:16, 1:1, 16:9) directement depuis l’Accueil.
+                    Créez vos vidéos de versets coraniques ou de quiz islamiques (9:16, 1:1, 16:9).
                   </p>
                   <p className="text-xs font-semibold text-emerald-700 dark:text-amber-300 tabular-nums">
                     {studioQuotaSummary}

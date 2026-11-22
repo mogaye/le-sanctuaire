@@ -14,11 +14,11 @@
       "remainingVideos": null,
       "monthlyLimit": null,
       "totalAmountPaidFcfa": 0,
-      "timeSpentSeconds": 120,
+      "timeSpentSeconds": 135,
       "planPeriodStart": "2026-11-20T12:57:13.339Z",
       "planUpdatedAt": "2026-11-20T12:57:13.339Z",
-      "lastConnectedAt": "2026-11-21T19:22:31.137Z",
-      "createdAt": "2026-11-21T19:22:30.536Z"
+      "lastConnectedAt": "2026-11-21T19:32:50.530Z",
+      "createdAt": "2026-11-21T19:32:49.972Z"
     },
     "moussa.diop@test.sn": {
       "id": "acct_moussa.diop@test.sn",
@@ -150,8 +150,14 @@
       "videosCreated": 1
     },
     "2026-11-21": {
-      "visits": 2,
+      "visits": 3,
       "signups": 1,
+      "paidUpgrades": 0,
+      "videosCreated": 0
+    },
+    "2026-11-22": {
+      "visits": 7,
+      "signups": 0,
       "paidUpgrades": 0,
       "videosCreated": 0
     }
@@ -166,6 +172,14 @@
     "2026-11-20_sess-mwp0ctwk-w3nw0y",
     "2026-11-20_sess-mwp0ctwk-w3nw0y",
     "2026-11-21_sess-mwqse73h-igjhch",
-    "2026-11-21_sess-mwqsnk5o-95pxqo"
+    "2026-11-21_sess-mwqsnk5o-95pxqo",
+    "2026-11-21_sess-mwqt20ei-5toq6c",
+    "2026-11-22_sess-mws5vimz-aewrf8",
+    "2026-11-22_sess-mws63er3-8hw4as",
+    "2026-11-22_sess-mws670gr-yspv95",
+    "2026-11-22_sess-mws681u4-7o8rv0",
+    "2026-11-22_sess-mws69udj-z61e86",
+    "2026-11-22_sess-mws6jkhg-e1mnht",
+    "2026-11-22_sess-mws6ypic-yela7h"
   ]
 }

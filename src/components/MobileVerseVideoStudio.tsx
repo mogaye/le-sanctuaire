@@ -19,7 +19,32 @@ import {
   Layers,
   Lock,
   Crown,
+  HelpCircle,
 } from 'lucide-react';
+import {
+  QuizQuestionItem,
+  getQuestionsByPackId,
+} from '../data/islamicQuizBank';
+import {
+  StudioContentMode,
+  buildQuizTimeline,
+  createQuizAudioSequence,
+  normalizeQuizQuestion,
+} from '../utils/quizVideoUtils';
+import {
+  QuizCanvasRenderConfig,
+  renderQuizCanvasFrame,
+} from '../utils/quizCanvasRenderer';
+import {
+  BUILT_IN_QUIZ_DESIGNS,
+  DEFAULT_QUIZ_DESIGN,
+  QuizVisualDesign,
+  createCustomQuizDesign,
+  loadSavedCustomQuizDesigns,
+  saveCustomQuizDesigns,
+} from '../utils/quizDesignPresets';
+import { QuizBuilderPanel } from './video-studio/QuizBuilderPanel';
+import { QuizDesignPanel } from './video-studio/QuizDesignPanel';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
 import { RECITERS } from '../data/islamicData';
 import { Reciter, UserProfile } from '../types';
@@ -238,6 +263,28 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   );
 
   const [activeTab, setActiveTab] = useState<StudioTab>('verses_audio');
+  const [contentMode, setContentMode] = useState<StudioContentMode>('quran');
+  const isQuizMode = contentMode === 'quiz';
+
+  const [quizTitle, setQuizTitle] = useState<string>('Quiz Islam');
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestionItem[]>(() =>
+    getQuestionsByPackId('pack_decouverte')
+  );
+  const [quizThinkSec, setQuizThinkSec] = useState<number>(5);
+  const [quizRevealSec, setQuizRevealSec] = useState<number>(3);
+  const [quizShowExplanation, setQuizShowExplanation] = useState<boolean>(true);
+  const [quizSoundEnabled, setQuizSoundEnabled] = useState<boolean>(true);
+  const [customQuizDesigns, setCustomQuizDesigns] = useState<QuizVisualDesign[]>(() =>
+    loadSavedCustomQuizDesigns()
+  );
+  const [activeQuizDesign, setActiveQuizDesign] = useState<QuizVisualDesign>(
+    () => DEFAULT_QUIZ_DESIGN
+  );
+
+  const allQuizDesigns = useMemo(
+    () => [...BUILT_IN_QUIZ_DESIGNS, ...customQuizDesigns],
+    [customQuizDesigns]
+  );
 
   // Multi-Surah Playlist State
   const [selectedSurahs, setSelectedSurahs] = useState<StudioSurahSelection[]>(() => {
@@ -546,6 +593,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       }
       return changed ? next : prev;
     });
+
+    setQuizQuestions((prev) => {
+      if (prev.length <= planRules.maxVerses) return prev;
+      return prev.slice(0, Math.max(1, planRules.maxVerses));
+    });
   }, [planRules.maxVerses]);
 
   // Non-destructive Surah verse loader
@@ -786,6 +838,123 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     setIsSurahPickerOpen(false);
   };
 
+  // Quiz mutation helpers (unlimited questions allowed)
+  const applyQuizPack = useCallback((packId: string) => {
+    const packQuestions = getQuestionsByPackId(packId).map((q, idx) =>
+      normalizeQuizQuestion(q, idx)
+    );
+    setQuizQuestions(packQuestions);
+    setPlanRestrictionNotice(null);
+  }, []);
+
+  const addQuizBankQuestion = useCallback((item: QuizQuestionItem) => {
+    setQuizQuestions((prev) => {
+      if (prev.some((q) => q.id === item.id)) return prev;
+      return [
+        ...prev,
+        { ...item, options: [...item.options] as [string, string, string, string] },
+      ];
+    });
+    setPlanRestrictionNotice(null);
+  }, []);
+
+  const addBlankQuizQuestion = useCallback(() => {
+    setQuizQuestions((prev) => {
+      const nextNum = prev.length + 1;
+      const blank = normalizeQuizQuestion(
+        {
+          id: `custom_${Date.now().toString(36)}_${nextNum}`,
+          category: 'coran',
+          question: `Question islamique ${nextNum} ?`,
+          options: ['Réponse A', 'Réponse B', 'Réponse C', 'Réponse D'],
+          correctIndex: 0,
+        },
+        prev.length
+      );
+      return [...prev, blank];
+    });
+    setPlanRestrictionNotice(null);
+  }, []);
+
+  const handleSelectQuizDesign = useCallback((design: QuizVisualDesign) => {
+    setActiveQuizDesign(design);
+    setFrenchTextColor(null);
+  }, []);
+
+  const handleChangeActiveQuizDesign = useCallback(
+    (patch: Partial<QuizVisualDesign>) => {
+      setActiveQuizDesign((prev) => {
+        const next = { ...prev, ...patch };
+        if (next.isCustom) {
+          setCustomQuizDesigns((list) => {
+            const updated = list.map((d) => (d.id === next.id ? next : d));
+            saveCustomQuizDesigns(updated);
+            return updated;
+          });
+        }
+        return next;
+      });
+      if (patch.questionTextColor) {
+        setFrenchTextColor(null);
+      }
+    },
+    []
+  );
+
+  const handleSaveAsNewQuizDesign = useCallback(
+    (name: string) => {
+      const created = createCustomQuizDesign(activeQuizDesign, name);
+      setCustomQuizDesigns((prev) => {
+        const next = [...prev, created];
+        saveCustomQuizDesigns(next);
+        return next;
+      });
+      setActiveQuizDesign(created);
+    },
+    [activeQuizDesign]
+  );
+
+  const handleDeleteCustomQuizDesign = useCallback(
+    (id: string) => {
+      setCustomQuizDesigns((prev) => {
+        const next = prev.filter((d) => d.id !== id);
+        saveCustomQuizDesigns(next);
+        return next;
+      });
+      setActiveQuizDesign((prev) =>
+        prev.id === id ? DEFAULT_QUIZ_DESIGN : prev
+      );
+    },
+    []
+  );
+
+  const updateQuizQuestionItem = useCallback(
+    (id: string, patch: Partial<QuizQuestionItem>) => {
+      setQuizQuestions((prev) =>
+        prev.map((q) => (q.id === id ? { ...q, ...patch } : q))
+      );
+    },
+    []
+  );
+
+  const moveQuizQuestionItem = useCallback((index: number, delta: -1 | 1) => {
+    setQuizQuestions((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const copy = [...prev];
+      const [moved] = copy.splice(index, 1);
+      copy.splice(target, 0, moved);
+      return copy;
+    });
+  }, []);
+
+  const removeQuizQuestionItem = useCallback((id: string) => {
+    setQuizQuestions((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((q) => q.id !== id);
+    });
+  }, []);
+
   // Resolve Active Background
   const activeCustomMedia = useMemo(
     () => customMedia.find((m) => m.id === bgId) || null,
@@ -865,6 +1034,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
   const applyCustomTextColor = useCallback(
     (hex: string | null) => {
+      if (isQuizMode) {
+        setFrenchTextColor(hex);
+        return;
+      }
       if (colorTarget === 'all') {
         setArabicTextColor(hex);
         setPhoneticsTextColor(hex);
@@ -877,15 +1050,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         setFrenchTextColor(hex);
       }
     },
-    [colorTarget]
+    [colorTarget, isQuizMode]
   );
 
   const activeTargetColorHex = useMemo(() => {
+    if (isQuizMode) return frenchTextColor || (isLightSurface ? '#111827' : '#F8FAFC');
     if (colorTarget === 'arabic') return arabicTextColor || (isLightSurface ? '#0A0A0A' : '#FFFFFF');
     if (colorTarget === 'phonetics') return phoneticsTextColor || (isLightSurface ? '#065F46' : '#CBD5E1');
     if (colorTarget === 'french') return frenchTextColor || (isLightSurface ? '#171717' : '#F8FAFC');
     return arabicTextColor || frenchTextColor || phoneticsTextColor || (isLightSurface ? '#0A0A0A' : '#FFFFFF');
-  }, [colorTarget, arabicTextColor, phoneticsTextColor, frenchTextColor, isLightSurface]);
+  }, [isQuizMode, colorTarget, arabicTextColor, phoneticsTextColor, frenchTextColor, isLightSurface]);
 
   const hasCustomTextColors = Boolean(arabicTextColor || phoneticsTextColor || frenchTextColor);
 
@@ -947,11 +1121,89 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     [extendedPlan.sequence, extendedPlan.measuredDurationsSec, paceMultiplier]
   );
 
-  simTimelineRef.current = timeline;
+  const quizTimeline = useMemo(
+    () =>
+      buildQuizTimeline(
+        quizQuestions,
+        quizThinkSec,
+        quizRevealSec,
+        paceMultiplier
+      ),
+    [quizQuestions, quizThinkSec, quizRevealSec, paceMultiplier]
+  );
+
+  const activeTimeline = isQuizMode ? quizTimeline : timeline;
+  simTimelineRef.current = activeTimeline;
+
+  const quizRenderConfig: QuizCanvasRenderConfig = useMemo(
+    () => ({
+      questions: quizQuestions,
+      quizTitle,
+      thinkSec: quizThinkSec,
+      revealSec: quizRevealSec,
+      showExplanation: quizShowExplanation,
+      design: activeQuizDesign,
+    }),
+    [
+      quizQuestions,
+      quizTitle,
+      quizThinkSec,
+      quizRevealSec,
+      quizShowExplanation,
+      activeQuizDesign,
+    ]
+  );
+
+  const quizCustomRenderFrame = useMemo(() => {
+    if (!isQuizMode) return undefined;
+    return (
+      ctx: CanvasRenderingContext2D,
+      tSec: number,
+      opts: VideoCanvasRenderOptions
+    ) => {
+      renderQuizCanvasFrame(ctx, quizRenderConfig, quizTimeline, tSec, opts);
+    };
+  }, [isQuizMode, quizRenderConfig, quizTimeline]);
+
+  const quizSignature = useMemo(
+    () =>
+      [
+        quizTitle,
+        quizThinkSec,
+        quizRevealSec,
+        quizShowExplanation ? '1' : '0',
+        quizSoundEnabled ? '1' : '0',
+        `${activeQuizDesign.id}:${activeQuizDesign.questionBoxStyle}:${activeQuizDesign.optionShape}:${activeQuizDesign.badgeShape}:${activeQuizDesign.timerStyle}:${activeQuizDesign.fontStyle}:${activeQuizDesign.accentColor}:${activeQuizDesign.cardBgColor}:${activeQuizDesign.questionTextColor}:${activeQuizDesign.cardOpacity}`,
+        ...quizQuestions.map(
+          (q) =>
+            `${q.id}:${q.category}:${q.question}:${q.options.join('/')}:${q.correctIndex}:${q.explanation || ''}`
+        ),
+      ].join('~'),
+    [
+      quizTitle,
+      quizThinkSec,
+      quizRevealSec,
+      quizShowExplanation,
+      quizSoundEnabled,
+      activeQuizDesign,
+      quizQuestions,
+    ]
+  );
 
   const currentSimKey = useMemo(
-    () => `${sequenceSignature}__${reciterId}__${durationMode}__${targetCustomVideoDurationSec}`,
-    [sequenceSignature, reciterId, durationMode, targetCustomVideoDurationSec]
+    () =>
+      isQuizMode
+        ? `quiz__${quizSignature}__${paceMultiplier}`
+        : `${sequenceSignature}__${reciterId}__${durationMode}__${targetCustomVideoDurationSec}`,
+    [
+      isQuizMode,
+      quizSignature,
+      paceMultiplier,
+      sequenceSignature,
+      reciterId,
+      durationMode,
+      targetCustomVideoDurationSec,
+    ]
   );
 
   const stopSimulationPlayback = useCallback(() => {
@@ -986,7 +1238,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   }, [stopSimulationPlayback]);
 
-  // Reset audio cache & simulation position when sequence or reciter changes
+  // Reset audio cache & simulation position when sequence/quiz or reciter changes
   useEffect(() => {
     stopSimulationPlayback();
     decodedBuffersRef.current = [];
@@ -994,7 +1246,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     setMeasuredDurations([]);
     setSimStatus('idle');
     setSimTimeSec(0);
-  }, [sequenceSignature, reciterId, durationMode, targetCustomVideoDurationSec, stopSimulationPlayback]);
+  }, [
+    contentMode,
+    sequenceSignature,
+    quizSignature,
+    reciterId,
+    durationMode,
+    targetCustomVideoDurationSec,
+    stopSimulationPlayback,
+  ]);
 
   // Invalidate any previously built download whenever any video setting changes
   const configSignature = useMemo(
@@ -1148,20 +1408,28 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   // =========================================================================
   // INLINE SIMULATION ENGINE (plays directly inside StudioLiveMonitor)
   // =========================================================================
-  const drawSimFrameAt = useCallback((atSec: number) => {
-    const canvas = simCanvasRef.current;
-    const layout = simLayoutRef.current;
-    const opts = simRenderOptsRef.current;
-    const activeTimeline = simTimelineRef.current;
-    if (!canvas || !layout || !opts || !activeTimeline) return;
-    const ctx2d = canvas.getContext('2d');
-    if (!ctx2d) return;
-    renderVideoCanvasFrame(ctx2d, layout, activeTimeline, atSec, {
-      ...opts,
-      bgImage: simMediaRef.current.bgImage,
-      bgVideo: simMediaRef.current.bgVideo,
-    });
-  }, []);
+  const drawSimFrameAt = useCallback(
+    (atSec: number) => {
+      const canvas = simCanvasRef.current;
+      const layout = simLayoutRef.current;
+      const opts = simRenderOptsRef.current;
+      const currentTl = simTimelineRef.current;
+      if (!canvas || !opts || !currentTl) return;
+      const ctx2d = canvas.getContext('2d');
+      if (!ctx2d) return;
+      const frameOpts: VideoCanvasRenderOptions = {
+        ...opts,
+        bgImage: simMediaRef.current.bgImage,
+        bgVideo: simMediaRef.current.bgVideo,
+      };
+      if (isQuizMode) {
+        renderQuizCanvasFrame(ctx2d, quizRenderConfig, currentTl, atSec, frameOpts);
+      } else if (layout) {
+        renderVideoCanvasFrame(ctx2d, layout, currentTl, atSec, frameOpts);
+      }
+    },
+    [isQuizMode, quizRenderConfig]
+  );
 
   const beginInlineSimulationFromOffset = useCallback(
     (
@@ -1239,7 +1507,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   );
 
   const handleToggleSimulationPlay = async () => {
-    if (baseVideoSequence.length === 0 || downloadStatus === 'preparing') return;
+    if (
+      (isQuizMode ? quizQuestions.length === 0 : baseVideoSequence.length === 0) ||
+      downloadStatus === 'preparing'
+    ) {
+      return;
+    }
 
     if (simStatus === 'playing') {
       stopSimulationPlayback();
@@ -1265,7 +1538,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const startOffset = simStatus === 'ended' ? 0 : simTimeSec;
 
     if (decodedSimKeyRef.current === currentSimKey && decodedBuffersRef.current.length > 0) {
-      beginInlineSimulationFromOffset(ctx, decodedBuffersRef.current, timeline, startOffset);
+      beginInlineSimulationFromOffset(
+        ctx,
+        decodedBuffersRef.current,
+        activeTimeline,
+        startOffset
+      );
       return;
     }
 
@@ -1275,6 +1553,32 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     simAbortRef.current = abortCtrl;
 
     try {
+      if (isQuizMode) {
+        const quizDecoded = createQuizAudioSequence(
+          ctx,
+          quizQuestions,
+          quizThinkSec,
+          quizRevealSec,
+          quizSoundEnabled
+        );
+        decodedBuffersRef.current = quizDecoded;
+        decodedSimKeyRef.current = currentSimKey;
+        simTimelineRef.current = quizTimeline;
+
+        if (document.fonts?.ready) {
+          await document.fonts.ready.catch(() => {});
+        }
+        if (abortCtrl.signal.aborted) return;
+
+        beginInlineSimulationFromOffset(
+          ctx,
+          quizDecoded,
+          quizTimeline,
+          Math.min(startOffset, Math.max(0, quizTimeline.totalDurationSec - 0.1))
+        );
+        return;
+      }
+
       const decodedBase = await decodeVerseAudioSequence(
         ctx,
         primarySelection.surahNumber,
@@ -1345,8 +1649,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   const handleSeekSimulation = (targetSec: number) => {
-    const activeTimeline = simTimelineRef.current || timeline;
-    const clamped = Math.max(0, Math.min(activeTimeline.totalDurationSec, targetSec));
+    const currentTl = simTimelineRef.current || activeTimeline;
+    const clamped = Math.max(0, Math.min(currentTl.totalDurationSec, targetSec));
     setSimTimeSec(clamped);
     if (simMediaRef.current.bgVideo) {
       try {
@@ -1365,7 +1669,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       beginInlineSimulationFromOffset(
         audioCtxRef.current,
         decodedBuffersRef.current,
-        activeTimeline,
+        currentTl,
         clamped
       );
     } else if (simStatus === 'ended') {
@@ -1374,12 +1678,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   const handleJumpToSegmentIndex = (nextIndex: number) => {
-    const activeTimeline = simTimelineRef.current || timeline;
-    if (activeTimeline.segments.length === 0) return;
-    const clampedIdx = Math.max(0, Math.min(activeTimeline.segments.length - 1, nextIndex));
-    const seg = activeTimeline.segments[clampedIdx];
+    const currentTl = simTimelineRef.current || activeTimeline;
+    if (currentTl.segments.length === 0) return;
+    const clampedIdx = Math.max(0, Math.min(currentTl.segments.length - 1, nextIndex));
+    const seg = currentTl.segments[clampedIdx];
     if (seg) {
-      handleSeekSimulation(seg.startSec + Math.min(0.6, seg.durationSec * 0.2));
+      handleSeekSimulation(
+        isQuizMode
+          ? seg.startSec + 0.05
+          : seg.startSec + Math.min(0.6, seg.durationSec * 0.2)
+      );
     }
   };
 
@@ -1391,14 +1699,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
   };
 
   const startDirectDownload = async () => {
-    if (baseVideoSequence.length === 0 || downloadStatus === 'preparing') return;
+    if (
+      (isQuizMode ? quizQuestions.length === 0 : baseVideoSequence.length === 0) ||
+      downloadStatus === 'preparing'
+    ) {
+      return;
+    }
 
     const effectiveCustomLogo = planRules.allowCustomLogo ? customLogoUrl : null;
     const access = evaluateVideoCreationAccess({
       email: userEmail,
       planId: planRules.id,
       videosUsedThisMonth: effectiveVideosUsed,
-      verseCount: totalSelectedVerses,
+      verseCount: isQuizMode ? quizQuestions.length : totalSelectedVerses,
       qualityId: videoQualityId as any,
       hasCustomLogo: Boolean(effectiveCustomLogo),
     });
@@ -1421,7 +1734,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     const activeQualityPreset = VIDEO_QUALITY_PRESETS.find((q) => q.id === videoQualityId);
     await startBackgroundVideoExport({
       configSignature,
-      summaryLabel: playlistSummaryLabel,
+      summaryLabel: isQuizMode
+        ? `${quizTitle.trim() || 'Quiz Islam'} (${quizQuestions.length} Q)`
+        : playlistSummaryLabel,
       qualityLabel: activeQualityPreset?.shortLabel || videoQualityId.toUpperCase(),
       aspectLabel: activeFormat.aspectLabel,
       reciterId,
@@ -1461,6 +1776,14 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       userEmail: userEmail || undefined,
       userName: currentUser?.name,
       qualityId: videoQualityId as any,
+      contentMode,
+      quizQuestions: isQuizMode ? quizQuestions : undefined,
+      quizTitle: isQuizMode ? quizTitle : undefined,
+      quizThinkSec: isQuizMode ? quizThinkSec : undefined,
+      quizRevealSec: isQuizMode ? quizRevealSec : undefined,
+      quizShowExplanation: isQuizMode ? quizShowExplanation : undefined,
+      quizSoundEnabled: isQuizMode ? quizSoundEnabled : undefined,
+      quizDesign: isQuizMode ? activeQuizDesign : undefined,
     });
   };
 
@@ -1548,8 +1871,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             qualityId={videoQualityId}
             onSelectQuality={(id) => setVideoQualityId(id)}
             ayahs={videoSequence}
-            timeline={timeline}
-            surahName={primarySurahMeta.name}
+            timeline={activeTimeline}
+            surahName={isQuizMode ? quizTitle || 'Quiz Islam' : primarySurahMeta.name}
             surahNumber={primarySurahMeta.number}
             startAyah={primaryNormalizedRange.startAyah}
             endAyah={primaryNormalizedRange.endAyah}
@@ -1579,7 +1902,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             flowMode={flowMode}
             simStatus={simStatus}
             simTimeSec={simTimeSec}
-            isLoadingVerses={isLoadingVerses}
+            isLoadingVerses={isQuizMode ? false : isLoadingVerses}
+            customRenderFrame={quizCustomRenderFrame}
+            segmentCount={isQuizMode ? quizQuestions.length : videoSequence.length}
             onTogglePlay={handleToggleSimulationPlay}
             onSeek={handleSeekSimulation}
             onJumpToSegmentIndex={handleJumpToSegmentIndex}
@@ -1621,10 +1946,52 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           />
         </div>
 
-        {/* Left Controls Rail (Sourate & Récitateur | Modèle & Fond) */}
+        {/* Left Controls Rail (Mode Coran / Quiz Islam + 2 Unified Tabs) */}
         <div className="order-2 md:order-1 flex-1 min-h-0 flex flex-col overflow-hidden md:rounded-3xl md:studio-surface-stacked bg-[#EAE8E1]/85">
-          {/* Tactile Segmented Recessed Tab Track (2 Unified Tabs) */}
-          <div className="shrink-0 px-3 pt-3 pb-2">
+          {/* Content Mode Switcher + Tab Track */}
+          <div className="shrink-0 px-3 pt-3 pb-2 space-y-2">
+            <div
+              role="group"
+              aria-label="Type de vidéo"
+              className="grid grid-cols-2 items-center gap-1 p-1 rounded-full studio-well-inset"
+            >
+              <button
+                type="button"
+                data-testid="studio-mode-quran"
+                aria-pressed={!isQuizMode}
+                onClick={() => {
+                  setContentMode('quran');
+                  setPlanRestrictionNotice(null);
+                }}
+                className={`min-h-[34px] px-3 rounded-full flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  !isQuizMode
+                    ? 'studio-pill-mint'
+                    : 'text-[#4F5551] hover:text-[#1F2421]'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>Coran</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="studio-mode-quiz"
+                aria-pressed={isQuizMode}
+                onClick={() => {
+                  setContentMode('quiz');
+                  setPlanRestrictionNotice(null);
+                }}
+                className={`min-h-[34px] px-3 rounded-full flex items-center justify-center gap-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  isQuizMode
+                    ? 'studio-pill-mint'
+                    : 'text-[#4F5551] hover:text-[#1F2421]'
+                }`}
+              >
+                <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Quiz Islam</span>
+              </button>
+            </div>
+
             <nav
               aria-label="Réglages du studio"
               className="grid grid-cols-2 items-center gap-1 p-1 rounded-full studio-well-inset"
@@ -1633,13 +2000,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 {
                   id: 'verses_audio' as const,
                   testId: 'jump-verses-audio',
-                  label: 'Sourate & Récitateur',
-                  icon: BookOpen,
+                  label: isQuizMode ? 'Questions Quiz' : 'Sourate & Récitateur',
+                  icon: isQuizMode ? HelpCircle : BookOpen,
                 },
                 {
                   id: 'style_bg' as const,
                   testId: 'jump-style-bg',
-                  label: 'Modèle & Fond',
+                  label: isQuizMode ? 'Style & Fond' : 'Modèle & Fond',
                   icon: Sparkles,
                 },
               ].map((tab) => {
@@ -1682,8 +2049,8 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                   : 'bg-[#F4F2EC] border-[#CECBC2] text-[#1F2421]'
               }`}
             >
-              <div className="min-w-0">
-                <div className="text-[11.5px] font-bold flex items-center gap-1.5 truncate">
+              <div className="min-w-0 flex-1">
+                <div className="text-[11.5px] font-bold flex items-center gap-1.5 leading-snug">
                   {requiresAuth ? (
                     <>
                       <Lock className="w-3.5 h-3.5 shrink-0" />
@@ -1701,11 +2068,13 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                     </>
                   )}
                 </div>
-                <div className="text-[10.5px] opacity-80 truncate mt-0.5 tabular-nums">
+                <div className="text-[10.5px] opacity-80 leading-snug mt-0.5 tabular-nums">
                   {requiresAuth
                     ? 'Connectez-vous pour bénéficier de 3 vidéos d’essai gratuites'
                     : `${
-                        Number.isFinite(planRules.maxVerses)
+                        isQuizMode
+                          ? 'Questions illimitées'
+                          : Number.isFinite(planRules.maxVerses)
                           ? `Max ${planRules.maxVerses} versets`
                           : 'Versets illimités'
                       } • Max ${planRules.maxQuality.toUpperCase()} • ${
@@ -1762,8 +2131,33 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
               </div>
             )}
 
-            {/* TAB 1: SOURATES, VERSETS & RÉCITATEUR */}
-            {activeTab === 'verses_audio' && (
+            {/* TAB 1: QUIZ BUILDER OR SOURATES/RÉCITATEUR */}
+            {activeTab === 'verses_audio' && isQuizMode && (
+              <QuizBuilderPanel
+                quizTitle={quizTitle}
+                onChangeQuizTitle={setQuizTitle}
+                questions={quizQuestions}
+                onApplyPack={applyQuizPack}
+                onAddBankQuestion={addQuizBankQuestion}
+                onAddBlankQuestion={addBlankQuizQuestion}
+                onUpdateQuestion={updateQuizQuestionItem}
+                onMoveQuestion={moveQuizQuestionItem}
+                onRemoveQuestion={removeQuizQuestionItem}
+                thinkSec={quizThinkSec}
+                onChangeThinkSec={setQuizThinkSec}
+                revealSec={quizRevealSec}
+                onChangeRevealSec={setQuizRevealSec}
+                showExplanation={quizShowExplanation}
+                onToggleShowExplanation={() => setQuizShowExplanation((v) => !v)}
+                soundEnabled={quizSoundEnabled}
+                onToggleSoundEnabled={() => setQuizSoundEnabled((v) => !v)}
+                maxQuestions={Number.POSITIVE_INFINITY}
+                activePlanName={planRules.name}
+                onJumpToQuestion={(idx) => handleJumpToSegmentIndex(idx)}
+              />
+            )}
+
+            {activeTab === 'verses_audio' && !isQuizMode && (
               <div className="space-y-5">
                 <div className="flex items-center justify-between gap-2">
                   <button
@@ -2065,49 +2459,82 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             {/* TAB 2: MODÈLE DE LECTURE & FOND */}
             {activeTab === 'style_bg' && (
               <div className="space-y-5">
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
-                      <Sparkles className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
-                      <span>Modèle de lecture</span>
+                {!isQuizMode && (
+                  <>
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs font-bold text-[#1F2421]">
+                          <Sparkles className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                          <span>Modèle de lecture</span>
+                        </div>
+                        <span className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums">
+                          {VIDEO_TEMPLATE_PRESETS.length} styles
+                        </span>
+                      </div>
+                      <StudioTemplateGrid
+                        selectedTemplate={flowMode}
+                        onSelect={setFlowMode}
+                        isLandscape={activeFormat.aspectLabel !== '9:16'}
+                      />
                     </div>
-                    <span className="text-[11px] font-mono font-semibold text-[#565C58] tabular-nums">
-                      {VIDEO_TEMPLATE_PRESETS.length} styles
-                    </span>
+
+                    <div className="pt-4 border-t border-[#D4D1C8] flex flex-wrap gap-2 text-xs font-semibold">
+                      {[
+                        { label: 'Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
+                        { label: 'Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
+                        { label: 'Phonétique', val: showPhonetics, toggle: () => setShowPhonetics((v) => !v) },
+                        { label: 'Français', val: showFrench, toggle: () => setShowFrench((v) => !v) },
+                        { label: 'Titre', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
+                      ].map((item) => (
+                        <button
+                          key={item.label}
+                          type="button"
+                          aria-pressed={item.val}
+                          onClick={item.toggle}
+                          className={`h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 cursor-pointer transition-all ${
+                            item.val
+                              ? 'studio-pill-mint'
+                              : 'studio-pill-raised text-[#565C58]'
+                          }`}
+                        >
+                          {item.val && <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />}
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {isQuizMode && (
+                  <div className="space-y-4">
+                    <QuizDesignPanel
+                      designs={allQuizDesigns}
+                      activeDesign={activeQuizDesign}
+                      onSelectDesign={handleSelectQuizDesign}
+                      onChangeActiveDesign={handleChangeActiveQuizDesign}
+                      onSaveAsNewDesign={handleSaveAsNewQuizDesign}
+                      onDeleteCustomDesign={handleDeleteCustomQuizDesign}
+                    />
+
+                    <div className="pt-3 border-t border-[#D4D1C8] flex flex-wrap items-center gap-2 text-xs font-semibold">
+                      <button
+                        type="button"
+                        aria-pressed={showSurahHeader}
+                        onClick={() => setShowSurahHeader((v) => !v)}
+                        className={`h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 cursor-pointer transition-all ${
+                          showSurahHeader
+                            ? 'studio-pill-mint'
+                            : 'studio-pill-raised text-[#565C58]'
+                        }`}
+                      >
+                        {showSurahHeader && <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />}
+                        <span>En-tête du quiz</span>
+                      </button>
+                    </div>
                   </div>
-                  <StudioTemplateGrid
-                    selectedTemplate={flowMode}
-                    onSelect={setFlowMode}
-                    isLandscape={activeFormat.aspectLabel !== '9:16'}
-                  />
-                </div>
+                )}
 
-                <div className="pt-4 border-t border-[#D4D1C8] flex flex-wrap gap-2 text-xs font-semibold">
-                  {[
-                    { label: 'Arabe', val: showArabic, toggle: () => setShowArabic((v) => !v) },
-                    { label: 'Tajweed', val: useTajweed, toggle: () => setUseTajweed((v) => !v) },
-                    { label: 'Phonétique', val: showPhonetics, toggle: () => setShowPhonetics((v) => !v) },
-                    { label: 'Français', val: showFrench, toggle: () => setShowFrench((v) => !v) },
-                    { label: 'Titre', val: showSurahHeader, toggle: () => setShowSurahHeader((v) => !v) },
-                  ].map((item) => (
-                    <button
-                      key={item.label}
-                      type="button"
-                      aria-pressed={item.val}
-                      onClick={item.toggle}
-                      className={`h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 cursor-pointer transition-all ${
-                        item.val
-                          ? 'studio-pill-mint'
-                          : 'studio-pill-raised text-[#565C58]'
-                      }`}
-                    >
-                      {item.val && <Check className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />}
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#D4D1C8]">
+                <div className={`grid grid-cols-2 gap-3 ${!isQuizMode ? 'pt-3 border-t border-[#D4D1C8]' : ''}`}>
                   <div className="space-y-1.5">
                     <div className="text-[11px] font-semibold text-[#565C58]">Taille</div>
                     <div className="grid grid-cols-3 gap-1 p-1 rounded-full studio-well-inset text-xs font-semibold">
@@ -2695,38 +3122,40 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                       )}
                     </div>
 
-                    {/* Target Switcher: Tout / Arabe / Transcrit / Français */}
-                    <div
-                      data-testid="studio-color-target-group"
-                      className="grid grid-cols-4 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-semibold"
-                    >
-                      {[
-                        { id: 'all' as const, label: 'Tout', dotColor: null },
-                        { id: 'arabic' as const, label: 'Arabe', dotColor: arabicTextColor },
-                        { id: 'phonetics' as const, label: 'Transcrit', dotColor: phoneticsTextColor },
-                        { id: 'french' as const, label: 'Français', dotColor: frenchTextColor },
-                      ].map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          data-testid={`studio-color-target-${t.id}`}
-                          onClick={() => setColorTarget(t.id)}
-                          className={`h-7 px-1.5 rounded-full inline-flex items-center justify-center gap-1 cursor-pointer transition-all truncate ${
-                            colorTarget === t.id
-                              ? 'studio-pill-mint'
-                              : 'text-[#4F5551] hover:text-[#1F2421]'
-                          }`}
-                        >
-                          <span>{t.label}</span>
-                          {t.dotColor && (
-                            <span
-                              className="w-2 h-2 rounded-full ring-1 ring-black/20 shrink-0"
-                              style={{ backgroundColor: t.dotColor }}
-                            />
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Target Switcher: Tout / Arabe / Transcrit / Français (Coran uniquement) */}
+                    {!isQuizMode && (
+                      <div
+                        data-testid="studio-color-target-group"
+                        className="grid grid-cols-4 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-semibold"
+                      >
+                        {[
+                          { id: 'all' as const, label: 'Tout', dotColor: null },
+                          { id: 'arabic' as const, label: 'Arabe', dotColor: arabicTextColor },
+                          { id: 'phonetics' as const, label: 'Transcrit', dotColor: phoneticsTextColor },
+                          { id: 'french' as const, label: 'Français', dotColor: frenchTextColor },
+                        ].map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            data-testid={`studio-color-target-${t.id}`}
+                            onClick={() => setColorTarget(t.id)}
+                            className={`h-7 px-1.5 rounded-full inline-flex items-center justify-center gap-1 cursor-pointer transition-all truncate ${
+                              colorTarget === t.id
+                                ? 'studio-pill-mint'
+                                : 'text-[#4F5551] hover:text-[#1F2421]'
+                            }`}
+                          >
+                            <span>{t.label}</span>
+                            {t.dotColor && (
+                              <span
+                                className="w-2 h-2 rounded-full ring-1 ring-black/20 shrink-0"
+                                style={{ backgroundColor: t.dotColor }}
+                              />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* 10 Curated Color Swatches BEFORE the Color Wheel Circle */}
                     <div

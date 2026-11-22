@@ -681,6 +681,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <button
                     type="button"
                     data-testid="admin-supabase-status-badge"
+                    title="Cliquez pour ouvrir l’onglet Connexion Supabase et voir les instructions de configuration"
                     onClick={() => setActiveTab('supabase')}
                     className={`h-9 px-3 rounded-xl border text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
                       allTablesReady
@@ -696,7 +697,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         ? 'Supabase connecté (10/10 tables)'
                         : isConnected
                         ? `Supabase (${okTablesCount}/10 tables)`
-                        : 'Supabase non configuré'}
+                        : 'Supabase : clés API manquantes'}
                     </span>
                   </button>
                 );

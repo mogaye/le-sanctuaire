@@ -119,6 +119,12 @@ interface StudioLiveMonitorProps {
   requiresAuth?: boolean;
   onRequestAuth?: () => void;
   onRequestUpgrade?: () => void;
+  customRenderFrame?: (
+    ctx: CanvasRenderingContext2D,
+    tSec: number,
+    opts: VideoCanvasRenderOptions
+  ) => void;
+  segmentCount?: number;
 }
 
 export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
@@ -181,6 +187,8 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
   requiresAuth = false,
   onRequestAuth,
   onRequestUpgrade,
+  customRenderFrame,
+  segmentCount,
 }) => {
   const videoHostRef = useRef<HTMLDivElement | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
@@ -398,6 +406,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     ]
   );
 
+  const effectiveSegmentCount =
+    typeof segmentCount === 'number' ? segmentCount : ayahs.length;
+
   const layout = useMemo(() => {
     const canvas = canvasRef.current;
     if (!canvas || ayahs.length === 0) return null;
@@ -410,10 +421,10 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     onLayoutReady?.({ layout, renderOpts });
   }, [layout, renderOpts]);
 
-  // Auto-render canvas frame immediately whenever verses/style/time/fullscreen mode change
+  // Auto-render canvas frame immediately whenever verses/quiz/style/time/fullscreen mode change
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !layout) return;
+    if (!canvas || (!customRenderFrame && !layout)) return;
     if (canvas.width !== format.previewWidth || canvas.height !== format.previewHeight) {
       canvas.width = format.previewWidth;
       canvas.height = format.previewHeight;
@@ -421,13 +432,20 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
+    const frameOpts: VideoCanvasRenderOptions = {
       ...renderOpts,
       bgImage: bgImageRef.current,
       bgVideo: bgVideoRef.current,
       logoImage: logoImageRef.current,
-    });
+    };
+
+    if (customRenderFrame) {
+      customRenderFrame(ctx, simTimeSec, frameOpts);
+    } else if (layout) {
+      renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, frameOpts);
+    }
   }, [
+    customRenderFrame,
     layout,
     timeline,
     simTimeSec,
@@ -455,19 +473,24 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       }
       if (!isImageMotionLive || nowMs - lastDrawMs >= 28) {
         lastDrawMs = nowMs;
-        if (canvasRef.current && layout) {
+        if (canvasRef.current && (customRenderFrame || layout)) {
           const ctx = canvasRef.current.getContext('2d');
           if (ctx) {
             const ambientSec = isImageMotionLive
               ? simTimeSec + (nowMs - startMs) / 1000
               : undefined;
-            renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, {
+            const frameOpts: VideoCanvasRenderOptions = {
               ...renderOpts,
               bgMotionTimeSec: ambientSec,
               bgImage: bgImageRef.current,
               bgVideo: bgVideoRef.current,
               logoImage: logoImageRef.current,
-            });
+            };
+            if (customRenderFrame) {
+              customRenderFrame(ctx, simTimeSec, frameOpts);
+            } else if (layout) {
+              renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, frameOpts);
+            }
           }
         }
       }
@@ -476,6 +499,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
   }, [
+    customRenderFrame,
     simStatus,
     activeMediaKind,
     bgImageMotion,
@@ -516,7 +540,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       width={format.previewWidth}
       height={format.previewHeight}
       onClick={() => {
-        if (!isLoadingVerses && ayahs.length > 0 && !isPreparingDownload) {
+        if (!isLoadingVerses && effectiveSegmentCount > 0 && !isPreparingDownload) {
           onTogglePlay();
         }
       }}
@@ -598,7 +622,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       <button
         type="button"
         data-testid="studio-monitor-animate-btn"
-        disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+        disabled={isLoadingVerses || effectiveSegmentCount === 0 || isPreparingDownload}
         onClick={onTogglePlay}
         aria-label={isPlaying ? 'Mettre en pause' : 'Lire la vidéo'}
         className={`w-10 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0 transition-all disabled:opacity-45 ${
@@ -616,9 +640,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
 
       <button
         type="button"
-        disabled={currentSegIdx >= ayahs.length - 1 || isBufferingSim}
+        disabled={currentSegIdx >= effectiveSegmentCount - 1 || isBufferingSim}
         onClick={() => onJumpToSegmentIndex(currentSegIdx + 1)}
-        aria-label="Verset suivant"
+        aria-label="Segment suivant"
         className="w-8 h-8 rounded-full studio-pill-raised disabled:opacity-40 flex items-center justify-center cursor-pointer shrink-0 transition-all"
       >
         <ChevronRight className="w-4 h-4 text-[#1F2421]" />
@@ -845,7 +869,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
             type="button"
             data-testid="studio-create-video-btn"
             aria-label={`Télécharger la vidéo MP4 (${qualityId.toUpperCase()})`}
-            disabled={isLoadingVerses || ayahs.length === 0 || isPreparingDownload}
+            disabled={isLoadingVerses || effectiveSegmentCount === 0 || isPreparingDownload}
             onClick={() => {
               if (requiresAuth) {
                 onRequestAuth?.();

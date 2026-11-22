@@ -168,7 +168,7 @@ export function loadCanvasBackgroundImage(url: string | null): Promise<HTMLImage
   });
 }
 
-function getEffectiveResScale(width: number, height: number): number {
+export function getEffectiveResScale(width: number, height: number): number {
   return Math.max(0.5, Math.min(width, height) / 720);
 }
 
@@ -716,7 +716,7 @@ export function computeBottomRightLogoRect(
  * Draws the mandatory, non-removable "Le Sanctuaire" watermark and optional custom image logo
  * centered horizontally & vertically together at the bottom of the video.
  */
-function drawMandatoryBottomWatermark(
+export function drawMandatoryBottomWatermark(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -1785,16 +1785,28 @@ function getSharpenedImageSource(
   }
 }
 
-export function renderVideoCanvasFrame(
+export function renderVideoBackgroundLayer(
   ctx: CanvasRenderingContext2D,
-  layout: PrecomputedCanvasLayout,
-  timeline: ContinuousTimeline,
   currentSec: number,
-  opts: VideoCanvasRenderOptions
-) {
+  opts: Pick<
+    VideoCanvasRenderOptions,
+    | 'width'
+    | 'height'
+    | 'isLightSurface'
+    | 'bgSurfaceColor'
+    | 'bgVideo'
+    | 'bgImage'
+    | 'bgBrightness'
+    | 'bgContrast'
+    | 'bgSharpness'
+    | 'bgImageMotion'
+    | 'bgMotionTimeSec'
+    | 'bgBlackBackdrop'
+    | 'bgVeilOpacity'
+  >
+): number {
   const { width, height, isLightSurface } = opts;
   const resScale = getEffectiveResScale(width, height);
-  const isLandscape = width > height;
 
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
@@ -1898,6 +1910,21 @@ export function renderVideoCanvasFrame(
       ctx.fillRect(0, 0, width, height);
     }
   }
+
+  return resScale;
+}
+
+export function renderVideoCanvasFrame(
+  ctx: CanvasRenderingContext2D,
+  layout: PrecomputedCanvasLayout,
+  timeline: ContinuousTimeline,
+  currentSec: number,
+  opts: VideoCanvasRenderOptions
+) {
+  const { width, height, isLightSurface } = opts;
+  const resScale = renderVideoBackgroundLayer(ctx, currentSec, opts);
+  const isLandscape = width > height;
+  const videoEl = opts.bgVideo;
 
   const { activeIndex, segmentProgress } = findActiveTimelineEntry(timeline, currentSec);
   const isPortrait = height > width;

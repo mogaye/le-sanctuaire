@@ -34,6 +34,11 @@ export interface Mp4ExportParams {
   onKeepaliveReady?: (keepalive: ReturnType<typeof attachAudioStreamKeepalive>) => void;
   onMediaRecorderReady?: (recorder: MediaRecorder) => void;
   onRecordingChunkAvailable?: () => void;
+  renderFrameFn?: (
+    ctx: CanvasRenderingContext2D,
+    tSec: number,
+    effectiveRenderOpts: VideoCanvasRenderOptions
+  ) => void;
 }
 
 export interface Mp4ExportResult {
@@ -631,13 +636,17 @@ async function tryWebCodecsMp4Export(params: Mp4ExportParams): Promise<Mp4Export
           lastChunkAdvanceAt = Date.now();
         }
 
-        renderVideoCanvasFrame(
-          params.canvasCtx,
-          effectiveLayout,
-          params.timeline,
-          tSec,
-          effectiveRenderOpts
-        );
+        if (params.renderFrameFn) {
+          params.renderFrameFn(params.canvasCtx, tSec, effectiveRenderOpts);
+        } else {
+          renderVideoCanvasFrame(
+            params.canvasCtx,
+            effectiveLayout,
+            params.timeline,
+            tSec,
+            effectiveRenderOpts
+          );
+        }
 
         const frame = new VideoFrame(params.canvas, {
           timestamp: f * frameDurationUs,
@@ -782,7 +791,11 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
     await audioCtx.resume().catch(() => {});
   }
 
-  renderVideoCanvasFrame(canvasCtx, layout, timeline, 0, renderOpts);
+  if (params.renderFrameFn) {
+    params.renderFrameFn(canvasCtx, 0, renderOpts);
+  } else {
+    renderVideoCanvasFrame(canvasCtx, layout, timeline, 0, renderOpts);
+  }
 
   const videoStream: MediaStream = (canvas as any).captureStream(30);
   const destNode = audioCtx.createMediaStreamDestination();
@@ -900,7 +913,11 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
   }
 
   recorder.start(250);
-  renderVideoCanvasFrame(canvasCtx, layout, timeline, 0.01, renderOpts);
+  if (params.renderFrameFn) {
+    params.renderFrameFn(canvasCtx, 0.01, renderOpts);
+  } else {
+    renderVideoCanvasFrame(canvasCtx, layout, timeline, 0.01, renderOpts);
+  }
 
   const segStarts = timeline.segments.map((s) => s.startSec);
   const segDurs = timeline.segments.map((s) => s.durationSec);
@@ -948,7 +965,11 @@ async function exportViaMediaRecorderToMp4(params: Mp4ExportParams): Promise<Mp4
         }
       }
     }
-    renderVideoCanvasFrame(canvasCtx, layout, timeline, elapsed, renderOpts);
+    if (params.renderFrameFn) {
+      params.renderFrameFn(canvasCtx, elapsed, renderOpts);
+    } else {
+      renderVideoCanvasFrame(canvasCtx, layout, timeline, elapsed, renderOpts);
+    }
     const pct = Math.min(88, 25 + Math.round((elapsed / totalSec) * 63));
     params.onProgress(
       pct,

@@ -658,7 +658,7 @@ export const MobileHomeScreen: React.FC<MobileHomeScreenProps> = ({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <h4 className="text-sm font-black text-neutral-900 dark:text-white tracking-tight">
-                      Studio Vidéo Coran
+                      Studio Vidéo · Coran &amp; Quiz
                     </h4>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300/60 dark:border-emerald-700/60">
                       {planRules.name}

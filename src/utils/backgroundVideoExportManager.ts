@@ -34,6 +34,18 @@ import {
   shouldAbortOnPageHide,
 } from './backgroundExportUtils';
 import { recordCreatedVideo } from '../lib/supabase';
+import { QuizQuestionItem } from '../data/islamicQuizBank';
+import {
+  StudioContentMode,
+  buildQuizExportFilename,
+  buildQuizTimeline,
+  clampQuizRevealSec,
+  clampQuizThinkSec,
+  createQuizAudioSequence,
+  normalizeQuizQuestion,
+} from './quizVideoUtils';
+import { QuizCanvasRenderConfig, renderQuizCanvasFrame } from './quizCanvasRenderer';
+import { QuizVisualDesign } from './quizDesignPresets';
 
 const MAX_STAGE_DOWNLOAD_BYTES = 1500 * 1024 * 1024;
 
@@ -104,6 +116,14 @@ export interface StartBackgroundVideoExportParams {
   userEmail?: string;
   userName?: string;
   qualityId?: '480p' | '720p' | '1080p' | '4k';
+  contentMode?: StudioContentMode;
+  quizQuestions?: QuizQuestionItem[];
+  quizTitle?: string;
+  quizThinkSec?: number;
+  quizRevealSec?: number;
+  quizShowExplanation?: boolean;
+  quizSoundEnabled?: boolean;
+  quizDesign?: QuizVisualDesign;
 }
 
 function isRunningInIframe(): boolean {
@@ -760,7 +780,15 @@ export async function startBackgroundVideoExport(
 ): Promise<void> {
   initBackgroundExportLifecycle();
 
-  if (params.baseVideoSequence.length === 0 || snapshot.status === 'preparing') {
+  const isQuizMode = params.contentMode === 'quiz';
+  const normalizedQuizQuestions = isQuizMode
+    ? (params.quizQuestions || []).map((q, idx) => normalizeQuizQuestion(q, idx))
+    : [];
+  const hasExportableContent = isQuizMode
+    ? normalizedQuizQuestions.length > 0
+    : params.baseVideoSequence.length > 0;
+
+  if (!hasExportableContent || snapshot.status === 'preparing') {
     return;
   }
 
@@ -829,24 +857,50 @@ export async function startBackgroundVideoExport(
       ? loadCanvasBackgroundImage(params.customLogoUrl)
       : Promise.resolve(null);
 
+    const quizThinkSec = clampQuizThinkSec(params.quizThinkSec ?? 5);
+    const quizRevealSec = clampQuizRevealSec(params.quizRevealSec ?? 3);
+    const quizSoundEnabled = params.quizSoundEnabled !== false;
+    const quizRenderConfig: QuizCanvasRenderConfig | null = isQuizMode
+      ? {
+          questions: normalizedQuizQuestions,
+          quizTitle: params.quizTitle,
+          thinkSec: quizThinkSec,
+          revealSec: quizRevealSec,
+          showExplanation: params.quizShowExplanation !== false,
+          design: params.quizDesign,
+        }
+      : null;
+
+    const audioPromise: Promise<DecodedVerseBuffer[]> = isQuizMode
+      ? Promise.resolve(
+          createQuizAudioSequence(
+            ctx,
+            normalizedQuizQuestions,
+            quizThinkSec,
+            quizRevealSec,
+            quizSoundEnabled
+          )
+        )
+      : decodeVerseAudioSequence(
+          ctx,
+          params.primarySurahMeta.number,
+          params.baseVideoSequence,
+          params.reciterId,
+          (loaded, total) => {
+            if (abortCtrl.signal.aborted) return;
+            const pct = Math.max(2, Math.round((loaded / Math.max(1, total)) * 22));
+            updateSnapshot({
+              progressPct: pct,
+              statusLabel: `Chargement audio (${loaded}/${Math.max(1, total)})...`,
+            });
+            updateMediaSessionProgress(pct, params.summaryLabel, 'preparing');
+            void pushPhoneTopBarNotification(false);
+          },
+          abortCtrl.signal
+        );
+
     const [decodedBase, bgImg, bgVideo, logoImg] = await Promise.all([
-      decodeVerseAudioSequence(
-        ctx,
-        params.primarySurahMeta.number,
-        params.baseVideoSequence,
-        params.reciterId,
-        (loaded, total) => {
-          if (abortCtrl.signal.aborted) return;
-          const pct = Math.max(2, Math.round((loaded / Math.max(1, total)) * 22));
-          updateSnapshot({
-            progressPct: pct,
-            statusLabel: `Chargement audio (${loaded}/${Math.max(1, total)})...`,
-          });
-          updateMediaSessionProgress(pct, params.summaryLabel, 'preparing');
-          void pushPhoneTopBarNotification(false);
-        },
-        abortCtrl.signal
-      ),
+      audioPromise,
       bgImgPromise,
       bgVideoPromise,
       logoImgPromise,
@@ -859,9 +913,11 @@ export async function startBackgroundVideoExport(
       return;
     }
 
-    const okAudioCount = decodedBase.filter((d) => d.buffer !== null).length;
-    if (okAudioCount === 0) {
-      throw new Error('Audio indisponible pour ces versets.');
+    if (!isQuizMode) {
+      const okAudioCount = decodedBase.filter((d) => d.buffer !== null).length;
+      if (okAudioCount === 0) {
+        throw new Error('Audio indisponible pour ces versets.');
+      }
     }
 
     const baseDurations = decodedBase.map((d) =>
@@ -869,37 +925,50 @@ export async function startBackgroundVideoExport(
     );
 
     const detectedBgDurationSec =
-      params.targetCustomVideoDurationSec > 0
+      !isQuizMode && params.targetCustomVideoDurationSec > 0
         ? params.targetCustomVideoDurationSec
-        : params.durationMode === 'match_video' &&
+        : !isQuizMode &&
+          params.durationMode === 'match_video' &&
           bgVideo &&
           Number.isFinite(bgVideo.duration) &&
           bgVideo.duration > 0
         ? bgVideo.duration
         : 0;
 
-    const expanded =
-      detectedBgDurationSec > 0
-        ? extendSequenceToTargetDuration(
-            params.baseVideoSequence,
-            decodedBase,
-            baseDurations,
-            detectedBgDurationSec,
-            params.paceMultiplier
-          )
-        : {
-            sequence: params.baseVideoSequence,
-            decodedItems: decodedBase,
-            measuredDurationsSec: baseDurations,
-          };
+    const expanded = isQuizMode
+      ? {
+          sequence: params.baseVideoSequence,
+          decodedItems: decodedBase,
+          measuredDurationsSec: baseDurations,
+        }
+      : detectedBgDurationSec > 0
+      ? extendSequenceToTargetDuration(
+          params.baseVideoSequence,
+          decodedBase,
+          baseDurations,
+          detectedBgDurationSec,
+          params.paceMultiplier
+        )
+      : {
+          sequence: params.baseVideoSequence,
+          decodedItems: decodedBase,
+          measuredDurationsSec: baseDurations,
+        };
 
     const exportSeq = expanded.sequence;
     const exportDecoded: DecodedVerseBuffer[] = expanded.decodedItems;
-    const exactTimeline = buildContinuousTimeline(
-      exportSeq,
-      expanded.measuredDurationsSec,
-      params.paceMultiplier
-    );
+    const exactTimeline = isQuizMode
+      ? buildQuizTimeline(
+          normalizedQuizQuestions,
+          quizThinkSec,
+          quizRevealSec,
+          params.paceMultiplier
+        )
+      : buildContinuousTimeline(
+          exportSeq,
+          expanded.measuredDurationsSec,
+          params.paceMultiplier
+        );
 
     if (document.fonts?.ready) {
       await document.fonts.ready.catch(() => {});
@@ -922,7 +991,7 @@ export async function startBackgroundVideoExport(
     const renderOpts: VideoCanvasRenderOptions = {
       width: params.exportWidth,
       height: params.exportHeight,
-      surahName: params.primarySurahMeta.name,
+      surahName: isQuizMode ? params.quizTitle || 'Quiz Islam' : params.primarySurahMeta.name,
       surahNumber: params.primarySurahMeta.number,
       startAyah: params.primaryNormalizedRange.startAyah,
       endAyah: params.primaryNormalizedRange.endAyah,
@@ -954,7 +1023,28 @@ export async function startBackgroundVideoExport(
     };
 
     const layout = precomputeVideoCanvasLayout(canvasCtx, exportSeq, renderOpts);
-    renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
+    const quizRenderFrameFn =
+      isQuizMode && quizRenderConfig
+        ? (
+            targetCtx: CanvasRenderingContext2D,
+            tSec: number,
+            effectiveOpts: VideoCanvasRenderOptions
+          ) => {
+            renderQuizCanvasFrame(
+              targetCtx,
+              quizRenderConfig,
+              exactTimeline,
+              tSec,
+              effectiveOpts
+            );
+          }
+        : undefined;
+
+    if (quizRenderFrameFn) {
+      quizRenderFrameFn(canvasCtx, 0, renderOpts);
+    } else {
+      renderVideoCanvasFrame(canvasCtx, layout, exactTimeline, 0, renderOpts);
+    }
 
     if (ctx.state !== 'running') {
       await ctx.resume().catch(() => {});
@@ -964,7 +1054,7 @@ export async function startBackgroundVideoExport(
       canvas,
       canvasCtx,
       layout,
-      ayahs: exportSeq,
+      ayahs: isQuizMode ? undefined : exportSeq,
       timeline: exactTimeline,
       renderOpts,
       audioCtx: ctx,
@@ -972,6 +1062,7 @@ export async function startBackgroundVideoExport(
       paceMultiplier: params.paceMultiplier,
       monitorAudioDuringExport: false,
       abortSignal: abortCtrl.signal,
+      renderFrameFn: quizRenderFrameFn,
       onProgress: (pct, _elapsedSec, statusText) => {
         if (abortCtrl.signal.aborted) return;
         const clamped = Math.max(22, Math.min(99, Math.round(pct)));
@@ -1000,12 +1091,20 @@ export async function startBackgroundVideoExport(
       exportResult.height
     );
     const objectUrl = URL.createObjectURL(exportResult.blob);
-    const nextFilename = buildStudioExportFilename({
-      selections: params.selectedSurahs,
-      aspectLabel: params.aspectLabel,
-      extension: exportResult.extension,
-      qualityId: actualQualityId,
-    });
+    const nextFilename = isQuizMode
+      ? buildQuizExportFilename({
+          title: params.quizTitle,
+          questionCount: normalizedQuizQuestions.length,
+          aspectLabel: params.aspectLabel,
+          extension: exportResult.extension,
+          qualityId: actualQualityId,
+        })
+      : buildStudioExportFilename({
+          selections: params.selectedSurahs,
+          aspectLabel: params.aspectLabel,
+          extension: exportResult.extension,
+          qualityId: actualQualityId,
+        });
 
     const inIframe = isRunningInIframe();
     let readyStagedUrl: string | null = null;
@@ -1066,7 +1165,9 @@ export async function startBackgroundVideoExport(
 
     // Record completed video export in subscription ledger (decrements quota countdown)
     if (params.userEmail) {
-      const verseCount = params.baseVideoSequence.filter((v) => !v.isBismillah).length || params.baseVideoSequence.length;
+      const verseCount = isQuizMode
+        ? normalizedQuizQuestions.length
+        : params.baseVideoSequence.filter((v) => !v.isBismillah).length || params.baseVideoSequence.length;
       const totalDur = Math.round(exactTimeline.totalDurationSec || 0);
       void recordCreatedVideo({
         email: params.userEmail,
