@@ -423,8 +423,9 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     onLayoutReady?.({ layout, renderOpts });
   }, [layout, renderOpts]);
 
-  // Auto-render canvas frame immediately whenever verses/quiz/style/time/fullscreen mode change
+  // Auto-render canvas frame immediately whenever verses/quiz/style/time/fullscreen mode change (skip during active playback rAF loop to avoid double full-canvas redraws)
   useEffect(() => {
+    if (simStatus === 'playing') return;
     const canvas = canvasRef.current;
     if (!canvas || (!customRenderFrame && !layout)) return;
     if (canvas.width !== format.previewWidth || canvas.height !== format.previewHeight) {
@@ -447,6 +448,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
       renderVideoCanvasFrame(ctx, layout, timeline, simTimeSec, frameOpts);
     }
   }, [
+    simStatus,
     customRenderFrame,
     layout,
     timeline,
@@ -520,7 +522,7 @@ export const StudioLiveMonitor: React.FC<StudioLiveMonitorProps> = ({
     () => findActiveTimelineEntry(timeline, simTimeSec),
     [timeline, simTimeSec]
   );
-  const currentSegIdx = activeEntry.index;
+  const currentSegIdx = activeEntry.activeIndex;
 
   const aspectBoxClass =
     format.aspectLabel === '16:9'

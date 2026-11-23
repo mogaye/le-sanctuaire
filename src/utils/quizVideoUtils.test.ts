@@ -11,6 +11,7 @@ import {
   computeQuizFrameState,
   enforceQuizQuestionsForPlan,
   normalizeQuizQuestion,
+  resolveSimulationStartOffset,
 } from './quizVideoUtils';
 
 test('ISLAMIC_QUIZ_BANK contains rich verified questions with valid options and answers', () => {
@@ -117,4 +118,61 @@ test('buildQuizExportFilename formats slugged quiz filename cleanly', () => {
     qualityId: '1080p',
   });
   assert.equal(filename, 'sanctuaire-quiz-vie-du-prophete-5q-9x16-1080p.mp4');
+});
+
+test('resolveSimulationStartOffset rewinds idle focus-previewed state to 0 while honoring explicit seek/pause', () => {
+  assert.equal(
+    resolveSimulationStartOffset({
+      simStatus: 'idle',
+      simTimeSec: 8.05,
+      hasExplicitSeek: false,
+    }),
+    0
+  );
+  assert.equal(
+    resolveSimulationStartOffset({
+      simStatus: 'idle',
+      simTimeSec: 8.05,
+      hasExplicitSeek: true,
+    }),
+    8.05
+  );
+  assert.equal(
+    resolveSimulationStartOffset({
+      simStatus: 'paused',
+      simTimeSec: 6.4,
+      hasExplicitSeek: true,
+    }),
+    6.4
+  );
+  assert.equal(
+    resolveSimulationStartOffset({
+      simStatus: 'ended',
+      simTimeSec: 16,
+      hasExplicitSeek: true,
+    }),
+    0
+  );
+});
+
+test('2-question quiz timeline plays Question 1 first then Question 2 when starting from 0', () => {
+  const twoQuestions = getQuestionsByPackId('pack_decouverte').slice(0, 2);
+  const tl = buildQuizTimeline(twoQuestions, 5, 3, 1);
+  assert.equal(tl.segments.length, 2);
+
+  const firstFrame = computeQuizFrameState(twoQuestions, tl, 0, 5, 3);
+  assert.ok(firstFrame);
+  assert.equal(firstFrame.activeIndex, 0);
+  assert.equal(firstFrame.question.id, twoQuestions[0].id);
+
+  const secondSegFrame = computeQuizFrameState(
+    twoQuestions,
+    tl,
+    tl.segments[1].startSec + 0.1,
+    5,
+    3
+  );
+  assert.ok(secondSegFrame);
+  assert.equal(secondSegFrame.activeIndex, 1);
+  assert.equal(secondSegFrame.question.id, twoQuestions[1].id);
 });

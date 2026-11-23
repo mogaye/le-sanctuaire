@@ -15,6 +15,19 @@ import {
 
 export type StudioContentMode = 'quran' | 'quiz';
 
+export type SimulationPlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'ended';
+
+export function resolveSimulationStartOffset(params: {
+  simStatus: SimulationPlaybackStatus;
+  simTimeSec: number;
+  hasExplicitSeek: boolean;
+}): number {
+  const { simStatus, simTimeSec, hasExplicitSeek } = params;
+  if (simStatus === 'ended') return 0;
+  if (simStatus === 'idle' && !hasExplicitSeek) return 0;
+  return Math.max(0, Number(simTimeSec) || 0);
+}
+
 export interface QuizFrameState {
   stepKind: 'question' | 'narration';
   narrationStep?: QuizNarrationStep;

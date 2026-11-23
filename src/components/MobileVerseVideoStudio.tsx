@@ -29,6 +29,7 @@ import {
   StudioContentMode,
   buildQuizTimeline,
   normalizeQuizQuestion,
+  resolveSimulationStartOffset,
   synthesizeQuizQuestionAudioBuffer,
 } from '../utils/quizVideoUtils';
 import {
@@ -471,6 +472,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     bgVideo: HTMLVideoElement | null;
   }>({ bgImage: null, bgVideo: null });
   const simTimelineRef = useRef<ReturnType<typeof buildContinuousTimeline> | null>(null);
+  const hasExplicitPlaybackSeekRef = useRef<boolean>(false);
   const playbackStartCtxTimeRef = useRef<number>(0);
   const playbackStartOffsetRef = useRef<number>(0);
   const rafRef = useRef<number | null>(null);
@@ -1327,6 +1329,11 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     ]
   );
 
+  const quizRenderConfigRef = useRef<QuizCanvasRenderConfig>(quizRenderConfig);
+  quizRenderConfigRef.current = quizRenderConfig;
+  const isQuizModeRef = useRef<boolean>(isQuizMode);
+  isQuizModeRef.current = isQuizMode;
+
   const quizCustomRenderFrame = useMemo(() => {
     if (!isQuizMode) return undefined;
     return (
@@ -1424,6 +1431,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     stopSimulationPlayback();
     decodedBuffersRef.current = [];
     decodedSimKeyRef.current = '';
+    hasExplicitPlaybackSeekRef.current = false;
     setMeasuredDurations([]);
     setQuizMeasuredSpeechDurations({});
     setSimStatus('idle');
@@ -1606,13 +1614,19 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         bgImage: simMediaRef.current.bgImage,
         bgVideo: simMediaRef.current.bgVideo,
       };
-      if (isQuizMode) {
-        renderQuizCanvasFrame(ctx2d, quizRenderConfig, currentTl, atSec, frameOpts);
+      if (isQuizModeRef.current) {
+        renderQuizCanvasFrame(
+          ctx2d,
+          quizRenderConfigRef.current,
+          currentTl,
+          atSec,
+          frameOpts
+        );
       } else if (layout) {
         renderVideoCanvasFrame(ctx2d, layout, currentTl, atSec, frameOpts);
       }
     },
-    [isQuizMode, quizRenderConfig]
+    []
   );
 
   const beginInlineSimulationFromOffset = useCallback(
@@ -1659,16 +1673,22 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       playbackStartCtxTimeRef.current = ctx.currentTime;
       playbackStartOffsetRef.current = offsetSec;
       const wallStartMs = performance.now();
+      let lastCanvasDrawMs = wallStartMs;
+      let lastUiSyncMs = wallStartMs;
+      let lastUiWholeSec = Math.floor(offsetSec);
       setSimStatus('playing');
+      setSimTimeSec(offsetSec);
+      drawSimFrameAt(offsetSec);
 
-      const tick = () => {
+      const tick = (nowMs: number) => {
         if (!audioCtxRef.current) return;
         const audioDelta =
           audioCtxRef.current.currentTime - playbackStartCtxTimeRef.current;
-        const wallDelta = (performance.now() - wallStartMs) / 1000;
+        const wallDelta = (nowMs - wallStartMs) / 1000;
         const delta = audioDelta > 0.02 ? audioDelta : wallDelta;
         const elapsed = playbackStartOffsetRef.current + delta;
         if (elapsed >= exactTimeline.totalDurationSec) {
+          hasExplicitPlaybackSeekRef.current = false;
           setSimTimeSec(exactTimeline.totalDurationSec);
           drawSimFrameAt(exactTimeline.totalDurationSec);
           if (simMediaRef.current.bgVideo) {
@@ -1681,8 +1701,16 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
           playbackHandleRef.current = null;
           return;
         }
-        setSimTimeSec(elapsed);
-        drawSimFrameAt(elapsed);
+        if (nowMs - lastCanvasDrawMs >= 30) {
+          lastCanvasDrawMs = nowMs;
+          drawSimFrameAt(elapsed);
+        }
+        const wholeSec = Math.floor(elapsed);
+        if (nowMs - lastUiSyncMs >= 110 || wholeSec !== lastUiWholeSec) {
+          lastUiSyncMs = nowMs;
+          lastUiWholeSec = wholeSec;
+          setSimTimeSec(elapsed);
+        }
         rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -1700,6 +1728,7 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
 
     if (simStatus === 'playing') {
       stopSimulationPlayback();
+      hasExplicitPlaybackSeekRef.current = true;
       setSimStatus('paused');
       return;
     }
@@ -1719,7 +1748,15 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       await ctx.resume().catch(() => {});
     }
 
-    const startOffset = simStatus === 'ended' ? 0 : simTimeSec;
+    const startOffset = resolveSimulationStartOffset({
+      simStatus,
+      simTimeSec,
+      hasExplicitSeek: hasExplicitPlaybackSeekRef.current,
+    });
+    if (startOffset === 0 && simTimeSec !== 0) {
+      setSimTimeSec(0);
+      drawSimFrameAt(0);
+    }
 
     if (decodedSimKeyRef.current === currentSimKey && decodedBuffersRef.current.length > 0) {
       beginInlineSimulationFromOffset(
@@ -1767,6 +1804,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         decodedBuffersRef.current = plan.decodedBuffers;
         decodedSimKeyRef.current = currentSimKey;
         simTimelineRef.current = plan.timeline;
+        quizRenderConfigRef.current = {
+          ...quizRenderConfigRef.current,
+          steps: plan.steps,
+        };
 
         if (document.fonts?.ready) {
           await document.fonts.ready.catch(() => {});
@@ -1851,7 +1892,12 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     }
   };
 
-  const handleSeekSimulation = (targetSec: number) => {
+  const handleSeekSimulation = (
+    targetSec: number,
+    options?: { explicit?: boolean }
+  ) => {
+    const isExplicit = options?.explicit !== false;
+    hasExplicitPlaybackSeekRef.current = isExplicit;
     const currentTl = simTimelineRef.current || activeTimeline;
     const clamped = Math.max(0, Math.min(currentTl.totalDurationSec, targetSec));
     setSimTimeSec(clamped);
@@ -1876,11 +1922,17 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
         clamped
       );
     } else if (simStatus === 'ended') {
-      setSimStatus('paused');
+      setSimStatus(isExplicit ? 'paused' : 'idle');
+    } else if (!isExplicit && simStatus === 'paused') {
+      setSimStatus('idle');
     }
   };
 
-  const handleJumpToSegmentIndex = (nextIndex: number) => {
+  const handleJumpToSegmentIndex = (
+    nextIndex: number,
+    options?: { explicit?: boolean }
+  ) => {
+    if (!Number.isFinite(nextIndex)) return;
     const currentTl = simTimelineRef.current || activeTimeline;
     if (currentTl.segments.length === 0) return;
     const clampedIdx = Math.max(0, Math.min(currentTl.segments.length - 1, nextIndex));
@@ -1889,24 +1941,27 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
       handleSeekSimulation(
         isQuizMode
           ? seg.startSec + 0.05
-          : seg.startSec + Math.min(0.6, seg.durationSec * 0.2)
+          : seg.startSec + Math.min(0.6, seg.durationSec * 0.2),
+        options
       );
     }
   };
 
   const handleJumpToQuizQuestion = (questionIndex: number) => {
+    if (simStatus === 'playing') return;
     const stepIdx = quizOrderedSteps.findIndex(
       (s) => s.kind === 'question' && s.questionIndex === questionIndex
     );
     if (stepIdx >= 0) {
-      handleJumpToSegmentIndex(stepIdx);
+      handleJumpToSegmentIndex(stepIdx, { explicit: false });
     }
   };
 
   const handleJumpToQuizStepId = (stepId: string) => {
+    if (simStatus === 'playing') return;
     const stepIdx = quizOrderedSteps.findIndex((s) => s.id === stepId);
     if (stepIdx >= 0) {
-      handleJumpToSegmentIndex(stepIdx);
+      handleJumpToSegmentIndex(stepIdx, { explicit: false });
     }
   };
 
@@ -2144,8 +2199,10 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
             animateBackgroundWhenIdle={isQuizMode}
             segmentCount={isQuizMode ? quizOrderedSteps.length : videoSequence.length}
             onTogglePlay={handleToggleSimulationPlay}
-            onSeek={handleSeekSimulation}
-            onJumpToSegmentIndex={handleJumpToSegmentIndex}
+            onSeek={(sec) => handleSeekSimulation(sec, { explicit: true })}
+            onJumpToSegmentIndex={(idx) =>
+              handleJumpToSegmentIndex(idx, { explicit: true })
+            }
             onDetectedVideoDurationSec={(durSec) => {
               if (!activeCustomMedia || activeCustomMedia.kind !== 'video') return;
               if (
