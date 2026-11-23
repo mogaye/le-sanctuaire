@@ -58,6 +58,13 @@ import {
 } from '../utils/quizAnimatedBackgrounds';
 import { QuizAnimatedBgPicker } from './video-studio/QuizAnimatedBgPicker';
 import { QuizBuilderPanel } from './video-studio/QuizBuilderPanel';
+import {
+  autoFillSingleQuestion,
+  fillBlankQuizQuestions,
+  generateAutoFillQuestions,
+  getSuggestedQuizTitleForCategory,
+} from '../utils/quizAutoFill';
+import { QuizCategoryId } from '../data/islamicQuizBank';
 import { QuizDesignPanel } from './video-studio/QuizDesignPanel';
 import { ALL_114_SURAHS, CompleteSurahItem } from '../data/quranSurahs';
 import { RECITERS } from '../data/islamicData';
@@ -907,6 +914,96 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
     });
     setPlanRestrictionNotice(null);
   }, []);
+
+  const handleAutoFillQuiz = useCallback(
+    (opts: {
+      mode: 'replace' | 'append' | 'fill_blanks';
+      category: QuizCategoryId | 'all';
+      count: number;
+    }): number => {
+      if (opts.mode === 'replace') {
+        const generated = generateAutoFillQuestions({
+          count: opts.count,
+          category: opts.category,
+        });
+        if (generated.length === 0) return 0;
+        setQuizQuestions(generated);
+        setQuizTitle((prev) => {
+          const clean = prev.trim();
+          if (
+            !clean ||
+            clean === 'Quiz Islam' ||
+            clean.startsWith('Quiz ')
+          ) {
+            return getSuggestedQuizTitleForCategory(opts.category);
+          }
+          return prev;
+        });
+        setPlanRestrictionNotice(null);
+        return generated.length;
+      }
+
+      if (opts.mode === 'append') {
+        const generated = generateAutoFillQuestions({
+          count: opts.count,
+          category: opts.category,
+          excludeQuestions: quizQuestions,
+        });
+        if (generated.length === 0) return 0;
+        setQuizQuestions((prev) => [...prev, ...generated]);
+        setPlanRestrictionNotice(null);
+        return generated.length;
+      }
+
+      // fill_blanks
+      const result = fillBlankQuizQuestions(quizQuestions, {
+        category: opts.category,
+      });
+      if (result.filledCount > 0) {
+        setQuizQuestions(result.questions);
+      }
+      setPlanRestrictionNotice(null);
+      return result.filledCount;
+    },
+    [quizQuestions]
+  );
+
+  const handleAutoFillSingleQuestion = useCallback(
+    (id: string, category?: QuizCategoryId | 'all') => {
+      setQuizQuestions((prev) => {
+        const result = autoFillSingleQuestion(prev, id, {
+          category: category || 'all',
+        });
+        return result.questions;
+      });
+      setPlanRestrictionNotice(null);
+    },
+    []
+  );
+
+  const handleApplyParsedQuizQuestions = useCallback(
+    (parsedQuestions: QuizQuestionItem[], mode: 'replace' | 'append'): number => {
+      if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+        return 0;
+      }
+      if (mode === 'replace') {
+        const normalized = parsedQuestions.map((q, idx) =>
+          normalizeQuizQuestion(q, idx)
+        );
+        setQuizQuestions(normalized);
+        setPlanRestrictionNotice(null);
+        return normalized.length;
+      }
+      const baseLen = quizQuestions.length;
+      const normalized = parsedQuestions.map((q, idx) =>
+        normalizeQuizQuestion(q, baseLen + idx)
+      );
+      setQuizQuestions((prev) => [...prev, ...normalized]);
+      setPlanRestrictionNotice(null);
+      return normalized.length;
+    },
+    [quizQuestions.length]
+  );
 
   const handleSelectQuizDesign = useCallback((design: QuizVisualDesign) => {
     setActiveQuizDesign(design);
@@ -2300,6 +2397,9 @@ export const MobileVerseVideoStudio: React.FC<MobileVerseVideoStudioProps> = ({
                 onPreviewVoice={handlePreviewQuizNarration}
                 previewingBlockId={previewingNarrationId}
                 onJumpToStepId={handleJumpToQuizStepId}
+                onAutoFillQuiz={handleAutoFillQuiz}
+                onAutoFillSingleQuestion={handleAutoFillSingleQuestion}
+                onApplyParsedQuestions={handleApplyParsedQuizQuestions}
               />
             )}
 

@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  ClipboardPaste,
   Eye,
   EyeOff,
   Library,
@@ -10,10 +11,12 @@ import {
   Mic,
   Play,
   Plus,
+  RefreshCw,
   SlidersHorizontal,
   Trash2,
   Volume2,
   VolumeX,
+  Zap,
 } from 'lucide-react';
 import {
   ISLAMIC_QUIZ_BANK,
@@ -33,6 +36,14 @@ import {
   getNarrationSlotLabel,
   moveNarrationBlockToSlot,
 } from '../../utils/quizNarration';
+import {
+  getAutoFillPool,
+  isBlankOrPlaceholderQuizQuestion,
+} from '../../utils/quizAutoFill';
+import {
+  SAMPLE_PASTE_QUIZ_TEXT,
+  parsePastedQuizText,
+} from '../../utils/quizTextParser';
 
 interface QuizBuilderPanelProps {
   quizTitle: string;
@@ -62,6 +73,16 @@ interface QuizBuilderPanelProps {
   onPreviewVoice?: (text: string, voiceId: QuizNarratorVoiceId, blockId?: string) => void;
   previewingBlockId?: string | null;
   onJumpToStepId?: (stepId: string) => void;
+  onAutoFillQuiz?: (opts: {
+    mode: 'replace' | 'append' | 'fill_blanks';
+    category: QuizCategoryId | 'all';
+    count: number;
+  }) => number;
+  onAutoFillSingleQuestion?: (id: string, category?: QuizCategoryId | 'all') => void;
+  onApplyParsedQuestions?: (
+    parsedQuestions: QuizQuestionItem[],
+    mode: 'replace' | 'append'
+  ) => number;
 }
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'] as const;
@@ -271,11 +292,36 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
   onPreviewVoice,
   previewingBlockId,
   onJumpToStepId,
+  onAutoFillQuiz,
+  onAutoFillSingleQuestion,
+  onApplyParsedQuestions,
 }) => {
   const [isBankOpen, setIsBankOpen] = useState(false);
+  const [isAutoFillOpen, setIsAutoFillOpen] = useState(false);
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isNarratorOpen, setIsNarratorOpen] = useState(true);
   const [bankCategory, setBankCategory] = useState<QuizCategoryId | 'all'>('all');
+  const [autoFillTab, setAutoFillTab] = useState<'paste' | 'bank'>('paste');
+  const [pasteInputText, setPasteInputText] = useState('');
+  const [autoFillCategory, setAutoFillCategory] = useState<QuizCategoryId | 'all'>('all');
+  const [autoFillCount, setAutoFillCount] = useState<number>(5);
+  const [autoFillNotice, setAutoFillNotice] = useState<string | null>(null);
+
+  const parsedPasteResult = useMemo(
+    () => parsePastedQuizText(pasteInputText),
+    [pasteInputText]
+  );
+
+  const blankQuestionsCount = useMemo(
+    () => questions.filter((q) => isBlankOrPlaceholderQuizQuestion(q)).length,
+    [questions]
+  );
+
+  const autoFillPoolCount = useMemo(
+    () => getAutoFillPool(autoFillCategory).length,
+    [autoFillCategory]
+  );
+  const totalBankAutoCount = useMemo(() => getAutoFillPool('all').length, []);
 
   const isCapped = Number.isFinite(maxQuestions);
   const atLimit = isCapped && questions.length >= maxQuestions;
@@ -390,10 +436,28 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
           <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
+              data-testid="studio-quiz-toggle-autofill-btn"
+              aria-expanded={isAutoFillOpen}
+              onClick={() => {
+                setIsAutoFillOpen((v) => !v);
+                setIsBankOpen(false);
+                setIsOptionsOpen(false);
+              }}
+              className={`h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                isAutoFillOpen ? 'studio-pill-mint' : 'studio-pill-raised text-[#1F2421]'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5 shrink-0" />
+              <span>Remplir auto</span>
+            </button>
+
+            <button
+              type="button"
               data-testid="studio-quiz-toggle-bank-btn"
               aria-expanded={isBankOpen}
               onClick={() => {
                 setIsBankOpen((v) => !v);
+                setIsAutoFillOpen(false);
                 setIsOptionsOpen(false);
               }}
               className={`h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap shrink-0 ${
@@ -410,6 +474,7 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
               aria-expanded={isOptionsOpen}
               onClick={() => {
                 setIsOptionsOpen((v) => !v);
+                setIsAutoFillOpen(false);
                 setIsBankOpen(false);
               }}
               className={`h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-all whitespace-nowrap shrink-0 ${
@@ -574,6 +639,402 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
                   </button>
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {/* Collapsible Non-AI Auto-Fill Drawer (Coller mon texte + Banque auto) */}
+        {isAutoFillOpen && (
+          <div
+            data-testid="studio-quiz-autofill-drawer"
+            className="rounded-2xl studio-input-inset p-3.5 space-y-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-[#1B573E] shrink-0" />
+                <span className="text-xs font-extrabold text-[#1F2421]">
+                  Remplissage automatique (sans IA)
+                </span>
+              </div>
+
+              <div className="inline-flex items-center gap-1 p-0.5 rounded-full studio-well-inset text-[11px] font-bold">
+                <button
+                  type="button"
+                  data-testid="studio-quiz-autofill-tab-paste"
+                  aria-pressed={autoFillTab === 'paste'}
+                  onClick={() => {
+                    setAutoFillTab('paste');
+                    setAutoFillNotice(null);
+                  }}
+                  className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap ${
+                    autoFillTab === 'paste'
+                      ? 'studio-pill-mint'
+                      : 'text-[#4F5551] hover:text-[#1F2421]'
+                  }`}
+                >
+                  <ClipboardPaste className="w-3 h-3 shrink-0" />
+                  <span>Coller mon texte</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="studio-quiz-autofill-tab-bank"
+                  aria-pressed={autoFillTab === 'bank'}
+                  onClick={() => {
+                    setAutoFillTab('bank');
+                    setAutoFillNotice(null);
+                  }}
+                  className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap ${
+                    autoFillTab === 'bank'
+                      ? 'studio-pill-mint'
+                      : 'text-[#4F5551] hover:text-[#1F2421]'
+                  }`}
+                >
+                  <Zap className="w-3 h-3 shrink-0" />
+                  <span>Banque auto ({totalBankAutoCount})</span>
+                </button>
+              </div>
+            </div>
+
+            {autoFillTab === 'paste' ? (
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label
+                    htmlFor="studio-quiz-paste-textarea"
+                    className="text-[11px] font-semibold text-[#565C58] leading-snug"
+                  >
+                    Collez vos questions + choix (A/B/C/D ou tirets -) + réponse (ex : Réponse : B ou ✅) :
+                  </label>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      data-testid="studio-quiz-paste-sample-btn"
+                      onClick={() => {
+                        setPasteInputText(SAMPLE_PASTE_QUIZ_TEXT);
+                        setAutoFillNotice(null);
+                      }}
+                      className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-bold text-[#1B573E] cursor-pointer whitespace-nowrap"
+                    >
+                      Exemple
+                    </button>
+                    {pasteInputText.trim().length > 0 && (
+                      <button
+                        type="button"
+                        data-testid="studio-quiz-paste-clear-btn"
+                        onClick={() => {
+                          setPasteInputText('');
+                          setAutoFillNotice(null);
+                        }}
+                        className="h-6 px-2.5 rounded-full studio-pill-raised text-[10.5px] font-semibold text-[#9B3431] cursor-pointer whitespace-nowrap"
+                      >
+                        Effacer
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <textarea
+                  id="studio-quiz-paste-textarea"
+                  rows={6}
+                  data-testid="studio-quiz-paste-textarea"
+                  value={pasteInputText}
+                  onChange={(e) => {
+                    setPasteInputText(e.target.value);
+                    setAutoFillNotice(null);
+                  }}
+                  placeholder={`Exemple :\n1. Combien de sourates compte le Coran ?\nA) 110\nB) 114 ✅\nC) 120\nD) 99\n\n2. Quel est le 1er mois du calendrier hégirien ?\nA) Ramadan  B) Rajab  C) Muharram  D) Chawwâl\nRéponse : C`}
+                  className="w-full px-3 py-2.5 rounded-xl bg-white/85 border border-[#C6D5CD] text-xs font-medium text-[#1F2421] placeholder:text-[#848A86] leading-relaxed resize-y min-h-[120px]"
+                />
+
+                {pasteInputText.trim().length > 0 && (
+                  <div
+                    data-testid="studio-quiz-paste-preview"
+                    className="rounded-xl bg-white/75 border border-[#C6D5CD] p-2.5 space-y-2"
+                  >
+                    {parsedPasteResult.questions.length > 0 ? (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] font-extrabold text-[#1B573E] tabular-nums">
+                            {parsedPasteResult.questions.length} question
+                            {parsedPasteResult.questions.length > 1 ? 's' : ''} détectée
+                            {parsedPasteResult.questions.length > 1 ? 's' : ''} ·{' '}
+                            {parsedPasteResult.answersDetectedCount} bonne
+                            {parsedPasteResult.answersDetectedCount > 1 ? 's' : ''} réponse
+                            {parsedPasteResult.answersDetectedCount > 1 ? 's' : ''}
+                          </span>
+                          {parsedPasteResult.unansweredCount > 0 && (
+                            <span className="text-[10.5px] font-semibold text-[#8A6216]">
+                              {parsedPasteResult.unansweredCount} sans réponse indiquée (A par défaut)
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5 max-h-[150px] overflow-y-auto no-scrollbar pr-0.5">
+                          {parsedPasteResult.questions.slice(0, 4).map((pq, pIdx) => (
+                            <div
+                              key={pq.id}
+                              className="rounded-lg bg-[#F5F3EC] border border-[#DFDCD2] px-2.5 py-1.5 space-y-1"
+                            >
+                              <div className="text-[11px] font-bold text-[#1F2421] line-clamp-1">
+                                Q{pIdx + 1}. {pq.question}
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {pq.options.map((opt, oIdx) => {
+                                  const isRight = pq.correctIndex === oIdx;
+                                  return (
+                                    <span
+                                      key={oIdx}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold truncate max-w-[160px] ${
+                                        isRight
+                                          ? 'bg-[#1B573E] text-white'
+                                          : 'bg-white/80 text-[#4F5551] border border-[#D4D1C8]'
+                                      }`}
+                                    >
+                                      {OPTION_LABELS[oIdx]}. {opt}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          {parsedPasteResult.questions.length > 4 && (
+                            <div className="text-[10.5px] font-semibold text-[#565C58] text-center">
+                              + {parsedPasteResult.questions.length - 4} autre
+                              {parsedPasteResult.questions.length - 4 > 1 ? 's' : ''} question
+                              {parsedPasteResult.questions.length - 4 > 1 ? 's' : ''} prête
+                              {parsedPasteResult.questions.length - 4 > 1 ? 's' : ''}…
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-[11px] font-semibold text-[#9B3431]">
+                        Aucune question avec propositions détectée. Mettez la question sur une ligne et au moins 2 choix en dessous (A), B), C), D) ou - ).
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    data-testid="studio-quiz-paste-replace-btn"
+                    disabled={parsedPasteResult.questions.length === 0}
+                    onClick={() => {
+                      const applied =
+                        onApplyParsedQuestions?.(
+                          parsedPasteResult.questions,
+                          'replace'
+                        ) || 0;
+                      if (applied > 0) {
+                        onJumpToQuestion?.(0);
+                        setAutoFillNotice(
+                          `${applied} question${applied > 1 ? 's' : ''} répartie${applied > 1 ? 's' : ''} automatiquement dans le quiz !`
+                        );
+                      }
+                    }}
+                    className="flex-1 min-w-[180px] h-9 px-3 rounded-full studio-pill-mint text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Répartir et remplacer
+                      {parsedPasteResult.questions.length > 0
+                        ? ` (${parsedPasteResult.questions.length})`
+                        : ''}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="studio-quiz-paste-append-btn"
+                    disabled={parsedPasteResult.questions.length === 0}
+                    onClick={() => {
+                      const prevLen = questions.length;
+                      const added =
+                        onApplyParsedQuestions?.(
+                          parsedPasteResult.questions,
+                          'append'
+                        ) || 0;
+                      if (added > 0) {
+                        onJumpToQuestion?.(prevLen);
+                        setAutoFillNotice(
+                          `${added} question${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''} à la suite !`
+                        );
+                      }
+                    }}
+                    className="h-9 px-3 rounded-full studio-pill-raised text-xs font-semibold text-[#1F2421] inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Ajouter à la suite
+                      {parsedPasteResult.questions.length > 0
+                        ? ` (+${parsedPasteResult.questions.length})`
+                        : ''}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold text-[#565C58]">
+                    Thème des questions
+                  </span>
+                  <span className="text-[10.5px] font-semibold text-[#1B573E] bg-[#DDE8E2] px-2 py-0.5 rounded-full tabular-nums">
+                    {autoFillPoolCount} questions prêtes
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    data-testid="studio-quiz-autofill-cat-all"
+                    aria-pressed={autoFillCategory === 'all'}
+                    onClick={() => {
+                      setAutoFillCategory('all');
+                      setAutoFillNotice(null);
+                    }}
+                    className={`h-7 px-2.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                      autoFillCategory === 'all'
+                        ? 'studio-pill-mint'
+                        : 'studio-pill-raised text-[#4F5551]'
+                    }`}
+                  >
+                    Toutes
+                  </button>
+                  {QUIZ_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      data-testid={`studio-quiz-autofill-cat-${cat.id}`}
+                      aria-pressed={autoFillCategory === cat.id}
+                      onClick={() => {
+                        setAutoFillCategory(cat.id);
+                        setAutoFillNotice(null);
+                      }}
+                      className={`h-7 px-2.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                        autoFillCategory === cat.id
+                          ? 'studio-pill-mint'
+                          : 'studio-pill-raised text-[#4F5551]'
+                      }`}
+                    >
+                      {cat.shortLabel}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-bold text-[#565C58]">
+                    Nombre de questions à générer
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 p-1 rounded-full studio-well-inset text-[11px] font-bold tabular-nums">
+                    {[3, 5, 10, 15, 20].map((cnt) => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        data-testid={`studio-quiz-autofill-count-${cnt}`}
+                        aria-pressed={autoFillCount === cnt}
+                        onClick={() => {
+                          setAutoFillCount(cnt);
+                          setAutoFillNotice(null);
+                        }}
+                        className={`h-7 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                          autoFillCount === cnt
+                            ? 'studio-pill-mint'
+                            : 'text-[#4F5551] hover:text-[#1F2421]'
+                        }`}
+                      >
+                        {cnt} Q
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <button
+                    type="button"
+                    data-testid="studio-quiz-autofill-replace-btn"
+                    onClick={() => {
+                      const filled =
+                        onAutoFillQuiz?.({
+                          mode: 'replace',
+                          category: autoFillCategory,
+                          count: autoFillCount,
+                        }) || 0;
+                      setAutoFillNotice(
+                        filled > 0
+                          ? `${filled} question${filled > 1 ? 's' : ''} remplie${filled > 1 ? 's' : ''} automatiquement (sans IA).`
+                          : 'Aucune nouvelle question disponible pour cette sélection.'
+                      );
+                    }}
+                    className="flex-1 min-w-[165px] h-9 px-3 rounded-full studio-pill-mint text-xs font-bold inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  >
+                    <Zap className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Remplir {Math.min(autoFillCount, autoFillPoolCount)} question
+                      {Math.min(autoFillCount, autoFillPoolCount) > 1 ? 's' : ''}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    data-testid="studio-quiz-autofill-append-btn"
+                    onClick={() => {
+                      const added =
+                        onAutoFillQuiz?.({
+                          mode: 'append',
+                          category: autoFillCategory,
+                          count: autoFillCount,
+                        }) || 0;
+                      setAutoFillNotice(
+                        added > 0
+                          ? `${added} question${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''} sans doublon.`
+                          : 'Toutes les questions de ce thème sont déjà dans votre quiz.'
+                      );
+                    }}
+                    className="h-9 px-3 rounded-full studio-pill-raised text-xs font-semibold text-[#1F2421] inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Ajouter à la suite</span>
+                  </button>
+
+                  {blankQuestionsCount > 0 && (
+                    <button
+                      type="button"
+                      data-testid="studio-quiz-autofill-blanks-btn"
+                      onClick={() => {
+                        const filled =
+                          onAutoFillQuiz?.({
+                            mode: 'fill_blanks',
+                            category: autoFillCategory,
+                            count: blankQuestionsCount,
+                          }) || 0;
+                        setAutoFillNotice(
+                          filled > 0
+                            ? `${filled} champ${filled > 1 ? 's' : ''} vide${filled > 1 ? 's' : ''} complété${filled > 1 ? 's' : ''} automatiquement.`
+                            : 'Aucun champ vide à compléter.'
+                        );
+                      }}
+                      className="w-full h-8 px-3 rounded-full bg-[#E3F3EC] border border-[#1B573E]/30 text-[11px] font-bold text-[#1B573E] inline-flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <RefreshCw className="w-3 h-3 shrink-0" />
+                      <span>
+                        {blankQuestionsCount === 1
+                          ? 'Compléter la question vide'
+                          : `Compléter les ${blankQuestionsCount} questions vides`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {autoFillNotice && (
+              <div
+                data-testid="studio-quiz-autofill-notice"
+                className="rounded-xl bg-[#E3F3EC] border border-[#1B573E]/25 px-3 py-2 text-[11px] font-semibold text-[#1B573E]"
+              >
+                {autoFillNotice}
+              </div>
             )}
           </div>
         )}
@@ -849,7 +1310,7 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
               >
                 {/* Question Header + Quick Placement Buttons */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => onJumpToQuestion?.(index)}
@@ -884,6 +1345,39 @@ export const QuizBuilderPanel: React.FC<QuizBuilderPanelProps> = ({
                       <Mic className="w-2.5 h-2.5 shrink-0" />
                       <span>+ Après Q{index + 1}</span>
                     </button>
+
+                    {onAutoFillSingleQuestion && (
+                      <button
+                        type="button"
+                        data-testid={`studio-quiz-autofill-single-${index}`}
+                        onClick={() => {
+                          onAutoFillSingleQuestion(
+                            q.id,
+                            isAutoFillOpen ? autoFillCategory : q.category
+                          );
+                          onJumpToQuestion?.(index);
+                        }}
+                        aria-label={`Remplir automatiquement la question ${index + 1}`}
+                        title="Remplir automatiquement cette question sans IA"
+                        className={`h-6 px-2 rounded-full text-[10.5px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap transition-all ${
+                          isBlankOrPlaceholderQuizQuestion(q)
+                            ? 'studio-pill-mint'
+                            : 'studio-pill-raised text-[#1B573E]'
+                        }`}
+                      >
+                        {isBlankOrPlaceholderQuizQuestion(q) ? (
+                          <>
+                            <Zap className="w-2.5 h-2.5 shrink-0" />
+                            <span>Remplir</span>
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-2.5 h-2.5 shrink-0" />
+                            <span>Autre</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {questions.length > 1 && (

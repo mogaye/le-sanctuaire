@@ -160,6 +160,12 @@
       "signups": 0,
       "paidUpgrades": 0,
       "videosCreated": 0
+    },
+    "2026-11-23": {
+      "visits": 9,
+      "signups": 0,
+      "paidUpgrades": 0,
+      "videosCreated": 0
     }
   },
   "knownVisitSessions": [
@@ -205,6 +211,15 @@
     "2026-11-22_sess-mwscn9po-z3zgsq",
     "2026-11-22_sess-mwscn9po-z3zgsq",
     "2026-11-22_sess-mwscov3u-togaqk",
-    "2026-11-22_sess-mwscov3u-togaqk"
+    "2026-11-22_sess-mwscov3u-togaqk",
+    "2026-11-23_sess-mwt9u1r9-tvzq0b",
+    "2026-11-23_sess-mwt9zzci-wljcsc",
+    "2026-11-23_sess-mwta0rdl-8n21hx",
+    "2026-11-23_sess-mwta1975-i1nic0",
+    "2026-11-23_sess-mwta1p3s-5gc6uk",
+    "2026-11-23_sess-mwta3jwi-az0d51",
+    "2026-11-23_sess-mwta5iyb-n4wdr0",
+    "2026-11-23_sess-mwta6duu-8g7c5b",
+    "2026-11-23_sess-mwtafsnk-6xzxy7"
   ]
 }
